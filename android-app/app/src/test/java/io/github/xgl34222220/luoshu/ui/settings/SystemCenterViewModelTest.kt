@@ -69,4 +69,12 @@ class SystemCenterViewModelTest {
         assertFalse(state.loading)
         assertEquals(HealthLevel.HEALTHY, state.level)
     }
+
+    @Test
+    fun updateChannelWithoutPublishedZipDoesNotOfferAnUpstreamPackage() {
+        val info = OnlineUpdateInfo(version = "v2.0.0", versionCode = 70000, releasePending = true)
+        assertFalse(info.available)
+        assertFalse(info.hasUpdate)
+        assertTrue(info.releasePending)
+    }
 }

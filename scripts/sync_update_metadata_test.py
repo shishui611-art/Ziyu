@@ -24,38 +24,26 @@ assert meta == {
     "changelog": "https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/v4.0.0/RELEASE_NOTES_v4.0.0.md",
 }
 
-# Published channels may lag module.prop until signed assets are available.
+# This ColorOS fork has no published artifacts yet. Its update feeds must stay
+# on the current module version and must never direct users to upstream assets.
+module_props = dict(
+    line.split("=", 1)
+    for line in (ROOT / "module.prop").read_text(encoding="utf-8").splitlines()
+    if "=" in line
+)
+assert module_props.get("updateJson") == "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/update.json"
+app_update_source = (
+    ROOT / "android-app" / "app" / "src" / "main" / "java" / "io" / "github"
+    / "xgl34222220" / "luoshu" / "ui" / "settings" / "SystemCenterViewModel.kt"
+).read_text(encoding="utf-8")
+assert 'https://raw.githubusercontent.com/shishui611-art/Ziyu/main/$file' in app_update_source
+assert 'https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/main/$file' not in app_update_source
 for metadata_file in ("update.json", "update-prerelease.json"):
     actual = json.loads((ROOT / metadata_file).read_text(encoding="utf-8"))
-    version = actual['version']
-    assert isinstance(version, str) and version.startswith('v')
-    assert mod.artifact_version(version) == version
-    assert isinstance(actual['versionCode'], int) and actual['versionCode'] > 0
-    release_tag = actual['zipUrl'].split('/releases/download/', 1)[1].split('/', 1)[0]
-    assert release_tag in (version, 'refactor-' + version), (metadata_file, release_tag)
-    notes_file = f"RELEASE_NOTES_{release_tag}.md"
-    assert (ROOT / notes_file).is_file(), (metadata_file, notes_file)
-    expected = mod.build_metadata(
-        repository="xgl34222220-ops/LuoShu", version=version,
-        version_code=actual['versionCode'], tag=release_tag, notes_file=notes_file,
-    )
-
-    # A withdrawn release may deliberately pin the update channel to the last
-    # known-good signed asset while sending users to the withdrawal notice
-    # instead of that old release's ordinary notes. Keep this exception narrow:
-    # asset identity/version metadata must still match the real release exactly.
-    withdrawal_notice = (
-        "https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/"
-        "main/docs/WITHDRAWN_2.0.0.md"
-    )
-    if actual.get("changelog") == withdrawal_notice:
-        assert (ROOT / "docs" / "WITHDRAWN_2.0.0.md").is_file()
-        assert version == "v1.1.1", (metadata_file, version)
-        assert actual["versionCode"] == 60101, (metadata_file, actual["versionCode"])
-        assert release_tag == "refactor-v1.1.1", (metadata_file, release_tag)
-        assert actual["zipUrl"] == expected["zipUrl"], (metadata_file, actual)
-    else:
-        assert actual == expected, (metadata_file, actual)
+    assert actual["version"] == module_props["version"], (metadata_file, actual)
+    assert actual["versionCode"] == int(module_props["versionCode"]), (metadata_file, actual)
+    assert actual["zipUrl"] == "", (metadata_file, actual)
+    assert actual["changelog"] == "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/CHANGELOG.md"
 
 for kwargs in (
     dict(repository="bad", version="v1", version_code=1, tag="v1", notes_file="n"),

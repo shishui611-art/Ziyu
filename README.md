@@ -6,12 +6,12 @@
 
 适用于 **Magisk · KernelSU · SukiSU Ultra · APatch**
 
-[![Fork](https://img.shields.io/badge/repository-ColorOS17%20fork-blue)](https://github.com/shishui611-art/LuoShu-ColorOS17)
+[![Fork](https://img.shields.io/badge/repository-ColorOS17%20fork-blue)](https://github.com/shishui611-art/Ziyu)
 [![Upstream Release](https://img.shields.io/github/v/release/xgl34222220-ops/LuoShu?display_name=release&label=上游正式版)](https://github.com/xgl34222220-ops/LuoShu/releases/latest)
-[![Build](https://github.com/shishui611-art/LuoShu-ColorOS17/actions/workflows/build.yml/badge.svg)](https://github.com/shishui611-art/LuoShu-ColorOS17/actions/workflows/build.yml)
+[![Build](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml/badge.svg)](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-orange)](LICENSE)
 
-[上游正式版下载](https://github.com/xgl34222220-ops/LuoShu/releases/latest) · [使用教程](docs/USER_GUIDE.md) · [真机验证状态](docs/TEST_MATRIX.md) · [在本 fork 反馈问题](https://github.com/shishui611-art/LuoShu-ColorOS17/issues)
+[本 fork 的 Releases](https://github.com/shishui611-art/Ziyu/releases) · [使用教程](docs/USER_GUIDE.md) · [真机验证状态](docs/TEST_MATRIX.md) · [联系维护者（酷安）](https://www.coolapk.com/u/28601616)
 
 </div>
 
@@ -45,7 +45,7 @@
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/xgl34222220-ops/LuoShu/releases/latest) 下载最新 `LuoShu-v*.zip`。
+1. 从 [本 fork 的 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载本 fork 发布的 `LuoShu-v*.zip`；当前尚无发布包时，请从源码构建。
 2. **关闭 Root 管理器中的「默认卸载模块」功能。**
 3. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入模块。
 4. 完整重启手机。
@@ -217,7 +217,7 @@ sh ./scripts/build.sh
 
 ## Fork 与维护
 
-本仓库由 **酷安 @柔性体** 维护，基于 [LuoShu 上游仓库](https://github.com/xgl34222220-ops/LuoShu) 继续适配 ColorOS 17。上游的正式版下载仍见 [上游 Releases](https://github.com/xgl34222220-ops/LuoShu/releases)；本 fork 的问题反馈请提交到[此仓库的 Issues](https://github.com/shishui611-art/LuoShu-ColorOS17/issues)。
+本仓库由 **酷安 @柔性体** 维护，基于 [LuoShu 上游仓库](https://github.com/xgl34222220-ops/LuoShu) 继续适配 ColorOS 17。在线更新只查询本 fork 的更新清单；本 fork 尚未发布 ZIP/APK 时不会提供下载。问题反馈可通过[酷安主页](https://www.coolapk.com/u/28601616)联系维护者。
 
 ## 文档
 

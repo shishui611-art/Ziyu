@@ -104,6 +104,7 @@ internal data class OnlineUpdateInfo(
     val sha256: String = "",
     val appUrl: String = "",
     val appSha256: String = "",
+    val releasePending: Boolean = false,
 ) {
     val currentVersionCode: Int get() = BuildConfig.VERSION_CODE / 100
     val available: Boolean get() = versionCode > 0 && zipUrl.isNotBlank()
@@ -240,12 +241,21 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
 
     private suspend fun fetchUpdateInfo(channel: UpdateChannel): OnlineUpdateInfo = withContext(Dispatchers.IO) {
         val file = if (channel == UpdateChannel.PRERELEASE) "update-prerelease.json" else "update.json"
-        val metadataUrl = "https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/main/$file"
+        val metadataUrl = "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/$file"
         val root = JSONObject(fetchText(metadataUrl, "application/json"))
         currentCoroutineContext().ensureActive()
         val zipUrl = root.optString("zipUrl").trim()
         val versionCode = root.optInt("versionCode", 0)
-        require(versionCode > 0 && zipUrl.startsWith("https://")) { "更新元数据不完整" }
+        require(versionCode > 0 && (zipUrl.isBlank() || zipUrl.startsWith("https://"))) { "更新元数据不完整" }
+        val changelogUrl = root.optString("changelog").trim()
+        if (zipUrl.isBlank()) {
+            return@withContext OnlineUpdateInfo(
+                version = root.optString("version").trim(),
+                versionCode = versionCode,
+                changelogUrl = changelogUrl,
+                releasePending = true,
+            )
+        }
 
         val appUrl = deriveAppUrl(zipUrl)
         val moduleSha = runCatching { fetchPublishedSha256("$zipUrl.sha256") }.getOrDefault("")
@@ -260,7 +270,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
             version = root.optString("version").trim(),
             versionCode = versionCode,
             zipUrl = zipUrl,
-            changelogUrl = root.optString("changelog").trim(),
+            changelogUrl = changelogUrl,
             sha256 = moduleSha,
             appUrl = appUrl,
             appSha256 = appSha,

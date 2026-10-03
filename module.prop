@@ -5,5 +5,5 @@ versionCode=70000
 versionSeries=refactor
 author=@酷安 柔性体
 description=优先适配 ColorOS 17 字体路径与状态栏数字，保留字域原生 App、自挂载及其他 Android 系统兼容 源于洛书
-updateJson=https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/main/update.json
+updateJson=https://raw.githubusercontent.com/shishui611-art/Ziyu/main/update.json
 actionIcon=icon/icon.png

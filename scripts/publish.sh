@@ -11,9 +11,9 @@ fi
 
 REMOTE=$(git remote get-url origin 2>/dev/null || true)
 case "$REMOTE" in
-  *xgl34222220-ops/LuoShu*) ;;
+  *shishui611-art/Ziyu*) ;;
   *)
-    echo "当前目录不是 xgl34222220-ops/LuoShu 仓库：$REMOTE" >&2
+    echo "当前目录不是 shishui611-art/Ziyu 仓库：$REMOTE" >&2
     exit 1
     ;;
 esac

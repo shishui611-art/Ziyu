@@ -4,7 +4,7 @@
 
 ## 1. 下载正确文件
 
-只从仓库的 [Latest Release](https://github.com/xgl34222220-ops/LuoShu/releases/latest) 下载正式版。
+只从本 fork 的 [Releases](https://github.com/shishui611-art/Ziyu/releases) 下载正式版；如果尚无发布包，请等待 fork 发布或自行从源码构建。不要用上游仓库的包覆盖本 fork 的更新通道。
 
 正式 Release 包含：
 
