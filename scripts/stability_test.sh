@@ -149,7 +149,7 @@ grep -q '已保留当前字体负载' "$ROOT/customize.sh"
 sh "$ROOT/scripts/module_update_state_test.sh"
 
 # 所有字体卡片必须使用同一套短双行样张，任何字体字宽都不得把第二行挤掉。
-grep -q '洛书字体 Aa' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
+grep -q '字域字体 Aa' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
 grep -q '中文 ABC 123' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
 ! grep -q '中文 English 0123456789' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
 # 导入按钮不得裁掉“体”，复合收尾不得对硬链接别名重复读取大字体。

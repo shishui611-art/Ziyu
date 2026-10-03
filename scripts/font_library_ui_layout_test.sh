@@ -79,7 +79,7 @@ grep -q '继续调整当前字体' "$HOME_COMPACT"
 grep -q '打开任务中心查看错误原因' "$HOME_COMPACT"
 ! grep -q 'QUICK ACCESS' "$HOME_COMPACT"
 ! grep -q 'bottom = 108.dp' "$HOME_ROUTE"
-grep -q 'LuoShuTopBar(title = "洛书")' "$HOME_COMPACT"
+grep -q 'LuoShuTopBar(title = "字域")' "$HOME_COMPACT"
 ! grep -q 'FONT ENGINE' "$HOME_COMPACT"
 ! grep -q 'FONT LIBRARY' "$COMPACT"
 ! grep -q 'TASK CENTER' "$LOGS_COMPACT"
@@ -156,11 +156,11 @@ grep -q 'opticalScale = 1.08f' "$STUDIO_TOOLS"
 ! grep -q 'align(Alignment.BottomStart)' "$STUDIO_ROUTE"
 ! grep -q 'align(Alignment.BottomCenter)' "$STUDIO_ROUTE"
 [ "$(grep -c 'padding(bottom = dockClearance)' "$SHELL")" -eq 5 ]
-grep -q 'val edgeToEdgeGlass = appearance.uiStyle == UiStyle.MIUIX' "$SHELL"
-grep -q 'edgeToEdgeGlass -> 0.dp' "$SHELL"
-grep -q 'navigationBottom + 94.dp' "$SHELL"
-grep -q 'val dockPaddingTarget = if (edgeToEdgeGlass)' "$SHELL"
-grep -q 'if (dockHiddenByScroll) 28.dp else 108.dp' "$SHELL"
+grep -q 'val miuix = appearance.uiStyle == UiStyle.MIUIX' "$SHELL"
+grep -q 'navigationBottom + if (dockHiddenByScroll) 28.dp else 84.dp' "$SHELL"
+grep -q 'val dockPaddingTarget = if (showDock)' "$SHELL"
+grep -q 'dockPaddingTarget' "$SHELL"
+grep -q 'if (dockHiddenByScroll) 28.dp else 84.dp' "$SHELL"
 grep -q 'Modifier.nestedScroll(dockScrollConnection)' "$SHELL"
 grep -q 'dockHideThresholdPx' "$SHELL"
 grep -q 'dockShowThresholdPx' "$SHELL"
@@ -174,21 +174,21 @@ grep -q 'private val dockPages' "$SHELL"
 sed -n '/private val dockPages = listOf(/,/^)/p' "$SHELL" | grep -q 'AppPage.Settings'
 ! sed -n '/private val dockPages = listOf(/,/^)/p' "$SHELL" | grep -q 'AppPage.Logs'
 grep -q 'val showDock = page != AppPage.Logs' "$SHELL"
-grep -q 'fontSize = 12.sp' "$SHELL"
+grep -q 'fontSize = LuoShuTypographyTokens.DockLabel' "$SHELL"
 grep -q 'LuoShuIconTokens.DockGlyph' "$SHELL"
 ! grep -q 'targetValue = if (selected) 21.dp else 19.dp' "$SHELL"
 grep -q 'private fun MiuixAppDock' "$SHELL"
 MIUIX_DOCK=$(sed -n '/private fun MiuixAppDock/,/private fun AppDockLayout/p' "$SHELL")
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'hazeEffect'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'blurRadius = 30.dp'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'blurRadius = LuoShuGlassTokens.BlurRadius'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'noiseFactor = .018f'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'RoundedCornerShape(31.dp)'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'LuoShuShapeTokens.Pill'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'activeGlass'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'Color.White.copy(alpha = .22f)'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'LuoShuGlassTokens.DarkHighlightAlpha'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'drawRoundRect'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'indicatorColor = scheme.primary.copy'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'indicatorShadow = 3.dp'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'itemHeight = 60.dp'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'indicatorShadow = 1.dp'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'itemHeight = 56.dp'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'runtimeLiquid'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'Modifier.layerBackdrop(dockSurfaceBackdrop)'
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'Modifier.drawBackdrop'
@@ -235,10 +235,10 @@ grep -q 'LuoShuLayoutTokens.FloatingDockSafeBottom' "$COMPACT"
 grep -q 'controlsBottomPadding + 28.dp' "$LOGS_COMPACT"
 grep -q 'onSizeChanged { importControlsHeight = it.height }' "$LOGS_ROUTE"
 grep -q 'CompactStatusCell' "$HOME_COMPACT"
-grep -q "self-mount) printf '洛书自挂载'" "$APP_BRIDGE"
+grep -q "self-mount) printf '字域自挂载'" "$APP_BRIDGE"
 grep -q 'mountSummary(h)' "$SETTINGS"
 grep -q 'selfMountSummary(h)' "$SETTINGS"
-grep -q 'RoundedCornerShape(24.dp)' "$SETTINGS"
+grep -q 'shape = LuoShuShapeTokens.Card' "$SETTINGS"
 grep -q 'heightIn(min = 64.dp)' "$SETTINGS"
 grep -q 'Role.Switch' "$SETTINGS"
 grep -q 'Switch(checked = checked, onCheckedChange = null' "$SETTINGS"
