@@ -43,7 +43,7 @@ for metadata_file in ("update.json", "update-prerelease.json"):
     assert actual["version"] == module_props["version"], (metadata_file, actual)
     assert actual["versionCode"] == int(module_props["versionCode"]), (metadata_file, actual)
     assert actual["zipUrl"] == "", (metadata_file, actual)
-    assert actual["changelog"] == "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/CHANGELOG.md"
+    assert actual["changelog"] == "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/RELEASE_NOTES_ziyu-v1.0.0.md"
 
 for kwargs in (
     dict(repository="bad", version="v1", version_code=1, tag="v1", notes_file="n"),

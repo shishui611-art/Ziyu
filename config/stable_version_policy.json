@@ -1,28 +1,25 @@
 {
-  "schema": "luoshu-stable-version-policy-v3",
-  "authorizedAt": "2026-09-28T13:25:11Z",
-  "series": "refactor",
+  "schema": "ziyu-stable-version-policy-v1",
+  "authorizedAt": "2026-10-03T00:00:00Z",
+  "series": "ziyu",
   "effectiveFrom": "v1.0.0",
-  "currentStable": "v2.0.0",
+  "currentStable": "v1.0.0",
   "firstRelease": "v1.0.0",
-  "nextStable": "v2.2.2",
+  "nextStable": "v1.1.1",
   "rule": "n.0.0 -> n.n.n -> (n+1).0.0; n is a positive integer",
   "examples": [
     "v1.0.0",
     "v1.1.1",
     "v2.0.0",
     "v2.2.2",
-    "v3.0.0",
-    "v3.3.3",
-    "v4.0.0",
-    "v4.4.4"
+    "v3.0.0"
   ],
   "versionSource": "module.prop",
-  "moduleVersionCode": "50000 + major*10000 + minor*100 + patch",
+  "moduleVersionCode": "70000 + major*10000 + minor*100 + patch",
   "appVersionCode": "moduleVersionCode*100 + 1",
-  "releaseTag": "refactor-v<major>.<minor>.<patch>",
-  "releaseHistoryPolicy": "Refactor series starts at refactor-v1.0.0; current stable is refactor-v2.0.0",
+  "releaseTag": "ziyu-v<major>.<minor>.<patch>",
+  "releaseHistoryPolicy": "The Ziyu fork starts its independent release line at ziyu-v1.0.0; versionCode remains above LuoShu 2.0.0 for in-place upgrades",
   "sourceCommitHistoryPreserved": true,
   "releaseRequiresUserRequest": true,
-  "cleanupAuthorization": "Historical cleanup authorization applied only to the refactor-v1.0.0 reset"
+  "cleanupAuthorization": "No release cleanup is authorized by this version reset"
 }

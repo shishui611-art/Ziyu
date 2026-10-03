@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 REFACTOR_OFFSET = 50000
+ZIYU_OFFSET = 70000
 
 
 def version_info(version: str, series: str = '') -> dict:
@@ -21,23 +22,26 @@ def version_info(version: str, series: str = '') -> dict:
     suffix = match[4]
     if minor >= 100 or patch >= 100:
         raise ValueError('次版本与修订号必须小于 100，避免升级编号冲突')
-    if series not in ('', 'legacy', 'refactor'):
+    if series not in ('', 'legacy', 'refactor', 'ziyu'):
         raise ValueError('未知发布系列')
     refactor = series == 'refactor'
-    if refactor and (major < 1 or (minor, patch) not in ((0, 0), (major, major))):
+    ziyu = series == 'ziyu'
+    if (refactor or ziyu) and (major < 1 or (minor, patch) not in ((0, 0), (major, major))):
         raise ValueError('重构版按 n.0.0 → n.n.n → (n+1).0.0 编号')
-    code = (REFACTOR_OFFSET if refactor else 0) + major * 10000 + minor * 100 + patch
+    offset = REFACTOR_OFFSET if refactor else ZIYU_OFFSET if ziyu else 0
+    code = offset + major * 10000 + minor * 100 + patch
     if code <= 0 or code * 100 + 1 > 2100000000:
         raise ValueError('内部升级编号超出 Android 发布范围')
     canonical = 'v' + version.removeprefix('v')
-    tag = ('refactor-' if refactor else '') + canonical
+    tag_prefix = 'refactor-' if refactor else 'ziyu-' if ziyu else ''
+    tag = tag_prefix + canonical
     next_stable = ''
-    if refactor:
+    if refactor or ziyu:
         next_stable = f'v{major}.{major}.{major}' if (minor, patch) == (0, 0) else f'v{major+1}.0.0'
     return {'version': canonical, 'series': series or 'legacy', 'versionCode': code,
             'appVersionCode': code * 100 + 1, 'tag': tag,
             'notesFile': f'RELEASE_NOTES_{tag}.md',
-            'title': ('洛书·重构版 ' + canonical[1:] if refactor else '洛书 ' + canonical),
+            'title': ('字域 ' + canonical[1:] if ziyu else '洛书·重构版 ' + canonical[1:] if refactor else '洛书 ' + canonical),
             'nextStable': next_stable, 'prerelease': suffix is not None}
 
 

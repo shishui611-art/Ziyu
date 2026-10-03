@@ -7,15 +7,15 @@
 适用于 **Magisk · KernelSU · SukiSU Ultra · APatch**
 
 [![Fork](https://img.shields.io/badge/repository-ColorOS17%20fork-blue)](https://github.com/shishui611-art/Ziyu)
-[![Upstream Release](https://img.shields.io/github/v/release/xgl34222220-ops/LuoShu?display_name=release&label=上游正式版)](https://github.com/xgl34222220-ops/LuoShu/releases/latest)
+[![Upstream Release](https://img.shields.io/github/v/release/xgl34222220-ops/LuoShu?display_name=release&label=LuoShu%20上游版本)](https://github.com/xgl34222220-ops/LuoShu/releases/latest)
 [![Build](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml/badge.svg)](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-orange)](LICENSE)
 
-[本 fork 的 Releases](https://github.com/shishui611-art/Ziyu/releases) · [使用教程](docs/USER_GUIDE.md) · [真机验证状态](docs/TEST_MATRIX.md) · [联系维护者（酷安）](https://www.coolapk.com/u/28601616)
+[字域 Releases（本 fork）](https://github.com/shishui611-art/Ziyu/releases) · [使用教程](docs/USER_GUIDE.md) · [真机验证状态](docs/TEST_MATRIX.md) · [联系维护者（酷安）](https://www.coolapk.com/u/28601616)
 
 </div>
 
-> **Fork 说明：**本仓库是 [LuoShu 上游项目](https://github.com/xgl34222220-ops/LuoShu) 的独立 fork，针对 ColorOS 17 做适配和维护。此 fork 维护者：**酷安 @柔性体**。上游源码及其许可证、版权声明仍按原项目保留。
+> **Fork 说明：**本仓库是 [LuoShu 上游项目](https://github.com/xgl34222220-ops/LuoShu) 的独立 fork，项目名为**字域（Ziyu）**，由酷安 **[@柔性体](https://www.coolapk.com/u/28601616)** 维护，重点适配 ColorOS 17，同时兼容其他 Android 系统。上游源码中的版权与许可证声明继续保留。
 
 ## 项目简介
 
@@ -23,11 +23,12 @@
 
 它不是简单把一个字体文件复制到几十个系统路径，而是先读取当前设备真实字体配置，再根据中文、英文、数字的角色分别生成和映射字体负载，尽量兼顾覆盖范围、字体度量、系统稳定性和存储占用。
 
-当前版本为 **2.0.0**，沿用重构系列。此版基于 1.1.1 和两轮无常驻修复，不包含 Test10 的大规模替换重构。
+字域在本 fork 中从 **v1.0.0** 开始独立编号。这个编号代表字域 fork 的版本，不等同于 LuoShu 上游的版本；模块和 App 的内部升级号保持递增，以支持覆盖安装。
 
 ## 主要能力
 
 - **中文 / 英文 / 数字独立选择**：可以分别指定三类字体，也可以直接使用同一字体。
+- **全局系统字重调节**：可预览、应用并恢复系统原值；字体自身的可变轴和多字重也可单独使用。
 - **复合字体生成**：以中文字体为完整基底，将英文和数字目标字形合入同一字体，减少缺字回退和字体抢占。
 - **设备自适应字体清单**：扫描当前 ROM 的实际字体目录、配置、字体槽、字重、TTC face 与字体度量，不依赖固定机型列表。
 - **HyperOS / ColorOS 适配**：针对 OEM 字体路由、状态栏/系统 UI、英文数字槽和回退链提供额外处理。
@@ -37,21 +38,25 @@
 - **字体缓存复用**：相同字体组合和设备契约可以复用已验证结果，减少重复生成。
 - **原生 Android App**：模块内置正式签名 App，同时提供独立 APK，不使用 WebUI。
 
-## 2.0.0 的边界
+## 首发与验证状态
 
-全局粗细滑块及系统粗细写入已移除，字体自己的可变轴、多字重和组合仍保留。字体生成采用有界任务监督，关闭独立后台预热和长期下载字体监视；后续新下载的 Google 字体不会被常驻自动补换。
+首发版本定为 **字域 v1.0.0**。本 fork 的安装包会发布在 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)；正式发布前此页面可能没有可下载附件。上游 LuoShu 的 Releases 仅供查看上游历史，不能代替字域安装包。
 
-刷写页只展示真实任务阶段，等待重启与当前生效分开。主机测试不能代替 Android 真机验证；状态栏、锁屏、首次耗时及已报告的 Chrome／体育彩票闪退仍需要对应机型复测。详见 [发布说明](RELEASE_NOTES_refactor-v2.0.0.md)。
+Release 发布流程验证模块 ZIP、独立 APK 和 SHA-256 后，会自动同步本 fork 的 `update.json`。App 的“检查更新”读取这份清单，显示 Release 版本并提供对应下载；没有已验证的 Release 资产时，不会显示可下载更新。
+
+设备适配仍以 [真机验证矩阵](docs/TEST_MATRIX.md) 为准。自动化构建通过不代表已经在所有 ROM、Root 管理器和机型上完成验证；遇到未列出的设备时，请先保留可卸载/恢复路径，再反馈诊断信息。
 
 ## 快速开始
 
-1. 从 [本 fork 的 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载本 fork 发布的 `LuoShu-v*.zip`；当前尚无发布包时，请从源码构建。
+1. 字域首发 Release 发布后，从 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载模块 ZIP；发布前页面没有安装包，请勿用 LuoShu 上游包代替。
 2. **关闭 Root 管理器中的「默认卸载模块」功能。**
 3. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入模块。
 4. 完整重启手机。
 5. 安装模块内置 App，或安装 Release 中的独立 APK。
 6. 在 App 中导入字体，选择中文、英文和数字字体。
 7. 应用字体，等待任务完成后按提示完整重启。
+
+**签名说明：**字域 fork 使用独立的正式签名，不能覆盖安装 LuoShu 上游签名的 App。若设备已安装上游 App，安装字域 App 前需先卸载上游 App；卸载可能清除 App 本地数据。字域后续版本必须继续使用同一签名密钥。
 
 > 不需要安装额外挂载模块，也不需要手工修改 `fonts.xml`。
 
@@ -183,23 +188,31 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 
 ## 版本规则
 
-重构系列从 **1.0.0** 开始：
+字域 fork 的版本线从 **1.0.0** 开始，后续按项目策略递增：
 
 ```text
 1.0.0 → 1.1.1 → 2.0.0 → 2.2.2 → 3.0.0 → 3.3.3 → ...
 ```
 
-当前正式版本：**2.0.0**。
+当前版本号与是否已发布，以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 和模块信息为准；上游 LuoShu 版本号不会代替本 fork 的版本号。
 
 ## 从源码构建
 
+正式版由 GitHub Actions 完成固定证书签名、测试和 ZIP 打包。不要把本地 Debug APK 当作正式版上传。
+
+本地开发测试需先构建 Debug App，再把 APK 显式交给模块打包脚本：
+
 ```sh
+cd android-app
+gradle --no-daemon :app:assembleDebug
+cd ..
 sh ./scripts/prepare_composite_runtime.sh
 sh ./scripts/check.sh
-sh ./scripts/build.sh
+LUOSHU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
+LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 ```
 
-正式 Release 使用固定证书构建；模块内置 App 与独立 APK 必须保持一致。
+模块打包步骤需在配置好 Android SDK/NDK 的 Linux 环境运行。Debug App 使用独立测试包名，不能覆盖安装正式 App；正式 Release 使用固定证书构建，模块内置 App 与独立 APK 必须保持一致。
 
 ## 问题反馈
 
@@ -214,10 +227,6 @@ sh ./scripts/build.sh
 - 已检查隐私信息的字域诊断报告。
 
 请不要上传没有授权的商业字体文件。
-
-## Fork 与维护
-
-本仓库由 **酷安 @柔性体** 维护，基于 [LuoShu 上游仓库](https://github.com/xgl34222220-ops/LuoShu) 继续适配 ColorOS 17。在线更新只查询本 fork 的更新清单；本 fork 尚未发布 ZIP/APK 时不会提供下载。问题反馈可通过[酷安主页](https://www.coolapk.com/u/28601616)联系维护者。
 
 ## 文档
 
@@ -236,10 +245,4 @@ sh ./scripts/build.sh
 
 ---
 
-<div align="center">
-
-**维护者：酷安 @柔性体**
-
-如果字域对你有帮助，欢迎 Star、反馈真机结果或提交改进建议。
-
-</div>
+维护者：酷安 [@柔性体](https://www.coolapk.com/u/28601616)。欢迎反馈真机结果或提交改进建议。

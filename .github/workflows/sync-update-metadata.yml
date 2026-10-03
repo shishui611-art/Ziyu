@@ -47,6 +47,7 @@ jobs:
           tag="$artifact_version"
           case "$version_series" in
             refactor) tag="refactor-$artifact_version" ;;
+            ziyu) tag="ziyu-$artifact_version" ;;
             ''|legacy) ;;
             *) echo 'Unknown release series' >&2; exit 2 ;;
           esac

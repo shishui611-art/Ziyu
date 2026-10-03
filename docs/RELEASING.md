@@ -2,17 +2,17 @@
 
 `module.prop` 是模块、原生 App 与产物名称的唯一版本源。修改版本后，验证工作流会编译原生 App、运行模块检查并生成测试模块；它不会自动创建测试版 Release。
 
-## 重构系列正式版本编号（2026-09-13T04:47:32Z 起）
+## 字域 fork 正式版本编号
 
-维护者本次指定重新从 **重构版 1.0.0** 起算：**1.0.0 → 1.1.1 → 2.0.0 → 2.2.2 → 3.0.0 → 3.3.3**。规则仍为 `n.0.0 → n.n.n → (n+1).0.0`，本次 currentStable 为 v1.0.0，nextStable 为 v1.1.1；旧的“下一正式版 5.0.0”计划已被替代。
+LuoShu 上游的重构系列历史仍使用 `refactor-v*`。字域 fork 从 **v1.0.0** 开始一条独立版本线：`v1.0.0 → v1.1.1 → v2.0.0 → v2.2.2 → v3.0.0`，规则为 `n.0.0 → n.n.n → (n+1).0.0`。字域 tag 使用 `ziyu-v*`，不覆盖上游或既有重构版标签。
 
-`module.prop` 写入 `versionSeries=refactor`，显示版本只写 v1.0.0，不加 Beta/RC。内部版本代码不能重置：固定采用 `50000 + major*10000 + minor*100 + patch`；App 为 `moduleVersionCode*100 + 1`。1.0.0 对应 60000 / 6000001，高于已交付 4.4.4 (40404 / 4040401) 和 5.0.0-Beta1 (50000 / 5000001)。1.1.1 对应 60101，2.0.0 对应 70000，2.2.2 对应 70202。旧系列没有此属性时保留原公式。
+`module.prop` 对字域首发写入 `versionSeries=ziyu`，显示版本为 v1.0.0。内部升级代码必须高于上游已交付的 70000：字域采用 `70000 + major*10000 + minor*100 + patch`；App 为 `moduleVersionCode*100 + 1`。v1.0.0 对应 80000 / 8000001，v1.1.1 对应 80101。旧 `refactor` 系列仍使用 50000 偏移，legacy 版本公式不变。
 
 `release_version_policy.py` 统一校验编号和系列；发布门禁不再把“显示版本重置”误报为内部编号错误。App 包名、模块 ID、固定签名和数据路径不得随重编号改变，安装时不得要求用户卸载或清除数据。
 
-新系列标签独立为 **refactor-v1.0.0**，发布说明为 **RELEASE_NOTES_refactor-v1.0.0.md**；附件沿用 **LuoShu-v1.0.0.zip / LuoShu-App-v1.0.0.apk**。以后 refactor-v4.0.0 不得覆盖旧 v4.0.0。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是将显示字符串与旧 4.x/5.x 比大小。
+字域首发标签为 **ziyu-v1.0.0**，发布说明为 **RELEASE_NOTES_ziyu-v1.0.0.md**；附件沿用构建器命名 **LuoShu-v1.0.0.zip / LuoShu-App-v1.0.0.apk**。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是比较不同项目的显示版本字符串。
 
-同步更新 `config/stable_version_policy.json` 的 currentStable / nextStable、module.prop、version_notes.conf 与本版说明；只有明确发布请求才创建 Release。本次不删除任何额外旧版本。
+同步更新 `config/stable_version_policy.json` 的 currentStable / nextStable、module.prop、version_notes.conf 与本版说明；只有明确发布请求才创建 Release。本次版本线重置不删除任何旧版本或标签。
 
 ## 首次配置固定 App 签名
 
@@ -23,7 +23,7 @@
 - `LUOSHU_KEY_ALIAS`：签名别名；
 - `LUOSHU_KEY_PASSWORD`：签名私钥密码。
 
-密钥库和密码不可提交到仓库。正式 App 必须长期使用同一把密钥，否则 Android 会拒绝覆盖安装。发布工作流将最终 APK 的证书 SHA-256 与固定证书 `e0043b560a10111d3ffddd3a7afba680b854e14ed793c7a3fdb7f8b7aa95ff27` 精确比较，并要求只有一个 signer；换错证书会阻断发布。
+密钥库和密码不可提交到仓库。本 fork 使用独立的字域签名密钥，正式 App 必须长期使用同一把密钥，否则 Android 会拒绝覆盖安装。证书 SHA-256 固定为 `ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468`；发布工作流会精确校验此指纹并要求只有一个 signer。该签名与 LuoShu 上游不同，已安装的上游 App 不能直接覆盖安装此 fork；安装前需卸载上游 App，卸载可能清除 App 本地数据。必须备份原始签名库和密码；遗失后无法为现有字域安装续签更新。
 
 ## 候选版本门禁
 
@@ -35,7 +35,7 @@
 
 ## 发布步骤
 
-1. 整理发布分支，使用上述正式编号，确认同名发布说明，例如 `RELEASE_NOTES_refactor-v1.0.0.md`。
+1. 整理发布分支，使用上述正式编号，确认同名发布说明，例如 `RELEASE_NOTES_ziyu-v1.0.0.md`。
 2. 稳定版不含 Alpha、Beta、RC，不含 prerelease 标记；提高 versionCode，保持 module.prop 为唯一版本源。
 3. 默认要求最低真机矩阵有证据。维护者明确授权某一版本在矩阵仍待测时正式发布，可以使用既有 `config/stable_release_authorization.conf`，必须绑定该版本，不得写成长期通用豁免，也不得把待测记录改成通过。
 4. 合并 main 后，Publish signed release 重新运行源码检查、App lint / 单元测试、固定签名、证书、单模块成品和发布门禁，再创建 GitHub Release。

@@ -3,12 +3,14 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+SH = shutil.which('sh') or 'sh'
 sys.path.insert(0, str(ROOT / 'scripts'))
 from release_version_policy import version_info, read_properties
 from sync_update_metadata import build_metadata, advance_fallback_channel
@@ -47,7 +49,7 @@ class RefactorVersionTest(unittest.TestCase):
         self.assertEqual(version_info('v4.4.4')['tag'], 'v4.4.4')
 
     def test_unknown_series_or_malformed_or_unrequested_number_rejected(self):
-        for series, version in [('other','v1.0.0'), ('refactor','v1.0.1'), ('refactor','v2.1.1'), ('refactor','v0.0.0'), ('refactor','v01.0.0'), ('refactor','v1.0.0;echo bad'), ('refactor','v1.0'), ('','v1.100.0'), ('','v999999.0.0')]:
+        for series, version in [('other','v1.0.0'), ('refactor','v1.0.1'), ('refactor','v2.1.1'), ('refactor','v0.0.0'), ('refactor','v01.0.0'), ('refactor','v1.0.0;echo bad'), ('refactor','v1.0'), ('ziyu','v1.0.1'), ('','v1.100.0'), ('','v999999.0.0')]:
             with self.subTest(series=series, version=version):
                 with self.assertRaises(ValueError):
                     version_info(version, series)
@@ -78,10 +80,10 @@ class RefactorVersionTest(unittest.TestCase):
         policy=json.loads((ROOT/'config/stable_version_policy.json').read_text())
         self.assertEqual(policy['currentStable'],info['version'])
         self.assertEqual(policy['nextStable'],info['nextStable'])
-        result=subprocess.run(['sh','-c','. ./scripts/version.sh; printf "%s|%s|%s|%s" "$LUOSHU_VERSION" "$LUOSHU_RELEASE_TAG" "$LUOSHU_RELEASE_NOTES" "$LUOSHU_APP_VERSION_CODE"'],cwd=ROOT,capture_output=True,text=True,check=True)
+        result=subprocess.run([SH,'-c','. ./scripts/version.sh; printf "%s|%s|%s|%s" "$LUOSHU_VERSION" "$LUOSHU_RELEASE_TAG" "$LUOSHU_RELEASE_NOTES" "$LUOSHU_APP_VERSION_CODE"'],cwd=ROOT,capture_output=True,text=True,encoding='utf-8',errors='replace',check=True)
         self.assertEqual(result.stdout,f"{info['version']}|{info['tag']}|{info['notesFile']}|{info['appVersionCode']}")
         self.assertTrue((ROOT/info['notesFile']).is_file())
-        self.assertNotIn('<!-- prerelease -->',(ROOT/info['notesFile']).read_text())
+        self.assertNotIn('<!-- prerelease -->',(ROOT/info['notesFile']).read_text(encoding='utf-8'))
 
     def test_metadata_uses_refactor_assets_and_advances_both_old_channels(self):
         info=version_info('v1.0.0','refactor')
@@ -100,9 +102,38 @@ class RefactorVersionTest(unittest.TestCase):
     def test_actual_readiness_gate_recognizes_epoch(self):
         with tempfile.TemporaryDirectory() as d:
             current = read_properties(ROOT/'module.prop')['version']
-            subprocess.run(['sh','scripts/pre_release_readiness.sh','--target',current,'--enforce','--output',d],cwd=ROOT,check=True,capture_output=True,text=True)
-            report=json.loads((Path(d)/'readiness.json').read_text())
+            subprocess.run([SH,'scripts/pre_release_readiness.sh','--target',current,'--enforce','--output',d],cwd=ROOT,check=True,capture_output=True,text=True,encoding='utf-8',errors='replace')
+            report=json.loads((Path(d)/'readiness.json').read_text(encoding='utf-8'))
             self.assertEqual(next(x for x in report['checks'] if x['id']=='version-code')['severity'],'ready')
+
+
+class ZiyuForkVersionTest(unittest.TestCase):
+    def test_fork_has_an_independent_1_0_release_line_and_monotonic_codes(self):
+        versions = ('v1.0.0', 'v1.1.1', 'v2.0.0', 'v2.2.2')
+        infos = [version_info(version, 'ziyu') for version in versions]
+        self.assertEqual([item['versionCode'] for item in infos], [80000, 80101, 90000, 90202])
+        self.assertTrue(all(a['versionCode'] < b['versionCode'] for a, b in zip(infos, infos[1:])))
+        self.assertTrue(all(item['versionCode'] > 70000 for item in infos))
+        self.assertEqual(infos[0]['tag'], 'ziyu-v1.0.0')
+        self.assertEqual(infos[0]['title'], '字域 1.0.0')
+        self.assertEqual(infos[0]['nextStable'], 'v1.1.1')
+
+    def test_ziyu_metadata_targets_this_fork_and_its_release(self):
+        info = version_info('v1.0.0', 'ziyu')
+        metadata = build_metadata(repository='shishui611-art/Ziyu', version=info['version'],
+                                  version_code=info['versionCode'], tag=info['tag'],
+                                  notes_file=info['notesFile'])
+        self.assertIn('/ziyu-v1.0.0/LuoShu-v1.0.0.zip', metadata['zipUrl'])
+        self.assertEqual(metadata['versionCode'], 80000)
+
+    def test_repository_properties_match_ziyu_first_release(self):
+        props = read_properties(ROOT / 'module.prop')
+        self.assertEqual(props['version'], 'v1.0.0')
+        self.assertEqual(props['versionSeries'], 'ziyu')
+        info = version_info(props['version'], props['versionSeries'])
+        self.assertEqual(int(props['versionCode']), info['versionCode'])
+        self.assertEqual(info['tag'], 'ziyu-v1.0.0')
+        self.assertTrue((ROOT / info['notesFile']).is_file())
 
 
 if __name__ == '__main__':
