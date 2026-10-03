@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v2.0.0 原生 App 核心桥：状态、字体库、导入、预览、切换与复合任务接口。
+# 字域 v2.0.0 原生 App 核心桥：状态、字体库、导入、预览、切换与复合任务接口。
 set +e
 
 MODDIR="${MODDIR:-}"
@@ -59,17 +59,17 @@ root_manager() {
 mount_engine() {
     if type luoshu_detect_mount_engine >/dev/null 2>&1; then
         case "$(luoshu_detect_mount_engine)" in
-            self-mount) printf '洛书自挂载' ;;
+            self-mount) printf '字域自挂载' ;;
             magic-mount|magic-mount-rs) printf 'Magic Mount' ;;
             mountify) printf 'Mountify' ;;
             meta-overlayfs|dual-dir-metamodule) printf 'Meta OverlayFS' ;;
             hybrid-mount) printf 'Hybrid Mount' ;;
             native-module-mount) printf 'Root 原生挂载' ;;
-            *) printf '洛书自挂载' ;;
+            *) printf '字域自挂载' ;;
         esac
         return
     fi
-    printf '洛书自挂载'
+    printf '字域自挂载'
 }
 
 select_task_file() {

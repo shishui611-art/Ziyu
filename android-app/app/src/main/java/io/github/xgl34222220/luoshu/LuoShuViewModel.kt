@@ -92,10 +92,10 @@ internal data class ModuleSnapshot(
             else -> when (verificationReason) {
                 "self-mount-not-visible" -> "开机挂载未完整生效，系统已安全使用默认字体"
                 "self-mount-failed" -> "本次启动的原子挂载事务失败，已完整回滚到系统字体"
-                "self-mount-invalid-backend" -> "检测到不受支持的挂载后端，洛书没有提交字体负载"
+                "self-mount-invalid-backend" -> "检测到不受支持的挂载后端，字域没有提交字体负载"
                 "self-mount-manifest-missing" -> "本次启动的字体与配置挂载清单缺失，已回滚到系统字体"
                 "aligned-manifest-missing" -> "字体负载清单缺失，系统已安全使用默认字体"
-                "dynamic-config-overridden" -> "系统动态字体配置覆盖了洛书负载，已安全回到系统字体"
+                "dynamic-config-overridden" -> "系统动态字体配置覆盖了字域负载，已安全回到系统字体"
                 "dynamic-config-mount-failed" -> "系统动态字体配置挂载失败，已完整回滚到系统字体"
                 else -> "开机字体验证失败，系统已安全使用默认字体"
             }
@@ -248,7 +248,7 @@ internal class LuoShuViewModel(application: Application) : AndroidViewModel(appl
         refreshJob = viewModelScope.launch {
             val result = RootShell.exec(
                 "if [ -f ${RootShell.quote(bridge)} ]; then sh ${RootShell.quote(bridge)} status; " +
-                    "else printf '%s\\n' '{\"status\":\"error\",\"message\":\"请先刷入匹配的洛书模块\"}'; fi",
+                    "else printf '%s\\n' '{\"status\":\"error\",\"message\":\"请先刷入匹配的字域模块\"}'; fi",
                 timeoutMs = 20_000L,
             )
             if (result.code != 0) {

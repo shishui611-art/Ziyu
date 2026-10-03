@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 SAFE_EXACT_FAMILIES = {
+    "osans-solid-digits",
     "sans", "sans-serif", "sans-serif-condensed", "default", "default-sans",
     "system-ui", "ui-sans-serif", "roboto", "roboto-flex", "roboto-static",
     "google-sans", "google-sans-text", "google-sans-flex", "source-sans",

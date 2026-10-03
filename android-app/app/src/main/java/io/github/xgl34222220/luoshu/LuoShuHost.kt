@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -29,6 +31,7 @@ import io.github.xgl34222220.luoshu.ui.appearance.AppearanceViewModel
 import io.github.xgl34222220.luoshu.ui.appearance.UiStyle
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuTheme
+import io.github.xgl34222220.luoshu.ui.setup.InitializationScreen
 
 // Legacy inventory marker: viewModel<NativeImportViewModel>() was replaced by the Application-scoped owner.
 @Composable
@@ -36,8 +39,15 @@ internal fun LuoShuHost() {
     val model: LuoShuViewModel = viewModel()
     val features: Alpha15FeatureViewModel = viewModel()
     val appearanceViewModel: AppearanceViewModel = viewModel()
+    val initializationViewModel: InitializationViewModel = viewModel()
     val appearance by appearanceViewModel.settings.collectAsStateWithLifecycle()
+    val setupRequired by appearanceViewModel.setupRequired.collectAsStateWithLifecycle()
+    val initialization by initializationViewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(setupRequired) {
+        if (setupRequired == true) initializationViewModel.checkEnvironment()
+    }
 
     DisposableEffect(lifecycleOwner, model) {
         val lifecycle = lifecycleOwner.lifecycle
@@ -84,8 +94,36 @@ internal fun LuoShuHost() {
                     .windowInsetsPadding(contentInsets)
                     .consumeWindowInsets(contentInsets),
             ) {
-                LuoShuAppShell(model, features, appearanceViewModel)
+                when (setupRequired) {
+                    null -> InitializationLoadingScreen()
+                    true -> InitializationScreen(
+                        state = initialization,
+                        onRecheck = initializationViewModel::checkEnvironment,
+                        onStart = appearanceViewModel::completeSetup,
+                    )
+                    false -> LuoShuAppShell(model, features, appearanceViewModel)
+                }
             }
+        }
+    }
+}
+
+@Composable
+internal fun InitializationLoadingScreen() {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        androidx.compose.foundation.layout.Column(
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+        ) {
+            androidx.compose.material3.Text(
+                text = "字域",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            androidx.compose.material3.CircularProgressIndicator()
         }
     }
 }

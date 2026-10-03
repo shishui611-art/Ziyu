@@ -7,6 +7,11 @@ import org.junit.Test
 
 class AppearanceSettingsTest {
     @Test
+    fun newInstallFollowsSystemThemeByDefault() {
+        assertEquals(ThemeMode.SYSTEM, AppearanceSettings().themeMode)
+    }
+
+    @Test
     fun uiStyleStorageFallsBackToMiuix() {
         assertEquals(UiStyle.MATERIAL, UiStyle.fromStorage("material"))
         assertEquals(UiStyle.MIUIX, UiStyle.fromStorage("MIUIX"))

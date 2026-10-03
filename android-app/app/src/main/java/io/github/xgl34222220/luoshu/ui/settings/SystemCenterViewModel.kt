@@ -158,7 +158,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
             } else {
                 SystemHealthSnapshot(
                     loading = false,
-                    error = result.stderr.ifBlank { "无法运行洛书系统体检" },
+                    error = result.stderr.ifBlank { "无法运行字域系统体检" },
                 )
             }
         }

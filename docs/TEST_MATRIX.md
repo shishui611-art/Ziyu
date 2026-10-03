@@ -1,8 +1,8 @@
-# 洛书发布测试矩阵
+# 字域发布测试矩阵
 
 本文件记录自动化门禁和已经完成的真机验证进度，**不是 ROM 或机型支持白名单**。
 
-洛书安装时会扫描每台设备的真实字体目录和字体配置，生成设备独立的原厂字体清单；运行时优先按照该清单映射系统 UI 字体。未列出的设备仍会执行完整扫描，只是尚未完成整套真机回归。
+字域安装时会扫描每台设备的真实字体目录和字体配置，生成设备独立的原厂字体清单；运行时优先按照该清单映射系统 UI 字体。未列出的设备仍会执行完整扫描，只是尚未完成整套真机回归。
 
 ## 设备自适应机制门禁
 
@@ -21,10 +21,10 @@
 - 安装后的标准 `system`、`system_ext`、`product`、`my_product`、`vendor` 目录必须为空；
 - 模块必须保留 `skip_mount` 与 `skip_mountify`，阻止外部挂载组件接管标准模块树；
 - 生产路径固定使用 `self-mount`，不得读取或修改任何元模块配置；
-- Mountify、Hybrid Mount、Magic Mount、meta-overlayfs 存在与否不得改变洛书挂载策略；
+- Mountify、Hybrid Mount、Magic Mount、meta-overlayfs 存在与否不得改变字域挂载策略；
 - KernelSU、SukiSU Ultra 与 APatch 必须在各自 OverlayFS 完成后的 `post-mount` 阶段自挂载；
 - Magisk 必须在 `post-fs-data` 阶段自挂载；
-- 自挂载只能覆盖洛书实际包含负载的 `fonts` / `etc`，必须保留 ROM Emoji 与 fallback；
+- 自挂载只能覆盖字域实际包含负载的 `fonts` / `etc`，必须保留 ROM Emoji 与 fallback；
 - 实际包含负载的全部分区和目录必须一次性提交，任意组件失败都必须逆序回滚，禁止 `degraded` 半挂载；
 - 提交前必须从 PID 1 主命名空间逐文件验证字体与配置负载；
 - 重复执行不得叠加第二层挂载；
@@ -32,7 +32,7 @@
 - 覆盖升级必须保留全部受支持 OEM 分区，旧启动挂载状态和验证结果不得迁移；
 - App 和 Root 管理器仅在字体事务已确认且自挂载状态正常后把所选字体描述为当前已生效；正常开机不得重复遍历或哈希完整字体树；
 - 深度 FontManager 与可见字体证据验证必须仅作为显式手动诊断，不得由开机脚本自动调度；
-- 卸载必须逆序解除洛书记录的挂载并清理私有负载。
+- 卸载必须逆序解除字域记录的挂载并清理私有负载。
 
 ## 自动化门禁
 
@@ -64,13 +64,13 @@
 | 系统 | Root 管理器 | 其他挂载组件 | 私有负载隔离 | 自挂载 | 字体应用 | 恢复/卸载 | 结果 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | ColorOS 16 / Android 16 | KernelSU / SukiSU Ultra | 无 | 待测 | 待测 | 待测 | 待测 | 待测 |
-| ColorOS 16 / Android 16 | KernelSU / SukiSU Ultra | 已安装但不接管洛书 | 待测 | 待测 | 待测 | 待测 | 待测 |
+| ColorOS 16 / Android 16 | KernelSU / SukiSU Ultra | 已安装但不接管字域 | 待测 | 待测 | 待测 | 待测 | 待测 |
 | HyperOS 3 / Android 16 | KernelSU / SukiSU Ultra | 无 | 待测 | 待测 | 待测 | 待测 | 待测 |
-| HyperOS 3 / Android 16 | KernelSU / SukiSU Ultra | 已安装但不接管洛书 | 待测 | 待测 | 待测 | 待测 | 待测 |
+| HyperOS 3 / Android 16 | KernelSU / SukiSU Ultra | 已安装但不接管字域 | 待测 | 待测 | 待测 | 待测 | 待测 |
 | 通用 Android | Magisk | 任意 | 待测 | 待测 | 待测 | 待测 | 待测 |
 | 通用 Android | APatch | 任意 | 待测 | 待测 | 待测 | 待测 | 待测 |
 
-真机至少确认：刷入后标准分区目录为空、`.luoshu-payload` 存在、能够完整开机、字体应用生效、ROM Emoji 保留、恢复系统字体正常、卸载后洛书挂载和私有负载消失。
+真机至少确认：刷入后标准分区目录为空、`.luoshu-payload` 存在、能够完整开机、字体应用生效、ROM Emoji 保留、恢复系统字体正常、卸载后字域挂载和私有负载消失。
 
 ## 发布规则
 

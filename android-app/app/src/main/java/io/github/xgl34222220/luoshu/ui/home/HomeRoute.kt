@@ -70,7 +70,7 @@ fun HomeRoute(
         trustRefreshGeneration,
     ) {
         if (!state.moduleInstalled) {
-            trustState = DeviceTrustState(loading = false, error = "请先安装洛书模块")
+            trustState = DeviceTrustState(loading = false, error = "请先安装字域模块")
             return@LaunchedEffect
         }
 

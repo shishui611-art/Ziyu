@@ -301,7 +301,7 @@ private fun SystemScenarioPreview(scenario: StudioPreviewScenario) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp)) {
         when (scenario) {
             StudioPreviewScenario.MIXED -> PreviewGuideBox {
-                Text("洛书 LuoShu 2026 · 字体组合", fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                Text("字域 Ziyu 2026 · 字体组合", fontSize = 24.sp, fontWeight = FontWeight.Medium)
             }
             StudioPreviewScenario.BODY -> {
                 Text("字体不仅影响外观，也影响阅读节奏与信息层级。", fontSize = 17.sp, lineHeight = 25.sp)
@@ -344,7 +344,7 @@ private fun CandidateScenarioPreview(state: FontStudioUiState, scenario: StudioP
                     ) {
                         NativeFontPreview(
                             font = cjk.font,
-                            text = "洛书",
+                            text = "字域",
                             axes = cjk.axes,
                             modifier = Modifier.weight(.27f).height(44.dp),
                             textSizeSp = 23f,
@@ -353,7 +353,7 @@ private fun CandidateScenarioPreview(state: FontStudioUiState, scenario: StudioP
                         )
                         NativeFontPreview(
                             font = latin.font,
-                            text = " LuoShu ",
+                            text = " Ziyu ",
                             axes = latin.axes,
                             modifier = Modifier.weight(.45f).height(44.dp),
                             textSizeSp = 23f,

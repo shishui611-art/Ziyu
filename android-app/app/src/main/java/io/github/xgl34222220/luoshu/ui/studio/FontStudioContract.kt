@@ -79,8 +79,8 @@ internal fun LuoShuViewModel.toFontStudioUiState(features: Alpha15FeatureViewMod
         progress = current.progress,
         error = current.error,
         slots = listOf(
-            slotState(MixSlot.Cjk, "中文基底", "完整中文、符号与系统回退基底", "洛书中文 Aa 0123"),
-            slotState(MixSlot.Latin, "英文字形", "替换拉丁字母与英文标点轮廓", "LuoShu Typography 0123"),
+            slotState(MixSlot.Cjk, "中文基底", "完整中文、符号与系统回退基底", "字域中文 Aa 0123"),
+            slotState(MixSlot.Latin, "英文字形", "替换拉丁字母与英文标点轮廓", "Ziyu Typography 0123"),
             slotState(MixSlot.Digit, "数字字形", "替换数字与相关半角标点", "0123456789 Aa"),
         ),
         fonts = fonts,

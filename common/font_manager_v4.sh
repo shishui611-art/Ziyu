@@ -35,7 +35,7 @@ FONT_INDEX_KEY="$CONFIG_DIR/native_font_index.key"
 [ -f "$MODULE_DIR/common/font_active_state.sh" ] && . "$MODULE_DIR/common/font_active_state.sh"
 
 case "${1:-}:${2:-}" in
-    action:font_weight_status|action:font_weight_set|action:font_weight_reset) ;; # Retired commands must not touch settings or migrate files.
+    action:font_weight_status|action:font_weight_set|action:font_weight_reset) ;; # A weight-only action must not scan or migrate public font storage.
     *)
         type ensure_public_storage >/dev/null 2>&1 && ensure_public_storage
         type check_coloros >/dev/null 2>&1 && check_coloros
@@ -655,7 +655,7 @@ start_switch_task() {
         if switch_font "$_font_id" >> "$MODULE_DIR/logs/fontswitch.log" 2>&1; then
             _finished="$(date +%s)"
             write_switch_task "$_task_id" success "$_font_id" '字体已准备，必须重启手机后全局生效' "$_started" "$_finished"
-            notify_user '洛书' "文字字体已准备：$_font_id。请完整重启手机。" luoshu-text || true
+            notify_user '字域' "文字字体已准备：$_font_id。请完整重启手机。" luoshu-text || true
         else
             _code=$?
             _finished="$(date +%s)"
@@ -734,11 +734,13 @@ handle_action() {
         switch_status) switch_task_status_json "$_param" ;;
         delete) delete_font_json "$_param" ;;
         font_weight_status)
-            printf '%s\n' '{"status":"ok","data":{"supported":false,"retired":true,"message":"全局粗细调节已移除，请更新洛书 App"}}'
+            MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/font_weight_runtime.sh" status
             ;;
-        font_weight_set|font_weight_reset)
-            printf '%s\n' '{"status":"error","message":"全局粗细调节已移除，不再修改系统粗细设置"}'
-            return 2
+        font_weight_set)
+            MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/font_weight_runtime.sh" set "$_param"
+            ;;
+        font_weight_reset)
+            MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/font_weight_runtime.sh" reset
             ;;
         reboot_required)
             _required=false
@@ -757,6 +759,6 @@ case "${1:-}" in
     action) handle_action "${2:-}" "${3:-}" ;;
     list) handle_action list "${2:-}" ;;
     current) handle_action current '' ;;
-    *) printf '{"status":"error","message":"请通过洛书 App 或安全 CLI 使用字体管理器"}\n'; exit 1 ;;
+    *) printf '{"status":"error","message":"请通过字域 App 或安全 CLI 使用字体管理器"}\n'; exit 1 ;;
 esac
 exit 0

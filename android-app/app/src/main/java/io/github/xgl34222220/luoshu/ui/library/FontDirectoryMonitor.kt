@@ -463,7 +463,7 @@ private fun FontDirectoryMonitorDialog(
 
                 if (diff.hasChanges) {
                     Text(
-                        "新增与变更会进入现有安全导入队列；目录删除只作提示，洛书不会自动删除字体库文件。",
+                        "新增与变更会进入现有安全导入队列；目录删除只作提示，字域不会自动删除字体库文件。",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         lineHeight = 14.sp,

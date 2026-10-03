@@ -47,8 +47,8 @@ internal fun fontCapabilityLabel(font: FontItem): String {
     return if (font.supportsCjk) capability else "拉丁 · $capability"
 }
 
-private const val FONT_PREVIEW_COMPACT = "洛书字体 Aa 123"
-private const val FONT_PREVIEW_DETAILED = "洛书字体 Aa\n中文 ABC 123"
+private const val FONT_PREVIEW_COMPACT = "字域字体 Aa 123"
+private const val FONT_PREVIEW_DETAILED = "字域字体 Aa\n中文 ABC 123"
 
 internal fun fontPreviewText(font: FontItem, detailed: Boolean = false): String {
     // 所有卡片固定使用同一套短样张，避免不同字宽把第一行挤成两行并裁掉第二行。

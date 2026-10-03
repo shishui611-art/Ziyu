@@ -464,7 +464,7 @@ clone_payload_tree() {
 
 stage_clone_live() {
     _clone_source=$(payload_clone_source) || {
-        safe_error '当前启动字体负载不可读取，请重新刷入当前洛书版本'
+        safe_error '当前启动字体负载不可读取，请重新刷入当前字域版本'
         return 1
     }
     if ! clone_payload_tree "$_clone_source"; then

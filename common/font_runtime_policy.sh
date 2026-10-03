@@ -160,10 +160,10 @@ font_validate_global() {
                 FONT_CHECK_WARNING="${FONT_CHECK_WARNING}；部分标点将由系统回退字体补齐"
             ;;
         true:false)
-            FONT_CHECK_WARNING="${FONT_CHECK_WARNING:+$FONT_CHECK_WARNING；}字体缺少完整英文或数字，洛书将只替换中文槽位并保留系统英文"
+            FONT_CHECK_WARNING="${FONT_CHECK_WARNING:+$FONT_CHECK_WARNING；}字体缺少完整英文或数字，字域将只替换中文槽位并保留系统英文"
             ;;
         false:true)
-            FONT_CHECK_WARNING="${FONT_CHECK_WARNING:+$FONT_CHECK_WARNING；}字体缺少完整中文，洛书将只替换英文数字槽位并保留系统中文"
+            FONT_CHECK_WARNING="${FONT_CHECK_WARNING:+$FONT_CHECK_WARNING；}字体缺少完整中文，字域将只替换英文数字槽位并保留系统中文"
             ;;
         *)
             FONT_CHECK_ERROR="$FONT_CHECK_COVERAGE；字体既不具备可用中文覆盖，也不具备完整英文数字覆盖"
@@ -200,6 +200,9 @@ luoshu_font_validate_global_cached() {
 _lfrp_target_kind() {
     _lfrp_name=$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')
     case "$_lfrp_name" in
+        osans-solid-digits-vf.ttf)
+            printf 'latin\n'
+            ;;
         [1-9]00.ttf|350.ttf|*mitype*|*miclock*|*misansclock*|androidclock*|clockopia*)
             # Xiaomi hard-codes these UI/clock/number files outside the normal Android family
             # graph. They are Latin/digit presentation slots even when their filename contains
@@ -671,7 +674,7 @@ luoshu_self_mount_ensure() {
     fi
     if _luoshu_system_probe_visible; then
         _luoshu_self_state_write mounted external-mount system ''
-        _luoshu_self_log 'Root 管理器已挂载洛书负载，跳过重复自挂载'
+        _luoshu_self_log 'Root 管理器已挂载字域负载，跳过重复自挂载'
         return 0
     fi
 

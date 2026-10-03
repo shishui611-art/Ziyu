@@ -30,6 +30,6 @@ type luoshu_private_unmount_module_view >/dev/null 2>&1 && \
 # Restore recorded component overrides before removing the runtime.
 if [ -f "$MODDIR/common/google_font_fallback.sh" ]; then
     sh "$MODDIR/common/google_font_fallback.sh" restore-owned --json || \
-        echo '洛书：Google 字体兼容恢复未全部完成，恢复记录仍保留。' >&2
+        echo '字域：Google 字体兼容恢复未全部完成，恢复记录仍保留。' >&2
 fi
 . "$MODDIR/.luoshu-runtime/compat/v227/uninstall.sh"

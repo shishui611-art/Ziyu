@@ -17,8 +17,15 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
         initialValue = AppearanceSettings(),
     )
 
+    val setupRequired: StateFlow<Boolean?> = repository.setupRequired.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null,
+    )
+
     fun setUiStyle(value: UiStyle) = launch { repository.setUiStyle(value) }
     fun setThemeMode(value: ThemeMode) = launch { repository.setThemeMode(value) }
+    fun completeSetup() = launch { repository.setSetupCompleted() }
     fun setSeedArgb(value: Int) = launch { repository.setSeedArgb(value) }
     fun setKolorStyle(value: KolorStyle) = launch { repository.setKolorStyle(value) }
     fun setMonetEnabled(enabled: Boolean) = launch { repository.setMonetEnabled(enabled) }

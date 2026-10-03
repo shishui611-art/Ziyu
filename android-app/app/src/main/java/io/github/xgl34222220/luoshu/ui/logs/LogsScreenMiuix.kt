@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -51,6 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.luoshu.ui.appearance.UiStyle
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuShapeTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuTypographyTokens
 
 @Composable
 internal fun LogsScreenMiuix(
@@ -61,8 +67,13 @@ internal fun LogsScreenMiuix(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 132.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(
+            start = LuoShuLayoutTokens.PageHorizontal,
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + LuoShuLayoutTokens.PageTop,
+            end = LuoShuLayoutTokens.PageHorizontal,
+            bottom = 28.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(LuoShuLayoutTokens.ItemGap),
     ) {
         item {
             MiuixTaskCenterHeader(
@@ -111,9 +122,9 @@ private fun MiuixTaskCenterHeader(
             Text(
                 "任务中心",
                 color = tokens.textPrimary,
-                fontSize = 39.sp,
-                lineHeight = 44.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = LuoShuTypographyTokens.PageTitle,
+                lineHeight = 46.sp,
+                fontWeight = FontWeight.SemiBold,
             )
             Text("扫描、导入、应用、组合与重启状态", color = tokens.textSecondary, fontSize = 12.sp)
         }
@@ -127,9 +138,9 @@ private fun MiuixTaskCenterHeader(
                 onClick = onDiagnostic,
             )
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = LuoShuShapeTokens.Medium,
                 colors = CardDefaults.cardColors(containerColor = tokens.elevatedCardBackground),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 IconButton(onClick = onRefresh, modifier = Modifier.size(50.dp)) {
                     Icon(Icons.Rounded.Refresh, contentDescription = "刷新任务和日志")
@@ -143,9 +154,9 @@ private fun MiuixTaskCenterHeader(
 private fun MiuixTaskOverview(state: LogsUiState) {
     val tokens = LocalMiuixTokens.current
     Card(
-        shape = RoundedCornerShape(28.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -173,7 +184,7 @@ private fun MiuixTaskOverview(state: LogsUiState) {
                     Text(
                         if (state.rebootRequired) "字体已准备完成，等待完整重启" else "进入页面时自动同步后台状态",
                         color = if (state.rebootRequired) MaterialTheme.colorScheme.primary else tokens.textSecondary,
-                        fontSize = 11.sp,
+            fontSize = 13.sp,
                     )
                 }
             }
@@ -193,7 +204,7 @@ private fun MiuixOverviewMetric(label: String, value: Int, color: Color, modifie
     Surface(modifier = modifier, shape = RoundedCornerShape(17.dp), color = color.copy(alpha = .09f)) {
         Column(Modifier.padding(horizontal = 11.dp, vertical = 9.dp)) {
             Text(value.toString(), color = color, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Text(label, color = tokens.textSecondary, fontSize = 10.sp)
+            Text(label, color = tokens.textSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -205,8 +216,8 @@ private fun MiuixSectionTitle(title: String, subtitle: String) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(title, color = tokens.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
-        Text(subtitle, color = tokens.textSecondary, fontSize = 10.sp)
+        Text(title, color = tokens.textPrimary, fontSize = LuoShuTypographyTokens.SectionTitle, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(subtitle, color = tokens.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -215,9 +226,9 @@ private fun MiuixTaskCard(task: TaskCenterItem) {
     val tokens = LocalMiuixTokens.current
     val color = miuixTaskPhaseColor(task.phase)
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (task.current) 4.dp else 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -235,15 +246,15 @@ private fun MiuixTaskCard(task: TaskCenterItem) {
                     Text(
                         task.title,
                         color = tokens.textPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         task.message,
                         color = tokens.textSecondary,
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -255,13 +266,13 @@ private fun MiuixTaskCard(task: TaskCenterItem) {
                             task.phase.label,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             color = color,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Black,
                         )
                     }
                     if (task.timeLabel.isNotBlank()) {
                         Spacer(Modifier.height(5.dp))
-                        Text(task.timeLabel, color = tokens.textSecondary, fontSize = 9.sp)
+                        Text(task.timeLabel, color = tokens.textTertiary, fontSize = 11.sp)
                     }
                 }
             }
@@ -280,9 +291,9 @@ private fun MiuixTaskCard(task: TaskCenterItem) {
 private fun MiuixTaskEmpty() {
     val tokens = LocalMiuixTokens.current
     Card(
-        shape = RoundedCornerShape(34.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -298,8 +309,8 @@ private fun MiuixTaskEmpty() {
                 }
             }
             Spacer(Modifier.height(13.dp))
-            Text("还没有字体任务记录", color = tokens.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("执行扫描、导入、应用或组合后会显示在这里", color = tokens.textSecondary, fontSize = 11.sp)
+            Text("还没有字体任务记录", color = tokens.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("执行扫描、导入、应用或组合后会显示在这里", color = tokens.textSecondary, fontSize = 13.sp)
         }
     }
 }
@@ -308,9 +319,9 @@ private fun MiuixTaskEmpty() {
 private fun MiuixLogSummary(state: LogsUiState) {
     val tokens = LocalMiuixTokens.current
     Card(
-        shape = RoundedCornerShape(32.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 7.dp)) {
             MiuixLogSummaryRow(Icons.Rounded.Description, "日志行数", state.lineCount.toString(), MaterialTheme.colorScheme.primary)
@@ -360,9 +371,9 @@ private fun MiuixSummaryDivider() {
 private fun MiuixLogPanel(content: String) {
     val tokens = LocalMiuixTokens.current
     Card(
-        shape = RoundedCornerShape(34.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column {
             Row(

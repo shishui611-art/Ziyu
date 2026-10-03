@@ -339,6 +339,6 @@ _log_step() {
     if command -v ui_print >/dev/null 2>&1; then
         ui_print "$1"
     else
-        echo "  [洛书] $1"
+        echo "  [字域] $1"
     fi
 }

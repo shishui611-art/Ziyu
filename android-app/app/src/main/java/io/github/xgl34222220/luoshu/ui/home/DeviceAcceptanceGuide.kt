@@ -73,7 +73,7 @@ internal fun deviceAcceptanceAutoChecks(
     DeviceAcceptanceCheck(
         id = "root",
         title = "Root 与模块连接",
-        detail = if (state.rootGranted && state.moduleInstalled) "Root 已授权，洛书模块已连接" else "需要 Root 授权并安装匹配模块",
+        detail = if (state.rootGranted && state.moduleInstalled) "Root 已授权，字域模块已连接" else "需要 Root 授权并安装匹配模块",
         passed = state.rootGranted && state.moduleInstalled,
         automatic = true,
     ),
@@ -371,7 +371,7 @@ private fun deviceAcceptanceSummary(
     trust: DeviceTrustState,
     checks: List<DeviceAcceptanceCheck>,
 ): String = buildString {
-    appendLine("洛书真机验收摘要")
+    appendLine("字域真机验收摘要")
     appendLine("版本：${state.version}")
     appendLine("当前字体：${state.currentFont}")
     appendLine("可信级别：${trust.level.name.lowercase()}")

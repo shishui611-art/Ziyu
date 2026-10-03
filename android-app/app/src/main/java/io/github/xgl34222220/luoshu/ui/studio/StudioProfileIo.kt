@@ -99,7 +99,7 @@ internal fun encodeStudioProfile(state: FontStudioUiState): String {
     return JSONObject()
         .put("schema", STUDIO_PROFILE_SCHEMA)
         .put("type", STUDIO_PROFILE_TYPE)
-        .put("name", "洛书组合方案")
+        .put("name", "字域组合方案")
         .put("createdAt", System.currentTimeMillis())
         .put("slots", slots)
         .toString(2)
@@ -115,7 +115,7 @@ internal fun parseStudioProfile(
         return StudioProfileParseResult(errors = listOf("JSON 格式无效：${it.message ?: "无法解析"}"))
     }
     if (root.optInt("schema", -1) != STUDIO_PROFILE_SCHEMA) errors += "不支持的方案版本"
-    if (root.optString("type") != STUDIO_PROFILE_TYPE) errors += "这不是洛书组合方案文件"
+    if (root.optString("type") != STUDIO_PROFILE_TYPE) errors += "这不是字域组合方案文件"
     val slotsObject = root.optJSONObject("slots")
     if (slotsObject == null) errors += "方案缺少 slots 配置"
     val fontMap = availableFonts.associateBy { it.id }

@@ -40,7 +40,7 @@ luoshu_mount_preflight() {
             if [ -e "$LUOSHU_MOUNT_MODDIR/disable" ]; then
                 rm -f "$LUOSHU_MOUNT_MODDIR/disable" 2>/dev/null || true
                 [ ! -e "$LUOSHU_MOUNT_MODDIR/disable" ] || {
-                    LUOSHU_MOUNT_PREFLIGHT_ERROR='无法解除洛书旧 disable 标记'
+                    LUOSHU_MOUNT_PREFLIGHT_ERROR='无法解除字域旧 disable 标记'
                     return 1
                 }
                 rm -f \
@@ -69,11 +69,11 @@ luoshu_mount_preflight() {
     fi
 
     [ ! -e "$LUOSHU_MOUNT_MODDIR/disable" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='洛书模块已被禁用'
+        LUOSHU_MOUNT_PREFLIGHT_ERROR='字域模块已被禁用'
         return 1
     }
     [ ! -e "$LUOSHU_MOUNT_MODDIR/skip_mount" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='检测到 skip_mount，双目录元模块不会挂载洛书'
+        LUOSHU_MOUNT_PREFLIGHT_ERROR='检测到 skip_mount，双目录元模块不会挂载字域'
         return 1
     }
     [ ! -e "$LUOSHU_MOUNT_MODDIR/mount_error" ] || {

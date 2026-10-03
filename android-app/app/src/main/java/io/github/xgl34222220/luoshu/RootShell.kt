@@ -36,7 +36,7 @@ internal object RootShell {
                 error is IOException &&
                 (raw.contains("Cannot run program \"su\"") || raw.contains("No such file or directory"))
             ) {
-                "未找到 Root 命令 su。请先在 Root 管理器中完成待生效变更并完整重启，然后为洛书授予 Root 权限。"
+                "未找到 Root 命令 su。请先在 Root 管理器中完成待生效变更并完整重启，然后为字域授予 Root 权限。"
             } else {
                 raw.ifBlank { error.javaClass.simpleName }
             }

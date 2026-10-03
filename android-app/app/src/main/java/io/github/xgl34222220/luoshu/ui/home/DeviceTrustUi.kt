@@ -220,7 +220,7 @@ internal fun DeviceTrustDialog(
         text = {
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    presentation.subtitle,
+                    presentation.subtitle.replace("洛书", "字域"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                 )
@@ -244,7 +244,7 @@ internal fun DeviceTrustDialog(
                 }
                 if (state.error.isNotBlank()) {
                     Spacer(Modifier.size(8.dp))
-                    Text(state.error, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                    Text(state.error.replace("洛书", "字域"), color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
                 }
             }
         },
@@ -273,7 +273,7 @@ private fun DeviceTrustRow(label: String, value: String) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
         )
-        Text(value, modifier = Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(value.replace("洛书", "字域"), modifier = Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -291,19 +291,19 @@ private fun deviceTrustPresentation(state: DeviceTrustState): DeviceTrustPresent
         state.loading -> DeviceTrustPresentation("正在检查设备字体", "读取清单、模板与加载验证", Icons.Rounded.Info, scheme.primary)
         state.level == DeviceTrustLevel.SYSTEM -> DeviceTrustPresentation(
             "当前为系统字体",
-            "没有启用洛书字体，无需进行加载验证",
+            "没有启用字域字体，无需进行加载验证",
             Icons.Rounded.CheckCircle,
             scheme.primary,
         )
         state.level == DeviceTrustLevel.VERIFIED && state.mode == "mount-verified" -> DeviceTrustPresentation(
             "本次启动字体已验证",
-            "PID 1 可见字体、配置与洛书负载一致",
+            "PID 1 可见字体、配置与字域负载一致",
             Icons.Rounded.CheckCircle,
             scheme.primary,
         )
         state.level == DeviceTrustLevel.VERIFIED && state.mode == "mount-confirmed" -> DeviceTrustPresentation(
             "本次启动字体已确认",
-            "自挂载事务已确认，当前洛书字体负载已生效",
+            "自挂载事务已确认，当前字域字体负载已生效",
             Icons.Rounded.CheckCircle,
             scheme.primary,
         )
@@ -357,20 +357,20 @@ private fun friendlyTrustReason(value: String): String = when (value) {
     "verification-retry-exhausted" -> "多次自动验证仍未完成"
     "self-mount-not-visible" -> "开机挂载未完整生效，当前使用系统默认字体"
     "self-mount-failed" -> "本次启动原子挂载失败，字体与配置已完整回滚"
-    "self-mount-invalid-backend" -> "挂载后端不受支持，洛书没有提交字体负载"
+    "self-mount-invalid-backend" -> "挂载后端不受支持，字域没有提交字体负载"
     "self-mount-manifest-missing" -> "本次启动挂载清单缺失，字体与配置没有生效"
     "stale-self-mount" -> "挂载记录属于上一次启动，等待本次启动重新确认"
     "awaiting-boot-transaction" -> "等待本次启动的字体事务完成确认"
     "stale-boot-transaction" -> "字体事务记录属于上一次启动，需要重新应用字体"
     "dynamic-config-unconfirmed" -> "系统动态字体配置尚未确认"
-    "dynamic-config-overridden" -> "系统动态字体配置覆盖了洛书负载，当前使用系统字体"
+    "dynamic-config-overridden" -> "系统动态字体配置覆盖了字域负载，当前使用系统字体"
     "dynamic-config-mount-failed" -> "系统动态字体配置挂载失败，已完整回滚"
     "stale-verification" -> "验证记录与当前选择的字体不一致"
     "self-mount-not-confirmed" -> "本次启动的自挂载事务尚未确认"
     "current-boot-mount-confirmed" -> "本次启动的字体、配置与挂载事务均已确认"
     "physical-self-mount-active" -> "本次启动自挂载已确认，当前字体负载已生效"
     "dynamic-config-changed" -> "系统在启动后改写了动态字体配置"
-    "verified-by-visible-mounts" -> "系统可见字体文件与洛书负载一致"
+    "verified-by-visible-mounts" -> "系统可见字体文件与字域负载一致"
     "mount-active-visible-layout-differs" -> "挂载事务已确认；系统字体服务使用了不同的可见路径"
     else -> value
 }

@@ -9,7 +9,7 @@ SWITCH="$MODDIR/common/font_switch_task.sh"
 BRIDGE="$MODDIR/common/app_bridge.sh"
 
 help_text() {
-    echo "洛书：状态｜列表｜应用 <字体名>｜恢复默认｜日志"
+    echo "字域：状态｜列表｜应用 <字体名>｜恢复默认｜日志"
     echo "字体变更完成后必须完整重启手机。"
 }
 

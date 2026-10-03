@@ -276,7 +276,7 @@ def enable(backend: Android, journal: Journal) -> dict:
         raise FallbackError(str(error) + ' 已恢复开启前状态。') from error
     return {'status': 'component-disabled', 'user': journal.user,
             'message': '已验证仅 FontsProvider 被停用。请完整重启后检查 Google 商店；这不代表字体渲染已经验收。',
-            'undo': '重新运行本脚本并传入 restore；移除洛书模块前先恢复。'}
+            'undo': '重新运行本脚本并传入 restore；移除字域模块前先恢复。'}
 
 
 def module_ready(module: Path) -> bool:
@@ -289,7 +289,7 @@ def module_ready(module: Path) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='洛书 Google 字体来源开关：仅 FontsProvider，可恢复。')
+    parser = argparse.ArgumentParser(description='字域 Google 字体来源开关：仅 FontsProvider，可恢复。')
     parser.add_argument('action', choices=('status', 'enable', 'restore'), nargs='?', default='status')
     parser.add_argument('--user', type=int, help='仅操作指定用户；默认通过系统获取当前用户，不处理全部用户。')
     args = parser.parse_args()
@@ -305,7 +305,7 @@ def main() -> int:
             print(json.dumps({'status': 'diagnostic', **current}, ensure_ascii=False, indent=2))
             return 0
         if args.action == 'enable' and not module_ready(MODULE):
-            raise FallbackError('请先启用洛书并应用自定义字体；未停用 Google 字体提供组件。')
+            raise FallbackError('请先启用字域并应用自定义字体；未停用 Google 字体提供组件。')
         print('注意：此开关影响该用户所有依赖 GMS 下载字体的应用，也可能影响下载式表情字体。')
         print('Android 修改组件状态时可能重启相关 GMS 进程。不会清除账户、App 数据或字体目录。')
         with locked_store(STORE):

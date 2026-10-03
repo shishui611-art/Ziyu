@@ -170,7 +170,7 @@ private fun MiuixPageHeader(state: HomeUiState, onRefresh: () -> Unit) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "洛书",
+                text = "字域",
                 color = LocalMiuixTokens.current.textPrimary,
                 fontSize = 39.sp,
                 lineHeight = 44.sp,

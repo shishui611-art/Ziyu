@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,16 +26,16 @@ internal fun LuoShuSurfaceCard(
     val tokens = LocalMiuixTokens.current
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Card,
         color = if (emphasized) {
-            lerp(tokens.cardBackground, MaterialTheme.colorScheme.primaryContainer, .34f)
+            lerp(tokens.cardBackground, MaterialTheme.colorScheme.primaryContainer, .16f)
         } else tokens.cardBackground,
         contentColor = tokens.textPrimary,
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(LuoShuLayoutTokens.CardPadding),
+            verticalArrangement = Arrangement.spacedBy(LuoShuLayoutTokens.ItemGap),
             content = content,
         )
     }

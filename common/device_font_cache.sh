@@ -457,8 +457,8 @@ _dfcache_runtime_ready() {
 _dfcache_notify() {
     _dfc_message="$1"
     command -v cmd >/dev/null 2>&1 || return 0
-    cmd notification post -S bigtext -t '洛书' luoshu-font-cache "$_dfc_message" >/dev/null 2>&1 || \
-        cmd notification post -t '洛书' luoshu-font-cache "$_dfc_message" >/dev/null 2>&1 || true
+    cmd notification post -S bigtext -t '字域' luoshu-font-cache "$_dfc_message" >/dev/null 2>&1 || \
+        cmd notification post -t '字域' luoshu-font-cache "$_dfc_message" >/dev/null 2>&1 || true
 }
 
 _dfcache_prune() {

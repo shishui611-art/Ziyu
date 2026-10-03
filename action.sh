@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Root 管理器“操作”按钮：检查并安装或更新模块内置的洛书 App。
+# Root 管理器“操作”按钮：检查并安装或更新模块内置的字域 App。
 
 MODDIR="${0%/*}"
 APK="$MODDIR/bundled/LuoShu-App.apk"
@@ -17,29 +17,29 @@ print_line() {
 }
 
 if [ ! -s "$APK" ]; then
-    print_line "未找到模块内置的洛书 App。"
-    print_line "请重新下载并刷入完整的洛书模块包。"
+    print_line "未找到模块内置的字域 App。"
+    print_line "请重新下载并刷入完整的字域模块包。"
     exit 1
 fi
 
 if [ ! -f "$HELPER" ]; then
     print_line "模块内置 App 安装器缺失。"
-    print_line "请重新刷入洛书模块包。"
+    print_line "请重新刷入字域模块包。"
     exit 1
 fi
 
-print_line "正在检查洛书 App 版本…"
+print_line "正在检查字域 App 版本…"
 _result=$(MODDIR="$MODDIR" APP_INSTALL_LOG="$LOG" sh "$HELPER" manual 2>/dev/null)
 _code=$?
 case "$_result" in
     installed)
         rm -f "$MODDIR/config/app_install_manual" 2>/dev/null || true
-        print_line "洛书 App 已安装或更新，原有数据和界面设置已保留。"
+        print_line "字域 App 已安装或更新，原有数据和界面设置已保留。"
         exit 0
         ;;
     already-current)
         rm -f "$MODDIR/config/app_install_manual" 2>/dev/null || true
-        print_line "洛书 App 已是模块内置的当前版本。"
+        print_line "字域 App 已是模块内置的当前版本。"
         exit 0
         ;;
     deferred)

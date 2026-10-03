@@ -52,9 +52,9 @@ internal fun parseGoogleFontCompatibility(raw: String, expectedUser: Int): Googl
 
 internal fun googleFontActionMessage(action: String, status: String): String = when {
     action == "enable" && status == "component-disabled" -> "已开启兼容设置。请完整重启，再检查谷歌商店的英文和数字。"
-    action == "enable" && status == "externally-disabled" -> "组件已被其他方式停用，洛书没有接管或修改它。"
+    action == "enable" && status == "externally-disabled" -> "组件已被其他方式停用，字域没有接管或修改它。"
     action == "restore" && status == "restored" -> "已恢复开启前的组件设置。请完整重启手机。"
-    action == "restore" && status == "unchanged" -> "没有洛书的修改记录；未擅自启用组件。"
+    action == "restore" && status == "unchanged" -> "没有字域的修改记录；未擅自启用组件。"
     else -> throw IllegalArgumentException("操作结果未核验成功，请重新检测当前状态。")
 }
 
@@ -89,7 +89,7 @@ internal class GoogleFontCompatibilityModel : ViewModel() {
                 val json = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
                 if (result.code != 0 || json?.optString("status") == "error") {
                     val message = json?.optString("message")?.takeIf { it.isNotBlank() }
-                        ?: "无法完成操作。请确认已授予洛书 Root 权限、配套模块已启用，并在重启后重新检测。"
+                        ?: "无法完成操作。请确认已授予字域 Root 权限、配套模块已启用，并在重启后重新检测。"
                     ui = ui.copy(loading = false, busy = false, title = "暂时无法读取状态", canEnable = false, canRestore = false, error = message)
                 } else if (action == "status") {
                     val last = ui.resultMessage

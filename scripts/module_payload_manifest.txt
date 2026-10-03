@@ -144,6 +144,7 @@ README.md
 CHANGELOG.md
 customize.sh
 module.prop
+icon/icon.png
 post-fs-data.sh
 post-mount.sh
 service.sh
@@ -161,4 +162,5 @@ common/font_web_convert.py
 common/font_topology_snapshot.py
 common/font_topology_snapshot.sh
 common/font_weight_retire.sh
+common/font_weight_runtime.sh
 common/install_ui.sh

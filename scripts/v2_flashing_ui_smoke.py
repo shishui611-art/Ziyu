@@ -31,8 +31,9 @@ class FlashSmokeRun(base.SmokeRun):
         x, y = base.center(base.tab_target(root, '首页', self.package))
         self.adb('shell', 'input', 'tap', str(x), str(y))
         root = self.wait_page('首页', '当前字体')
-        if any('全局粗细' in s for n in root.iter('node') for s in base.labels(n)):
-            raise RuntimeError('Retired global weight control is still visible')
+        home_labels = {s for n in root.iter('node') for s in base.labels(n)}
+        if any('全局粗细微调' in s for s in home_labels) and not any('恢复原始' in s for s in home_labels):
+            raise RuntimeError('Global weight control is visible without its restore action')
         self.tap_label('任务中心')
         self.wait_text('字体刷写')
         for theme, mode in [('light', 'no'), ('dark', 'yes')]:

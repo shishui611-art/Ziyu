@@ -94,6 +94,8 @@ XML_PATTERNS = (
 def _is_ui_family(name: str) -> bool:
     """Classify UI families without rejecting ``sans-serif`` because it contains ``serif``."""
     lowered = name.strip().lower().replace("_", "-")
+    if lowered == "osans-solid-digits":
+        return True
     if not lowered:
         return False
     if lowered == "sans-serif":

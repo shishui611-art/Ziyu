@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -55,6 +58,10 @@ import io.github.xgl34222220.luoshu.NativeFontPreview
 import io.github.xgl34222220.luoshu.ui.font.fontCapabilityLabel
 import io.github.xgl34222220.luoshu.ui.font.fontPreviewText
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
+import io.github.xgl34222220.luoshu.ui.theme.LocalDockContentPadding
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuShapeTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuTypographyTokens
 
 @Composable
 internal fun FontLibraryScreenMiuix(
@@ -64,8 +71,13 @@ internal fun FontLibraryScreenMiuix(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 10.dp, end = 16.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(
+            start = LuoShuLayoutTokens.PageHorizontal,
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + LuoShuLayoutTokens.PageTop,
+            end = LuoShuLayoutTokens.PageHorizontal,
+            bottom = maxOf(LocalDockContentPadding.current, LuoShuLayoutTokens.FloatingDockSafeBottom),
+        ),
+        verticalArrangement = Arrangement.spacedBy(LuoShuLayoutTokens.ItemGap),
     ) {
         item { MiuixLibraryHeader(state, actions.refresh) }
         item { topActions() }
@@ -147,9 +159,9 @@ private fun MiuixLibraryHeader(state: FontLibraryUiState, onRefresh: () -> Unit)
             Text(
                 "字体库",
                 color = tokens.textPrimary,
-                fontSize = 38.sp,
-                lineHeight = 43.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = LuoShuTypographyTokens.PageTitle,
+                lineHeight = 46.sp,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
                 "管理与应用本地字体 · ${state.validCount}/${state.totalCount} 可用",
@@ -158,9 +170,9 @@ private fun MiuixLibraryHeader(state: FontLibraryUiState, onRefresh: () -> Unit)
             )
         }
         Card(
-            shape = RoundedCornerShape(18.dp),
+            shape = LuoShuShapeTokens.Medium,
             colors = CardDefaults.cardColors(containerColor = tokens.elevatedCardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             IconButton(
                 onClick = onRefresh,
@@ -181,11 +193,11 @@ private fun MiuixLibraryHeader(state: FontLibraryUiState, onRefresh: () -> Unit)
 private fun MiuixBrowsePanel(state: FontLibraryUiState, actions: FontLibraryActions) {
     val tokens = LocalMiuixTokens.current
     Card(
-        shape = RoundedCornerShape(30.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(LuoShuLayoutTokens.CompactPadding)) {
             OutlinedTextField(
                 value = state.query,
                 onValueChange = actions.setQuery,
@@ -262,7 +274,7 @@ private fun MiuixChoicePill(label: String, active: Boolean, onClick: () -> Unit)
             text = label,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             softWrap = false,
@@ -289,7 +301,7 @@ private fun MiuixMetricPill(label: String, value: Int, modifier: Modifier) {
                 fontWeight = FontWeight.Black,
             )
             Spacer(Modifier.width(6.dp))
-            Text(label, color = tokens.textSecondary, fontSize = 10.sp)
+            Text(label, color = tokens.textSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -304,14 +316,14 @@ private fun MiuixSectionLabel(title: String, subtitle: String) {
         Text(
             title,
             color = tokens.textPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Black,
+            fontSize = 21.sp,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
         )
         Text(
             subtitle,
             color = tokens.textSecondary,
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -323,9 +335,9 @@ private fun MiuixSystemFontRow(active: Boolean, busy: Boolean, onRestore: () -> 
     val tokens = LocalMiuixTokens.current
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -350,13 +362,13 @@ private fun MiuixSystemFontRow(active: Boolean, busy: Boolean, onRestore: () -> 
                 Text(
                     "系统默认字体",
                     color = tokens.textPrimary,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Black,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     "ROM 原始字体映射",
                     color = tokens.textSecondary,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                 )
             }
             Spacer(Modifier.width(8.dp))
@@ -387,11 +399,9 @@ private fun MiuixFontCard(
 ) {
     val tokens = LocalMiuixTokens.current
     val scheme = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(30.dp)
+    val shape = LuoShuShapeTokens.Card
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(if (active) 8.dp else 4.dp, shape, clip = false),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = if (font.valid) {
@@ -442,7 +452,7 @@ private fun MiuixFontCard(
                         color = tokens.textPrimary,
                         fontSize = 18.sp,
                         lineHeight = 22.sp,
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -452,7 +462,7 @@ private fun MiuixFontCard(
                             .filter { it.isNotBlank() }
                             .joinToString(" · "),
                         color = tokens.textSecondary,
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -512,7 +522,7 @@ private fun MiuixFontCard(
                     Text(
                         font.error,
                         color = scheme.error,
-                        fontSize = 10.sp,
+                        fontSize = 12.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -701,9 +711,9 @@ private fun MiuixLibraryEmpty(state: FontLibraryUiState) {
     val tokens = LocalMiuixTokens.current
     val filtered = state.filter != FontLibraryFilter.ALL
     Card(
-        shape = RoundedCornerShape(34.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(34.dp),
@@ -730,8 +740,8 @@ private fun MiuixLibraryEmpty(state: FontLibraryUiState) {
                     else -> "还没有导入字体"
                 },
                 color = tokens.textPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
                 when {
@@ -740,7 +750,7 @@ private fun MiuixLibraryEmpty(state: FontLibraryUiState) {
                     else -> "使用页面上方的导入工具栏添加字体文件"
                 },
                 color = tokens.textSecondary,
-                fontSize = 11.sp,
+                fontSize = 13.sp,
                 textAlign = TextAlign.Center,
             )
         }
@@ -754,7 +764,7 @@ private fun MiuixLibraryPill(text: String, color: Color) {
             text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             color = color,
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
             softWrap = false,

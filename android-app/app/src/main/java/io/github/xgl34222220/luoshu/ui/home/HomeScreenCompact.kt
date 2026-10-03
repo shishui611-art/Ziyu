@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -38,6 +40,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +73,8 @@ import io.github.xgl34222220.luoshu.ui.theme.LuoShuHeaderAction
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuIconTokens
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuSectionHeading
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuTopBar
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuShapeTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuTypographyTokens
 
 @Composable
 internal fun HomeScreenCompact(
@@ -83,7 +88,7 @@ internal fun HomeScreenCompact(
     val cardColor = tokens.cardBackground
     val textPrimary = tokens.textPrimary
     val textSecondary = tokens.textSecondary
-    val shape = RoundedCornerShape(24.dp)
+    val shape = LuoShuShapeTokens.Large
     var deviceDetailsExpanded by rememberSaveable { mutableStateOf(false) }
     val canChange = state.moduleInstalled && state.rootGranted && !state.taskRunning
     val next = nextStepFor(state, actions)
@@ -98,7 +103,7 @@ internal fun HomeScreenCompact(
         verticalArrangement = Arrangement.spacedBy(LuoShuLayoutTokens.ItemGap),
     ) {
         item(key = "header") {
-            LuoShuTopBar(title = "洛书") {
+            LuoShuTopBar(title = "字域") {
                 LuoShuHeaderAction(
                     icon = Icons.Rounded.Description,
                     contentDescription = "任务中心",
@@ -116,21 +121,36 @@ internal fun HomeScreenCompact(
         }
         item(key = "current-font") {
             val dark = scheme.background.luminance() < .5f
+            val statusHealthy = state.moduleInstalled && state.rootGranted && state.mountHealthy &&
+                !state.taskRunning && !state.rebootRequired && state.error.isBlank()
             Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = cardColor,
-                shadowElevation = 2.dp,
+                shape = LuoShuShapeTokens.Hero,
+                color = if (statusHealthy) tokens.successContainer else cardColor,
+                shadowElevation = 0.dp,
                 border = BorderStroke(
                     0.5.dp,
                     if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
                 ),
             ) {
-                Column(
-                    Modifier.fillMaxWidth()
-                        .background(Brush.linearGradient(listOf(scheme.primaryContainer.copy(alpha = .46f), cardColor)))
-                        .padding(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
+                Box(Modifier.fillMaxWidth()) {
+                    if (statusHealthy) {
+                        LuoShuGlyph(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = null,
+                            size = 148.dp,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 28.dp, y = 28.dp),
+                            tint = tokens.success.copy(alpha = .10f),
+                        )
+                    }
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .background(
+                                if (statusHealthy) Brush.verticalGradient(listOf(tokens.successContainer, tokens.successContainer))
+                                else Brush.linearGradient(listOf(scheme.primary.copy(alpha = .08f), cardColor)),
+                            )
+                            .padding(LuoShuLayoutTokens.CardPadding),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = CircleShape, color = cardColor.copy(alpha = .72f)) {
                             Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -155,12 +175,10 @@ internal fun HomeScreenCompact(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("当前字体", color = textSecondary, style = MaterialTheme.typography.bodySmall)
-                        Text(state.currentFont, color = textPrimary, fontSize = 24.sp, lineHeight = 32.sp,
+                        Text(state.currentFont, color = textPrimary, fontSize = LuoShuTypographyTokens.StatusValue, lineHeight = 38.sp,
                             fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("字里行间，自有风格。", color = textPrimary, fontSize = 25.sp, lineHeight = 36.sp,
-                            fontWeight = FontWeight.Medium)
                         Text("Aa Bb  ·  0123456789", color = scheme.primary, fontSize = 19.sp,
                             lineHeight = 28.sp, letterSpacing = .5.sp)
                     }
@@ -168,7 +186,7 @@ internal fun HomeScreenCompact(
                         onClick = next.onClick,
                         enabled = next.enabled,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = LuoShuShapeTokens.Medium,
                     ) {
                         LuoShuGlyph(next.icon, null, LuoShuIconTokens.ToolGlyph)
                         Spacer(Modifier.width(8.dp))
@@ -176,6 +194,7 @@ internal fun HomeScreenCompact(
                     }
                 }
             }
+        }
         }
         if (state.taskRunning || state.rebootRequired || state.error.isNotBlank()) {
             item(key = "task-status") {
@@ -208,6 +227,17 @@ internal fun HomeScreenCompact(
                         )
                     }
                 }
+                }
+            }
+        if (state.moduleInstalled && state.rootGranted) {
+            item(key = "global-font-weight") {
+                HomeGlobalWeightCard(
+                    state = state.systemWeight,
+                    actions = actions,
+                    cardColor = cardColor,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary,
+                )
             }
         }
         item(key = "font-actions") {
@@ -271,12 +301,89 @@ internal fun HomeScreenCompact(
 }
 
 @Composable
+private fun HomeGlobalWeightCard(
+    state: HomeWeightUiState,
+    actions: HomeActions,
+    cardColor: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = LuoShuShapeTokens.Large,
+        color = cardColor,
+        modifier = Modifier.fillMaxWidth(),
+        shadowElevation = 0.dp,
+    ) {
+        Column(
+            Modifier.padding(LuoShuLayoutTokens.CardPadding),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LuoShuGlyph(Icons.Rounded.Speed, null, LuoShuIconTokens.SectionGlyph, tint = scheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("全局粗细微调", color = textPrimary, style = MaterialTheme.typography.titleSmall)
+                    Text("只调整系统粗细，不改字体文件", color = textSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                Text(
+                    if (state.loading) "读取中" else state.weight.toString(),
+                    color = scheme.primary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            when {
+                state.loading -> LuoShuLoadingSkeleton(
+                    Modifier.fillMaxWidth().height(12.dp),
+                    shape = RoundedCornerShape(999.dp),
+                )
+                !state.supported -> Text(
+                    state.error.ifBlank { "当前系统不支持全局粗细微调" },
+                    color = scheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                else -> {
+                    Slider(
+                        value = state.weight.coerceIn(state.min, state.max).toFloat(),
+                        onValueChange = actions.previewSystemWeight,
+                        enabled = !state.applying,
+                        valueRange = state.min.toFloat()..state.max.toFloat(),
+                        steps = (((state.max - state.min) / state.step) - 1).coerceAtLeast(0),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${state.min} · 细", color = textSecondary, style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.weight(1f))
+                        Text("${state.max} · 粗", color = textSecondary, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            state.error.ifBlank { state.message },
+                            modifier = Modifier.weight(1f),
+                            color = if (state.error.isNotBlank()) scheme.error else textSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                        )
+                        TextButton(
+                            onClick = actions.resetSystemWeight,
+                            enabled = state.ownedByModule && !state.applying,
+                        ) {
+                            Text("恢复原始")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeShortcut(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier) {
     val tokens = LocalMiuixTokens.current
     Surface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Large,
         color = tokens.cardBackground,
         shadowElevation = 1.dp,
     ) {
@@ -305,7 +412,7 @@ private data class HomeNextStep(
 
 private fun nextStepFor(state: HomeUiState, actions: HomeActions): HomeNextStep = when {
     !state.moduleInstalled || !state.rootGranted -> HomeNextStep(
-        title = "连接洛书模块",
+        title = "连接字域模块",
         description = "安装模块并授予 Root 权限后才能应用全局字体",
         actionLabel = "重新检查",
         icon = Icons.Rounded.Refresh,
@@ -369,7 +476,7 @@ private fun CompactStatusCell(
     textPrimary: Color,
     textSecondary: Color,
 ) {
-    val accent = if (healthy) Color(0xFF21966C) else MaterialTheme.colorScheme.error
+    val accent = if (healthy) LocalMiuixTokens.current.success else MaterialTheme.colorScheme.error
     Row(
         modifier = modifier.padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically,

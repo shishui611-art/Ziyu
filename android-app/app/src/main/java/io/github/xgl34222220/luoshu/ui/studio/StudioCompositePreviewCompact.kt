@@ -288,7 +288,7 @@ private fun SystemPreviewCompact(scenario: CompactPreviewScenario) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp)) {
             when (scenario) {
                 CompactPreviewScenario.MIXED -> Text(
-                    "洛书 LuoShu 2026",
+                    "字域 Ziyu 2026",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -322,8 +322,8 @@ private fun SystemPreviewCompact(scenario: CompactPreviewScenario) {
                     Text("小字号仍应保持清晰、字腔不过度拥挤。", fontSize = 11.sp)
                 }
                 CompactPreviewScenario.HEADLINE -> {
-                    Text("洛书字体引擎", fontSize = 27.sp, fontWeight = FontWeight.Black)
-                    Text("LuoShu Typography 2026", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("字域字体引擎", fontSize = 27.sp, fontWeight = FontWeight.Black)
+                    Text("Ziyu Typography 2026", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
                 CompactPreviewScenario.NUMBERS -> {
                     Text("本月用量", fontSize = 12.sp)
@@ -369,8 +369,8 @@ private fun CandidatePreviewCompact(state: FontStudioUiState, scenario: CompactP
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    NativeFontPreview(cjk.font, "洛书", cjk.axes, Modifier.weight(.28f).height(44.dp), 20f, Gravity.END or Gravity.CENTER_VERTICAL, 1)
-                    NativeFontPreview(latin.font, " LuoShu ", latin.axes, Modifier.weight(.42f).height(44.dp), 20f, Gravity.CENTER, 1)
+                    NativeFontPreview(cjk.font, "字域", cjk.axes, Modifier.weight(.28f).height(44.dp), 20f, Gravity.END or Gravity.CENTER_VERTICAL, 1)
+                    NativeFontPreview(latin.font, " Ziyu ", latin.axes, Modifier.weight(.42f).height(44.dp), 20f, Gravity.CENTER, 1)
                     NativeFontPreview(digit.font, "2026", digit.axes, Modifier.weight(.30f).height(44.dp), 19f, Gravity.START or Gravity.CENTER_VERTICAL, 1)
                 }
                 CompactPreviewScenario.BODY -> {
@@ -402,8 +402,8 @@ private fun CandidatePreviewCompact(state: FontStudioUiState, scenario: CompactP
                     NativeFontPreview(cjk.font, "小字号仍应保持清晰、字腔不过度拥挤。", cjk.axes, Modifier.fillMaxWidth().height(26.dp), 11f, maxLines = 1)
                 }
                 CompactPreviewScenario.HEADLINE -> {
-                    NativeFontPreview(cjk.font, "洛书字体引擎", cjk.axes, Modifier.fillMaxWidth().height(48.dp), 27f, maxLines = 1)
-                    NativeFontPreview(latin.font, "LuoShu Typography 2026", latin.axes, Modifier.fillMaxWidth().height(34.dp), 16f, maxLines = 1)
+                    NativeFontPreview(cjk.font, "字域字体引擎", cjk.axes, Modifier.fillMaxWidth().height(48.dp), 27f, maxLines = 1)
+                    NativeFontPreview(latin.font, "Ziyu Typography 2026", latin.axes, Modifier.fillMaxWidth().height(34.dp), 16f, maxLines = 1)
                 }
                 CompactPreviewScenario.NUMBERS -> {
                     NativeFontPreview(cjk.font, "本月用量", cjk.axes, Modifier.fillMaxWidth().height(27.dp), 12f, maxLines = 1)

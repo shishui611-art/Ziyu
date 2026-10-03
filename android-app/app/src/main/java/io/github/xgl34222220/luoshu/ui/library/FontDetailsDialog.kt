@@ -113,10 +113,10 @@ internal fun FontDetailsDialogRoute(
         FontPreviewMode.Mixed -> if (font.supportsCjk) {
             "花间一壶酒\nLuoShu Aa 0123456789"
         } else {
-            "LuoShu Typeface\nAa 0123456789"
+            "Ziyu Typeface\nAa 0123456789"
         }
         FontPreviewMode.Cjk -> "花间一壶酒\n天地玄黄 宇宙洪荒"
-        FontPreviewMode.Latin -> "The quick brown fox\nLuoShu Typeface"
+        FontPreviewMode.Latin -> "The quick brown fox\nZiyu Typeface"
         FontPreviewMode.Numbers -> "0123456789\n¥ 123,456.78"
     }
 

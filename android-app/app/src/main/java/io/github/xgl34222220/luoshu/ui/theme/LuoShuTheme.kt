@@ -1,6 +1,11 @@
 package io.github.xgl34222220.luoshu.ui.theme
 
 import android.os.Build
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.Window
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -9,10 +14,12 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,18 +64,18 @@ private val MiuixShapes = Shapes(
 )
 
 private val MiuixTypography = Typography(
-    displaySmall = TextStyle(fontSize = 34.sp, lineHeight = 39.sp, fontWeight = FontWeight.Bold),
-    headlineLarge = TextStyle(fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.Bold),
-    headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold),
+    displaySmall = TextStyle(fontSize = 40.sp, lineHeight = 48.sp, fontWeight = FontWeight.SemiBold),
+    headlineLarge = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold),
+    headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
     headlineSmall = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold),
-    titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold),
+    titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
     titleMedium = TextStyle(fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
     titleSmall = TextStyle(fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold),
-    bodyLarge = TextStyle(fontSize = 15.sp, lineHeight = 23.sp),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
-    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp),
-    labelLarge = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold),
-    labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = .2.sp),
+    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 22.sp),
+    bodySmall = TextStyle(fontSize = 13.sp, lineHeight = 19.sp),
+    labelLarge = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+    labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium, letterSpacing = .15.sp),
 )
 
 @Immutable
@@ -78,7 +85,9 @@ data class MiuixTokens(
     val elevatedCardBackground: Color,
     val textPrimary: Color,
     val textSecondary: Color,
-    val success: Color = Color(0xFF27BE83),
+    val textTertiary: Color,
+    val success: Color = Color(0xFF30D968),
+    val successContainer: Color,
     val warning: Color = Color(0xFFF0A532),
 )
 
@@ -89,11 +98,29 @@ val LocalMiuixTokens = staticCompositionLocalOf {
         elevatedCardBackground = Color.White,
         textPrimary = Color(0xFF16171B),
         textSecondary = Color(0xFF70727C),
+        textTertiary = Color(0xFF8B8D96),
+        successContainer = Color(0xFFE6F4EB),
     )
 }
 
 @Composable
 fun LuoShuTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
+    val dark = resolveDark(settings.themeMode)
+    val view = LocalView.current
+    SideEffect {
+        view.context.findWindow()?.let { window ->
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isStatusBarContrastEnforced = false
+                window.isNavigationBarContrastEnforced = false
+            }
+        }
+    }
     CompositionLocalProvider(LocalAppearanceSettings provides settings) {
         when (settings.uiStyle) {
             UiStyle.MATERIAL -> LuoShuMaterialTheme(settings, content)
@@ -139,29 +166,59 @@ private fun LuoShuMiuixTheme(settings: AppearanceSettings, content: @Composable 
 private fun ProvideMiuixTokens(settings: AppearanceSettings, content: @Composable () -> Unit) {
     val dark = resolveDark(settings.themeMode)
     val pureBlack = dark && settings.amoledBlack
-    val scheme = MaterialTheme.colorScheme
+    val baseScheme = MaterialTheme.colorScheme
+    val scheme = baseScheme.copy(
+        background = when {
+            pureBlack -> Color.Black
+            dark -> Color(0xFF0A0A0B)
+            else -> Color(0xFFF3F6FA)
+        },
+        onBackground = if (dark) Color(0xFFF5F5F7) else Color(0xFF17181C),
+        surface = if (dark) Color(0xFF1C1C1E) else Color.White,
+        onSurface = if (dark) Color(0xFFF5F5F7) else Color(0xFF17181C),
+        surfaceVariant = if (dark) Color(0xFF2C2C2E) else Color(0xFFF1F2F5),
+        onSurfaceVariant = if (dark) Color(0xFFA8A8AD) else Color(0xFF5F626A),
+        surfaceContainerLowest = if (dark) Color(0xFF151517) else Color.White,
+        surfaceContainerLow = if (dark) Color(0xFF1B1B1D) else Color(0xFFF8F9FB),
+        surfaceContainer = if (dark) Color(0xFF222224) else Color(0xFFF1F2F5),
+        surfaceContainerHigh = if (dark) Color(0xFF29292B) else Color(0xFFECEEF2),
+        surfaceContainerHighest = if (dark) Color(0xFF303033) else Color(0xFFE5E8ED),
+        error = if (dark) Color(0xFFFFB4AB) else Color(0xFFBA1A1A),
+        errorContainer = if (dark) Color(0xFF690005) else Color(0xFFF9DEDC),
+        onErrorContainer = if (dark) Color(0xFFFFDAD6) else Color(0xFF410E0B),
+        outline = if (dark) Color(0xFF8E8E93) else Color(0xFF777A82),
+        outlineVariant = if (dark) Color(0xFF49494D) else Color(0xFFD8DBE1),
+    )
     val tokens = MiuixTokens(
         pageBackground = when {
             pureBlack -> Color.Black
-            dark -> scheme.surfaceContainerLowest
-            else -> lerp(Color(0xFFF1F5F9), scheme.primaryContainer, .05f)
+            dark -> Color(0xFF0A0A0B)
+            else -> lerp(scheme.background, scheme.primaryContainer, .025f)
         },
         cardBackground = when {
             pureBlack -> Color(0xFF111214)
-            dark -> scheme.surfaceContainerLow
+            dark -> Color(0xFF1C1C1E)
             else -> scheme.surfaceContainerLowest
         },
         elevatedCardBackground = when {
             pureBlack -> Color(0xFF1B1C20)
-            dark -> scheme.surfaceContainerHigh
+            dark -> Color(0xFF252528)
             else -> lerp(scheme.surfaceContainerLowest, scheme.primaryContainer, .12f)
         },
-        textPrimary = scheme.onSurface,
-        textSecondary = scheme.onSurfaceVariant,
-        success = if (dark) Color(0xFF69D9AD) else Color(0xFF187B58),
+        textPrimary = if (dark) Color(0xFFF5F5F7) else scheme.onSurface,
+        textSecondary = if (dark) Color(0xFFA0A0A5) else scheme.onSurfaceVariant,
+        textTertiary = if (dark) Color(0xFF707075) else scheme.onSurfaceVariant.copy(alpha = .78f),
+        success = if (dark) Color(0xFF30D968) else Color(0xFF187B58),
+        successContainer = if (dark) Color(0xFF153D27) else Color(0xFFE6F4EB),
         warning = if (dark) Color(0xFFF3C378) else Color(0xFF956319),
     )
-    CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+    MaterialTheme(
+        colorScheme = scheme,
+        shapes = MaterialTheme.shapes,
+        typography = MaterialTheme.typography,
+    ) {
+        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+    }
 }
 
 @Composable
@@ -185,4 +242,10 @@ private fun KolorStyle.toPaletteStyle(): PaletteStyle = when (this) {
     KolorStyle.SOFT -> PaletteStyle.TonalSpot
     KolorStyle.VIBRANT -> PaletteStyle.Vibrant
     KolorStyle.NEUTRAL -> PaletteStyle.Neutral
+}
+
+private tailrec fun Context.findWindow(): Window? = when (this) {
+    is Activity -> window
+    is ContextWrapper -> baseContext.findWindow()
+    else -> null
 }

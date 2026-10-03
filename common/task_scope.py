@@ -119,7 +119,7 @@ def release_pid(pid_file: str, task: str, report: dict) -> None:
         for suffix in ('', '.task', '.boot'):
             Path(pid_file + suffix).unlink(missing_ok=True)
     except OSError as error:
-        print(f'洛书：无法保存任务退出记录：{error}', file=sys.stderr)
+        print(f'字域：无法保存任务退出记录：{error}', file=sys.stderr)
 
 
 def main() -> int:
@@ -147,7 +147,7 @@ def main() -> int:
         if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
             raise OSError(ctypes.get_errno(), 'PR_SET_CHILD_SUBREAPER')
     except (AttributeError, OSError) as error:
-        print(f'洛书：无法建立任务子进程回收范围，未启动任务：{error}', file=sys.stderr)
+        print(f'字域：无法建立任务子进程回收范围，未启动任务：{error}', file=sys.stderr)
         return 126
 
     # The launcher writes identity sidecars immediately after forking us. Wait
@@ -195,7 +195,7 @@ def main() -> int:
             if result < 0:
                 result = 128 - result
     except (OSError, ValueError) as error:
-        print(f'洛书：无法执行字体任务：{error}', file=sys.stderr)
+        print(f'字域：无法执行字体任务：{error}', file=sys.stderr)
     finally:
         if proc is not None:
             terminated, reaped, leftovers = cleanup(proc)

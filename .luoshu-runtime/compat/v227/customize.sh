@@ -26,7 +26,7 @@ if type luoshu_install_header >/dev/null 2>&1; then
     luoshu_install_header "$MODULE_VERSION"
     luoshu_install_step 1 "检查环境与迁移配置"
 else
-    ui_print "洛书 $MODULE_VERSION"
+    ui_print "字域 $MODULE_VERSION"
 fi
 if [ "${IS_COLOROS:-false}" = true ]; then
     ui_print "✓ 系统：ColorOS ${COLOROS_VERSION:-未知}"
@@ -45,7 +45,7 @@ elif command -v magisk >/dev/null 2>&1 || [ -d /data/adb/magisk ]; then
     ROOT_MANAGER="Magisk"
 fi
 ui_print "✓ Root：$ROOT_MANAGER"
-ui_print "✓ 挂载：洛书私有自挂载"
+ui_print "✓ 挂载：字域私有自挂载"
 
 OLD_MOD="${LUOSHU_OLD_MOD:-/data/adb/modules/LuoShu}"
 mkdir -p "$MODPATH/system/fonts" "$MODPATH/system/bin" "$MODPATH/config" "$MODPATH/logs" 2>/dev/null || true
@@ -181,7 +181,7 @@ if [ -f "$FONT_INVENTORY_SCRIPT" ] && [ -x "$FONT_INVENTORY_PYTHON" ]; then
         _inventory_error=$(tail -n 3 "$FONT_INVENTORY_LOG" 2>/dev/null | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tail -n1)
         [ -z "$_inventory_error" ] || ui_print "• 原厂视图校验失败：$_inventory_error"
         ui_print "• 本次刷写环境没有拿到完整可信原厂视图；最终可替换槽位待重启前确认"
-        ui_print "• 已安排洛书自挂载前自动补扫，不中止安装"
+        ui_print "• 已安排字域自挂载前自动补扫，不中止安装"
     fi
 else
     : > "$MODPATH/config/stock_inventory_scan_pending" 2>/dev/null || true
@@ -228,7 +228,7 @@ if [ "$UPDATE_PRESERVED" = true ]; then
     ui_print "✓ 已继承当前字体配置：$_preserved_font"
     if [ "${LUOSHU_UPDATE_REBUILD_REQUIRED:-false}" = true ]; then
         ui_print "✓ 本次重启继续使用当前字体，不会后台切回默认字体"
-        ui_print "• 重启后在洛书中应用一次当前字体，即可升级到新版引擎"
+        ui_print "• 重启后在字域中应用一次当前字体，即可升级到新版引擎"
     else
         ui_print "✓ 更新后只需重启一次，无需重新应用字体"
     fi
@@ -245,8 +245,8 @@ if [ -s "$MODPATH/bundled/LuoShu-App.apk" ] && [ -f "$MODPATH/common/app_install
     _app_result=$(MODDIR="$MODPATH" APP_INSTALL_LOG="$MODPATH/logs/app-install.log" sh "$MODPATH/common/app_installer.sh" flash 2>/dev/null)
     _app_code=$?
     case "$_app_result" in
-        installed) ui_print "✓ 洛书 App 已自动安装或更新" ;;
-        already-current) ui_print "✓ 洛书 App 已是当前版本，无需重复安装" ;;
+        installed) ui_print "✓ 字域 App 已自动安装或更新" ;;
+        already-current) ui_print "✓ 字域 App 已是当前版本，无需重复安装" ;;
         *)
             ui_print "• 当前刷写环境无法完成 App 安装，将在首次开机后自动补装"
             ui_print "• 也可以重启后点击模块“操作”按钮手动重试"
@@ -254,14 +254,14 @@ if [ -s "$MODPATH/bundled/LuoShu-App.apk" ] && [ -f "$MODPATH/common/app_install
             ;;
     esac
 else
-    ui_print "✗ 模块内置 App 或安装器缺失，请重新下载洛书模块包"
+    ui_print "✗ 模块内置 App 或安装器缺失，请重新下载字域模块包"
 fi
 if [ "$UPDATE_PRESERVED" = true ] && [ "${LUOSHU_UPDATE_REBUILD_REQUIRED:-false}" = true ]; then
     ui_print "请完整重启；当前字体会保留。之后只需明确应用一次并重启一次。"
 elif [ "$UPDATE_PRESERVED" = true ]; then
     ui_print "请完整重启一次，新版字体会直接生效。"
 else
-    ui_print "请完整重启后进入洛书 App 配置字体。"
+    ui_print "请完整重启后进入字域 App 配置字体。"
 fi
 ui_print ""
 [ -f "$MODPATH/common/module_status.sh" ] && MODDIR="$MODPATH" sh "$MODPATH/common/module_status.sh" "$(head -n1 "$MODPATH/config/active_font.conf" 2>/dev/null)" >/dev/null 2>&1 || true

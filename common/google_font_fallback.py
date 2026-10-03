@@ -24,17 +24,17 @@ def describe(backend: Android, journal: Journal, module: Path) -> dict:
         message = '未确认字体提供组件可用，或 Google Play 服务整包已停用；不会修改整个谷歌服务。'
     elif disabled and valid:
         state, title = 'enabled', '已开启 Google 字体兼容'
-        message = '已识别洛书或独立脚本保存的恢复记录。只停用了字体提供组件；字体效果请重启后检查。'
+        message = '已识别字域或独立脚本保存的恢复记录。只停用了字体提供组件；字体效果请重启后检查。'
     elif disabled:
         state, title = 'external', '字体组件已由其他方式停用'
-        message = '没有洛书的恢复记录，不能猜测原状态；请通过原操作恢复。'
+        message = '没有字域的恢复记录，不能猜测原状态；请通过原操作恢复。'
     elif saved is not None:
         state, title = 'changed', '组件已恢复，记录待核对'
         message = '可点击恢复原设置，核验后清理本功能的恢复记录。'
     else:
         state, title = 'off', '尚未开启 Google 字体兼容'
         message = ('遇到谷歌商店英文、数字恢复默认时，可手动开启此兼容选项。'
-                   if ready else '请先启用洛书模块并应用自定义字体，再开启此兼容选项。')
+                   if ready else '请先启用字域模块并应用自定义字体，再开启此兼容选项。')
     return {'status': 'diagnostic', 'state': state, 'title': title, 'message': message,
             'user': journal.user, 'managed': bool(valid), 'componentDisabled': disabled,
             'canEnable': bool(supported and ready and saved is None and not disabled),
@@ -62,7 +62,7 @@ def restore_owned(backend: Android, directory: Path) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='洛书 Google 字体兼容：仅 FontsProvider，可恢复。')
+    parser = argparse.ArgumentParser(description='字域 Google 字体兼容：仅 FontsProvider，可恢复。')
     parser.add_argument('action', choices=('status', 'enable', 'restore', 'restore-owned'), nargs='?', default='status')
     parser.add_argument('--user', type=int, help='指定 Android 用户；不处理全部用户。')
     parser.add_argument('--json', action='store_true', help='仅输出结构化结果，供内置中文界面使用。')
@@ -79,7 +79,7 @@ def main() -> int:
         if not 0 <= user <= 21474:
             raise FallbackError('无效的 Android 用户编号。')
         if args.action == 'enable' and not module_ready(MODULE):
-            raise FallbackError('请先启用洛书并应用自定义字体；未停用 Google 字体提供组件。')
+            raise FallbackError('请先启用字域并应用自定义字体；未停用 Google 字体提供组件。')
         if not args.json and args.action != 'status':
             print('注意：此开关影响该用户所有依赖 GMS 下载字体的应用，也可能影响下载式表情字体。')
             print('Android 修改组件状态时可能重启相关 GMS 进程。不会清除账户、App 数据或字体目录。')

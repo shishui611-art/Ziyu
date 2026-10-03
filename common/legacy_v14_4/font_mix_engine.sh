@@ -565,7 +565,7 @@ case "${1:-status}" in
                 _message='完整复合字体已准备，完整重启后生效'
                 [ "$COMPOSITE_CACHE_HIT" = true ] && _message='已使用验证缓存准备字体组合，完整重启后生效'
                 write_task "$_task" success "$_message" "$_cjk" "$_latin" "$_digit" "$_started" "$_finished"
-                command -v cmd >/dev/null 2>&1 && cmd notification post -t 洛书 luoshu-mix "字体组合已准备，请完整重启手机。" >/dev/null 2>&1 || true
+                command -v cmd >/dev/null 2>&1 && cmd notification post -t 字域 luoshu-mix "字体组合已准备，请完整重启手机。" >/dev/null 2>&1 || true
             else
                 _rc=$?; _finished=$(date +%s)
                 _failure="${LAST_MIX_ERROR:-}"

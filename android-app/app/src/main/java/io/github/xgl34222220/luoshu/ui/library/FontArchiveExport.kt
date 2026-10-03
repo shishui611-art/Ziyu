@@ -232,7 +232,7 @@ internal fun FontArchiveExportTool(
             text = {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text(
-                        "归档会从洛书字体库只读复制真实 TTF、OTF、TTC 文件，并生成 SHA-256 manifest.json。不会导出设备原厂字体，也不会写入或修改字体库。",
+                        "归档会从字域字体库只读复制真实 TTF、OTF、TTC 文件，并生成 SHA-256 manifest.json。不会导出设备原厂字体，也不会写入或修改字体库。",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                     )

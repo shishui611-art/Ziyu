@@ -33,6 +33,7 @@ import io.github.xgl34222220.luoshu.ui.logs.LogsRoute
 import io.github.xgl34222220.luoshu.ui.logs.toLogsUiState
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuTheme
+import io.github.xgl34222220.luoshu.ui.setup.InitializationScreen
 
 internal class TaskCenterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,9 +47,18 @@ internal class TaskCenterActivity : ComponentActivity() {
 internal fun TaskCenterHost() {
     val model: LuoShuViewModel = viewModel()
     val appearanceViewModel: AppearanceViewModel = viewModel()
+    val initializationViewModel: InitializationViewModel = viewModel()
     val appearance by appearanceViewModel.settings.collectAsStateWithLifecycle()
+    val setupRequired by appearanceViewModel.setupRequired.collectAsStateWithLifecycle()
+    val initialization by initializationViewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { model.refreshLogs() }
+    LaunchedEffect(setupRequired) {
+        when (setupRequired) {
+            true -> initializationViewModel.checkEnvironment()
+            false -> model.refreshLogs()
+            null -> Unit
+        }
+    }
 
     LuoShuTheme(appearance) {
         val pageBackground = if (appearance.uiStyle == UiStyle.MIUIX) {
@@ -78,12 +88,20 @@ internal fun TaskCenterHost() {
                 .windowInsetsPadding(contentInsets)
                 .consumeWindowInsets(contentInsets),
         ) {
-            LogsRoute(
-                style = appearance.uiStyle,
-                state = model.toLogsUiState(),
-                actions = LogsActions(refresh = model::refreshLogs),
-                onBack = { (context as? Activity)?.finish() },
-            )
+            when (setupRequired) {
+                null -> InitializationLoadingScreen()
+                true -> InitializationScreen(
+                    state = initialization,
+                    onRecheck = initializationViewModel::checkEnvironment,
+                    onStart = appearanceViewModel::completeSetup,
+                )
+                false -> LogsRoute(
+                    style = appearance.uiStyle,
+                    state = model.toLogsUiState(),
+                    actions = LogsActions(refresh = model::refreshLogs),
+                    onBack = { (context as? Activity)?.finish() },
+                )
+            }
         }
     }
 }

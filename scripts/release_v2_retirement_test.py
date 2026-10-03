@@ -18,13 +18,20 @@ class RetirementTest(unittest.TestCase):
 shift 2
 printf '%s\n' "$*" >> "$CALLS"
 [ "${SETTINGS_FAIL:-0}" = 0 ] || exit 1
-case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; *) exit 9;; esac
+case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; delete) printf 'null\n' > "$VALUE";; *) exit 9;; esac
 ''');p.chmod(0o755)
         self.env={**os.environ,'PATH':str(self.bin)+':'+os.environ['PATH'],'VALUE':str(self.value),'CALLS':str(self.calls)}
         self.backup('120','20')
     def backup(self,last,original):
         (self.old/'config/font_weight.conf').write_text('adjustment='+last+'\n')
         (self.old/'config/font_weight_original.conf').write_text('adjustment='+original+'\n')
+    def test_unset_original_is_deleted_when_uninstalling_owned_weight(self):
+        (self.old/'config/font_weight.conf').write_text('weight=550\nadjustment=150\n')
+        (self.old/'config/font_weight_original.conf').write_text('present=false\nadjustment=0\n')
+        self.value.write_text('150\n')
+        r=self.run_job();self.assertEqual(r.returncode,0,r.stderr)
+        self.assertEqual(self.value.read_text(),'null\n')
+        self.assertEqual(self.state(),'state=restored')
     def run_job(self,mode='flash',**env):
         old=self.new if mode=='boot' else self.old
         return subprocess.run(['sh',str(ROOT/'common/font_weight_retire.sh'),str(old),str(self.new),mode],
@@ -54,16 +61,27 @@ case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; *) exit 9;
         self.run_job(SETTINGS_FAIL='1');self.assertNotEqual(self.run_job('boot',SETTINGS_FAIL='1').returncode,0)
         self.assertEqual(self.state(),'state=failed');old=self.calls.read_text()
         self.assertEqual(self.run_job('boot').returncode,0);self.assertEqual(old,self.calls.read_text())
-    def test_setter_and_boot_reapply_are_removed(self):
+    def test_global_weight_is_scoped_and_legacy_migration_remains_bounded(self):
         manager=(ROOT/'common/font_manager_v4.sh').read_text()
         self.assertNotRegex(manager,r'(?m)^\s*settings\s')
         self.assertNotRegex((ROOT/'.luoshu-runtime/core/service.sh').read_text(),r'(?m)^\s*settings\s')
         # Uninstall must not default to writing zero for users who never opted in.
         self.assertNotRegex((ROOT/'.luoshu-runtime/compat/v227/uninstall.sh').read_text(),r'(?m)^\s*settings\s')
-    def test_all_app_global_weight_entries_removed(self):
-        for p in (ROOT/'android-app/app/src/main').rglob('*.kt'):
-            for text in ('SystemWeightState','HomeWeightUiState','font_weight_set','全局粗细'):
-                self.assertNotIn(text,p.read_text(),str(p))
+        runtime=(ROOT/'common/font_weight_runtime.sh').read_text()
+        self.assertIn('fw_set()',runtime)
+        self.assertIn('fw_boot()',runtime)
+        self.assertIn('fw_matches_original',runtime)
+        self.assertIn('font_weight_runtime.sh" service', (ROOT/'service.sh').read_text())
+    def test_global_weight_controls_are_wired_back_to_the_home_screen(self):
+        alpha=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/luoshu/Alpha15FeatureViewModel.kt').read_text()
+        contract=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/home/HomeContract.kt').read_text()
+        home=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/home/HomeScreenCompact.kt').read_text()
+        shell=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuAppShell.kt').read_text()
+        self.assertIn('SystemWeightState',alpha)
+        self.assertIn('font_weight_set',alpha)
+        self.assertIn('HomeWeightUiState',contract)
+        self.assertIn('全局粗细微调',home)
+        self.assertIn('features.systemWeight',shell)
     def test_installer_static_phases_no_fake_percent_or_background_jobs(self):
         s=(ROOT/'common/install_ui.sh').read_text();self.assertNotIn('sleep ',s)
         r=subprocess.run(['sh','-c','ui_print() { printf "%s\\n" "$*"; }; . "$1"; luoshu_install_header v2.0.0; luoshu_install_step 1 环境; luoshu_install_step 2 扫描; luoshu_install_step 3 App; luoshu_install_step 4 挂载; luoshu_install_complete','sh',str(ROOT/'common/install_ui.sh')],capture_output=True,text=True,check=True)

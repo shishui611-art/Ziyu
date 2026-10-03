@@ -167,7 +167,7 @@ private fun MaterialPageHeader(state: HomeUiState, onRefresh: () -> Unit) {
                 letterSpacing = 2.sp,
             )
             Spacer(Modifier.height(5.dp))
-            Text("洛书", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
+            Text("字域", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
             Text(
                 text = "Material 3 Glass · ${state.version}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -112,7 +112,7 @@ internal fun FullBackupCard(
         Text("完整备份与恢复", fontSize = 17.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.size(5.dp))
         Text(
-            "导出 .luoshu.zip：用户字体文件、收藏/标签、字体方案、当前 Studio 组合、外观设置和可迁移洛书配置。每个文件都会写入 SHA-256 清单。",
+            "导出 .luoshu.zip：用户字体文件、收藏/标签、字体方案、当前 Studio 组合、外观设置和可迁移字域配置。每个文件都会写入 SHA-256 清单。",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
             lineHeight = 15.sp,
@@ -244,7 +244,7 @@ private fun validateManifest(stage: File) {
     val manifestFile = File(stage, "manifest.json")
     require(manifestFile.isFile) { "备份缺少 manifest.json" }
     val root = JSONObject(manifestFile.readText(Charsets.UTF_8))
-    require(root.optInt("schema", -1) == FULL_BACKUP_SCHEMA && root.optString("type") == FULL_BACKUP_TYPE) { "不是受支持的洛书完整备份" }
+    require(root.optInt("schema", -1) == FULL_BACKUP_SCHEMA && root.optString("type") == FULL_BACKUP_TYPE) { "不是受支持的字域完整备份" }
     val files = root.optJSONArray("files") ?: error("备份清单不完整")
     require(files.length() <= FULL_BACKUP_MAX_FILES) { "备份文件数量异常" }
     var total = 0L

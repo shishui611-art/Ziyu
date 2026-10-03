@@ -127,7 +127,7 @@ init_module() {
     check_magisk_version
     check_coloros
     check_hyperos
-    log_message "INFO" "洛书模块已初始化 | Root管理器: $ROOT_MANAGER | Android API: $ANDROID_API | ColorOS: $IS_COLOROS | HyperOS: $IS_HYPEROS"
+    log_message "INFO" "字域模块已初始化 | Root管理器: $ROOT_MANAGER | Android API: $ANDROID_API | ColorOS: $IS_COLOROS | HyperOS: $IS_HYPEROS"
 }
 
 # ============================================================

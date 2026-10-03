@@ -44,6 +44,7 @@ touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Medium.ttf"
 touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Bold.ttf"
 touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-VF.ttf"
 touch "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT/Roboto-Medium.ttf"
+touch "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT/OSans-Solid-Digits-VF.ttf"
 touch "$LUOSHU_COLOROS_MY_PRODUCT_FONTS_ROOT/Opposans-En-Bold.ttf"
 
 _log_step() { :; }
@@ -63,6 +64,7 @@ ok cmp -s "$USER_FONTS_DIR/Demo-Medium.ttf" "$MODULE_DIR/product/fonts/GoogleSan
 ok cmp -s "$USER_FONTS_DIR/Demo-Bold.ttf" "$MODULE_DIR/product/fonts/GoogleSansText-Bold.ttf"
 ok cmp -s "$USER_FONTS_DIR/Demo-Regular.ttf" "$MODULE_DIR/product/fonts/GoogleSansText-VF.ttf"
 ok cmp -s "$USER_FONTS_DIR/Demo-Medium.ttf" "$MODULE_DIR/system_ext/fonts/Roboto-Medium.ttf"
+ok cmp -s "$USER_FONTS_DIR/Demo-Regular.ttf" "$MODULE_DIR/system_ext/fonts/OSans-Solid-Digits-VF.ttf"
 
 # Never fan the ColorOS payload back into boot-sensitive OEM partitions merely because a font exists there.
 no test -e "$MODULE_DIR/my_product/fonts/Opposans-En-Bold.ttf"
@@ -74,5 +76,9 @@ COLOROS_NAMES=$(get_all_coloros_names)
 printf '%s\n' "$COLOROS_NAMES" > "$TMP/coloros-names"
 ok grep -qx 'GoogleSansText-Regular' "$TMP/coloros-names"
 ok grep -qx 'SysFont-Regular' "$TMP/coloros-names"
+ok grep -qx 'OSans-Solid-Digits-VF' "$TMP/coloros-names"
+
+. "$ROOT/common/font_runtime_policy.sh"
+ok test "$(_lfrp_target_kind OSans-Solid-Digits-VF.ttf)" = latin
 
 printf 'ColorOS safe partition mapping tests passed.\n'

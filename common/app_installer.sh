@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 Full 模块内置 App 安装器。
+# 字域 Full 模块内置 App 安装器。
 # customize.sh、service.sh 与 action.sh 共用同一套版本判断和覆盖安装逻辑。
 set +e
 
@@ -146,7 +146,7 @@ printf '%s\n' "$INSTALL_RESULT" >> "$LOG" 2>/dev/null || true
 if [ "$INSTALL_CODE" -eq 0 ] && printf '%s' "$INSTALL_RESULT" | grep -q 'Success'; then
     rm -f "$PENDING" "$RETRY_STATE" 2>/dev/null || true
     write_state installed "覆盖安装成功"
-    log_app INFO "洛书 App 已安装或更新到 $APP_VERSION_CODE"
+    log_app INFO "字域 App 已安装或更新到 $APP_VERSION_CODE"
     printf 'installed\n'
     exit 0
 fi

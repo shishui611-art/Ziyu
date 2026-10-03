@@ -155,6 +155,6 @@ _luoshu_remove_tree "$MODDIR"
 
 # 卸载事件只写入系统日志，不再制造任何持久文件。
 if command -v log >/dev/null 2>&1; then
-    log -t LuoShu "洛书 $MODULE_VERSION 已卸载" >/dev/null 2>&1 || true
+    log -t LuoShu "字域 $MODULE_VERSION 已卸载" >/dev/null 2>&1 || true
 fi
 exit 0

@@ -1,12 +1,42 @@
 package io.github.xgl34222220.luoshu.ui.home
 
 import io.github.xgl34222220.luoshu.ModuleSnapshot
+import io.github.xgl34222220.luoshu.SystemWeightState
+import io.github.xgl34222220.luoshu.snapSystemWeight
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeContractTest {
+    @Test
+    fun globalWeightSnapsToTenAndClampsToTheSupportedRange() {
+        assertEquals(300, snapSystemWeight(100))
+        assertEquals(550, snapSystemWeight(554))
+        assertEquals(560, snapSystemWeight(555))
+        assertEquals(700, snapSystemWeight(900))
+    }
+
+    @Test
+    fun globalWeightControlsAreMappedIntoTheHomeState() {
+        val state = ModuleSnapshot(installed = true, rootGranted = true).toHomeUiState(
+            SystemWeightState(
+                loading = false,
+                supported = true,
+                weight = 560,
+                min = 300,
+                max = 700,
+                step = 10,
+                message = "系统粗细已更新",
+            ),
+        )
+
+        assertTrue(state.systemWeight.supported)
+        assertEquals(560, state.systemWeight.weight)
+        assertEquals(10, state.systemWeight.step)
+        assertEquals("系统粗细已更新", state.systemWeight.message)
+    }
+
     @Test
     fun failedMountShowsSystemFontInsteadOfConfiguredFontAsEffective() {
         val state = ModuleSnapshot(

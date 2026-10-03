@@ -58,7 +58,7 @@ internal data class GlyphBrowserCategory(
 )
 
 internal val glyphBrowserCategories = listOf(
-    GlyphBrowserCategory("common", "常用", "永和九年岁在癸丑洛书字体排印LuoShuTypography0123456789"),
+    GlyphBrowserCategory("common", "常用", "永和九年岁在癸丑字域字体排印ZiyuTypography0123456789"),
     GlyphBrowserCategory("cjk", "中文", "天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜"),
     GlyphBrowserCategory("latin", "拉丁", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜÝ"),
     GlyphBrowserCategory("digits", "数字", "0123456789０１２３４５６７８９+-−×÷=%‰₹¥￥€£$¢₩₽"),

@@ -130,7 +130,7 @@ internal fun SwitchHistoryDialog(
         text = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "只记录真正完成的字体事务，最多保留 10 次。恢复仍会重新走洛书的校验、事务与重启保护。",
+                    "只记录真正完成的字体事务，最多保留 10 次。恢复仍会重新走字域的校验、事务与重启保护。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp,
                 )

@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # ============================================================
 # 洛书 - 后台服务（版本以 module.prop 为准）
-# 功能：开机后一次性校正权限、补装 App、校验字体挂载；不恢复全局粗细控制。
+# 功能：开机后一次性校正权限、补装 App、校验字体挂载。
 # ============================================================
 
 MODDIR="${MODDIR:-$(CDPATH= cd -- "${0%/*}/../.." 2>/dev/null && pwd)}"
@@ -46,15 +46,6 @@ MODULE_DIR="$MODDIR"
             cmd notification post -t "$_title" "$_tag" "$_message" >/dev/null 2>&1 || true
     }
 
-    # Upgrade-only Settings migration after boot. One bounded retry; a failed
-    # provider never causes a resident poller or a new attempt every boot.
-    if [ -f "$MODDIR/common/font_weight_retire.sh" ] && \
-       grep -qx 'state=pending' "$MODDIR/config/font-weight-retired-v2.conf" 2>/dev/null; then
-        if ! sh "$MODDIR/common/font_weight_retire.sh" "$MODDIR" "$MODDIR" boot >> "$MODDIR/logs/font-weight-retire.log" 2>&1; then
-            printf 'state=failed\n' > "$MODDIR/config/font-weight-retired-v2.conf"
-        fi
-    fi
-
     log_service "INFO" "服务脚本开始执行 ($MODULE_VERSION)"
     if [ -f "$LOG_FILE" ]; then
         _log_size=$(wc -c < "$LOG_FILE" 2>/dev/null | tr -d '[:space:]')
@@ -83,7 +74,7 @@ MODULE_DIR="$MODDIR"
         _dynamic_release_rc=$?
         case "$_dynamic_release_rc" in
             0) log_service "INFO" "已释放启动期动态字体临时视图" ;;
-            2) log_service "DEBUG" "本次启动没有洛书动态字体临时视图" ;;
+            2) log_service "DEBUG" "本次启动没有字域动态字体临时视图" ;;
             *)
                 _dynamic_template_safe=0
                 log_service "ERROR" "动态字体临时视图无法安全释放，本次跳过原厂模板刷新"
@@ -118,7 +109,7 @@ MODULE_DIR="$MODDIR"
             case "$_app_result" in
   installed|already-current)
       rm -f "$MODDIR/config/app_install_manual" "$_app_retry_file" 2>/dev/null || true
-      log_service "INFO" "洛书 App 已安装并与模块内置版本一致"
+      log_service "INFO" "字域 App 已安装并与模块内置版本一致"
       ;;
   permanent-failure|invalid-package|invalid-apk)
       rm -f "$MODDIR/config/app_install_pending" "$_app_retry_file" 2>/dev/null || true
@@ -175,7 +166,7 @@ MODULE_DIR="$MODDIR"
         _pending_reason=$(sed -n 's/^reason=//p' "$MODDIR/config/font-payload-rebuild-pending.conf" 2>/dev/null | head -n1)
         log_service "INFO" "旧字体负载保持不变，等待一次明确应用：font=$_pending_font reason=${_pending_reason:-schema-upgrade}"
         if [ ! -f "$MODDIR/config/font-payload-reapply-notified.conf" ]; then
-            notify_service "洛书" "当前字体已保留。请在洛书中应用一次当前字体；完成后只需完整重启一次。" luoshu-font-reapply
+            notify_service "字域" "当前字体已保留。请在字域中应用一次当前字体；完成后只需完整重启一次。" luoshu-font-reapply
             {
                 printf 'font=%s\n' "$_pending_font"
                 printf 'reason=%s\n' "${_pending_reason:-schema-upgrade}"
@@ -245,7 +236,7 @@ MODULE_DIR="$MODDIR"
                         } > "$MODDIR/config/font-payload-boot.conf.tmp.$$" 2>/dev/null && \
                             mv -f "$MODDIR/config/font-payload-boot.conf.tmp.$$" "$MODDIR/config/font-payload-boot.conf" 2>/dev/null || true
                         log_service "ERROR" "字体挂载未进入系统主命名空间，已保留负载并安排下次开机重试（第 $_mount_fail_count/3 次）"
-                        notify_service "洛书" "本次开机字体挂载未生效，已保留字体并将在下次完整重启自动重试。" luoshu-font-mount
+                        notify_service "字域" "本次开机字体挂载未生效，已保留字体并将在下次完整重启自动重试。" luoshu-font-mount
                     else
                         # Three inconclusive probes are not proof that the selected font is bad.
                         # Keep both active_font.conf and the committed payload. A later verified
@@ -260,7 +251,7 @@ MODULE_DIR="$MODDIR"
                             mv -f "$MODDIR/config/font-payload-boot.conf.tmp.$$" "$MODDIR/config/font-payload-boot.conf" 2>/dev/null || true
                         type luoshu_payload_quarantine >/dev/null 2>&1 && luoshu_payload_quarantine >/dev/null 2>&1 || true
                         log_service "ERROR" "字体挂载连续三次未取得完整证据；已保留当前字体选择和负载，不自动恢复默认字体"
-                        notify_service "洛书" "字体挂载验证仍未收敛，已保留当前字体与负载；请导出诊断，不会自动切回系统默认字体。" luoshu-font-mount
+                        notify_service "字域" "字体挂载验证仍未收敛，已保留当前字体与负载；请导出诊断，不会自动切回系统默认字体。" luoshu-font-mount
                     fi
                 fi
                 ;;

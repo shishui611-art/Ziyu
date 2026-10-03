@@ -84,7 +84,7 @@ luoshu_mount_preflight() {
         return 1
     }
     [ ! -e "$LUOSHU_MOUNT_MODDIR/disable" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='洛书模块已被禁用'
+        LUOSHU_MOUNT_PREFLIGHT_ERROR='字域模块已被禁用'
         return 1
     }
 
@@ -99,7 +99,7 @@ luoshu_mount_preflight() {
     fi
 
     [ ! -e "$LUOSHU_MOUNT_MODDIR/skip_mount" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='检测到 skip_mount，双目录元模块不会挂载洛书'
+        LUOSHU_MOUNT_PREFLIGHT_ERROR='检测到 skip_mount，双目录元模块不会挂载字域'
         return 1
     }
     [ ! -e "$LUOSHU_MOUNT_MODDIR/mount_error" ] || {
@@ -224,19 +224,19 @@ luoshu_mount_verify_active() {
 
     if _luoshu_direct_source_engine "$_lsmva_engine"; then
         if _luoshu_system_probe_visible; then
-            luoshu_mount_record verified '系统主分区已读取洛书真实挂载探针' '' 0 0 system system
+            luoshu_mount_record verified '系统主分区已读取字域真实挂载探针' '' 0 0 system system
             return 0
         fi
         _lsmva_state=$(_luoshu_self_state_value state)
         case "$_lsmva_state" in
             mounted|degraded)
                 luoshu_mount_record verified \
-                    '洛书自挂载兜底已接管；最终字体状态由真实字体加载验证器确认' \
+                    '字域自挂载兜底已接管；最终字体状态由真实字体加载验证器确认' \
                     '' 0 0 system system
                 return 0
                 ;;
         esac
-        luoshu_mount_record unverified '系统主分区未读取洛书挂载探针' '' 0 1 system '' system
+        luoshu_mount_record unverified '系统主分区未读取字域挂载探针' '' 0 1 system '' system
         return 1
     fi
 
@@ -413,7 +413,7 @@ luoshu_self_mount_ensure() {
 
     if _luoshu_system_probe_visible; then
         _luoshu_self_state_write mounted external-mount system ''
-        _luoshu_self_log '元模块或 Root 管理器已成功挂载，洛书不重复接管'
+        _luoshu_self_log '元模块或 Root 管理器已成功挂载，字域不重复接管'
         return 0
     fi
 

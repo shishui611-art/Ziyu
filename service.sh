@@ -11,6 +11,18 @@ UNIVERSAL_VERIFY="$MODDIR/common/universal_font_runtime_verify.sh"
 LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
 V4_SERVICE="$MODDIR/.luoshu-runtime/core/service.sh"
 
+# The global weight preference is a one-shot system setting. Restore it only
+# after Android has completed boot; the runtime checks that the current value is
+# still ours (or the captured original) before writing anything.
+if [ -f "$MODDIR/common/font_weight_runtime.sh" ]; then
+    (
+        mkdir -p "$MODDIR/logs" 2>/dev/null || true
+        MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+            sh "$MODDIR/common/font_weight_runtime.sh" service \
+            >> "$MODDIR/logs/font-weight-service.log" 2>&1 || true
+    ) </dev/null >/dev/null 2>&1 &
+fi
+
 if [ -s "$UNIVERSAL_MODE" ]; then
     # Phase 7/8 runtime may only consume the frozen deployment artifacts.
     # The legacy provider watcher re-discovers targets and chooses weights, so it

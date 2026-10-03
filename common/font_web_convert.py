@@ -96,7 +96,7 @@ def _fonttools_decode(source: Path, output: Path) -> None:
 
 def _native_woff2_decode(source: Path, output_dir: Path, decoder: Path) -> tuple[Path, str]:
     if not decoder.is_file() or not os.access(decoder, os.X_OK):
-        raise ValueError("WOFF2 解码器不可用；洛书运行时缺少 ARM64 woff2_decompress")
+        raise ValueError("WOFF2 解码器不可用；字域运行时缺少 ARM64 woff2_decompress")
     stage = Path(tempfile.mkdtemp(prefix=".luoshu-woff2-", dir=output_dir))
     try:
         staged_input = stage / (safe_stem(source.stem) + ".woff2")

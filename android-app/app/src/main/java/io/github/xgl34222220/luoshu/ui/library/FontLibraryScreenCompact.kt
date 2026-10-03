@@ -397,7 +397,7 @@ private fun CompactFontRow(
                 ) {
                     NativeFontPreview(
                         font = font,
-                        text = if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, LuoShu 0123",
+                        text = if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123",
                         axes = if (font.variable) mapOf("wght" to 400f) else emptyMap(),
                         modifier = Modifier.fillMaxWidth().height(70.dp).padding(horizontal = 14.dp),
                         textSizeSp = 22f, gravity = Gravity.CENTER_VERTICAL, maxLines = 1,

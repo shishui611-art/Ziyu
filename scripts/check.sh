@@ -47,11 +47,11 @@ for file in \
   common/luoshu_composite.sh common/font_mix.sh common/font_mix_controller.sh common/weighted_mix_task.sh \
   common/multiweight_mix_task.sh common/mix_weight_mode.sh \
   common/app_bridge.sh common/font_manager.sh common/font_active_state.sh common/font_boot_state.sh common/font_library_cache.sh common/app_installer.sh \
-  common/font_provider_cache.sh common/font_validation_cache.sh \
+  common/font_provider_cache.sh common/font_validation_cache.sh common/font_weight_runtime.sh \
   common/mount_compat.sh common/rom_adapters.sh common/hyperos_global.sh common/util_functions.sh \
   scripts/assert.sh scripts/module_layout_test.sh scripts/duplicate_function_test.sh scripts/device_font_cache_budget_test.sh scripts/provider_pid_scan_test.sh scripts/build.sh scripts/version.sh scripts/module_payload_manifest.txt scripts/prepare_composite_runtime.sh scripts/mount_compat_test.sh scripts/customize_reenable_test.sh \
   scripts/device_validation_gate.py scripts/device_validation_gate_test.py docs/device_validation.json \
-  scripts/stability_test.sh scripts/legacy_switch_core_test.sh scripts/native_zip_import_test.sh scripts/native_preview_source_test.sh scripts/font_source_profile_test.py scripts/font_source_profile_bridge_test.sh scripts/universal_font_plan_test.py scripts/universal_font_plan_bridge_test.sh scripts/minimal_xml_router_test.py scripts/minimal_xml_router_bridge_test.sh scripts/universal_font_compiler_test.py scripts/universal_font_compiler_bridge_test.sh scripts/universal_font_deployment_test.py scripts/universal_font_deployment_bridge_test.sh scripts/universal_mount_runtime_test.sh scripts/app_bridge_status_test.sh scripts/font_boot_state_test.sh \
+  scripts/stability_test.sh scripts/legacy_switch_core_test.sh scripts/native_zip_import_test.sh scripts/native_preview_source_test.sh scripts/font_source_profile_test.py scripts/font_source_profile_bridge_test.sh scripts/font_weight_runtime_test.py scripts/universal_font_plan_test.py scripts/universal_font_plan_bridge_test.sh scripts/minimal_xml_router_test.py scripts/minimal_xml_router_bridge_test.sh scripts/universal_font_compiler_test.py scripts/universal_font_compiler_bridge_test.sh scripts/universal_font_deployment_test.py scripts/universal_font_deployment_bridge_test.sh scripts/universal_mount_runtime_test.sh scripts/app_bridge_status_test.sh scripts/font_boot_state_test.sh \
   scripts/font_library_cache_test.sh scripts/app_installer_test.sh scripts/hyperos_global_mapping_test.sh scripts/coloros_consistency_mapping_test.sh scripts/font_config_variable_weight_test.sh scripts/font_metrics_normalization_test.py scripts/font_config_monospace_test.py \
   scripts/auto_multiweight_mode_test.sh scripts/auto_multiweight_engine_test.sh scripts/mix_finalize_performance_test.sh scripts/font_library_ui_layout_test.sh scripts/v2_source_audit.sh \
   docs/RELEASING.md docs/TEST_MATRIX.md \
@@ -89,7 +89,7 @@ test ! -e "$ROOT/scripts/prepare_webui.sh"
 test "$LUOSHU_VERSION" = "$(sed -n 's/^version=//p' "$ROOT/module.prop" | head -n1)"
 test "$LUOSHU_VERSION_CODE" = "$(sed -n 's/^versionCode=//p' "$ROOT/module.prop" | head -n1)"
 test "$LUOSHU_VERSION" = "$(sed -n 's/^version=//p' "$ROOT/config/version_notes.conf" | head -n1)"
-grep -q '^description=Android 全局字体引擎' "$ROOT/module.prop"
+grep -q '^description=.' "$ROOT/module.prop"
 
 # 发布包使用显式清单。common/ 新增运行文件必须被审查后列入，不能再整目录复制。
 PAYLOAD_MANIFEST="$ROOT/scripts/module_payload_manifest.txt"
@@ -300,6 +300,7 @@ python3 "$ROOT/scripts/google_font_refresh_test.py"
 python3 "$ROOT/scripts/google_font_provider_journal_test.py"
 python3 "$ROOT/scripts/hyperos_theme_font_bridge_test.py"
 python3 "$ROOT/scripts/status_provider_hotfix_test.py"
+python3 "$ROOT/scripts/font_weight_runtime_test.py"
 python3 "$ROOT/scripts/legacy_mix_status_lifecycle_test.py"
 python3 "$ROOT/scripts/scanner_refresh_test.py"
 sh "$ROOT/scripts/builder_update_policy_test.sh"
@@ -364,5 +365,5 @@ grep -q 'manifest-fast' common/font_manager.sh
 grep -q 'font-index-v3.json' android-app/app/src/main/java/io/github/xgl34222220/luoshu/FontIndexStore.kt
 grep -q 'prepared-v8' common/multiweight_mix_task.sh
 
-# Stable 1.1.1 one-shot regressions and v2 settings retirement (synthetic fixtures).
+# Stable 1.1.1 one-shot regressions plus v2 legacy migration and weight lifecycle.
 PYTHONPATH="$ROOT/common:$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest -q stable111_repair_test stable111_round2_test release_v2_retirement_test

@@ -58,6 +58,7 @@ import io.github.xgl34222220.luoshu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuHeaderAction
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuTopBar
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuShapeTokens
 import kotlin.math.roundToInt
 
 @Composable
@@ -127,7 +128,7 @@ private fun MiuixStudioHeader(loading: Boolean, onRefresh: () -> Unit, topAction
 @Composable
 private fun MiuixCompositionMap(state: FontStudioUiState, actions: FontStudioActions) {
     val tokens = LocalMiuixTokens.current
-    val shape = RoundedCornerShape(24.dp)
+    val shape = LuoShuShapeTokens.Large
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
@@ -145,10 +146,10 @@ private fun MiuixCompositionMap(state: FontStudioUiState, actions: FontStudioAct
                         ),
                     ),
                 )
-                .padding(20.dp),
+                .padding(LuoShuLayoutTokens.CardPadding),
         ) {
             Text("组合你的专属字体", color = tokens.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text("中文、英文、数字，分别挑选喜欢的样子。", color = tokens.textSecondary, fontSize = 12.sp)
+            Text("中文、英文、数字，分别挑选喜欢的样子。", color = tokens.textSecondary, fontSize = 14.sp)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 state.slots.forEach { slot ->
@@ -182,11 +183,11 @@ private fun MiuixSlotSummary(slot: StudioSlotUiState, modifier: Modifier, enable
                 fontWeight = FontWeight.Medium,
             )
             Spacer(Modifier.height(5.dp))
-            Text(slot.title, color = tokens.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(slot.title, color = tokens.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 slot.font?.name ?: "未选择",
                 color = tokens.textSecondary,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -198,11 +199,11 @@ private fun MiuixSlotSummary(slot: StudioSlotUiState, modifier: Modifier, enable
 private fun MiuixStudioTask(state: FontStudioUiState) {
     val tokens = LocalMiuixTokens.current
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     modifier = Modifier.size(40.dp),
@@ -221,7 +222,7 @@ private fun MiuixStudioTask(state: FontStudioUiState) {
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Text(state.message, color = tokens.textSecondary, fontSize = 12.sp)
+                    Text(state.message, color = tokens.textSecondary, fontSize = 13.sp)
                 }
                 MiuixStudioPill("${state.progress}%", MaterialTheme.colorScheme.primary)
             }
@@ -242,14 +243,14 @@ private fun MiuixSlotCard(
 ) {
     val tokens = LocalMiuixTokens.current
     val font = slotState.font
-    val shape = RoundedCornerShape(24.dp)
+    val shape = LuoShuShapeTokens.Large
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     modifier = Modifier.size(44.dp),
@@ -272,7 +273,7 @@ private fun MiuixSlotCard(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(slotState.title, color = tokens.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text(slotState.subtitle, color = tokens.textSecondary, fontSize = 12.sp)
+                    Text(slotState.subtitle, color = tokens.textSecondary, fontSize = 13.sp)
                 }
             }
             if (font != null) {
@@ -347,15 +348,15 @@ private fun MiuixCoverageGroup(state: FontStudioUiState, actions: FontStudioActi
     val probe = state.coverage
     val metrics = probe.metrics.takeIf { probe.fontId == fontId }
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("所选字体覆盖率", color = tokens.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text(cjk?.font?.name ?: "请先选择中文基底", color = tokens.textSecondary, fontSize = 12.sp)
+                    Text(cjk?.font?.name ?: "请先选择中文基底", color = tokens.textSecondary, fontSize = 13.sp)
                 }
                 OutlinedButton(
                     onClick = { actions.inspectCoverage(fontId) },
@@ -416,14 +417,14 @@ private fun MiuixFinalAction(state: FontStudioUiState, actions: FontStudioAction
     val tokens = LocalMiuixTokens.current
     val direct = state.directApplyFontId
     val selectionReady = state.slots.size == MixSlot.entries.size && state.slots.all { it.font?.valid == true }
-    val shape = RoundedCornerShape(24.dp)
+    val shape = LuoShuShapeTokens.Large
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     modifier = Modifier.size(44.dp),
@@ -484,7 +485,7 @@ private fun MiuixFinalAction(state: FontStudioUiState, actions: FontStudioAction
 private fun MiuixStudioNotice(message: String, error: Boolean) {
     val tokens = LocalMiuixTokens.current
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Large,
         color = if (error) MaterialTheme.colorScheme.errorContainer else tokens.cardBackground,
         shadowElevation = 0.dp,
     ) {

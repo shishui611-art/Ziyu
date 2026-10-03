@@ -456,16 +456,16 @@ luoshu_mount_verify_active() {
     _lsmva_state=$(_luoshu_self_state_value state)
     _lsmva_manifest=$(_luoshu_atomic_manifest)
     if [ "$_lsmva_state" != mounted ]; then
-        luoshu_mount_record unverified "洛书自挂载未完整提交：${_lsmva_state:-missing}" '' 0 1 system '' self-mount
+        luoshu_mount_record unverified "字域自挂载未完整提交：${_lsmva_state:-missing}" '' 0 1 system '' self-mount
         return 1
     fi
     if ! _luoshu_atomic_verify_manifest "$_lsmva_manifest"; then
         _lsmva_mounted=$(_luoshu_self_state_value mounted)
         _luoshu_self_state_write failed verification "$_lsmva_mounted" pid1-visibility-mismatch
         _luoshu_self_log '自挂载验证失败：PID 1 根命名空间未读取完整字体负载'
-        luoshu_mount_record unverified 'PID 1 根命名空间未读取完整洛书字体负载' '' 0 1 system '' visibility
+        luoshu_mount_record unverified 'PID 1 根命名空间未读取完整字域字体负载' '' 0 1 system '' visibility
         return 1
     fi
-    luoshu_mount_record verified '洛书全部字体文件与配置已在系统主命名空间生效' '' 0 0 system system
+    luoshu_mount_record verified '字域全部字体文件与配置已在系统主命名空间生效' '' 0 0 system system
     return 0
 }

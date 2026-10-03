@@ -1,8 +1,8 @@
 # 第三方组件与许可证
 
-洛书当前源码采用 GPL-3.0-only，详见根目录 [`LICENSE`](LICENSE)。历史 MIT 发行版本的许可证文本保存在 [`licenses/LuoShu-MIT-HISTORICAL.txt`](licenses/LuoShu-MIT-HISTORICAL.txt)。
+字域当前源码采用 GPL-3.0-only，详见根目录 [`LICENSE`](LICENSE)。历史 MIT 发行版本的许可证文本保存在 [`licenses/LuoShu-MIT-HISTORICAL.txt`](licenses/LuoShu-MIT-HISTORICAL.txt)。
 
-发布包会包含或在构建过程中引入以下第三方组件。它们不因被洛书打包而改变原许可证。
+发布包会包含或在构建过程中引入以下第三方组件。它们不因被字域打包而改变原许可证。
 
 ## CPython
 
@@ -11,7 +11,7 @@
 - 许可证：Python Software Foundation License 及其历史许可条款。
 - 完整文本：[`licenses/CPython-LICENSE.txt`](licenses/CPython-LICENSE.txt)。
 
-洛书只进行打包精简：删除测试、开发头文件、IDLE、ensurepip 和运行时不需要的工具，不修改解释器核心许可。
+字域只进行打包精简：删除测试、开发头文件、IDLE、ensurepip 和运行时不需要的工具，不修改解释器核心许可。
 
 ## FontTools
 
@@ -20,7 +20,7 @@
 - 完整文本：[`licenses/FontTools-LICENSE.txt`](licenses/FontTools-LICENSE.txt)。
 - FontTools 上游附带的外部字体项目声明：[`licenses/FontTools-LICENSE.external.txt`](licenses/FontTools-LICENSE.external.txt)。
 
-发布运行时不会使用 FontTools 测试字体作为洛书内置字体，但仍保留上游外部声明以便完整追溯。
+发布运行时不会使用 FontTools 测试字体作为字域内置字体，但仍保留上游外部声明以便完整追溯。
 
 ## Google WOFF2 与 Brotli
 
@@ -29,7 +29,7 @@
 - 许可证：两者均为 MIT License。
 - 完整文本：`licenses/WOFF2-LICENSE.txt` 与 `licenses/Brotli-LICENSE.txt`。
 
-洛书只打包交叉编译后的 `woff2_decompress` 解码工具，不使用它修改原始字体文件；转换结果仍会经过洛书自己的 SFNT 与字体表校验。
+字域只打包交叉编译后的 `woff2_decompress` 解码工具，不使用它修改原始字体文件；转换结果仍会经过字域自己的 SFNT 与字体表校验。
 
 ## Miuix 与 AndroidLiquidGlass
 
@@ -38,11 +38,11 @@
 - 许可证：Apache License 2.0。
 - 完整文本：[`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)。
 
-洛书修改了示例的包名、配色、分层、尺寸和导航状态接入；底层库及原示例的许可证与署名不变。
+字域修改了示例的包名、配色、分层、尺寸和导航状态接入；底层库及原示例的许可证与署名不变。
 
 ## 用户字体与第三方模块
 
-洛书不会在仓库或发布包中附带商业字体。以下内容不受洛书 GPL-3.0-only 授权：
+字域不会在仓库或发布包中附带商业字体。以下内容不受字域 GPL-3.0-only 授权：
 
 - 用户自行放入 `/sdcard/LuoShu/fonts/` 的字体；
 - 从其他模块 ZIP 中读取的字体；

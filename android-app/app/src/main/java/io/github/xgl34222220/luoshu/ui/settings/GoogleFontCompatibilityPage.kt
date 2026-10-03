@@ -112,7 +112,7 @@ internal fun GoogleFontCompatibilityPage() {
         item {
             GoogleCompatibilityCard("怎么用") {
                 GoogleCompatibilityText("只在谷歌应用英文、数字反复恢复默认，而中文仍正常时使用。")
-                GoogleStepCard("1", "先应用字体", "在洛书应用需要的中文、英文和数字字体，并按提示完成重启。")
+                GoogleStepCard("1", "先应用字体", "在字域应用需要的中文、英文和数字字体，并按提示完成重启。")
                 GoogleStepCard("2", "开启兼容", "点击「开启 Google 字体兼容」并确认；显示已开启后完整重启一次。")
                 GoogleStepCard("3", "验证保持", "检查 Google Play 等应用，放到后台后再次打开，确认英文和数字没有恢复默认。")
                 GoogleCompatibilityText("之前用独立脚本开启过的，本页会直接识别原恢复记录，不需要重复执行。")
@@ -174,7 +174,7 @@ internal fun GoogleFontCompatibilityPage() {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         GoogleCompatibilityText("只停用当前用户的 Google 下载字体提供组件，不停用整个谷歌服务，不删除字体缓存、账户或应用数据。")
                         GoogleCompatibilityText("会影响该用户所有依赖 GMS 下载字体的应用，可能涉及下载式表情字体；修改时相关 GMS 进程可能重启。")
-                        GoogleCompatibilityText("此设置跨重启保留。停用模块不会保证自动撤销；停用或卸载洛书前，请先点击「恢复原设置」并完整重启；卸载脚本也会尝试恢复有记录的设置。")
+                        GoogleCompatibilityText("此设置跨重启保留。停用模块不会保证自动撤销；停用或卸载字域前，请先点击「恢复原设置」并完整重启；卸载脚本也会尝试恢复有记录的设置。")
                         GoogleCompatibilityText("不保证替换应用内置字体、网页指定字体或已经打开的旧字体，也不会自动封禁联网或强停前台应用。")
                     }
                 }
@@ -193,7 +193,7 @@ internal fun GoogleFontCompatibilityPage() {
                         "将停用当前 Android 用户的 Google 字体提供组件，让依赖它的应用尝试使用备用字体。影响该用户全部依赖 GMS 下载字体的应用，可能影响下载式表情字体，并可能重启相关 GMS 进程。"
                     else "将依据保存的恢复记录，还原开启前的组件状态；不会一律强制启用，也不会修改其他用户或其他组件。")
                     Text("不会清除账户、应用数据或字体缓存。完成后请完整重启手机。")
-                    if (enabling) Text("停用或卸载洛书前，先在此页恢复原设置。此功能不保证所有页面永不回退。")
+                    if (enabling) Text("停用或卸载字域前，先在此页恢复原设置。此功能不保证所有页面永不回退。")
                 }
             },
             dismissButton = { TextButton(onClick = { confirmAction = null }) { Text("取消") } },

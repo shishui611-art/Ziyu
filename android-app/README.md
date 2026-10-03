@@ -1,6 +1,6 @@
-# LuoShu Native App
+# 字域 Native App
 
-洛书 v14.2 RC1 的原生 Android 管理端。App 不复制字体引擎，而是通过 Root 调用 `/data/adb/modules/LuoShu/common/app_bridge.sh`，复用模块已经验证的字体扫描、复合、可变轴、事务切换和回滚逻辑。
+字域 v14.2 RC1 的原生 Android 管理端。App 不复制字体引擎，而是通过 Root 调用 `/data/adb/modules/LuoShu/common/app_bridge.sh`，复用模块已经验证的字体扫描、复合、可变轴、事务切换和回滚逻辑。
 
 ## RC1 架构
 
@@ -10,7 +10,7 @@
 - 只有字体真实包含 `wght` 轴时才显示连续字重滑杆；静态字体显示实际离散字重。
 - 所有 Root 命令在 IO 协程中运行，参数经过 Shell 引号处理。
 
-App 必须与同版本洛书模块配套使用。未安装模块时只能显示桥接不可用状态。
+App 必须与同版本字域模块配套使用。未安装模块时只能显示桥接不可用状态。
 
 ## 本地构建
 

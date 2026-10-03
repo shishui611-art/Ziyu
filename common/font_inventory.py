@@ -93,6 +93,7 @@ GENERIC_DENY_FILE_TOKENS = (
 )
 GENERIC_DENY_STYLE_TOKENS = ("italic", "oblique")
 HEURISTIC_PATTERNS = (
+    re.compile(r"^OSans-Solid-Digits-VF\.ttf$", re.I),
     re.compile(r"^MiSans(?:VF(?:_Overlay)?|LatinVF|TCVF|L3|Clock[A-Za-z0-9_.-]*)\.(?:ttf|otf|ttc|otc)$", re.I),
     re.compile(r"^(?:Mitype[A-Za-z0-9_.-]*|MiClock[A-Za-z0-9_.-]*|AndroidClock[A-Za-z0-9_.-]*|Clockopia)\.(?:ttf|otf|ttc|otc)$", re.I),
     re.compile(r"^(?:100|200|300|350|400|500|600|700|800|900)\.ttf$", re.I),
@@ -272,6 +273,8 @@ def _local_name(tag: str) -> str:
 
 def _is_ui_family(name: str) -> bool:
     lowered = name.strip().lower().replace("_", "-")
+    if lowered == "osans-solid-digits":
+        return True
     if not lowered or any(token in lowered for token in DENY_FAMILY_TOKENS):
         return False
     if lowered == "sans-serif":

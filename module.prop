@@ -1,8 +1,9 @@
 id=LuoShu
-name=洛书·重构版
+name=字域字体加载器
 version=v2.0.0
 versionCode=70000
 versionSeries=refactor
-author=惜故里丶
-description=Android 全局字体引擎：系统、OEM 与 Google 字体统一覆盖与复合
+author=@酷安 柔性体
+description=优先适配 ColorOS 17 字体路径与状态栏数字，保留字域原生 App、自挂载及其他 Android 系统兼容 源于洛书
 updateJson=https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/main/update.json
+actionIcon=icon/icon.png

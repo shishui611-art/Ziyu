@@ -16,17 +16,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 
 /** A flexible title column keeps long titles clear of every action at large font scales. */
 @Composable
 internal fun LuoShuTopBar(
     title: String,
     modifier: Modifier = Modifier,
+    titleSize: TextUnit = LuoShuTypographyTokens.PageTitle,
     actions: @Composable () -> Unit = {},
 ) {
     val tokens = LocalMiuixTokens.current
     Row(
-        modifier = modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(vertical = 8.dp),
+        modifier = modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 76.dp).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -34,9 +36,9 @@ internal fun LuoShuTopBar(
             text = title,
             modifier = Modifier.weight(1f),
             color = tokens.textPrimary,
-            fontSize = 26.sp,
-            lineHeight = 34.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = titleSize,
+            lineHeight = titleSize * 1.15f,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -68,8 +70,8 @@ internal fun LuoShuDetailBar(
             text = title,
             modifier = Modifier.weight(1f),
             color = tokens.textPrimary,
-            fontSize = 22.sp,
-            lineHeight = 30.sp,
+            fontSize = LuoShuTypographyTokens.DetailTitle,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

@@ -320,13 +320,13 @@ luoshu_mountify_module_selected() {
 luoshu_recover_explicit_disable() {
     [ -e "$LUOSHU_MOUNT_MODDIR/disable" ] || return 0
     rm -f "$LUOSHU_MOUNT_MODDIR/disable" 2>/dev/null || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='无法解除洛书模块的 disable 标记'
+        LUOSHU_MOUNT_PREFLIGHT_ERROR='无法解除字域模块的 disable 标记'
         return 1
     }
     rm -f \
         "$LUOSHU_MOUNT_MODDIR/config/font-boot-failures" \
         "$LUOSHU_MOUNT_MODDIR/config/font-payload-quarantine.conf" 2>/dev/null || true
-    luoshu_mount_log '已解除洛书 disable 标记'
+    luoshu_mount_log '已解除字域 disable 标记'
 }
 
 luoshu_recover_magic_mount_markers() {

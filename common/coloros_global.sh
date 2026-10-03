@@ -30,7 +30,7 @@ _coloros_google_text_files() {
 # family. Every entry is still existence-gated, so adding future-compatible names does not create
 # unnecessary mount nodes on older devices.
 _coloros_oem_ui_files() {
-    printf '%s\n' 'OplusOSUI-XThin.ttf OplusOSUI-Thin.ttf OplusOSUI-ExtraLight.ttf OplusOSUI-Light.ttf OplusOSUI-Regular.ttf OplusOSUI-Medium.ttf OplusOSUI-SemiBold.ttf OplusOSUI-Bold.ttf OplusOSUI-ExtraBold.ttf OplusOSUI-Black.ttf OplusSans-Thin.ttf OplusSans-ExtraLight.ttf OplusSans-Light.ttf OplusSans-Regular.ttf OplusSans-Medium.ttf OplusSans-SemiBold.ttf OplusSans-Bold.ttf OplusSans-ExtraBold.ttf OplusSans-Black.ttf OppoSans-Thin.ttf OppoSans-Light.ttf OppoSans-Regular.ttf OppoSans-Medium.ttf OppoSans-SemiBold.ttf OppoSans-Bold.ttf OppoSans-ExtraBold.ttf OppoSans-Black.ttf'
+    printf '%s\n' 'OplusOSUI-XThin.ttf OplusOSUI-Thin.ttf OplusOSUI-ExtraLight.ttf OplusOSUI-Light.ttf OplusOSUI-Regular.ttf OplusOSUI-Medium.ttf OplusOSUI-SemiBold.ttf OplusOSUI-Bold.ttf OplusOSUI-ExtraBold.ttf OplusOSUI-Black.ttf OplusSans-Thin.ttf OplusSans-ExtraLight.ttf OplusSans-Light.ttf OplusSans-Regular.ttf OplusSans-Medium.ttf OplusSans-SemiBold.ttf OplusSans-Bold.ttf OplusSans-ExtraBold.ttf OplusSans-Black.ttf OppoSans-Thin.ttf OppoSans-Light.ttf OppoSans-Regular.ttf OppoSans-Medium.ttf OppoSans-SemiBold.ttf OppoSans-Bold.ttf OppoSans-ExtraBold.ttf OppoSans-Black.ttf OSans-Solid-Digits-VF.ttf'
 }
 
 # Discover safe upright UI slots from every real OPlus partition. This covers renamed files introduced

@@ -54,15 +54,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -96,6 +99,7 @@ import io.github.xgl34222220.luoshu.ui.appearance.ThemeMode
 import io.github.xgl34222220.luoshu.ui.appearance.UiStyle
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuShapeTokens
 import io.github.xgl34222220.luoshu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuDetailBar
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuGlyph
@@ -122,11 +126,11 @@ private enum class SettingsSection(
     val icon: ImageVector,
     val opticalScale: Float,
 ) {
-    OVERVIEW("洛书状态", "版本、Root、挂载与当前字体", Icons.Rounded.Settings, .94f),
+    OVERVIEW("字域状态", "版本、Root、挂载与当前字体", Icons.Rounded.Settings, .94f),
     APPEARANCE("外观与主题", "颜色、深色模式与界面效果", Icons.Rounded.Palette, 1.00f),
     SAFETY("安全与维护", "字体加载检查、冲突与安全清理", Icons.Rounded.Security, .96f),
     GOOGLE("Google 字体兼容", "谷歌英数回退处理、状态与中文说明", Icons.Rounded.Build, .96f),
-    BACKUP("备份与恢复", "完整备份洛书数据和组合方案", Icons.Rounded.Backup, 1.08f),
+    BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
     UPDATE("软件更新", "稳定版、预发行版与下载说明", Icons.Rounded.SystemUpdate, 1.03f),
 }
 
@@ -225,7 +229,6 @@ private fun SettingsHome(
     onOpenSection: (SettingsSection) -> Unit,
     onOpenTasks: () -> Unit,
 ) {
-    val tokens = LocalMiuixTokens.current
     val h = model.health
     val bottom = maxOf(LocalDockContentPadding.current, LuoShuLayoutTokens.FloatingDockSafeBottom)
     LazyColumn(
@@ -242,7 +245,7 @@ private fun SettingsHome(
         item {
             SettingsOverviewCard(h) { onOpenSection(SettingsSection.OVERVIEW) }
         }
-        item { LuoShuSectionHeading("你的洛书", "调整喜欢的样子，查看每次字体任务") }
+        item { LuoShuSectionHeading("你的字域", "调整喜欢的样子，查看每次字体任务") }
         item {
             SettingsGroup {
                 SettingsNavigationRow(
@@ -286,16 +289,6 @@ private fun SettingsHome(
                 )
             }
         }
-        item {
-            Column(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text("洛书 · ${BuildConfig.VERSION_NAME}", color = tokens.textSecondary, fontSize = 12.sp)
-                Text("让每一行文字，都有你的风格", color = tokens.textSecondary, fontSize = 12.sp)
-            }
-        }
     }
 }
 
@@ -311,29 +304,29 @@ private fun SettingsOverviewCard(health: SystemHealthSnapshot, onClick: () -> Un
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        color = tokens.cardBackground,
-        shadowElevation = 1.dp,
+        shape = LuoShuShapeTokens.Card,
+        color = if (!health.loading && health.level == HealthLevel.HEALTHY) tokens.successContainer else tokens.cardBackground,
+        shadowElevation = 0.dp,
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Column(Modifier.padding(LuoShuLayoutTokens.CardPadding), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     modifier = Modifier.size(52.dp),
                     shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = .10f),
+                    color = accent.copy(alpha = .12f),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("洛", color = MaterialTheme.colorScheme.primary, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+                        Text("字", color = MaterialTheme.colorScheme.primary, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("洛书状态", color = tokens.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("字域状态", color = tokens.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (health.loading) "正在读取模块状态…" else health.summary,
                         color = accent,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
                     )
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = tokens.textSecondary, modifier = Modifier.size(22.dp))
@@ -366,7 +359,7 @@ private fun SettingsGroup(content: @Composable () -> Unit) {
     val tokens = LocalMiuixTokens.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Card,
         color = tokens.cardBackground,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
@@ -466,7 +459,7 @@ private fun pageList(content: androidx.compose.foundation.lazy.LazyListScope.() 
 private fun OverviewPage(model: SystemCenterViewModel) = pageList {
     val h = model.health
     item {
-        StatusCard("洛书状态", h.summary, h.level, h.loading) {
+        StatusCard("字域状态", h.summary, h.level, h.loading) {
             InfoLine("App", BuildConfig.VERSION_NAME)
             InfoLine("模块", h.moduleVersion.ifBlank { if (h.modulePresent) "已安装" else "未检测到" })
             InfoLine("Root", h.rootManager)
@@ -480,7 +473,7 @@ private fun OverviewPage(model: SystemCenterViewModel) = pageList {
                 if (h.rebootRequired) add("存在等待重启后生效的字体变更")
                 if (h.lockState == "stale") add("检测到失效字体切换锁，可在安全页一键清理")
                 if (h.cachePending) add("设备字体缓存仍在等待完成")
-                if (h.selfMountState == "degraded") add("洛书自挂载正在使用 OverlayFS + Bind 降级路径")
+                if (h.selfMountState == "degraded") add("字域自挂载正在使用 OverlayFS + Bind 降级路径")
                 if (h.conflicts.isNotEmpty()) add("发现 ${h.conflicts.size} 个其它模块字体覆盖目标")
                 if (h.recentErrors > 0) add("最近日志中有 ${h.recentErrors} 条错误记录")
             }
@@ -490,22 +483,41 @@ private fun OverviewPage(model: SystemCenterViewModel) = pageList {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActions) = pageList {
+private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActions) {
+    var showThemePicker by rememberSaveable { mutableStateOf(false) }
+    pageList {
     item {
         SettingCard("外观预览") {
             Text("让文字更悦目", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(5.dp))
-            Text("Aa 0123456789 · 洛书", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp, lineHeight = 22.sp)
+            Text("Aa 0123456789 · 字域", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp, lineHeight = 22.sp)
             Spacer(Modifier.height(16.dp))
             ChoiceRow(UiStyle.entries, settings.uiStyle, { it.label }, actions.setUiStyle)
         }
     }
     item {
         SettingCard("颜色与模式") {
-            Text("深色模式", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(7.dp))
-            ChoiceRow(ThemeMode.entries, settings.themeMode, { it.label }, actions.setThemeMode)
+            Surface(
+                onClick = { showThemePicker = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = LuoShuShapeTokens.Medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 68.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("深色模式", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("跟随系统、浅色或深色", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
+                    Text(settings.themeMode.label, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
             Spacer(Modifier.height(13.dp))
             Text("取色风格", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(7.dp))
@@ -561,6 +573,49 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
             ToggleLine("高刷新率", "优先同分辨率高刷新模式", settings.highRefreshRate, actions.setHighRefreshRate)
         }
     }
+    }
+    if (showThemePicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showThemePicker = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp).padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("深色模式", fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+                Text("选择界面的明暗显示方式", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeMode.entries.forEach { mode ->
+                        val selected = mode == settings.themeMode
+                        val description = when (mode) {
+                            ThemeMode.SYSTEM -> "随设备设置自动切换"
+                            ThemeMode.LIGHT -> "始终使用浅色界面"
+                            ThemeMode.DARK -> "始终使用深色界面"
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().clip(LuoShuShapeTokens.Medium)
+                                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .selectable(selected = selected, role = Role.RadioButton) {
+                                    actions.setThemeMode(mode)
+                                    showThemePicker = false
+                                }
+                                .heightIn(min = 68.dp).padding(horizontal = 18.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(mode.label, fontSize = 16.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
+                                Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            }
+                            if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -570,7 +625,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle) {
     var confirmRestore by remember { mutableStateOf(false) }
     pageList {
         item {
-            StatusCard("洛书安全体检", h.summary, h.level, h.loading) {
+            StatusCard("字域安全体检", h.summary, h.level, h.loading) {
                 if (h.error.isNotBlank()) Text(h.error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 else {
                     InfoLine("Root 管理器", h.rootManager)
@@ -592,7 +647,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle) {
         }
         item {
             SettingCard("模块冲突检测") {
-                if (h.conflicts.isEmpty()) Text("未发现其它启用模块覆盖洛书关注的字体目录或 fonts.xml。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                if (h.conflicts.isEmpty()) Text("未发现其它启用模块覆盖字域关注的字体目录或 fonts.xml。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 else {
                     Text("发现 ${h.conflicts.size} 个覆盖目标，只报告不自动禁用。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     h.conflicts.forEach { ConflictLine(it) }
@@ -700,13 +755,13 @@ private fun SettingCard(title: String, content: @Composable () -> Unit) {
     val tokens = LocalMiuixTokens.current
     val dark = MaterialTheme.colorScheme.background.luminance() < .5f
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
         border = BorderStroke(
             0.5.dp,
             if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(LuoShuLayoutTokens.CardPadding)) {
             Text(title, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
@@ -718,17 +773,19 @@ private fun SettingCard(title: String, content: @Composable () -> Unit) {
 
 @Composable
 private fun StatusCard(title: String, subtitle: String, level: HealthLevel, loading: Boolean, content: @Composable () -> Unit) {
-    val accent = when (level) { HealthLevel.HEALTHY -> MaterialTheme.colorScheme.primary; HealthLevel.WARNING -> MaterialTheme.colorScheme.tertiary; HealthLevel.ERROR -> MaterialTheme.colorScheme.error }
     val tokens = LocalMiuixTokens.current
+    val accent = when (level) { HealthLevel.HEALTHY -> tokens.success; HealthLevel.WARNING -> tokens.warning; HealthLevel.ERROR -> MaterialTheme.colorScheme.error }
     val dark = MaterialTheme.colorScheme.background.luminance() < .5f
     Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
+        shape = LuoShuShapeTokens.Large,
+        colors = CardDefaults.cardColors(
+            containerColor = if (!loading && level == HealthLevel.HEALTHY) tokens.successContainer else tokens.cardBackground,
+        ),
         border = BorderStroke(
             0.5.dp,
             if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -743,14 +800,15 @@ private fun StatusCard(title: String, subtitle: String, level: HealthLevel, load
 }
 
 private fun mountEngineLabel(value: String): String = when (value) {
-    "self-mount" -> "洛书自挂载"
+    "self-mount" -> "字域自挂载"
+    "洛书自挂载" -> "字域自挂载"
     "native-module-mount" -> "Root 原生挂载"
     "meta-overlayfs", "dual-dir-metamodule" -> "Meta OverlayFS"
     "hybrid-mount" -> "Hybrid Mount"
     "magic-mount", "magic-mount-rs" -> "Magic Mount"
     "mountify" -> "Mountify"
     "unknown", "" -> ""
-    else -> value
+    else -> value.replace("洛书", "字域")
 }
 
 private fun mountBackendLabel(value: String): String = when (value) {
