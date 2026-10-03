@@ -6,13 +6,16 @@
 
 适用于 **Magisk · KernelSU · SukiSU Ultra · APatch**
 
-[![Release](https://img.shields.io/github/v/release/xgl34222220-ops/LuoShu?display_name=release&label=重构版)](https://github.com/xgl34222220-ops/LuoShu/releases/latest)
-[![Build](https://github.com/xgl34222220-ops/LuoShu/actions/workflows/build.yml/badge.svg)](https://github.com/xgl34222220-ops/LuoShu/actions/workflows/build.yml)
+[![Fork](https://img.shields.io/badge/repository-ColorOS17%20fork-blue)](https://github.com/shishui611-art/LuoShu-ColorOS17)
+[![Upstream Release](https://img.shields.io/github/v/release/xgl34222220-ops/LuoShu?display_name=release&label=上游正式版)](https://github.com/xgl34222220-ops/LuoShu/releases/latest)
+[![Build](https://github.com/shishui611-art/LuoShu-ColorOS17/actions/workflows/build.yml/badge.svg)](https://github.com/shishui611-art/LuoShu-ColorOS17/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-orange)](LICENSE)
 
-[下载最新正式版](https://github.com/xgl34222220-ops/LuoShu/releases/latest) · [使用教程](docs/USER_GUIDE.md) · [真机验证状态](docs/TEST_MATRIX.md) · [问题反馈](https://github.com/xgl34222220-ops/LuoShu/issues)
+[上游正式版下载](https://github.com/xgl34222220-ops/LuoShu/releases/latest) · [使用教程](docs/USER_GUIDE.md) · [真机验证状态](docs/TEST_MATRIX.md) · [在本 fork 反馈问题](https://github.com/shishui611-art/LuoShu-ColorOS17/issues)
 
 </div>
+
+> **Fork 说明：**本仓库是 [LuoShu 上游项目](https://github.com/xgl34222220-ops/LuoShu) 的独立 fork，针对 ColorOS 17 做适配和维护。此 fork 维护者：**酷安 @柔性体**。上游源码及其许可证、版权声明仍按原项目保留。
 
 ## 项目简介
 
@@ -212,24 +215,9 @@ sh ./scripts/build.sh
 
 请不要上传没有授权的商业字体文件。
 
-## 支持项目
+## Fork 与维护
 
-字域由个人持续维护。如果它确实帮到了你，并且你愿意支持后续开发、测试和维护，可以自愿赞赏。
-
-- **捐赠完全自愿**，不影响功能、下载、更新和正常的问题反馈；
-- 不设置付费版，也不以捐赠金额作为优先适配、优先修复或售后服务的条件；
-- 扫码前请自行确认收款信息，理性支持即可。
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><strong>微信支付</strong><br><br><img src="docs/assets/donate-wechat.svg" width="260" alt="微信支付捐赠二维码"></td>
-<td align="center"><strong>支付宝</strong><br><br><img src="docs/assets/donate-alipay.svg" width="260" alt="支付宝捐赠二维码"></td>
-</tr>
-</table>
-</div>
-
-感谢每一份支持，也感谢提交真机反馈、Issue、代码和文档改进的朋友。
+本仓库由 **酷安 @柔性体** 维护，基于 [LuoShu 上游仓库](https://github.com/xgl34222220-ops/LuoShu) 继续适配 ColorOS 17。上游的正式版下载仍见 [上游 Releases](https://github.com/xgl34222220-ops/LuoShu/releases)；本 fork 的问题反馈请提交到[此仓库的 Issues](https://github.com/shishui611-art/LuoShu-ColorOS17/issues)。
 
 ## 文档
 
@@ -250,7 +238,7 @@ sh ./scripts/build.sh
 
 <div align="center">
 
-**作者：惜故里丶**
+**维护者：酷安 @柔性体**
 
 如果字域对你有帮助，欢迎 Star、反馈真机结果或提交改进建议。
 
