@@ -11,11 +11,9 @@ SIZE_REPORT="$OUT/LuoShu-${VERSION}-size.txt"
 APP_APK="${LUOSHU_APP_APK:-}"
 ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE=$((LUOSHU_VERSION_CODE * 100 + 1))
-# Phase 1-9 adds the production Universal Font Engine while keeping the legacy
-# fail-safe path. The direct new runtime code is ~90 KiB compressed; keep a tight
-# 10.75 MiB ceiling instead of weakening Python/FontTools coverage to stay at the
-# old 10.50 MiB budget.
-MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-11272192}"
+# The App-only release also carries the offline ARM64 WOFF2 decoder. Keep a
+# tight 11.25 MiB ceiling while retaining the full Python/FontTools runtime.
+MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-11796480}"
 
 sh "$ROOT/scripts/check.sh"
 [ -n "$APP_APK" ] || {
