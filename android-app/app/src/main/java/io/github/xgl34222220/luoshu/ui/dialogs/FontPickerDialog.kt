@@ -71,6 +71,7 @@ internal fun FontPickerDialogRoute(
     when (style) {
         UiStyle.MATERIAL -> MaterialFontPickerDialog(slot, fonts, selected, onDismiss, choose)
         UiStyle.MIUIX -> MiuixFontPickerDialog(slot, fonts, selected, onDismiss, choose)
+        UiStyle.COUI -> MiuixFontPickerDialog(slot, fonts, selected, onDismiss, choose)
     }
 }
 

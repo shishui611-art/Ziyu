@@ -46,8 +46,9 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBar as MaterialNavigationBar
+import androidx.compose.material3.NavigationBarItem as MaterialNavigationBarItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -84,6 +85,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.xgl34222220.luoshu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.luoshu.ui.appearance.AppearanceViewModel
 import io.github.xgl34222220.luoshu.ui.appearance.UiStyle
+import io.github.suqi8.coui.kmp.basic.NavigationBar as CouiNavigationBar
+import io.github.suqi8.coui.kmp.basic.NavigationBarItem as CouiNavigationBarItem
+import io.github.suqi8.coui.kmp.theme.COUITheme
 import io.github.xgl34222220.luoshu.ui.dialogs.FontActionDialogRoute
 import io.github.xgl34222220.luoshu.ui.dialogs.FontActionKind
 import io.github.xgl34222220.luoshu.ui.dialogs.FontPickerDialogRoute
@@ -453,17 +457,21 @@ internal fun LuoShuAppShell(
                 enter = fadeIn(tween(180)) + slideInVertically(tween(210, easing = FastOutSlowInEasing)) { it / 2 },
                 exit = fadeOut(tween(150)) + slideOutVertically(tween(190, easing = FastOutSlowInEasing)) { it },
             ) {
-                if (appearance.uiStyle == UiStyle.MATERIAL) {
-                    MaterialAppDock(
+                when (appearance.uiStyle) {
+                    UiStyle.MATERIAL -> MaterialAppDock(
                         current = dockPage,
                         onSelect = { page = it },
                     )
-                } else {
-                    MiuixAppDock(
+                    UiStyle.MIUIX -> MiuixAppDock(
                         current = dockPage,
                         onSelect = { page = it },
                         appearance = appearance,
                         backdrop = liquidBackdrop,
+                    )
+                    UiStyle.COUI -> CouiAppDock(
+                        current = dockPage,
+                        onSelect = { page = it },
+                        appearance = appearance,
                     )
                 }
             }
@@ -596,7 +604,7 @@ private fun MaterialAppDock(
     onSelect: (AppPage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    NavigationBar(
+    MaterialNavigationBar(
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         windowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
@@ -607,7 +615,7 @@ private fun MaterialAppDock(
             val selected = current == destination
             // NavigationBarItem supplies its own RowScope weight; an extra weight modifier
             // constrains the item twice and can hide the remaining destinations.
-            NavigationBarItem(
+            MaterialNavigationBarItem(
                 selected = selected,
                 onClick = { if (!selected) onSelect(destination) },
                 icon = { Icon(destination.icon, contentDescription = null) },
@@ -657,18 +665,68 @@ private fun MiuixAppDock(
             }
         }
     } else {
-        NavigationBar(
+        MaterialNavigationBar(
             modifier = modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             dockPages.forEach { destination ->
                 val selected = current == destination
-                // NavigationBarItem supplies its own RowScope weight; keep its modifier unweighted.
-                NavigationBarItem(
+                MaterialNavigationBarItem(
                     selected = selected,
                     onClick = { if (!selected) onSelect(destination) },
                     icon = { Icon(destination.icon, contentDescription = null) },
                     label = { Text(destination.label, maxLines = 1) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CouiAppDock(
+    current: AppPage,
+    onSelect: (AppPage) -> Unit,
+    appearance: AppearanceSettings,
+    modifier: Modifier = Modifier,
+) {
+    if (appearance.floatingDock) {
+        val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val bottomPadding = if (bottomInset != 0.dp) 8.dp + bottomInset else 28.dp
+        Surface(
+            modifier = modifier.padding(start = 24.dp, end = 24.dp, bottom = bottomPadding),
+            shape = RoundedCornerShape(28.dp),
+            color = COUITheme.colorScheme.surfaceContainer,
+            shadowElevation = 8.dp,
+        ) {
+            CouiNavigationBar(
+                color = Color.Transparent,
+                showDivider = false,
+                defaultWindowInsetsPadding = false,
+            ) {
+                dockPages.forEach { destination ->
+                    val selected = current == destination
+                    CouiNavigationBarItem(
+                        selected = selected,
+                        onClick = { if (!selected) onSelect(destination) },
+                        icon = destination.icon,
+                        label = destination.label,
+                    )
+                }
+            }
+        }
+    } else {
+        CouiNavigationBar(
+            modifier = modifier.fillMaxWidth(),
+            color = COUITheme.colorScheme.surfaceContainer,
+            defaultWindowInsetsPadding = true,
+        ) {
+            dockPages.forEach { destination ->
+                val selected = current == destination
+                CouiNavigationBarItem(
+                    selected = selected,
+                    onClick = { if (!selected) onSelect(destination) },
+                    icon = destination.icon,
+                    label = destination.label,
                 )
             }
         }

@@ -63,7 +63,7 @@ internal fun LuoShuHost() {
     }
 
     LuoShuTheme(appearance) {
-        val pageBackground = if (appearance.uiStyle == UiStyle.MIUIX) {
+        val pageBackground = if (appearance.uiStyle != UiStyle.MATERIAL) {
             LocalMiuixTokens.current.pageBackground
         } else {
             MaterialTheme.colorScheme.background

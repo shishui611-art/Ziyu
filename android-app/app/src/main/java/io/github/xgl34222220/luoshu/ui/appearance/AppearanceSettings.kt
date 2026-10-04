@@ -4,11 +4,16 @@ import androidx.compose.runtime.Immutable
 
 enum class UiStyle(val label: String) {
     MATERIAL("Material"),
-    MIUIX("Miuix");
+    MIUIX("Miuix"),
+    COUI("COUI");
 
     companion object {
-        fun fromStorage(value: String?): UiStyle =
-            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: MIUIX
+        fun fromStorage(value: String?): UiStyle = when (value?.trim()?.uppercase()) {
+            "MATERIAL" -> MATERIAL
+            "COUI" -> COUI
+            "MIUIX" -> MIUIX
+            else -> MIUIX
+        }
     }
 }
 

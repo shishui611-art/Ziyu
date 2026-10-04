@@ -88,7 +88,7 @@ internal fun HomeScreenCompact(
     val cardColor = tokens.cardBackground
     val textPrimary = tokens.textPrimary
     val textSecondary = tokens.textSecondary
-    val shape = LuoShuShapeTokens.Large
+    val shape = MaterialTheme.shapes.large
     var deviceDetailsExpanded by rememberSaveable { mutableStateOf(false) }
     val canChange = state.moduleInstalled && state.rootGranted && !state.taskRunning
     val next = nextStepFor(state, actions)
@@ -124,7 +124,7 @@ internal fun HomeScreenCompact(
             val statusHealthy = state.moduleInstalled && state.rootGranted && state.mountHealthy &&
                 !state.taskRunning && !state.rebootRequired && state.error.isBlank()
             Surface(
-                shape = LuoShuShapeTokens.Hero,
+                shape = MaterialTheme.shapes.extraLarge,
                 color = if (statusHealthy) tokens.successContainer else cardColor,
                 shadowElevation = 0.dp,
                 border = BorderStroke(
@@ -310,7 +310,7 @@ private fun HomeGlobalWeightCard(
 ) {
     val scheme = MaterialTheme.colorScheme
     Surface(
-        shape = LuoShuShapeTokens.Large,
+        shape = MaterialTheme.shapes.large,
         color = cardColor,
         modifier = Modifier.fillMaxWidth(),
         shadowElevation = 0.dp,
@@ -383,7 +383,7 @@ private fun HomeShortcut(title: String, subtitle: String, icon: ImageVector, onC
     Surface(
         onClick = onClick,
         modifier = modifier,
-        shape = LuoShuShapeTokens.Large,
+        shape = MaterialTheme.shapes.large,
         color = tokens.cardBackground,
         shadowElevation = 1.dp,
     ) {

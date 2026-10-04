@@ -26,7 +26,7 @@ internal fun LuoShuSurfaceCard(
     val tokens = LocalMiuixTokens.current
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = LuoShuShapeTokens.Card,
+        shape = MaterialTheme.shapes.large,
         color = if (emphasized) {
             lerp(tokens.cardBackground, MaterialTheme.colorScheme.primaryContainer, .16f)
         } else tokens.cardBackground,

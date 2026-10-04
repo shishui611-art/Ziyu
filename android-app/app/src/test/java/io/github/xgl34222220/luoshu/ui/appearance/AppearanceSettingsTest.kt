@@ -12,9 +12,13 @@ class AppearanceSettingsTest {
     }
 
     @Test
-    fun uiStyleStorageFallsBackToMiuix() {
+    fun uiStyleStorageKeepsExistingColorOsStyleSettings() {
+        assertEquals(3, UiStyle.entries.size)
         assertEquals(UiStyle.MATERIAL, UiStyle.fromStorage("material"))
+        assertEquals("Miuix", UiStyle.MIUIX.label)
+        assertEquals("COUI", UiStyle.COUI.label)
         assertEquals(UiStyle.MIUIX, UiStyle.fromStorage("MIUIX"))
+        assertEquals(UiStyle.COUI, UiStyle.fromStorage("COUI"))
         assertEquals(UiStyle.MIUIX, UiStyle.fromStorage("unknown"))
         assertEquals(UiStyle.MIUIX, UiStyle.fromStorage(null))
     }

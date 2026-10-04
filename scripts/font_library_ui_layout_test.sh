@@ -41,6 +41,17 @@ grep -q 'index.coerceAtLeast(0) \* 30' "$ROUTE"
 grep -q 'HomeScreenCompact' "$HOME_ROUTE"
 grep -q 'LogsScreenCompact' "$LOGS_ROUTE"
 
+# Every appearance preset feeds its own whole-page palette and shape system into
+# shared content. The page header also receives a style-specific treatment.
+grep -q 'ProvideMaterialTokens(settings, content)' "$THEME"
+grep -q 'ProvideMiuixTokens(settings, content)' "$THEME"
+grep -q 'ProvideCouiTokens(settings, content)' "$THEME"
+grep -q 'COUITheme.colorScheme' "$THEME"
+grep -q 'LocalUiStyle provides settings.uiStyle' "$THEME"
+grep -q 'UiStyle.MATERIAL -> MaterialTheme.typography.headlineSmall.fontSize' "$COMPACT_LAYOUT"
+grep -q 'UiStyle.COUI -> MaterialTheme.typography.titleLarge.fontSize' "$COMPACT_LAYOUT"
+grep -q 'if (couiHeader) Modifier.clip(MaterialTheme.shapes.medium)' "$COMPACT_LAYOUT"
+
 # Font library: management tools are collapsed, the card itself opens details,
 # each card has one readable native preview, and detail viewing is a stable large preview sheet.
 grep -q 'var showTools' "$COMPACT"
@@ -194,7 +205,7 @@ grep -q 'page.motionIndex() - previousPageForMotion.motionIndex()' "$SHELL"
 
 # Settings follows a grouped home -> detail hierarchy instead of a clipped horizontal tab strip.
 grep -q 'SettingCard("视觉与显示")' "$SETTINGS"
-grep -q 'ToggleLine("玻璃半透明", "为 MIUIx 悬浮底栏启用 KSU 风格的玻璃效果"' "$SETTINGS"
+grep -q 'ToggleLine("玻璃半透明", "为 Miuix 悬浮底栏启用 KSU 风格的玻璃效果"' "$SETTINGS"
 grep -q 'ToggleLine("背景模糊", "模糊悬浮底栏后方的页面内容"' "$SETTINGS"
 grep -q 'ToggleLine("悬浮底栏", "关闭后使用贴合屏幕底部的常规导航栏"' "$SETTINGS"
 grep -q 'private fun SettingsGroup' "$SETTINGS"
@@ -238,5 +249,26 @@ grep -q 'visibleLines.joinToString' "$LOGS_COMPACT"
 grep -q 'logMatchesFilter' "$LOGS_COMPACT"
 ! grep -q 'padding(bottom = 96.dp)' "$LOGS_ROUTE"
 ! grep -q 'if (page == AppPage.Studio)' "$SHELL"
+
+# Composite previews expose an independent light/dark mode and render both
+# Compose and Android TextView previews inside that selected color scheme.
+STUDIO_PREVIEW="$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/studio/StudioCompositePreview.kt"
+STUDIO_PREVIEW_COMPACT="$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/studio/StudioCompositePreviewCompact.kt"
+for preview in "$STUDIO_PREVIEW" "$STUDIO_PREVIEW_COMPACT"; do
+  grep -q 'StudioPreviewTheme(previewDark)' "$preview"
+  grep -q 'StudioPreviewAppearanceSelector(previewDark)' "$preview"
+done
+grep -q 'onSurface = if (dark)' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/studio/StudioPreviewTheme.kt"
+
+# The former Miuix visual option now uses COUI's ColorOS theme and native navigation components.
+grep -q 'MIUIX("Miuix")' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/appearance/AppearanceSettings.kt"
+grep -q 'COUI("COUI")' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/appearance/AppearanceSettings.kt"
+grep -q 'COUITheme(controller = couiController)' "$THEME"
+grep -q 'UiStyle.MIUIX -> LuoShuMiuixTheme' "$THEME"
+grep -q 'UiStyle.COUI -> LuoShuCouiTheme' "$THEME"
+grep -q 'io.github.suqi8.coui.kmp:coui-ui-android:1.1.0' "$ROOT/android-app/app/build.gradle.kts"
+grep -q 'CouiAppDock(' "$SHELL"
+grep -q 'CouiNavigationBar(' "$SHELL"
+grep -q 'CouiNavigationBarItem(' "$SHELL"
 
 echo 'LuoShu compact UI layout regression passed.'

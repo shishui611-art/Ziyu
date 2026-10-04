@@ -14,6 +14,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -26,6 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.materialkolor.DynamicMaterialTheme
 import com.materialkolor.PaletteStyle
+import io.github.suqi8.coui.kmp.theme.COUITheme
+import io.github.suqi8.coui.kmp.theme.ColorSchemeMode
+import io.github.suqi8.coui.kmp.theme.ThemeController
+import io.github.suqi8.coui.kmp.theme.ThemePaletteStyle
 import io.github.xgl34222220.luoshu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.luoshu.ui.appearance.KolorStyle
 import io.github.xgl34222220.luoshu.ui.appearance.LocalAppearanceSettings
@@ -78,6 +83,29 @@ private val MiuixTypography = Typography(
     labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium, letterSpacing = .15.sp),
 )
 
+private val CouiShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp),
+)
+
+private val CouiTypography = Typography(
+    displaySmall = TextStyle(fontSize = 38.sp, lineHeight = 46.sp, fontWeight = FontWeight.SemiBold),
+    headlineLarge = TextStyle(fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold),
+    headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
+    headlineSmall = TextStyle(fontSize = 22.sp, lineHeight = 29.sp, fontWeight = FontWeight.SemiBold),
+    titleLarge = TextStyle(fontSize = 21.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold),
+    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp),
+    labelLarge = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+    labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = .15.sp),
+)
+
 @Immutable
 data class MiuixTokens(
     val pageBackground: Color,
@@ -103,6 +131,8 @@ val LocalMiuixTokens = staticCompositionLocalOf {
     )
 }
 
+val LocalUiStyle = staticCompositionLocalOf { UiStyle.MIUIX }
+
 @Composable
 fun LuoShuTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
     val dark = resolveDark(settings.themeMode)
@@ -121,10 +151,14 @@ fun LuoShuTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
             }
         }
     }
-    CompositionLocalProvider(LocalAppearanceSettings provides settings) {
+    CompositionLocalProvider(
+        LocalAppearanceSettings provides settings,
+        LocalUiStyle provides settings.uiStyle,
+    ) {
         when (settings.uiStyle) {
             UiStyle.MATERIAL -> LuoShuMaterialTheme(settings, content)
             UiStyle.MIUIX -> LuoShuMiuixTheme(settings, content)
+            UiStyle.COUI -> LuoShuCouiTheme(settings, content)
         }
     }
 }
@@ -132,15 +166,15 @@ fun LuoShuTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
 @Composable
 private fun LuoShuMaterialTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
     DynamicMaterialTheme(
-        seedColor = resolveSeedColor(settings),
-        useDarkTheme = resolveDark(settings.themeMode),
-        withAmoled = settings.amoledBlack,
+        primary = resolveSeedColor(settings),
+        isDark = resolveDark(settings.themeMode),
+        isAmoled = settings.amoledBlack,
         style = settings.kolorStyle.toPaletteStyle(),
         shapes = MaterialShapes,
         typography = MaterialTypography,
         animate = true,
     ) {
-        ProvideMiuixTokens(settings, content)
+        ProvideMaterialTokens(settings, content)
     }
 }
 
@@ -149,15 +183,142 @@ private fun LuoShuMiuixTheme(settings: AppearanceSettings, content: @Composable 
     val dark = resolveDark(settings.themeMode)
     val pureBlack = dark && settings.amoledBlack
     DynamicMaterialTheme(
-        seedColor = resolveSeedColor(settings),
-        useDarkTheme = dark,
-        withAmoled = pureBlack,
+        primary = resolveSeedColor(settings),
+        isDark = dark,
+        isAmoled = pureBlack,
         style = settings.kolorStyle.toPaletteStyle(),
         shapes = MiuixShapes,
         typography = MiuixTypography,
         animate = true,
     ) {
         ProvideMiuixTokens(settings, content)
+    }
+}
+
+@Composable
+private fun LuoShuCouiTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
+    val dark = resolveDark(settings.themeMode)
+    val pureBlack = dark && settings.amoledBlack
+    val seedColor = resolveSeedColor(settings)
+    val couiMode = when (settings.themeMode) {
+        ThemeMode.SYSTEM -> ColorSchemeMode.MonetSystem
+        ThemeMode.LIGHT -> ColorSchemeMode.MonetLight
+        ThemeMode.DARK -> ColorSchemeMode.MonetDark
+    }
+    val couiPalette = when (settings.kolorStyle) {
+        KolorStyle.SOFT -> ThemePaletteStyle.TonalSpot
+        KolorStyle.VIBRANT -> ThemePaletteStyle.Vibrant
+        KolorStyle.NEUTRAL -> ThemePaletteStyle.Neutral
+    }
+    val couiController = remember(settings, seedColor) {
+        ThemeController(
+            colorSchemeMode = couiMode,
+            keyColor = seedColor,
+            paletteStyle = couiPalette,
+        )
+    }
+    COUITheme(controller = couiController) {
+        DynamicMaterialTheme(
+            primary = seedColor,
+            isDark = dark,
+            isAmoled = pureBlack,
+            style = settings.kolorStyle.toPaletteStyle(),
+            shapes = CouiShapes,
+            typography = CouiTypography,
+            animate = true,
+        ) {
+            ProvideCouiTokens(settings, content)
+        }
+    }
+}
+
+@Composable
+private fun ProvideMaterialTokens(settings: AppearanceSettings, content: @Composable () -> Unit) {
+    val base = MaterialTheme.colorScheme
+    val dark = resolveDark(settings.themeMode)
+    val scheme = if (dark && settings.amoledBlack) {
+        base.copy(
+            background = Color.Black,
+            surface = Color.Black,
+            surfaceContainerLowest = Color.Black,
+            surfaceContainerLow = Color(0xFF101114),
+            surfaceContainer = Color(0xFF17191D),
+            surfaceContainerHigh = Color(0xFF202329),
+            surfaceContainerHighest = Color(0xFF292D33),
+        )
+    } else base
+    val tokens = MiuixTokens(
+        pageBackground = scheme.background,
+        cardBackground = scheme.surfaceContainerLow,
+        elevatedCardBackground = scheme.surfaceContainerHigh,
+        textPrimary = scheme.onSurface,
+        textSecondary = scheme.onSurfaceVariant,
+        textTertiary = scheme.onSurfaceVariant.copy(alpha = .78f),
+        success = if (dark) Color(0xFF72D9A0) else Color(0xFF187B58),
+        successContainer = if (dark) Color(0xFF153D27) else Color(0xFFE6F4EB),
+        warning = if (dark) Color(0xFFF3C378) else Color(0xFF956319),
+    )
+    MaterialTheme(
+        colorScheme = scheme,
+        shapes = MaterialShapes,
+        typography = MaterialTypography,
+    ) {
+        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+    }
+}
+
+@Composable
+private fun ProvideCouiTokens(settings: AppearanceSettings, content: @Composable () -> Unit) {
+    val coui = COUITheme.colorScheme
+    val dark = resolveDark(settings.themeMode)
+    val pureBlack = dark && settings.amoledBlack
+    val base = MaterialTheme.colorScheme
+    val scheme = base.copy(
+        primary = coui.primary,
+        onPrimary = coui.onPrimary,
+        primaryContainer = coui.primaryContainer,
+        onPrimaryContainer = coui.onPrimaryContainer,
+        secondary = coui.secondary,
+        onSecondary = coui.onSecondary,
+        secondaryContainer = coui.secondaryContainer,
+        onSecondaryContainer = coui.onSecondaryContainer,
+        tertiaryContainer = coui.tertiaryContainer,
+        onTertiaryContainer = coui.onTertiaryContainer,
+        background = if (pureBlack) Color.Black else coui.background,
+        onBackground = coui.onBackground,
+        surface = if (pureBlack) Color.Black else coui.surface,
+        onSurface = coui.onSurface,
+        surfaceVariant = coui.surfaceVariant,
+        onSurfaceVariant = coui.onSurfaceVariantSummary,
+        surfaceContainerLowest = if (pureBlack) Color.Black else coui.surface,
+        surfaceContainerLow = if (pureBlack) Color(0xFF101114) else coui.surfaceContainer,
+        surfaceContainer = if (pureBlack) Color(0xFF17191D) else coui.surfaceContainer,
+        surfaceContainerHigh = if (pureBlack) Color(0xFF202329) else coui.surfaceContainerHigh,
+        surfaceContainerHighest = if (pureBlack) Color(0xFF292D33) else coui.surfaceContainerHighest,
+        error = coui.error,
+        onError = coui.onError,
+        errorContainer = coui.errorContainer,
+        onErrorContainer = coui.onErrorContainer,
+        outline = coui.outline,
+        outlineVariant = coui.dividerLine,
+    )
+    val tokens = MiuixTokens(
+        pageBackground = scheme.background,
+        cardBackground = scheme.surfaceContainerLow,
+        elevatedCardBackground = scheme.surfaceContainerHigh,
+        textPrimary = scheme.onSurface,
+        textSecondary = scheme.onSurfaceVariant,
+        textTertiary = scheme.onSurfaceVariant.copy(alpha = .78f),
+        success = if (dark) Color(0xFF72D9A0) else Color(0xFF187B58),
+        successContainer = if (dark) Color(0xFF153D27) else Color(0xFFE6F4EB),
+        warning = if (dark) Color(0xFFF3C378) else Color(0xFF956319),
+    )
+    MaterialTheme(
+        colorScheme = scheme,
+        shapes = CouiShapes,
+        typography = CouiTypography,
+    ) {
+        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
     }
 }
 

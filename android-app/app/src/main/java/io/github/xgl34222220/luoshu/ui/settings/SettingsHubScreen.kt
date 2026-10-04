@@ -567,7 +567,7 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
         SettingCard("视觉与显示") {
             ToggleLine("Monet 动态取色", "跟随系统壁纸强调色", settings.monetEnabled, actions.setMonetEnabled)
             ToggleLine("纯黑深色模式", "AMOLED 黑色背景", settings.amoledBlack, actions.setAmoledBlack)
-            ToggleLine("玻璃半透明", "为 MIUIx 悬浮底栏启用 KSU 风格的玻璃效果", settings.glassEnabled, actions.setGlassEnabled)
+            ToggleLine("玻璃半透明", "为 Miuix 悬浮底栏启用 KSU 风格的玻璃效果", settings.glassEnabled, actions.setGlassEnabled)
             ToggleLine("背景模糊", "模糊悬浮底栏后方的页面内容", settings.blurEnabled, actions.setBlurEnabled, settings.glassEnabled)
             ToggleLine("悬浮底栏", "关闭后使用贴合屏幕底部的常规导航栏", settings.floatingDock, actions.setFloatingDock)
             ToggleLine("高刷新率", "优先同分辨率高刷新模式", settings.highRefreshRate, actions.setHighRefreshRate)

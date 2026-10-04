@@ -112,6 +112,7 @@ internal fun FontStudioRoute(
         when (style) {
             UiStyle.MATERIAL -> FontStudioScreenMaterial(state, stableActions, studioTools)
             UiStyle.MIUIX -> FontStudioScreenMiuix(state, stableActions, studioTools)
+            UiStyle.COUI -> FontStudioScreenMiuix(state, stableActions, studioTools)
         }
     }
 

@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,16 +75,19 @@ internal fun StudioCompositePreviewDialogCompact(
     onDismiss: () -> Unit,
 ) {
     var scenarioName by rememberSaveable { mutableStateOf(CompactPreviewScenario.MIXED.name) }
+    val appStartsDark = MaterialTheme.colorScheme.background.luminance() < .5f
+    var previewDark by rememberSaveable { mutableStateOf(appStartsDark) }
     val scenario = remember(scenarioName) {
         CompactPreviewScenario.entries.firstOrNull { it.name == scenarioName } ?: CompactPreviewScenario.MIXED
     }
-    val tokens = LocalMiuixTokens.current
     val miuix = style == UiStyle.MIUIX
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
+    StudioPreviewTheme(previewDark) {
+        val tokens = LocalMiuixTokens.current
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -109,6 +113,8 @@ internal fun StudioCompositePreviewDialogCompact(
                 }
 
                 Spacer(Modifier.height(12.dp))
+                StudioPreviewAppearanceSelector(previewDark) { previewDark = it }
+                Spacer(Modifier.height(10.dp))
                 CompactScenarioSelector(
                     selected = scenario,
                     onSelect = { scenarioName = it.name },
@@ -180,6 +186,7 @@ internal fun StudioCompositePreviewDialogCompact(
                     Text("完成", fontWeight = FontWeight.SemiBold)
                 }
             }
+        }
         }
     }
 }

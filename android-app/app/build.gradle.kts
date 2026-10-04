@@ -123,13 +123,14 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    implementation("com.materialkolor:material-kolor:2.0.0")
+    // COUI 1.1.0 uses MaterialKolor 5 APIs; keep one aligned implementation at runtime.
+    implementation("com.materialkolor:material-kolor:5.0.0")
     implementation("dev.chrisbanes.haze:haze:1.6.10")
     implementation("dev.chrisbanes.haze:haze-materials:1.6.10")
-    // The reference UI uses Miuix's RuntimeShader backdrop and continuous-corner stack.
-    // Keep Haze as the API 28-32 fallback; the real liquid-glass path is capability-gated.
+    // COUI provides the ColorOS theme and navigation components for the COUI appearance.
+    implementation("io.github.suqi8.coui.kmp:coui-ui-android:1.1.0")
+    // Keep Miuix's RuntimeShader backdrop with Haze for API 28-32; it is capability-gated.
     implementation("top.yukonga.miuix.kmp:miuix-blur-android:0.9.3")
-    implementation("top.yukonga.miuix.kmp:miuix-squircle-android:0.9.3")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20251224")

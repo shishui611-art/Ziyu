@@ -251,7 +251,7 @@ internal fun FontLibraryScreenCompact(
         if (!state.loading && state.fonts.isEmpty()) {
             item(key = "empty") {
                 Card(
-                    shape = RoundedCornerShape(24.dp),
+                    shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(containerColor = cardColor),
                 ) {
                     Column(
@@ -302,7 +302,7 @@ private fun CompactSystemFontRow(
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < .5f
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = cardColor),
         border = BorderStroke(
             0.5.dp,
@@ -344,7 +344,7 @@ private fun CompactFontRow(
     Card(
         onClick = onDetails,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = if (font.valid) cardColor else scheme.errorContainer.copy(alpha = .34f),
         ),

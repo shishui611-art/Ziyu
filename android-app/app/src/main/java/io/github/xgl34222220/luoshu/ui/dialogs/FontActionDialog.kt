@@ -57,6 +57,7 @@ internal fun FontActionDialogRoute(
     when (style) {
         UiStyle.MATERIAL -> MaterialFontActionDialog(kind, message, onDismiss, onConfirm)
         UiStyle.MIUIX -> MiuixFontActionDialog(kind, message, onDismiss, onConfirm)
+        UiStyle.COUI -> MiuixFontActionDialog(kind, message, onDismiss, onConfirm)
     }
 }
 

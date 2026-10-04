@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -111,13 +112,16 @@ internal fun StudioCompositePreviewDialog(
     onDismiss: () -> Unit,
 ) {
     var scenarioName by rememberSaveable { mutableStateOf(StudioPreviewScenario.MIXED.name) }
+    val appStartsDark = MaterialTheme.colorScheme.background.luminance() < .5f
+    var previewDark by rememberSaveable { mutableStateOf(appStartsDark) }
     val scenario = remember(scenarioName) {
         StudioPreviewScenario.entries.firstOrNull { it.name == scenarioName } ?: StudioPreviewScenario.MIXED
     }
-    val tokens = LocalMiuixTokens.current
     val miuix = style == UiStyle.MIUIX
-    val container = if (miuix) tokens.elevatedCardBackground else MaterialTheme.colorScheme.surfaceContainerHigh
 
+    StudioPreviewTheme(previewDark) {
+    val tokens = LocalMiuixTokens.current
+    val container = if (miuix) tokens.elevatedCardBackground else MaterialTheme.colorScheme.surfaceContainerHigh
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(if (miuix) 34.dp else 28.dp),
@@ -144,6 +148,8 @@ internal fun StudioCompositePreviewDialog(
                     .heightIn(max = 590.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
+                StudioPreviewAppearanceSelector(previewDark) { previewDark = it }
+                Spacer(Modifier.height(12.dp))
                 PreviewScenarioSelector(
                     selected = scenario,
                     onSelect = { scenarioName = it.name },
@@ -184,6 +190,7 @@ internal fun StudioCompositePreviewDialog(
             TextButton(onClick = onDismiss) { Text("完成") }
         },
     )
+    }
 }
 
 @Composable

@@ -164,7 +164,7 @@ internal fun LogsScreenCompact(
                                         tabName = LogsTab.LOGS.name
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(24.dp),
+                                    shape = MaterialTheme.shapes.large,
                                     color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = .55f),
                                 ) {
                                     Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -182,7 +182,7 @@ internal fun LogsScreenCompact(
                 }
                 LogsTab.LOGS -> {
                     item(key = "log-summary") {
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = tokens.cardBackground)) {
+                        Card(shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = tokens.cardBackground)) {
                             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Metric("日志", state.lineCount, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
@@ -268,7 +268,7 @@ private fun OverviewCard(state: LogsUiState) = FlashProgressCard(state)
 private fun IssueSummary(failedCount: Int, warningCount: Int, errorCount: Int) {
     val tokens = LocalMiuixTokens.current
     val hasIssues = failedCount > 0 || warningCount > 0 || errorCount > 0
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = tokens.cardBackground)) {
+    Card(shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = tokens.cardBackground)) {
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             StatusIcon(if (hasIssues) Icons.Rounded.Warning else Icons.Rounded.CheckCircle, if (hasIssues) tokens.warning else tokens.success)
             Spacer(Modifier.width(14.dp))
@@ -294,7 +294,7 @@ private fun TaskCard(task: TaskCenterItem) {
     Card(
         onClick = { expanded = !expanded },
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
     ) {
         Column(Modifier.animateContentSize(tween(220)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -368,7 +368,7 @@ private fun StatusIcon(icon: ImageVector, color: Color) {
 @Composable
 private fun EmptyState(icon: ImageVector, title: String, message: String) {
     val tokens = LocalMiuixTokens.current
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = tokens.cardBackground)) {
+    Card(shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = tokens.cardBackground)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusIcon(icon, MaterialTheme.colorScheme.primary)
             Text(title, color = tokens.textPrimary, fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
