@@ -2,6 +2,9 @@ name: Publish Debug Release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
