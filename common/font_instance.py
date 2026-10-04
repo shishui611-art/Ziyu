@@ -166,7 +166,7 @@ def materialize(
             temp_path = Path(handle.name)
         try:
             font.save(str(temp_path), reorderTables=False)
-            if temp_path.stat().st_size < 4096:
+            if temp_path.stat().st_size < 12:
                 raise InstanceError("可变轴实例化输出异常为空")
             os.chmod(temp_path, 0o644)
             os.replace(temp_path, output)
