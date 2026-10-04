@@ -1,0 +1,100 @@
+name: Publish Debug Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ziyu-debug-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  debug-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends curl unzip zip file python3-venv fonts-noto-cjk fonts-dejavu-core >/dev/null
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            common/python
+            .luoshu-runtime/bin/woff2_decompress
+            licenses/WOFF2-LICENSE.txt
+            licenses/Brotli-LICENSE.txt
+          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+
+      - name: Prepare ARM64 composite runtime
+        run: |
+          if [ ! -x common/python/bin/luoshu-python ] || [ ! -x .luoshu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
+            sh ./scripts/prepare_composite_runtime.sh
+          fi
+
+      - name: Run source checks
+        run: sh ./scripts/check.sh
+
+      - name: Build Debug App
+        working-directory: android-app
+        run: gradle --no-daemon --stacktrace :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Package Debug module and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          . ./scripts/version.sh
+          apk='android-app/app/build/outputs/apk/debug/app-debug.apk'
+          test -s "$apk"
+          LUOSHU_APP_APK="$apk" LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
+
+          short_sha="${GITHUB_SHA:0:7}"
+          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
+          app="android-app/app/build/outputs/apk/debug/app-debug.apk"
+          debug_module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}-Debug-${short_sha}.zip"
+          debug_app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug-${short_sha}.apk"
+          mv "$module" "$debug_module"
+          cp "$app" "$debug_app"
+          (cd dist && sha256sum "$(basename "$debug_module")" "$(basename "$debug_app")" > "SHA256SUMS.txt")
+
+          unzip -t "$debug_module" >/dev/null
+          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.xgl34222220.luoshu.debug'
+          test "$(unzip -p "$debug_module" bundled/Ziyu-App.apk | sha256sum | awk '{print $1}')" = "$(sha256sum "$debug_app" | awk '{print $1}')"
+
+          echo "DEBUG_MODULE=$debug_module" >> "$GITHUB_ENV"
+          echo "DEBUG_APP=$debug_app" >> "$GITHUB_ENV"
+          echo "DEBUG_TAG=ziyu-debug-${LUOSHU_ARTIFACT_VERSION}-${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_ENV"
+          echo "DEBUG_VERSION=$LUOSHU_ARTIFACT_VERSION" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Debug pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_PROMPT_DISABLED: '1'
+        run: |
+          gh release create "$DEBUG_TAG" \
+            "$DEBUG_MODULE" "$DEBUG_APP" dist/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "字域 ${DEBUG_VERSION} Debug 测试版 (${GITHUB_RUN_NUMBER})" \
+            --prerelease \
+            --notes $'此版本由 GitHub Actions 云端构建，供调试和手动测试。\n\n这是独立的 Debug 预发布，不属于正式版本，也不会写入正式更新清单。安装前请先备份当前字体配置；遇到异常可在 Root 管理器中停用模块。'
