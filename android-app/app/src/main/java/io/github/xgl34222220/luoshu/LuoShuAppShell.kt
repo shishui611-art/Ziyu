@@ -15,16 +15,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,16 +26,15 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,7 +44,12 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.ListAlt
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -67,14 +65,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -83,17 +79,10 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
-import dev.chrisbanes.haze.rememberHazeState
 import io.github.xgl34222220.luoshu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.luoshu.ui.appearance.AppearanceViewModel
 import io.github.xgl34222220.luoshu.ui.appearance.UiStyle
@@ -102,7 +91,6 @@ import io.github.xgl34222220.luoshu.ui.dialogs.FontActionKind
 import io.github.xgl34222220.luoshu.ui.dialogs.FontPickerDialogRoute
 import io.github.xgl34222220.luoshu.ui.font.fontNormalizedWeight
 import io.github.xgl34222220.luoshu.ui.font.selectedFontId
-import io.github.xgl34222220.luoshu.ui.glass.liquidGlassLens
 import io.github.xgl34222220.luoshu.ui.home.HomeActions
 import io.github.xgl34222220.luoshu.ui.home.HomeRoute
 import io.github.xgl34222220.luoshu.ui.home.toHomeUiState
@@ -112,6 +100,8 @@ import io.github.xgl34222220.luoshu.ui.library.toFontLibraryUiState
 import io.github.xgl34222220.luoshu.ui.logs.LogsActions
 import io.github.xgl34222220.luoshu.ui.logs.LogsRoute
 import io.github.xgl34222220.luoshu.ui.logs.toLogsUiState
+import io.github.xgl34222220.luoshu.ui.navigation.kernelsu.FloatingBottomBar
+import io.github.xgl34222220.luoshu.ui.navigation.kernelsu.FloatingBottomBarItem
 import io.github.xgl34222220.luoshu.ui.settings.AppearanceActions
 import io.github.xgl34222220.luoshu.ui.settings.AppearanceSettingsRoute
 import io.github.xgl34222220.luoshu.ui.studio.FontStudioActions
@@ -119,22 +109,11 @@ import io.github.xgl34222220.luoshu.ui.studio.FontStudioRoute
 import io.github.xgl34222220.luoshu.ui.studio.toFontStudioUiState
 import io.github.xgl34222220.luoshu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.luoshu.ui.theme.LocalMiuixTokens
-import io.github.xgl34222220.luoshu.ui.theme.LuoShuGlyph
-import io.github.xgl34222220.luoshu.ui.theme.LuoShuIconTokens
-import io.github.xgl34222220.luoshu.ui.theme.LuoShuGlassTokens
-import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
-import io.github.xgl34222220.luoshu.ui.theme.LuoShuShapeTokens
-import io.github.xgl34222220.luoshu.ui.theme.LuoShuTypographyTokens
 import io.github.xgl34222220.luoshu.ui.theme.LuoShuTheme
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.colorControls
-import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.squircle.squircleClip
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -272,7 +251,7 @@ internal fun LuoShuAppShell(
     LuoShuTheme(appearance) {
         val dark = MaterialTheme.colorScheme.background.luminance() < .5f
         val showDock = page != AppPage.Logs && !(page == AppPage.Settings && settingsDetailVisible)
-        val quickReturnEnabled = appearance.floatingDock &&
+        val quickReturnEnabled = appearance.uiStyle == UiStyle.MIUIX && appearance.floatingDock &&
             showDock &&
             page in listOf(AppPage.Library, AppPage.Studio, AppPage.Settings)
         var dockHiddenByScroll by remember(page) { mutableStateOf(false) }
@@ -313,8 +292,11 @@ internal fun LuoShuAppShell(
             }
         }
         val dockActuallyVisible = showDock && !dockHiddenByScroll
-        val blurActive = appearance.blurEnabled && appearance.glassEnabled && showDock
-        val hazeState = rememberHazeState(blurEnabled = blurActive)
+        val blurActive = appearance.uiStyle == UiStyle.MIUIX &&
+            appearance.floatingDock &&
+            appearance.blurEnabled &&
+            appearance.glassEnabled &&
+            showDock
         val liquidBackdrop = rememberLayerBackdrop()
         val liquidGlassSupported = blurActive &&
             appearance.uiStyle == UiStyle.MIUIX &&
@@ -324,7 +306,12 @@ internal fun LuoShuAppShell(
         // switching glass, floating, gesture and three-button modes never stacks blank space.
         val dockClearance = 0.dp
         val dockPaddingTarget = if (showDock) {
-            navigationBottom + if (dockHiddenByScroll) 28.dp else 84.dp
+            navigationBottom + when {
+                dockHiddenByScroll -> 28.dp
+                appearance.uiStyle == UiStyle.MATERIAL -> 80.dp
+                appearance.floatingDock -> 72.dp
+                else -> 56.dp
+            }
         } else 0.dp
         val dockContentPadding by animateDpAsState(
             targetValue = dockPaddingTarget,
@@ -334,7 +321,6 @@ internal fun LuoShuAppShell(
         val contentModifier = Modifier
             .fillMaxSize()
             .then(if (quickReturnEnabled) Modifier.nestedScroll(dockScrollConnection) else Modifier)
-            .then(if (blurActive && !liquidGlassSupported) Modifier.hazeSource(state = hazeState) else Modifier)
             .then(if (liquidGlassSupported) Modifier.layerBackdrop(liquidBackdrop) else Modifier)
 
         Box(
@@ -473,16 +459,13 @@ internal fun LuoShuAppShell(
                     MaterialAppDock(
                         current = dockPage,
                         onSelect = { page = it },
-                        appearance = appearance,
-                        hazeState = hazeState,
                     )
                 } else {
                     MiuixAppDock(
                         current = dockPage,
                         onSelect = { page = it },
                         appearance = appearance,
-                        hazeState = hazeState,
-                        backdrop = liquidBackdrop.takeIf { liquidGlassSupported },
+                        backdrop = liquidBackdrop,
                     )
                 }
             }
@@ -609,457 +592,84 @@ private fun AppBackdrop(appearance: AppearanceSettings, dark: Boolean) {
     )
 }
 
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 private fun MaterialAppDock(
     current: AppPage,
     onSelect: (AppPage) -> Unit,
-    appearance: AppearanceSettings,
-    hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    val dark = scheme.background.luminance() < .5f
-    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val floating = appearance.floatingDock
-    val shape = if (floating) LuoShuShapeTokens.Pill else RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-    val activeHaze = appearance.blurEnabled && appearance.glassEnabled
-    val hazeModifier = if (activeHaze) {
-        Modifier.hazeEffect(state = hazeState, style = HazeMaterials.ultraThin()) {
-            blurRadius = LuoShuGlassTokens.BlurRadius
-            noiseFactor = .04f
+    ShortNavigationBar(
+        modifier = modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        windowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
+            WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+        ),
+    ) {
+        dockPages.forEachIndexed { index, destination ->
+            val selected = current == destination
+            ShortNavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) onSelect(destination) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(destination.label, maxLines = 1) },
+            )
         }
-    } else Modifier
-
-    AppDockLayout(
-        pages = dockPages,
-        current = current,
-        onSelect = onSelect,
-        itemHeight = 56.dp,
-        modifier = modifier
-            .then(if (floating) Modifier.padding(horizontal = LuoShuLayoutTokens.FloatingDockHorizontal).padding(bottom = bottomInset + LuoShuLayoutTokens.FloatingDockBottomGap) else Modifier)
-            .fillMaxWidth()
-            .height(if (floating) 64.dp else 64.dp + bottomInset)
-            .shadow(
-                if (floating) 8.dp else 3.dp,
-                shape,
-                clip = false,
-                ambientColor = Color.Black.copy(alpha = if (dark) LuoShuGlassTokens.DarkShadowAlpha else LuoShuGlassTokens.LightShadowAlpha),
-                spotColor = Color.Black.copy(alpha = if (dark) LuoShuGlassTokens.DarkShadowAlpha else LuoShuGlassTokens.LightShadowAlpha),
-            )
-            .clip(shape)
-            .then(hazeModifier)
-            .background(
-                when {
-                    activeHaze && dark -> scheme.surface.copy(alpha = .34f)
-                    activeHaze -> scheme.surfaceContainer.copy(alpha = .35f)
-                    else -> scheme.surface.copy(alpha = .98f)
-                },
-            )
-            .border(.5.dp, if (dark) Color.White.copy(alpha = LuoShuGlassTokens.DarkEdgeAlpha) else Color.White.copy(alpha = .12f), shape)
-            .padding(start = 4.dp, top = 4.dp, end = 4.dp, bottom = if (floating) 4.dp else bottomInset + 4.dp),
-        indicatorColor = scheme.primaryContainer.copy(alpha = LuoShuGlassTokens.LightIndicatorAlpha),
-        indicatorBorderColor = Color.White.copy(alpha = if (dark) LuoShuGlassTokens.DarkEdgeAlpha else .12f),
-        selectedColor = scheme.primary,
-        unselectedColor = scheme.onSurfaceVariant,
-        label = "luoshuMaterialDockIndicator",
-    )
+    }
 }
 
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 private fun MiuixAppDock(
     current: AppPage,
     onSelect: (AppPage) -> Unit,
     appearance: AppearanceSettings,
-    hazeState: HazeState,
-    backdrop: LayerBackdrop?,
+    backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    val tokens = LocalMiuixTokens.current
-    val dark = scheme.background.luminance() < .5f
-    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val floating = appearance.floatingDock
-    val shape = if (floating) LuoShuShapeTokens.Pill else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    val activeGlass = appearance.glassEnabled
-    val runtimeLiquid = activeGlass && appearance.blurEnabled && backdrop != null && isRuntimeShaderSupported()
-    val activeHaze = activeGlass && appearance.blurEnabled && !runtimeLiquid
-    val dockSurfaceBackdrop = rememberLayerBackdrop()
-    val hazeModifier = if (activeHaze) {
-        Modifier.hazeEffect(state = hazeState, style = HazeMaterials.ultraThin()) {
-            blurRadius = LuoShuGlassTokens.BlurRadius
-            noiseFactor = .018f
-        }
-    } else Modifier
-    val glassBrush = when {
-        activeGlass && dark -> Brush.verticalGradient(listOf(Color.White.copy(alpha = .08f), Color.White.copy(alpha = .025f)))
-        activeGlass -> Brush.verticalGradient(listOf(Color.White.copy(alpha = .14f), Color.White.copy(alpha = .06f)))
-        else -> Brush.verticalGradient(
-            listOf(tokens.elevatedCardBackground.copy(alpha = .98f), tokens.elevatedCardBackground.copy(alpha = .98f)),
-        )
-    }
-    val shellTint = when {
-        dark -> scheme.surface.copy(alpha = LuoShuGlassTokens.DarkSurfaceAlpha)
-        else -> scheme.surfaceContainer.copy(alpha = .36f)
-    }
-    val liquidShellModifier = if (runtimeLiquid) {
-        Modifier.drawBackdrop(
-            backdrop = requireNotNull(backdrop),
-            shape = { shape },
-            effects = {
-                padding = maxOf(padding, 30.dp.toPx())
-                colorControls(
-                    brightness = if (dark) -.015f else .025f,
-                    contrast = 1.05f,
-                    saturation = 1.40f,
-                )
-                blur(LuoShuGlassTokens.BlurRadius.toPx(), LuoShuGlassTokens.BlurRadius.toPx())
-                liquidGlassLens(
-                    refractionHeight = LuoShuGlassTokens.RefractionHeightDp.dp.toPx(),
-                    refractionAmount = LuoShuGlassTokens.RefractionAmountDp.dp.toPx(),
-                    depthEffect = true,
-                    chromaticAberration = LuoShuGlassTokens.ChromaticAberration,
-                )
-            },
-            highlight = {
-                (if (dark) Highlight.GlassStrokeSmallDark else Highlight.GlassStrokeSmallLight)
-                    .copy(alpha = if (dark) .78f else .72f)
-            },
-            onDrawSurface = {
-                drawRect(shellTint)
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = if (dark) LuoShuGlassTokens.DarkHighlightAlpha else .14f),
-                            Color.Transparent,
-                        ),
-                        center = Offset(size.width * .16f, 0f),
-                        radius = size.width * .70f,
-                    ),
-                )
-                drawRoundRect(
-                    brush = Brush.verticalGradient(
-                    listOf(Color.Transparent, Color.Black.copy(alpha = if (dark) LuoShuGlassTokens.DarkInnerShadowAlpha else .035f)),
-                    ),
-                    cornerRadius = CornerRadius(size.height / 2f),
-                )
-            },
-        )
-    } else {
-        Modifier
-            .then(hazeModifier)
-            .background(glassBrush)
-            .drawBehind {
-                if (activeGlass) {
-                    drawRoundRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = if (dark) .08f else .24f),
-                                Color.Transparent,
-                            ),
-                            center = Offset(size.width * .18f, 0f),
-                            radius = size.width * .72f,
-                        ),
-                        cornerRadius = CornerRadius(size.height / 2f),
-                    )
-                }
-            }
-    }
-
-    // Three independent layers mirror the reference implementation: page backdrop -> refractive
-    // shell -> moving refractive lens. Icons and labels are siblings above all shader layers, so an
-    // OEM compositor can never turn their offscreen buffers into the old white rectangles.
-    Box(
-        modifier = modifier
-            .then(if (floating) Modifier.padding(horizontal = LuoShuLayoutTokens.FloatingDockHorizontal).padding(bottom = bottomInset + LuoShuLayoutTokens.FloatingDockBottomGap) else Modifier)
-            .fillMaxWidth()
-            .height(if (floating) 64.dp else 64.dp + bottomInset),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .shadow(
-                    if (floating) 8.dp else 3.dp,
-                    shape,
-                    clip = false,
-                ambientColor = Color.Black.copy(alpha = if (dark) LuoShuGlassTokens.DarkShadowAlpha else LuoShuGlassTokens.LightShadowAlpha),
-                spotColor = Color.Black.copy(alpha = if (dark) LuoShuGlassTokens.DarkShadowAlpha else LuoShuGlassTokens.LightShadowAlpha),
-                )
-                .squircleClip(31.dp)
-                .then(if (runtimeLiquid) Modifier.layerBackdrop(dockSurfaceBackdrop) else Modifier)
-                .then(liquidShellModifier)
-                .border(
-                    if (runtimeLiquid) .35.dp else .5.dp,
-                    if (activeGlass) {
-                        if (dark) Color.White.copy(alpha = LuoShuGlassTokens.DarkEdgeAlpha) else Color.White.copy(alpha = .12f)
-                    } else if (dark) Color.White.copy(alpha = .10f) else Color.White.copy(alpha = .50f),
-                    shape,
-                ),
-        )
-
-        AppDockLayout(
-            pages = dockPages,
-            current = current,
-            onSelect = onSelect,
-            itemHeight = 56.dp,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 4.dp, top = 4.dp, end = 4.dp, bottom = if (floating) 4.dp else bottomInset + 4.dp),
-            indicatorColor = scheme.primary.copy(alpha = if (dark) LuoShuGlassTokens.IndicatorAlpha else LuoShuGlassTokens.LightIndicatorAlpha),
-            indicatorBorderColor = Color.White.copy(alpha = if (dark) LuoShuGlassTokens.DarkEdgeAlpha else .12f),
-            indicatorShadow = 1.dp,
-            selectedColor = scheme.primary,
-            unselectedColor = scheme.onSurfaceVariant.copy(alpha = .90f),
-            label = "luoshuMiuixDockIndicator",
-            liquidGlass = activeGlass,
-            indicatorBackdrop = dockSurfaceBackdrop.takeIf { runtimeLiquid },
-            dark = dark,
-        )
-    }
-}
-
-@Composable
-private fun AppDockLayout(
-    pages: List<AppPage>,
-    current: AppPage,
-    onSelect: (AppPage) -> Unit,
-    itemHeight: androidx.compose.ui.unit.Dp,
-    modifier: Modifier,
-    indicatorColor: Color,
-    indicatorBorderColor: Color = Color.Transparent,
-    indicatorShadow: androidx.compose.ui.unit.Dp = 0.dp,
-    selectedColor: Color,
-    unselectedColor: Color,
-    label: String,
-    liquidGlass: Boolean = false,
-    indicatorBackdrop: LayerBackdrop? = null,
-    dark: Boolean = false,
-) {
-    val latestOnSelect = rememberUpdatedState(onSelect)
-    val latestCurrent = rememberUpdatedState(current)
-    BoxWithConstraints(modifier = modifier) {
-        val itemWidth = maxWidth / pages.size.toFloat()
-        val density = LocalDensity.current
-        val itemWidthPx = with(density) { itemWidth.toPx() }
-        var dragCenterX by remember { mutableFloatStateOf(Float.NaN) }
-        var settleRevision by remember { mutableStateOf(0) }
-        val scope = rememberCoroutineScope()
-        val interactions = remember(pages) { pages.map { MutableInteractionSource() } }
-        val pressedItems = interactions.map { it.collectIsPressedAsState().value }
-        val indicatorPressed = pressedItems.any { it }
-        val targetIndex = pages.indexOf(current).coerceAtLeast(0)
-        val indicatorInset = 4.dp
-        val indicatorCenter = remember(itemWidthPx, pages) {
-            Animatable(itemWidthPx * (targetIndex + .5f))
-        }
-        val positionSpring = spring<Float>(
-            dampingRatio = if (liquidGlass) .68f else .84f,
-            stiffness = if (liquidGlass) 310f else Spring.StiffnessMediumLow,
-        )
-        LaunchedEffect(targetIndex, itemWidthPx, settleRevision) {
-            if (!dragCenterX.isFinite()) {
-                indicatorCenter.animateTo(itemWidthPx * (targetIndex + .5f), positionSpring)
-            }
-        }
-        fun settleIndicator() {
-            val releaseCenter = dragCenterX
-            if (!releaseCenter.isFinite()) return
-            scope.launch {
-                // Keep the release point on screen until the spring takes over.
-                indicatorCenter.snapTo(releaseCenter)
-                dragCenterX = Float.NaN
-                // Restart the single target animation for both changed and unchanged tabs.
-                // This also lets a newer tap retarget the same Animatable without a competing job.
-                settleRevision++
-            }
-        }
-        val liquidStretch = remember { Animatable(0f) }
-        var travelDirection by remember { mutableFloatStateOf(0f) }
-        var previousIndex by remember { mutableStateOf(targetIndex) }
-        LaunchedEffect(targetIndex) {
-            if (targetIndex != previousIndex) {
-                travelDirection = if (targetIndex > previousIndex) 1f else -1f
-                previousIndex = targetIndex
-                liquidStretch.snapTo(1f)
-                liquidStretch.animateTo(
-                    targetValue = 0f,
-                    animationSpec = spring(
-                        dampingRatio = .55f,
-                        stiffness = Spring.StiffnessMediumLow,
-                    ),
-                )
-            }
-        }
-        val liquidExtra = if (liquidGlass) 13.dp * liquidStretch.value else 0.dp
-        val visibleCenter = if (dragCenterX.isFinite()) dragCenterX else indicatorCenter.value
-        val indicatorStart = with(density) { (visibleCenter - itemWidthPx / 2f).toDp() } +
-            indicatorInset - if (!dragCenterX.isFinite() && travelDirection < 0f) liquidExtra else 0.dp
-        val indicatorShape = RoundedCornerShape(23.dp)
-        val activeLens = liquidGlass && indicatorBackdrop != null
-        val movingLensModifier = if (activeLens) {
-            Modifier.drawBackdrop(
-                backdrop = requireNotNull(indicatorBackdrop),
-                shape = { indicatorShape },
-                effects = {
-                    val stretch = liquidStretch.value
-                    padding = maxOf(padding, 22.dp.toPx())
-                    colorControls(brightness = .015f, contrast = 1.06f, saturation = 1.34f)
-                    blur(LuoShuGlassTokens.BlurRadius.toPx(), LuoShuGlassTokens.BlurRadius.toPx())
-                    liquidGlassLens(
-                        refractionHeight = (LuoShuGlassTokens.RefractionHeightDp.dp + 3.dp * stretch).toPx(),
-                        refractionAmount = (LuoShuGlassTokens.RefractionAmountDp.dp + 4.dp * stretch).toPx(),
-                        depthEffect = true,
-                        chromaticAberration = LuoShuGlassTokens.ChromaticAberration + .03f * stretch,
-                    )
-                },
-                highlight = {
-                    (if (dark) Highlight.GlassStrokeSmallDark else Highlight.GlassStrokeSmallLight)
-                        .copy(alpha = .88f)
-                },
-                layerBlock = {
-                    scaleY = 1f - .045f * liquidStretch.value
-                },
-                onDrawSurface = {
-                    drawRect(indicatorColor)
-                    drawRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = if (dark) .06f else .16f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
-                },
-            )
-        } else {
-            Modifier
-                .drawBehind {
-                    val radius = CornerRadius(size.height / 2f)
-                    drawRoundRect(
-                        brush = Brush.verticalGradient(
-                            if (liquidGlass) {
-                                listOf(
-                                    indicatorColor.copy(alpha = (indicatorColor.alpha * 1.18f).coerceAtMost(1f)),
-                                    indicatorColor.copy(alpha = indicatorColor.alpha * .72f),
-                                )
-                            } else {
-                                listOf(indicatorColor, indicatorColor)
-                            },
-                        ),
-                        cornerRadius = radius,
-                    )
-                    if (liquidGlass) {
-                        drawRoundRect(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = if (dark) .10f else .12f),
-                                    Color.Transparent,
-                                ),
-                                center = Offset(size.width * .27f, 0f),
-                                radius = size.width * .74f,
-                            ),
-                            cornerRadius = radius,
-                        )
-                    }
-                }
-        }
-        Box(
-            modifier = Modifier
-                .offset(x = indicatorStart)
-                .width(if (dragCenterX.isFinite()) itemWidth - (indicatorInset * 2) else itemWidth - (indicatorInset * 2) + liquidExtra)
-                .height(itemHeight)
-                .shadow(if (activeLens) 1.dp else indicatorShadow, indicatorShape, clip = false)
-                .squircleClip(23.dp)
-                .then(movingLensModifier)
-                .graphicsLayer {
-                    val response = maxOf(liquidStretch.value, if (indicatorPressed) .75f else 0f)
-                    scaleX = 1f + .06f * response
-                    scaleY = 1f - .025f * response
-                }
-                .border(.5.dp, indicatorBorderColor, indicatorShape),
-        )
-        Row(
-            Modifier.fillMaxWidth().selectableGroup().pointerInput(pages, itemWidthPx) {
-                val slotWidth = size.width.toFloat() / pages.size.coerceAtLeast(1)
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        dragCenterX = indicatorCenter.value.coerceIn(slotWidth / 2f, size.width - slotWidth / 2f)
-                    },
-                    onHorizontalDrag = { _, dragAmount ->
-                        val minCenter = slotWidth / 2f
-                        val maxCenter = size.width - minCenter
-                        dragCenterX = (dragCenterX + dragAmount).coerceIn(minCenter, maxCenter)
-                        val nearest = ((dragCenterX / slotWidth) - .5f).roundToInt().coerceIn(pages.indices)
-                        if (pages[nearest] != latestCurrent.value) latestOnSelect.value(pages[nearest])
-                    },
-                    onDragEnd = {
-                        if (dragCenterX.isFinite()) {
-                            val nearest = ((dragCenterX / slotWidth) - .5f).roundToInt().coerceIn(pages.indices)
-                            latestOnSelect.value(pages[nearest])
-                            settleIndicator()
-                        }
-                    },
-                    onDragCancel = {
-                        settleIndicator()
-                    },
-                )
-            },
-        ) {
-            pages.forEach { page ->
-                val selected = current == page
-                val interactionSource = interactions[pages.indexOf(page)]
-                val pressed by interactionSource.collectIsPressedAsState()
-                val baseItemColor = if (selected) selectedColor else unselectedColor
-                val itemColor by animateColorAsState(
-                    targetValue = if (pressed) baseItemColor.copy(alpha = .62f) else baseItemColor,
-                    animationSpec = tween(170),
-                    label = "${page.name}DockColor",
-                )
-                val itemScale by animateFloatAsState(
-                    targetValue = when {
-                        pressed -> .96f
-                        else -> 1f
-                    },
-                    animationSpec = spring(dampingRatio = .66f, stiffness = 520f),
-                    label = "${page.name}DockScale",
-                )
-                Column(
-                    modifier = Modifier
-                        .width(itemWidth)
-                        .height(itemHeight)
-                        .graphicsLayer {
-                            scaleX = itemScale
-                            scaleY = itemScale
-                        }
-                        .clip(RoundedCornerShape(23.dp))
-                        .selectable(
-                            selected = selected,
-                            role = Role.Tab,
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = { if (!selected) onSelect(page) },
-                        ),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+    if (appearance.floatingDock) {
+        val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val bottomPadding = if (bottomInset != 0.dp) 8.dp + bottomInset else 28.dp
+        FloatingBottomBar(
+            modifier = modifier
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(start = 28.dp, end = 28.dp, bottom = bottomPadding),
+            selectedIndex = dockPages.indexOf(current).coerceIn(dockPages.indices),
+            onSelected = { index -> dockPages.getOrNull(index)?.let(onSelect) },
+            backdrop = backdrop,
+            tabsCount = dockPages.size,
+            isBlurEnabled = appearance.glassEnabled && appearance.blurEnabled,
+        ) { activateTab ->
+            dockPages.forEachIndexed { index, destination ->
+                FloatingBottomBarItem(
+                    selected = current == destination,
+                    onClick = { activateTab(index) },
+                    modifier = Modifier.defaultMinSize(minWidth = 76.dp),
                 ) {
-                    LuoShuGlyph(
-                        imageVector = page.icon,
-                        contentDescription = null,
-                        size = LuoShuIconTokens.DockGlyph,
-                        opticalScale = page.dockOpticalScale,
-                        tint = itemColor,
-                    )
-                    Spacer(Modifier.height(3.dp))
+                    Icon(destination.icon, contentDescription = null)
                     Text(
-                        page.label,
-                        color = itemColor,
-                        fontSize = LuoShuTypographyTokens.DockLabel,
-                        lineHeight = 16.sp,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        text = destination.label,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
                         maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Visible,
                     )
                 }
+            }
+        }
+    } else {
+        NavigationBar(
+            modifier = modifier.fillMaxWidth(),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            dockPages.forEach { destination ->
+                val selected = current == destination
+                NavigationBarItem(
+                    modifier = Modifier.weight(1f),
+                    selected = selected,
+                    onClick = { if (!selected) onSelect(destination) },
+                    icon = { Icon(destination.icon, contentDescription = null) },
+                    label = { Text(destination.label, maxLines = 1) },
+                )
             }
         }
     }

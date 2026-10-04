@@ -40,6 +40,14 @@
 
 字域修改了示例的包名、配色、分层、尺寸和导航状态接入；底层库及原示例的许可证与署名不变。
 
+## KernelSU 悬浮底栏
+
+- 用途：MIUIx 风格下的悬浮导航栏，包括拖动切换、弹性动画、选中高亮与液态玻璃绘制。
+- 来源：[`tiann/KernelSU`](https://github.com/tiann/KernelSU)，固定提交 [`0ff54fab4e741d958daf3048d7711644c40eca79`](https://github.com/tiann/KernelSU/tree/0ff54fab4e741d958daf3048d7711644c40eca79)。移植文件位于 `android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/navigation/kernelsu/`。
+- 许可证：GNU General Public License v3.0。完整文本：[`LICENSE`](LICENSE)。
+
+字域调整了包名、主题和系统版本能力检测，并将组件接入现有字体管理页面。`liquid/` 子目录中的折射与背景辅助代码仍按各文件标注，基于 Miuix 与 AndroidLiquidGlass 示例并采用 Apache License 2.0。
+
 ## 用户字体与第三方模块
 
 字域不会在仓库或发布包中附带商业字体。以下内容不受字域 GPL-3.0-only 授权：
