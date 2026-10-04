@@ -2,7 +2,11 @@
 """Exercise three-role variable-font mixing without the optional native lxml module."""
 from __future__ import annotations
 
+import importlib.util
+import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -116,16 +120,65 @@ class SvgInstanceTest(unittest.TestCase):
             self.assertEqual(source.read_bytes(), before, "imported font was modified")
 
     def test_all_nine_weights_build_from_three_separate_sources(self):
+        self.check_three_source_builds(materialize, build)
+
+    def test_app_router_runtime_combines_all_weights_without_lxml(self):
+        module = self.root / "module"
+        common = module / "common"
+        legacy = common / "legacy_v14_4"
+        legacy.mkdir(parents=True)
+        for source in (ROOT / "common").iterdir():
+            if source.name != "legacy_v14_4":
+                (common / source.name).symlink_to(source)
+        for source in (ROOT / "common/legacy_v14_4").iterdir():
+            if source.name != "v14_mix.sh":
+                (legacy / source.name).symlink_to(source)
+        # Keep the real App controller, router and runtime setup. Stub only the
+        # downstream Android worker so recovery cannot access phone resources.
+        (legacy / "v14_mix.sh").write_text("#!/bin/sh\nprintf '{\"status\":\"ok\"}\\n'\n")
+        (module / "module.prop").write_text("id=LuoShu\nversion=test\n")
+        result = subprocess.run(
+            ["sh", str(common / "font_mix_controller.sh"), "recover"],
+            env={**os.environ, "MODDIR": str(module),
+                 "LUOSHU_PUBLIC_DIR": str(self.root / "public")},
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+        self.assertEqual(json.loads(result.stdout)["status"], "ok")
+        runtime = module / ".legacy-v14-runtime/common"
+        for name in ("font_instance.py", "composite_font.py", "composite_layout.py"):
+            self.assertEqual((runtime / name).resolve(),
+                             (ROOT / "common/legacy_v14_4" / name).resolve())
+
+        def load(name):
+            spec = importlib.util.spec_from_file_location(f"svg_runtime_{name}", runtime / f"{name}.py")
+            loaded = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(loaded)
+            return loaded
+
+        runtime_instance = load("font_instance")
+        runtime_layout = load("composite_layout")
+        previous_layout = sys.modules.get("composite_layout")
+        sys.modules["composite_layout"] = runtime_layout
+        try:
+            runtime_composite = load("composite_font")
+            self.check_three_source_builds(runtime_instance.materialize, runtime_composite.build)
+        finally:
+            if previous_layout is None:
+                sys.modules.pop("composite_layout", None)
+            else:
+                sys.modules["composite_layout"] = previous_layout
+
+    def check_three_source_builds(self, materializer, builder):
         before = {path: path.read_bytes() for path in (self.cjk, self.latin, self.digit)}
         for weight in range(100, 901, 100):
             with self.subTest(weight=weight):
                 sources = {}
                 for role, source in (("cjk", self.cjk), ("latin", self.latin), ("digit", self.digit)):
                     output = self.root / f"prepared-{role}-{weight}.ttf"
-                    materialize(source, output, role, weight, {"wght": weight})
+                    materializer(source, output, role, weight, {"wght": weight})
                     sources[role] = str(output)
                 composite = self.root / f"composite-{weight}.ttf"
-                report = build(SimpleNamespace(**sources, output=str(composite), weight=weight,
+                report = builder(SimpleNamespace(**sources, output=str(composite), weight=weight,
                                                cjk_face=None, latin_face=None, digit_face=None,
                                                progress=None))
                 self.assertGreaterEqual(report["replaced"]["latin"], 52)

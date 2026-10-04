@@ -121,7 +121,11 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
                 digits = (set(range(0x30, 0x3A)) | set(range(0xFF10, 0xFF1A))
                           | {0xB2, 0xB3, 0xB9} | set(range(0x2070, 0x207A))
                           | set(range(0x2080, 0x208A)))
-                role_subset = subset.Subsetter()
+                # Donor slots copy glyf/CFF outlines, not SVG color documents.
+                # Drop SVG before subsetting: Android has no native lxml module.
+                options = subset.Options()
+                options.drop_tables.append("SVG")
+                role_subset = subset.Subsetter(options=options)
                 role_subset.populate(unicodes=(latin | digits) if role == "latin" else digits)
                 role_subset.subset(font)
             known_axes = {str(axis.axisTag): axis for axis in font["fvar"].axes}
