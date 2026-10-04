@@ -60,6 +60,7 @@ jobs:
           assert report['replaced']['digit'] >= 10
           PY
           python3 common/font_coverage.py /tmp/luoshu-composite.otf --brief
+          python3 scripts/font_instance_svg_test.py
           if python3 common/font_coverage.py "$LATIN" --brief; then
             echo 'Latin-only font unexpectedly passed the global coverage gate' >&2
             exit 1

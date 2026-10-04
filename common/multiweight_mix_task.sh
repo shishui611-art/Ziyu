@@ -285,7 +285,7 @@ prepare_source() {
     mkdir -p "${_destination%/*}" "$PREPARED_CACHE" 2>/dev/null || return 1
 
     if [ "$_variable" = true ] || [ "$_format" = TTC ]; then
-        _prepared_key=$(printf '%s' "instance-v4-content|$_signature|$_role|$_effective" | hash_text)
+        _prepared_key=$(printf '%s' "instance-v5-outline-content|$_signature|$_role|$_effective" | hash_text)
         [ -n "$_prepared_key" ] || return 1
         _cached="$PREPARED_CACHE/${_prepared_key}.font"
         if [ ! -s "$_cached" ]; then
@@ -297,7 +297,7 @@ prepare_source() {
   prune_prepared_cache
         fi
         link_or_copy "$_cached" "$_destination" || return 1
-        _content_key="instance-v4-content|$_prepared_key"
+        _content_key="instance-v5-outline-content|$_prepared_key"
     else
         link_or_copy "$_source" "$_destination" || return 1
         _content_key="static-v3-content|$_signature"

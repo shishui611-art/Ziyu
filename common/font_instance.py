@@ -134,7 +134,14 @@ def materialize(
                           | {0xB2, 0xB3, 0xB9} | set(range(0x2070, 0x207A))
                           | set(range(0x2080, 0x208A)))
                 role_codepoints = (latin | digits) if role == "latin" else digits
-                role_subset = subset.Subsetter()
+                # Donor slots contribute glyf/CFF outlines to the composite,
+                # not SVG colour documents indexed by the source glyph IDs.
+                # Drop that optional table before subsetting: the offline
+                # Android payload deliberately has no native lxml extension.
+                # FontTools compares stripped table tags in drop_tables.
+                options = subset.Options()
+                options.drop_tables.append("SVG")
+                role_subset = subset.Subsetter(options=options)
                 role_subset.populate(unicodes=role_codepoints)
                 role_subset.subset(font)
             known_axes = {str(axis.axisTag): axis for axis in font["fvar"].axes}
