@@ -133,7 +133,10 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
             for tag, axis in known_axes.items():
                 requested = requested_axes.get(tag, float(axis.defaultValue))
                 location[tag] = float(max(axis.minValue, min(axis.maxValue, requested)))
-            font = instantiateVariableFont(font, location, inplace=False, optimize=True)
+            # This worker is short-lived and writes only the output file, so
+            # mutating its in-memory font is safe. Avoid retaining a second
+            # full copy of large CJK variable fonts on memory-limited devices.
+            font = instantiateVariableFont(font, location, inplace=True, optimize=True)
         elif requested_axes:
             ignored_axes = sorted(tag for tag in requested_axes if tag != "wght")
 

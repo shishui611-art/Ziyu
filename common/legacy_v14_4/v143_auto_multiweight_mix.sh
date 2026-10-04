@@ -197,7 +197,14 @@ run_instance() {
         "$PYBIN" "$INSTANCE_PY" --input "$_source" --output "$_destination" \
         --role "$_role" --weight "$_weight" --axes "$_axes" >/dev/null 2>"${_destination}.err"
     _code=$?
-    [ "$_code" -eq 0 ] && [ -s "$_destination" ] || return 1
+    if [ "$_code" -ne 0 ]; then
+        [ -s "${_destination}.err" ] || printf 'FontTools process exited with code %s\n' "$_code" >"${_destination}.err"
+        return 1
+    fi
+    [ -s "$_destination" ] || {
+        printf 'FontTools reported success but produced no font file\n' >"${_destination}.err"
+        return 1
+    }
     rm -f "${_destination}.err" 2>/dev/null || true
     chmod 0644 "$_destination" 2>/dev/null || true
 }
@@ -238,7 +245,12 @@ prepare_source() (
 prepare_error_detail() {
     _ped_file="$1"
     [ -s "$_ped_file" ] || return 0
-    sed -n 's/.*"message":"\([^"]*\)".*/\1/p' "$_ped_file" 2>/dev/null | head -n1 | tr '\r\n' '  '
+    _ped_message=$(sed -n 's/.*"message":"\([^"]*\)".*/\1/p' "$_ped_file" 2>/dev/null | head -n1 | tr '\r\n' '  ')
+    if [ -n "$_ped_message" ]; then
+        printf '%s' "$_ped_message"
+    else
+        tr '\r\n' '  ' <"$_ped_file" 2>/dev/null | cut -c 1-500
+    fi
 }
 
 log_prepare_failure() {
