@@ -48,8 +48,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -598,16 +596,18 @@ private fun MaterialAppDock(
     onSelect: (AppPage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ShortNavigationBar(
+    NavigationBar(
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         windowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
             WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
         ),
     ) {
-        dockPages.forEachIndexed { index, destination ->
+        dockPages.forEach { destination ->
             val selected = current == destination
-            ShortNavigationBarItem(
+            // NavigationBarItem supplies its own RowScope weight; an extra weight modifier
+            // constrains the item twice and can hide the remaining destinations.
+            NavigationBarItem(
                 selected = selected,
                 onClick = { if (!selected) onSelect(destination) },
                 icon = { Icon(destination.icon, contentDescription = null) },
@@ -663,8 +663,8 @@ private fun MiuixAppDock(
         ) {
             dockPages.forEach { destination ->
                 val selected = current == destination
+                // NavigationBarItem supplies its own RowScope weight; keep its modifier unweighted.
                 NavigationBarItem(
-                    modifier = Modifier.weight(1f),
                     selected = selected,
                     onClick = { if (!selected) onSelect(destination) },
                     icon = { Icon(destination.icon, contentDescription = null) },

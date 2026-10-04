@@ -157,52 +157,35 @@ grep -q 'opticalScale = 1.08f' "$STUDIO_TOOLS"
 ! grep -q 'align(Alignment.BottomCenter)' "$STUDIO_ROUTE"
 [ "$(grep -c 'padding(bottom = dockClearance)' "$SHELL")" -eq 5 ]
 grep -q 'val miuix = appearance.uiStyle == UiStyle.MIUIX' "$SHELL"
-grep -q 'navigationBottom + if (dockHiddenByScroll) 28.dp else 84.dp' "$SHELL"
+grep -q 'navigationBottom + when {' "$SHELL"
 grep -q 'val dockPaddingTarget = if (showDock)' "$SHELL"
 grep -q 'dockPaddingTarget' "$SHELL"
-grep -q 'if (dockHiddenByScroll) 28.dp else 84.dp' "$SHELL"
+grep -q 'dockHiddenByScroll -> 28.dp' "$SHELL"
 grep -q 'Modifier.nestedScroll(dockScrollConnection)' "$SHELL"
 grep -q 'dockHideThresholdPx' "$SHELL"
 grep -q 'dockShowThresholdPx' "$SHELL"
 [ "$(grep -c 'LocalDockContentPadding provides dockContentPadding' "$SHELL")" -eq 5 ]
 grep -q 'LocalDockContentPadding' "$DOCK_INSETS"
 
-# Four-item dock maps the primary product areas directly and keeps tasks as a detail page. The
-# Miuix variant uses the reference-style frosted shell plus a separate animated liquid lens.
+# Four primary destinations are rendered by both app styles; task logs remain a detail page.
 grep -q 'private val dockPages' "$SHELL"
 [ "$(sed -n '/private val dockPages = listOf(/,/^)/p' "$SHELL" | grep -c 'AppPage\.')" -eq 4 ]
 sed -n '/private val dockPages = listOf(/,/^)/p' "$SHELL" | grep -q 'AppPage.Settings'
 ! sed -n '/private val dockPages = listOf(/,/^)/p' "$SHELL" | grep -q 'AppPage.Logs'
 grep -q 'val showDock = page != AppPage.Logs' "$SHELL"
-grep -q 'fontSize = LuoShuTypographyTokens.DockLabel' "$SHELL"
-grep -q 'LuoShuIconTokens.DockGlyph' "$SHELL"
-! grep -q 'targetValue = if (selected) 21.dp else 19.dp' "$SHELL"
+MATERIAL_DOCK=$(sed -n '/private fun MaterialAppDock/,/private fun MiuixAppDock/p' "$SHELL")
+printf '%s\n' "$MATERIAL_DOCK" | grep -q 'dockPages.forEach'
+printf '%s\n' "$MATERIAL_DOCK" | grep -q 'NavigationBarItem('
+! printf '%s\n' "$MATERIAL_DOCK" | grep -q 'modifier = Modifier.weight(1f)'
 grep -q 'private fun MiuixAppDock' "$SHELL"
-MIUIX_DOCK=$(sed -n '/private fun MiuixAppDock/,/private fun AppDockLayout/p' "$SHELL")
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'hazeEffect'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'blurRadius = LuoShuGlassTokens.BlurRadius'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'noiseFactor = .018f'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'LuoShuShapeTokens.Pill'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'activeGlass'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'LuoShuGlassTokens.DarkHighlightAlpha'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'drawRoundRect'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'indicatorColor = scheme.primary.copy'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'indicatorShadow = 1.dp'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'itemHeight = 56.dp'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'runtimeLiquid'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'Modifier.layerBackdrop(dockSurfaceBackdrop)'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'Modifier.drawBackdrop'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'liquidGlassLens'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'indicatorBackdrop = dockSurfaceBackdrop'
-printf '%s\n' "$MIUIX_DOCK" | grep -q 'liquidGlass = activeGlass'
-! grep -q -- '-> 34.dp' "$SHELL"
-grep -q 'collectIsPressedAsState' "$SHELL"
-grep -q 'baseItemColor.copy(alpha = .62f)' "$SHELL"
-! grep -q 'luoshuDockItemScale' "$SHELL"
-grep -q 'Three independent layers mirror the reference implementation' "$SHELL"
-grep -q 'graphicsLayer' "$SHELL"
-grep -q 'dampingRatio = if (liquidGlass) .68f else .84f' "$SHELL"
-grep -q 'liquidStretch.animateTo' "$SHELL"
+MIUIX_DOCK=$(sed -n '/private fun MiuixAppDock/,$p' "$SHELL")
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'FloatingBottomBar('
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'tabsCount = dockPages.size'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'dockPages.forEachIndexed'
+printf '%s\n' "$MIUIX_DOCK" | grep -q 'NavigationBarItem('
+! printf '%s\n' "$MIUIX_DOCK" | grep -q 'modifier = Modifier.weight(1f)'
+grep -q 'fun FloatingBottomBar(' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/navigation/kernelsu/FloatingBottomBar.kt"
+grep -q 'isBlurEnabled = appearance.glassEnabled && appearance.blurEnabled' "$SHELL"
 grep -q 'AnimatedVisibility(' "$SHELL"
 grep -q 'key(page)' "$SHELL"
 grep -q 'translationX = (1f - pageEnter.value) \* 14.dp.toPx() \* pageDirection' "$SHELL"
@@ -211,9 +194,9 @@ grep -q 'page.motionIndex() - previousPageForMotion.motionIndex()' "$SHELL"
 
 # Settings follows a grouped home -> detail hierarchy instead of a clipped horizontal tab strip.
 grep -q 'SettingCard("视觉与显示")' "$SETTINGS"
-grep -q 'ToggleLine("玻璃半透明", "用于悬浮底栏和弹层，内容卡片保持清晰"' "$SETTINGS"
-grep -q 'ToggleLine("背景模糊", "模糊底栏后方经过的内容"' "$SETTINGS"
-grep -q 'ToggleLine("悬浮底栏", "关闭后贴合屏幕底部"' "$SETTINGS"
+grep -q 'ToggleLine("玻璃半透明", "为 MIUIx 悬浮底栏启用 KSU 风格的玻璃效果"' "$SETTINGS"
+grep -q 'ToggleLine("背景模糊", "模糊悬浮底栏后方的页面内容"' "$SETTINGS"
+grep -q 'ToggleLine("悬浮底栏", "关闭后使用贴合屏幕底部的常规导航栏"' "$SETTINGS"
 grep -q 'private fun SettingsGroup' "$SETTINGS"
 grep -q 'private fun SettingsNavigationRow' "$SETTINGS"
 grep -q 'settingsDetailTransition' "$SETTINGS"
