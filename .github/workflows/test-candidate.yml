@@ -111,7 +111,7 @@ jobs:
           test -s "$apk"
           rm -rf dist
           mkdir -p dist
-          app="dist/LuoShu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
           LUOSHU_APP_APK="$apk" LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
@@ -121,8 +121,8 @@ jobs:
         run: |
           set -euxo pipefail
           . ./scripts/version.sh
-          module="dist/LuoShu-${LUOSHU_ARTIFACT_VERSION}.zip"
-          app="dist/LuoShu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
+          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
           test -s "$module"
           test -s "$app"
           unzip -t "$module" >/dev/null
@@ -243,7 +243,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LuoShu-Test-Candidate
+          name: Ziyu-Test-Candidate
           path: dist/*
           if-no-files-found: error
           retention-days: 14

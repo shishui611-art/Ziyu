@@ -42,11 +42,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle --no-daemon --stacktrace :app:assembleDebug 2>&1 | tee "$RUNNER_TEMP/luoshu-ui-build.log"
+          gradle --no-daemon --stacktrace :app:assembleDebug 2>&1 | tee "$RUNNER_TEMP/ziyu-ui-build.log"
       - name: Upload emulator APK
         uses: actions/upload-artifact@v4
         with:
-          name: LuoShu-UI-Smoke-APK
+          name: Ziyu-UI-Smoke-APK
           path: android-app/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
@@ -54,8 +54,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LuoShu-UI-Smoke-Build-Log
-          path: ${{ runner.temp }}/luoshu-ui-build.log
+          name: Ziyu-UI-Smoke-Build-Log
+          path: ${{ runner.temp }}/ziyu-ui-build.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: LuoShu-UI-Smoke-APK
+          name: Ziyu-UI-Smoke-APK
           path: ui-smoke-apk
       - uses: actions/setup-java@v4
         with:
@@ -99,7 +99,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LuoShu-UI-Smoke-API-36
+          name: Ziyu-UI-Smoke-API-36
           path: ui-smoke-output/
           if-no-files-found: warn
           retention-days: 14

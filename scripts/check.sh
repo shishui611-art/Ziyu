@@ -115,7 +115,8 @@ test ! -e "$ROOT/common/font_report.sh"
 grep -q "LUOSHU_APP_APK is required" "$ROOT/scripts/build.sh"
 grep -q 'LUOSHU_ALLOW_DEBUG_APP' "$ROOT/scripts/build.sh"
 grep -q 'io.github.xgl34222220.luoshu.debug' "$ROOT/scripts/build.sh"
-grep -q 'LuoShu-${VERSION}.zip' "$ROOT/scripts/build.sh"
+grep -q 'Ziyu-${VERSION}.zip' "$ROOT/scripts/build.sh"
+grep -q 'bundled/Ziyu-App.apk' "$ROOT/scripts/build.sh"
 ! grep -RIn 'LUOSHU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
 
 # 安装与运行时只面向原生 App，不得重新创建或依赖 webroot。
@@ -357,7 +358,7 @@ sh "$ROOT/scripts/legacy_mix_finalize_race_test.sh"
 sh "$ROOT/scripts/stock_scan_lock_test.sh"
 
 test -x "$ROOT/common/python/bin/luoshu-python"
-echo 'LuoShu App-only source checks passed.'
+echo 'Ziyu App-only source checks passed.'
 
 # Font refresh/import/mix performance contracts.
 grep -q 'native-v3' common/font_manager.sh

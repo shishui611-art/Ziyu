@@ -180,13 +180,13 @@ else
     add_check blocker app-version-source 'App 版本来源' '原生 App 版本配置未证明与 module.prop 同源'
 fi
 
-if [ -d "$ROOT/dist" ] && find "$ROOT/dist" -maxdepth 1 -type f -name 'LuoShu-*.zip' -size +0c | grep -q .; then
+if [ -d "$ROOT/dist" ] && find "$ROOT/dist" -maxdepth 1 -type f -name 'Ziyu-*.zip' -size +0c | grep -q .; then
     add_check ready candidate-artifact '候选模块成品' 'dist 中存在模块候选 ZIP；仍需由候选工作流校验 SHA-256 与内容清单'
 else
     add_check warning candidate-artifact '候选模块成品' '当前工作区没有模块候选 ZIP；请以 Build Test Candidate 工作流成品为准'
 fi
 
-if [ -d "$ROOT/dist" ] && find "$ROOT/dist" -maxdepth 1 -type f -name 'LuoShu-App-*.apk' -size +0c | grep -q .; then
+if [ -d "$ROOT/dist" ] && find "$ROOT/dist" -maxdepth 1 -type f -name 'Ziyu-App-*.apk' -size +0c | grep -q .; then
     add_check ready candidate-app '候选 App 成品' 'dist 中存在候选 APK'
 else
     add_check warning candidate-app '候选 App 成品' '当前工作区没有候选 APK；发布前需要下载并真机验收工作流成品'

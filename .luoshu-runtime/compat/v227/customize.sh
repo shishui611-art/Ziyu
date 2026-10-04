@@ -217,6 +217,7 @@ chmod 0755 "$MODPATH/common/python/bin/luoshu-python" "$MODPATH/system/bin/æ´›ä¹
 [ ! -f "$MODPATH/system/bin/luoshud" ] || chmod 0755 "$MODPATH/system/bin/luoshud" 2>/dev/null || true
 find "$MODPATH/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
 chmod 0755 "$MODPATH/system/fonts" "$MODPATH/system/bin" "$MODPATH/config" "$MODPATH/logs" 2>/dev/null || true
+[ ! -f "$MODPATH/bundled/Ziyu-App.apk" ] || chmod 0644 "$MODPATH/bundled/Ziyu-App.apk" "$MODPATH/bundled/app.prop" 2>/dev/null || true
 [ ! -f "$MODPATH/bundled/LuoShu-App.apk" ] || chmod 0644 "$MODPATH/bundled/LuoShu-App.apk" "$MODPATH/bundled/app.prop" 2>/dev/null || true
 touch "$MODPATH/magic" 2>/dev/null || true
 
@@ -241,7 +242,7 @@ else
     fi
 fi
 
-if [ -s "$MODPATH/bundled/LuoShu-App.apk" ] && [ -f "$MODPATH/common/app_installer.sh" ]; then
+if { [ -s "$MODPATH/bundled/Ziyu-App.apk" ] || [ -s "$MODPATH/bundled/LuoShu-App.apk" ]; } && [ -f "$MODPATH/common/app_installer.sh" ]; then
     _app_result=$(MODDIR="$MODPATH" APP_INSTALL_LOG="$MODPATH/logs/app-install.log" sh "$MODPATH/common/app_installer.sh" flash 2>/dev/null)
     _app_code=$?
     case "$_app_result" in

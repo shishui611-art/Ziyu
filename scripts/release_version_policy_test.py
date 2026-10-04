@@ -122,8 +122,8 @@ class ZiyuForkVersionTest(unittest.TestCase):
         info = version_info('v1.0.0', 'ziyu')
         metadata = build_metadata(repository='shishui611-art/Ziyu', version=info['version'],
                                   version_code=info['versionCode'], tag=info['tag'],
-                                  notes_file=info['notesFile'])
-        self.assertIn('/ziyu-v1.0.0/LuoShu-v1.0.0.zip', metadata['zipUrl'])
+                                  notes_file=info['notesFile'], artifact_name='Ziyu')
+        self.assertIn('/ziyu-v1.0.0/Ziyu-v1.0.0.zip', metadata['zipUrl'])
         self.assertEqual(metadata['versionCode'], 80000)
 
     def test_repository_properties_match_ziyu_first_release(self):

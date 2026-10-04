@@ -211,16 +211,16 @@ jobs:
           apk='android-app/app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
           mkdir -p dist
-          app="dist/LuoShu-App-${LUOSHU_ARTIFACT_VERSION}.apk"
+          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
           LUOSHU_APP_APK="$apk" sh ./scripts/build.sh
-          module="dist/LuoShu-${LUOSHU_ARTIFACT_VERSION}.zip"
+          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
           test -s "$module"
           unzip -t "$module" >/dev/null
-          unzip -Z1 "$module" | grep -qx 'bundled/LuoShu-App.apk'
+          unzip -Z1 "$module" | grep -qx 'bundled/Ziyu-App.apk'
           ! unzip -Z1 "$module" | grep -qE '(^|/)webroot(/|$)'
-          unzip -p "$module" bundled/LuoShu-App.apk > "$RUNNER_TEMP/embedded.apk"
+          unzip -p "$module" bundled/Ziyu-App.apk > "$RUNNER_TEMP/embedded.apk"
           cmp -s "$apk" "$RUNNER_TEMP/embedded.apk"
           (cd dist && sha256sum -c "$(basename "$module").sha256")
           (cd dist && sha256sum -c "$(basename "$app").sha256")
@@ -253,12 +253,12 @@ jobs:
       - name: Preserve verified release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: LuoShu-${{ steps.version.outputs.artifact_version }}-verified-release
+          name: Ziyu-${{ steps.version.outputs.artifact_version }}-verified-release
           path: |
-            dist/LuoShu-${{ steps.version.outputs.artifact_version }}.zip
-            dist/LuoShu-${{ steps.version.outputs.artifact_version }}.zip.sha256
-            dist/LuoShu-App-${{ steps.version.outputs.artifact_version }}.apk
-            dist/LuoShu-App-${{ steps.version.outputs.artifact_version }}.apk.sha256
+            dist/Ziyu-${{ steps.version.outputs.artifact_version }}.zip
+            dist/Ziyu-${{ steps.version.outputs.artifact_version }}.zip.sha256
+            dist/Ziyu-App-${{ steps.version.outputs.artifact_version }}.apk
+            dist/Ziyu-App-${{ steps.version.outputs.artifact_version }}.apk.sha256
             dist/pre-release-readiness/
           if-no-files-found: error
           retention-days: 14
@@ -294,9 +294,9 @@ jobs:
             exit 4
           fi
 
-          module="dist/LuoShu-${ARTIFACT_VERSION}.zip"
+          module="dist/Ziyu-${ARTIFACT_VERSION}.zip"
           module_sha="${module}.sha256"
-          app="dist/LuoShu-App-${ARTIFACT_VERSION}.apk"
+          app="dist/Ziyu-App-${ARTIFACT_VERSION}.apk"
           app_sha="${app}.sha256"
           for file in "$module" "$module_sha" "$app" "$app_sha"; do test -s "$file"; done
 

@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: luoshu-update-metadata
+  group: ziyu-update-metadata
   cancel-in-progress: false
 
 jobs:
@@ -66,8 +66,8 @@ jobs:
 
           release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}")"
           prerelease="$(printf '%s' "$release_json" | jq -r '.prerelease')"
-          module_name="LuoShu-${artifact_version}.zip"
-          app_name="LuoShu-App-${artifact_version}.apk"
+          module_name="Ziyu-${artifact_version}.zip"
+          app_name="Ziyu-App-${artifact_version}.apk"
           asset_names="$(printf '%s' "$release_json" | jq -r '.assets[].name')"
           for required in "$module_name" "${module_name}.sha256" "$app_name" "${app_name}.sha256"; do
             printf '%s\n' "$asset_names" | grep -qxF "$required" || {
@@ -115,6 +115,7 @@ jobs:
               --version-code "$VERSION_CODE" \
               --tag "$TAG" \
               --notes-file "$NOTES_FILE" \
+              --artifact-name Ziyu \
               --output "$OUTPUT" "${fallback[@]}"
 
             git add -- "$OUTPUT" update-prerelease.json

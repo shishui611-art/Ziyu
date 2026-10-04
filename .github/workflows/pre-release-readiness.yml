@@ -55,7 +55,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LuoShu-Pre-release-Readiness
+          name: Ziyu-Pre-release-Readiness
           path: dist/pre-release-readiness/*
           if-no-files-found: error
           retention-days: 30

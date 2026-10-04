@@ -120,7 +120,7 @@ jobs:
           test -s "$apk"
           rm -rf dist
           mkdir -p dist
-          app="dist/LuoShu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
           LUOSHU_APP_APK="$apk" LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
@@ -130,8 +130,8 @@ jobs:
         run: |
           set -euo pipefail
           . ./scripts/version.sh
-          module="dist/LuoShu-${LUOSHU_ARTIFACT_VERSION}.zip"
-          app="dist/LuoShu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
+          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
           list="$RUNNER_TEMP/luoshu-package-list.txt"
 
           test -s "$module"
@@ -147,7 +147,7 @@ jobs:
           }
 
           for member in \
-            bundled/LuoShu-App.apk bundled/app.prop module.prop action.sh customize.sh \
+            bundled/Ziyu-App.apk bundled/app.prop module.prop action.sh customize.sh \
             post-fs-data.sh service.sh uninstall.sh \
             common/font_mix.sh common/font_runtime_policy.sh common/hyperos_global.sh \
             common/coloros_global.sh common/font_manager.sh common/font_active_state.sh \
@@ -167,7 +167,7 @@ jobs:
           ! grep -qE '^system/etc/(fonts.xml|font_fallback.xml)$' "$list"
           ! unzip -p "$module" module.prop | grep -q '^webroot='
 
-          unzip -p "$module" bundled/LuoShu-App.apk > "$RUNNER_TEMP/embedded.apk"
+          unzip -p "$module" bundled/Ziyu-App.apk > "$RUNNER_TEMP/embedded.apk"
           cmp -s "$app" "$RUNNER_TEMP/embedded.apk"
           (cd dist && sha256sum -c "$(basename "$module").sha256")
           (cd dist && sha256sum -c "$(basename "$app").sha256")
@@ -183,7 +183,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: EXTRACT-FIRST-LuoShu-App-Only-Debug
+          name: EXTRACT-FIRST-Ziyu-App-Only-Debug
           path: dist/*
           if-no-files-found: error
           retention-days: 14

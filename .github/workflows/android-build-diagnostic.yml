@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          log="$RUNNER_TEMP/luoshu-android-diagnostic.log"
+          log="$RUNNER_TEMP/ziyu-android-diagnostic.log"
           gradle --no-daemon --stacktrace :app:testDebugUnitTest >"$log" 2>&1
           code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
@@ -42,8 +42,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LuoShu-Android-Diagnostic-Log
-          path: ${{ runner.temp }}/luoshu-android-diagnostic.log
+          name: Ziyu-Android-Diagnostic-Log
+          path: ${{ runner.temp }}/ziyu-android-diagnostic.log
           if-no-files-found: warn
           retention-days: 7
       - name: Post failed test details to PR
@@ -94,10 +94,10 @@ jobs:
             echo
             echo 'Kotlin / Java 编译错误摘要：'
             grep -E '(^e: |^error: |Unresolved reference|Type mismatch|Cannot infer|No value passed|Overload resolution ambiguity|Compilation error)' \
-              "$RUNNER_TEMP/luoshu-android-diagnostic.log" | tail -n 120 || true
+              "$RUNNER_TEMP/ziyu-android-diagnostic.log" | tail -n 120 || true
             echo
             echo 'Gradle 输出末尾：'
-            tail -n 60 "$RUNNER_TEMP/luoshu-android-diagnostic.log"
+            tail -n 60 "$RUNNER_TEMP/ziyu-android-diagnostic.log"
             echo '```'
           } > "$report"
           gh pr comment "$PR_NUMBER" --body-file "$report"

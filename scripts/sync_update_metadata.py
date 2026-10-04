@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the standard Magisk-compatible LuoShu update JSON for one release."""
+"""Generate standard Magisk-compatible update metadata for one release."""
 from __future__ import annotations
 
 import argparse
@@ -24,6 +24,7 @@ def build_metadata(
     version_code: int,
     tag: str,
     notes_file: str,
+    artifact_name: str = "LuoShu",
 ) -> dict[str, object]:
     if "/" not in repository or repository.startswith("/") or repository.endswith("/"):
         raise ValueError("repository must be owner/name")
@@ -37,7 +38,7 @@ def build_metadata(
     return {
         "version": version.strip(),
         "versionCode": version_code,
-        "zipUrl": f"{release_root}/LuoShu-{artifact}.zip",
+        "zipUrl": f"{release_root}/{artifact_name}-{artifact}.zip",
         "changelog": f"https://raw.githubusercontent.com/{repository}/{tag}/{notes_file}",
     }
 
@@ -49,6 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-code", required=True, type=int)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--notes-file", required=True)
+    parser.add_argument("--artifact-name", default="LuoShu")
     parser.add_argument("--output", required=True)
     parser.add_argument("--fallback-output")
     return parser.parse_args()
@@ -62,6 +64,7 @@ def main() -> int:
         version_code=args.version_code,
         tag=args.tag,
         notes_file=args.notes_file,
+        artifact_name=args.artifact_name,
     )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

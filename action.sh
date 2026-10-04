@@ -2,7 +2,8 @@
 # Root 管理器“操作”按钮：检查并安装或更新模块内置的字域 App。
 
 MODDIR="${0%/*}"
-APK="$MODDIR/bundled/LuoShu-App.apk"
+APK="$MODDIR/bundled/Ziyu-App.apk"
+[ -s "$APK" ] || APK="$MODDIR/bundled/LuoShu-App.apk"
 HELPER="$MODDIR/common/app_installer.sh"
 LOG="$MODDIR/logs/app-install.log"
 

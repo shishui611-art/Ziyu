@@ -4,10 +4,10 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/version.sh"
 VERSION="$LUOSHU_ARTIFACT_VERSION"
 OUT="$ROOT/dist"
-STAGE="$OUT/LuoShu"
-ZIP="$OUT/LuoShu-${VERSION}.zip"
+STAGE="$OUT/Ziyu"
+ZIP="$OUT/Ziyu-${VERSION}.zip"
 ZIP_NAME=$(basename "$ZIP")
-SIZE_REPORT="$OUT/LuoShu-${VERSION}-size.txt"
+SIZE_REPORT="$OUT/Ziyu-${VERSION}-size.txt"
 APP_APK="${LUOSHU_APP_APK:-}"
 ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE=$((LUOSHU_VERSION_CODE * 100 + 1))
@@ -73,15 +73,15 @@ done < "$PAYLOAD_MANIFEST"
 [ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$LUOSHU_VERSION/" "$STAGE/config/version_notes.conf"
 
 mkdir -p "$STAGE/bundled"
-cp -f "$APP_APK" "$STAGE/bundled/LuoShu-App.apk"
-APP_SHA256=$(sha256sum "$STAGE/bundled/LuoShu-App.apk" | awk '{print $1}')
+cp -f "$APP_APK" "$STAGE/bundled/Ziyu-App.apk"
+APP_SHA256=$(sha256sum "$STAGE/bundled/Ziyu-App.apk" | awk '{print $1}')
 {
   printf 'package=%s\n' "$APP_PACKAGE"
   printf 'versionCode=%s\n' "$APP_VERSION_CODE"
   printf 'versionName=%s\n' "$LUOSHU_VERSION"
   printf 'sha256=%s\n' "$APP_SHA256"
 } > "$STAGE/bundled/app.prop"
-chmod 0644 "$STAGE/bundled/LuoShu-App.apk" "$STAGE/bundled/app.prop"
+chmod 0644 "$STAGE/bundled/Ziyu-App.apk" "$STAGE/bundled/app.prop"
 
 find "$STAGE" -type f -name '*.log' -delete
 find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
@@ -100,7 +100,7 @@ rm -f "$STAGE/common/stability.sh" "$STAGE/common/fonts_xml_template.sh" \
   "$STAGE/common/play_font_bridge.sh" "$STAGE/common/wechat_xweb_bridge.sh"
 
 # The repository keeps one reproducible ARM64 runtime; release artifacts carry only the subset used
-# by LuoShu's offline font tools. The pruning script has its own ELF dependency and size tests.
+# by the project's offline font tools. The pruning script has its own ELF dependency and size tests.
 sh "$ROOT/scripts/prune_python_runtime.sh" "$STAGE"
 
 find "$STAGE/common" -maxdepth 1 -type f -exec chmod 0755 {} +
@@ -110,7 +110,7 @@ find "$STAGE/system/fonts" -type f -exec chmod 0644 {} + 2>/dev/null || true
 # App-only single-package gates: no WebUI and the native App must always be bundled.
 test ! -e "$STAGE/webroot"
 ! grep -q '^webroot=' "$STAGE/module.prop"
-test -s "$STAGE/bundled/LuoShu-App.apk"
+test -s "$STAGE/bundled/Ziyu-App.apk"
 test -s "$STAGE/bundled/app.prop"
 grep -qx "package=$APP_PACKAGE" "$STAGE/bundled/app.prop"
 grep -qx "versionCode=$EXPECTED_VERSION_CODE" "$STAGE/bundled/app.prop"
@@ -132,7 +132,7 @@ unzip -Z1 "$ZIP" | grep -Eq '(^|/)webroot(/|$)|(^|/)(__pycache__|emoji)(/|$)|\.p
   echo 'forbidden legacy or WebUI path found in final ZIP' >&2
   exit 89
 } || true
-unzip -Z1 "$ZIP" | grep -qx 'bundled/LuoShu-App.apk'
+unzip -Z1 "$ZIP" | grep -qx 'bundled/Ziyu-App.apk'
 
 python3 - "$ZIP" > "$SIZE_REPORT" <<'PY'
 import collections
@@ -165,6 +165,6 @@ ZIP_BYTES=$(wc -c < "$ZIP" | tr -d '[:space:]')
 }
 
 printf 'Built: %s\n' "$ZIP"
-printf 'Bundled App: %s (%s)\n' "$STAGE/bundled/LuoShu-App.apk" "$APP_PACKAGE"
+printf 'Bundled App: %s (%s)\n' "$STAGE/bundled/Ziyu-App.apk" "$APP_PACKAGE"
 printf 'Size report: %s (%s / %s bytes budget)\n' "$SIZE_REPORT" "$ZIP_BYTES" "$MAX_ZIP_BYTES"
 rm -rf "$STAGE"

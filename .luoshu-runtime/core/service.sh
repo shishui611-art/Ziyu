@@ -98,7 +98,7 @@ MODULE_DIR="$MODDIR"
 
     # 刷写阶段无法调用 pm，或系统包管理器在开机初期尚未稳定时，最多跨三次完整开机重试。
     # 签名冲突、损坏 APK 等永久错误立即转为手动处理，避免每次开机重复失败。
-    if [ -s "$MODDIR/bundled/LuoShu-App.apk" ] && [ -f "$MODDIR/common/app_installer.sh" ]; then
+    if { [ -s "$MODDIR/bundled/Ziyu-App.apk" ] || [ -s "$MODDIR/bundled/LuoShu-App.apk" ]; } && [ -f "$MODDIR/common/app_installer.sh" ]; then
         if [ -f "$MODDIR/config/app_install_pending" ] || [ ! -f "$MODDIR/config/app_install_state.conf" ]; then
             _app_retry_file="$MODDIR/config/app_install_retry_count"
             _app_retry_limit="${LUOSHU_APP_INSTALL_RETRY_LIMIT:-3}"

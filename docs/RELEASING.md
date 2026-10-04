@@ -10,7 +10,7 @@ LuoShu 上游的重构系列历史仍使用 `refactor-v*`。字域 fork 从 **v1
 
 `release_version_policy.py` 统一校验编号和系列；发布门禁不再把“显示版本重置”误报为内部编号错误。App 包名、模块 ID、固定签名和数据路径不得随重编号改变，安装时不得要求用户卸载或清除数据。
 
-字域首发标签为 **ziyu-v1.0.0**，发布说明为 **RELEASE_NOTES_ziyu-v1.0.0.md**；附件沿用构建器命名 **LuoShu-v1.0.0.zip / LuoShu-App-v1.0.0.apk**。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是比较不同项目的显示版本字符串。
+字域首发标签为 **ziyu-v1.0.0**，发布说明为 **RELEASE_NOTES_ziyu-v1.0.0.md**；附件统一命名为 **Ziyu-v1.0.0.zip / Ziyu-App-v1.0.0.apk**。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是比较不同项目的显示版本字符串。
 
 同步更新 `config/stable_version_policy.json` 的 currentStable / nextStable、module.prop、version_notes.conf 与本版说明；只有明确发布请求才创建 Release。本次版本线重置不删除任何旧版本或标签。
 
@@ -42,7 +42,7 @@ LuoShu 上游的重构系列历史仍使用 `refactor-v*`。字域 fork 从 **v1
 5. 已有 Tag 或 Release 不覆盖；修订内容使用新版本。预发行必须有 prerelease 标记；正式版本更新正式和预览通道。
 6. 检查 Release 的模块 ZIP、独立 APK、两份 SHA-256 均已上传，核对在线更新元数据与真实下载地址，再交付安装包。
 
-正式 Release 包含 `LuoShu-<版本>.zip`、`LuoShu-App-<版本>.apk` 及各自 SHA-256。Lite 变体已取消；模块必须内置相同签名 App，必要时手动覆盖安装独立 APK。
+正式 Release 包含 `Ziyu-<版本>.zip`、`Ziyu-App-<版本>.apk` 及各自 SHA-256。Lite 变体已取消；模块必须内置相同签名 App，必要时手动覆盖安装独立 APK。
 
 ## v4.4.4 一次性版本清理
 

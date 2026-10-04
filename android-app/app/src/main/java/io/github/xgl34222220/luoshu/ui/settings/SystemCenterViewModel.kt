@@ -306,9 +306,14 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         val slash = zipUrl.lastIndexOf('/')
         if (slash <= 0) return ""
         val file = zipUrl.substring(slash + 1)
-        if (!file.startsWith("LuoShu-") || !file.endsWith(".zip")) return ""
-        val artifact = file.removePrefix("LuoShu-").removeSuffix(".zip")
-        return zipUrl.substring(0, slash + 1) + "LuoShu-App-$artifact.apk"
+        val prefix = when {
+            file.startsWith("Ziyu-") -> "Ziyu"
+            file.startsWith("LuoShu-") -> "LuoShu"
+            else -> return ""
+        }
+        if (!file.endsWith(".zip")) return ""
+        val artifact = file.removePrefix("$prefix-").removeSuffix(".zip")
+        return zipUrl.substring(0, slash + 1) + "$prefix-App-$artifact.apk"
     }
 }
 

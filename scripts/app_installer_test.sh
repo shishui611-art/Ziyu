@@ -8,8 +8,8 @@ BIN="$TMP/bin"
 CALLS="$TMP/pm.calls"
 mkdir -p "$MOD/bundled" "$MOD/common" "$MOD/config" "$MOD/logs" "$BIN"
 cp "$ROOT/common/app_installer.sh" "$MOD/common/app_installer.sh"
-printf 'fake-apk\n' > "$MOD/bundled/LuoShu-App.apk"
-APK_HASH=$(sha256sum "$MOD/bundled/LuoShu-App.apk" | awk '{print $1}')
+printf 'fake-apk\n' > "$MOD/bundled/Ziyu-App.apk"
+APK_HASH=$(sha256sum "$MOD/bundled/Ziyu-App.apk" | awk '{print $1}')
 cat > "$MOD/bundled/app.prop" <<'EOF'
 package=io.github.xgl34222220.luoshu.debug
 versionCode=1432001
