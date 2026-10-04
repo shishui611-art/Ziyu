@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/ziyu-source-check.log"
-          if ! sh ./scripts/check.sh >"$log" 2>&1; then
+          if ! sh -x ./scripts/check.sh >"$log" 2>&1; then
             tail -n 140 "$log" >&2
             exit 1
           fi
