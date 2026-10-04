@@ -15,6 +15,7 @@ import re
 import tempfile
 from pathlib import Path
 
+from fontTools import subset
 from fontTools.ttLib import TTCollection, TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
@@ -98,7 +99,7 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
     requested_weight = clamp_weight(requested_axes.get("wght", requested_weight))
     face = pick_face(source, role, requested_weight)
     kwargs: dict[str, object] = {
-        "lazy": False,
+        "lazy": True,
         "recalcTimestamp": False,
         "recalcBBoxes": True,
     }
@@ -110,6 +111,19 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
     ignored_axes: list[str] = []
     try:
         if variable:
+            # A composite reads only the selected role's glyphs. Avoid
+            # decompiling unrelated, possibly malformed gvar entries.
+            if role in ("latin", "digit"):
+                latin = (set(range(0x20, 0x30)) | set(range(0x3A, 0x7F))
+                         | set(range(0xA0, 0x250)) | set(range(0x300, 0x370))
+                         | set(range(0x1E00, 0x1F00)) | set(range(0x2000, 0x2070))
+                         | set(range(0x20A0, 0x20D0)) | set(range(0x2100, 0x2150)))
+                digits = (set(range(0x30, 0x3A)) | set(range(0xFF10, 0xFF1A))
+                          | {0xB2, 0xB3, 0xB9} | set(range(0x2070, 0x207A))
+                          | set(range(0x2080, 0x208A)))
+                role_subset = subset.Subsetter()
+                role_subset.populate(unicodes=(latin | digits) if role == "latin" else digits)
+                role_subset.subset(font)
             known_axes = {str(axis.axisTag): axis for axis in font["fvar"].axes}
             ignored_axes = sorted(tag for tag in requested_axes if tag not in known_axes)
             for tag, axis in known_axes.items():
@@ -172,6 +186,9 @@ def main() -> int:
     except MemoryError:
         print(json.dumps({"status": "error", "message": "字体可变轴实例化时内存不足"}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
         return 12
+    except AssertionError:
+        print(json.dumps({"status": "error", "message": "字体的可变字重数据损坏，无法生成所选字重"}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
+        return 13
     except Exception as error:
         print(json.dumps({"status": "error", "message": str(error) or error.__class__.__name__}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
         return 1

@@ -22,7 +22,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 import universal_font_plan
@@ -236,7 +236,7 @@ def _document_nodes(source_xml: str, tree: ET.ElementTree) -> list[dict[str, Any
 
 
 def _logical_snapshot(source_xml: str, snapshot_root: Path) -> Path | None:
-    source = Path(source_xml)
+    source = PurePosixPath(source_xml)
     parts = source.parts
     if len(parts) >= 4 and parts[0] == "/" and parts[2] == "etc":
         candidate = snapshot_root / parts[1] / Path(*parts[3:])
@@ -293,6 +293,7 @@ def _ref_locator(ref: dict[str, Any]) -> dict[str, Any]:
     return {
         "family": family,
         "familyNormalized": _normalize(family),
+        "familySpecified": "family" in ref or "familyName" in ref,
         "familyAttributes": dict(ref.get("familyAttributes") or {}) if isinstance(ref.get("familyAttributes"), dict) else {},
         "weight": _int(ref.get("weight"), 400),
         "style": str(ref.get("style") or "normal").lower(),
@@ -312,6 +313,9 @@ def _match_score(locator: dict[str, Any], node: dict[str, Any]) -> tuple[int, li
             return None
         score += 100
         reasons.append("family")
+    elif locator.get("familySpecified") and node.get("familyNormalized"):
+        # An explicitly unnamed XML family is not a wildcard for named families.
+        return None
 
     if int(node.get("weight") or 400) != int(locator.get("weight") or 400):
         return None
@@ -942,7 +946,7 @@ def render_all(
         document = route_plan["documents"][source_xml]
         if document.get("status") != "ready" or not document.get("operations"):
             continue
-        parts = Path(source_xml).parts
+        parts = PurePosixPath(source_xml).parts
         if len(parts) < 4 or parts[0] != "/" or parts[2] != "etc":
             raise RouterError(f"不支持的字体 XML 路径：{source_xml}")
         output = output_root / parts[1] / "etc" / Path(*parts[3:])

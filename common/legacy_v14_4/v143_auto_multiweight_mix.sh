@@ -202,7 +202,7 @@ run_instance() {
     chmod 0644 "$_destination" 2>/dev/null || true
 }
 
-prepare_source() {
+prepare_source() (
     _role="$1"
     _family="$2"
     _axes="$3"
@@ -216,12 +216,40 @@ prepare_source() {
     [ -f "$_source" ] || return 1
     font_validate "$_source" text || return 1
     if [ "$FONT_CHECK_VARIABLE" = true ] || [ "$FONT_CHECK_FORMAT" = TTC ]; then
-        run_instance "$_source" "$_destination" "$_role" "$_effective"
+        if [ "$_mode" = fixed ] && [ -n "${_root:-}" ]; then
+            _fixed_cache="$_root/prepared-fixed/${_role}.ttf"
+            if [ -s "$_fixed_cache" ]; then
+                cp -f "$_fixed_cache" "$_destination" 2>/dev/null || return 1
+            else
+                run_instance "$_source" "$_destination" "$_role" "$_effective" || return 1
+                mkdir -p "${_fixed_cache%/*}" 2>/dev/null || return 1
+                cp -f "$_destination" "$_fixed_cache" 2>/dev/null || return 1
+            fi
+        else
+            run_instance "$_source" "$_destination" "$_role" "$_effective"
+        fi
     else
         mkdir -p "${_destination%/*}" 2>/dev/null || return 1
         cp -f "$_source" "$_destination" 2>/dev/null || return 1
         chmod 0644 "$_destination" 2>/dev/null || true
     fi
+)
+
+prepare_error_detail() {
+    _ped_file="$1"
+    [ -s "$_ped_file" ] || return 0
+    sed -n 's/.*"message":"\([^"]*\)".*/\1/p' "$_ped_file" 2>/dev/null | head -n1 | tr '\r\n' '  '
+}
+
+log_prepare_failure() {
+    _lpf_role="$1"
+    _lpf_weight="$2"
+    _lpf_error="$3"
+    _lpf_detail=$(prepare_error_detail "$_lpf_error")
+    printf '[%s] [MIX] %s %s prepare failed: %s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" \
+        "$_lpf_role" "$_lpf_weight" "${_lpf_detail:-unknown error}" >>"$LOG_FILE" 2>/dev/null || true
+    printf '%s' "$_lpf_detail"
 }
 
 hash_file() {
@@ -344,15 +372,18 @@ worker() {
         _dir="$_root/prepared/$_weight"
         mkdir -p "$_dir" 2>/dev/null || exit 1
         prepare_source cjk "$_cjk" "$_cjk_axes" "$_cjk_mode" "$_weight" "$_dir/cjk.ttf" || {
-            update_task "$_wanted" failed "中文字体 ${_weight} 字重准备失败" 100 "$(date +%s)"
+            _detail=$(log_prepare_failure cjk "$_weight" "$_dir/cjk.ttf.err")
+            update_task "$_wanted" failed "中文字体 ${_weight} 字重准备失败${_detail:+：$_detail}" 100 "$(date +%s)"
             rm -rf "$_root"; clear_auto_worker_pid "$_wanted"; exit 1
         }
         prepare_source latin "$_latin" "$_latin_axes" "$_latin_mode" "$_weight" "$_dir/latin.ttf" || {
-            update_task "$_wanted" failed "英文字体 ${_weight} 字重准备失败" 100 "$(date +%s)"
+            _detail=$(log_prepare_failure latin "$_weight" "$_dir/latin.ttf.err")
+            update_task "$_wanted" failed "英文字体 ${_weight} 字重准备失败${_detail:+：$_detail}" 100 "$(date +%s)"
             rm -rf "$_root"; clear_auto_worker_pid "$_wanted"; exit 1
         }
         prepare_source digit "$_digit" "$_digit_axes" "$_digit_mode" "$_weight" "$_dir/digit.ttf" || {
-            update_task "$_wanted" failed "数字字体 ${_weight} 字重准备失败" 100 "$(date +%s)"
+            _detail=$(log_prepare_failure digit "$_weight" "$_dir/digit.ttf.err")
+            update_task "$_wanted" failed "数字字体 ${_weight} 字重准备失败${_detail:+：$_detail}" 100 "$(date +%s)"
             rm -rf "$_root"; clear_auto_worker_pid "$_wanted"; exit 1
         }
         if [ "$_weight" = 400 ]; then

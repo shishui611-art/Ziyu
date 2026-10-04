@@ -332,6 +332,20 @@ def font_texts(path: Path) -> list[tuple[str, dict[str, str], str, list[dict[str
 
 
 def main() -> int:
+    # ColorOS can declare the same Roboto file in an unnamed fallback family
+    # and a named condensed family. An explicit empty family must stay unnamed.
+    unnamed_locator = router._ref_locator({
+        "family": "", "declared": "Roboto-Regular.ttf", "weight": 400,
+        "style": "normal", "index": 0,
+    })
+    unnamed_node = {
+        "familyNormalized": "", "declared": "Roboto-Regular.ttf",
+        "weight": 400, "style": "normal", "index": 0,
+    }
+    named_node = {**unnamed_node, "familyNormalized": "sans-serif-condensed"}
+    assert router._match_score(unnamed_locator, unnamed_node) is not None
+    assert router._match_score(unnamed_locator, named_node) is None
+
     with tempfile.TemporaryDirectory(prefix="luoshu-phase5-") as raw:
         temp = Path(raw)
         system_xml = temp / "stock-system-fonts.xml"
