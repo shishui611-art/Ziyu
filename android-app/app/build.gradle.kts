@@ -131,6 +131,7 @@ dependencies {
     implementation("io.github.suqi8.coui.kmp:coui-ui-android:1.1.0")
     // Keep Miuix's RuntimeShader backdrop with Haze for API 28-32; it is capability-gated.
     implementation("top.yukonga.miuix.kmp:miuix-blur-android:0.9.3")
+    implementation("top.yukonga.miuix.kmp:miuix-squircle-android:0.9.3")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20251224")
