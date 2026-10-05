@@ -167,9 +167,20 @@ jobs:
       - name: Prepare ARM64 composite runtime
         shell: bash
         run: |
-          if [[ ! -x common/python/bin/luoshu-python || ! -x .luoshu-runtime/bin/woff2_decompress ]]; then
+          if [[ ! -x common/python/bin/luoshu-python || ! -x .luoshu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
+
+      - name: Run source regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/ziyu-release-source-check.log"
+          if ! sh -x ./scripts/check.sh >"$log" 2>&1; then
+            tail -n 160 "$log" >&2
+            exit 1
+          fi
+          tail -n 100 "$log"
 
       - name: Lint, test and build signed release App
         working-directory: android-app
