@@ -298,7 +298,7 @@ prune_composite_cache() {
     done
 }
 
-build_composite_cached() {
+build_composite_cached() (
     _cjk="$1"
     _latin="$2"
     _digit="$3"
@@ -337,7 +337,7 @@ build_composite_cached() {
     link_or_copy "$_cached" "$_output" || return 1
     chmod 0644 "$_output" 2>/dev/null || true
     prune_composite_cache
-}
+)
 
 save_mix_config() {
     _tmp="$MIX_CONF.auto.$$"
