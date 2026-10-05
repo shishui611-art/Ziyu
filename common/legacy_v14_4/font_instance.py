@@ -13,9 +13,16 @@ import json
 import os
 import re
 import tempfile
+import sys
+import traceback
+import hashlib
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fontTools import subset
+from fontTools import __version__ as FONTTOOLS_VERSION
+from fontTools.misc.lazyTools import LazyDict
 from fontTools.ttLib import TTCollection, TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
@@ -27,6 +34,72 @@ AXIS_TAG_RE = re.compile(r"^[ -~]{1,4}$")
 
 class InstanceError(RuntimeError):
     pass
+
+
+def guard_gvar(font: TTFont) -> list[dict[str, object]]:
+    """Recover only sparse per-glyph delta decoding errors; never drop characters."""
+    recovered = []
+    if "gvar" not in font or "glyf" not in font:
+        return recovered
+    original = font["gvar"].variations
+    default_weight = next((float(axis.defaultValue) for axis in font["fvar"].axes if axis.axisTag == "wght"), None)
+    limit = min(8, max(1, len(font.getGlyphOrder()) // 100))
+    def read(name):
+        try:
+            return original[name]
+        except AssertionError as error:
+            if len(recovered) >= limit:
+                raise InstanceError("多个字形的可变数据损坏，已停止兼容处理，请更换字体源文件")
+            codes = sorted(cp for cp, glyph in (font.getBestCmap() or {}).items() if glyph == name)
+            coordinates, _, _ = font["glyf"][name].getCoordinates(font["glyf"])
+            if not coordinates and any(not chr(cp).isspace() for cp in codes):
+                raise InstanceError(f'字符 {"".join(map(chr, codes))} 的原始轮廓也不可用，已停止应用')
+            recovered.append({"glyph": name, "characters": "".join(map(chr, codes)),
+                              "codepoints": [f"U+{cp:04X}" for cp in codes], "fallback": "default-outline",
+                              "reason": "gvar-delta-decode", "exceptionType": type(error).__name__,
+                              "originalWeight": default_weight,
+                              "traceback": traceback.format_exc()[-2000:]})
+            return []
+    font["gvar"].variations = LazyDict({name: read for name in original})
+    return recovered
+
+
+def source_fingerprint(path) -> dict:
+    fingerprint = {"path": str(path)} if path else {}
+    if path:
+        try:
+            source = Path(path)
+            fingerprint = {"path": str(source), "bytes": source.stat().st_size}
+            with source.open("rb") as stream:
+                fingerprint["sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
+        except (OSError, MemoryError):
+            pass
+    return fingerprint
+
+
+def report_error(error: Exception, message: str, code: str, exit_code: int, args, stage="font-instance") -> int:
+    fingerprint = source_fingerprint(getattr(args, "input", None))
+    inputs = {role: source_fingerprint(getattr(args, role)) for role in ("cjk", "latin", "digit")
+              if getattr(args, role, None)}
+    try:
+        script_digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    except (OSError, MemoryError):
+        script_digest = "unavailable"
+    record = {"schema": "ziyu-font-error-v1", "status": "error", "message": message,
+              "errorCode": code, "exitCode": exit_code, "exceptionType": type(error).__name__,
+              "stage": stage, "taskId": os.environ.get("LUOSHU_TASK_ID", "unknown"),
+              "time": datetime.now(timezone.utc).isoformat(), "monotonicSeconds": time.monotonic(),
+              "source": fingerprint, "inputs": inputs, "output": getattr(args, "output", None),
+              "role": getattr(args, "role", None),
+              "effectiveWeight": getattr(args, "weight", None), "axes": getattr(args, "axes", None),
+              "requestedFamily": os.environ.get("LUOSHU_FONT_FAMILY", ""),
+              "generatedWeight": os.environ.get("LUOSHU_GENERATED_WEIGHT", ""),
+              "weightMode": os.environ.get("LUOSHU_WEIGHT_MODE", ""),
+              "pythonVersion": sys.version, "fontToolsVersion": FONTTOOLS_VERSION,
+              "scriptSha256": script_digest,
+              "traceback": traceback.format_exc()[-20000:]}
+    print(json.dumps(record, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
+    return exit_code
 
 
 def is_collection(path: Path) -> bool:
@@ -109,8 +182,10 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
     variable = "fvar" in font
     location: dict[str, float] = {}
     ignored_axes: list[str] = []
+    variation_fallbacks = []
     try:
         if variable:
+            variation_fallbacks = guard_gvar(font)
             # A composite reads only the selected role's glyphs. Avoid
             # decompiling unrelated, possibly malformed gvar entries.
             if role in ("latin", "digit"):
@@ -141,6 +216,10 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
             ignored_axes = sorted(tag for tag in requested_axes if tag != "wght")
 
         final_weight = clamp_weight(location.get("wght", requested_weight))
+        for fallback in variation_fallbacks:
+            fallback["weight"] = final_weight
+            fallback["message"] = f'{fallback["characters"] or fallback["glyph"]}在 {final_weight} 字重无法处理，已保留原始轮廓'
+        warning = "；".join(str(item["message"]) for item in variation_fallbacks)
         if "OS/2" in font:
             font["OS/2"].usWeightClass = final_weight
         for tag in ("DSIG", "LTSH", "hdmx", "VDMX"):
@@ -168,6 +247,8 @@ def materialize(source: Path, output: Path, role: str, requested_weight: int, re
             "variable": variable,
             "location": location,
             "ignoredAxes": ignored_axes,
+            "variationFallbacks": variation_fallbacks,
+            "warning": warning,
             "size": output.stat().st_size,
         }
     finally:
@@ -185,20 +266,18 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    args = None
     try:
         args = parse_args()
         result = materialize(Path(args.input), Path(args.output), args.role, args.weight, parse_axis_spec(args.axes))
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
-    except MemoryError:
-        print(json.dumps({"status": "error", "message": "字体可变轴实例化时内存不足"}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
-        return 12
-    except AssertionError:
-        print(json.dumps({"status": "error", "message": "字体的可变字重数据损坏，无法生成所选字重"}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
-        return 13
+    except MemoryError as error:
+        return report_error(error, "字体可变轴实例化时内存不足", "FONT_INSTANCE_MEMORY", 12, args)
+    except AssertionError as error:
+        return report_error(error, "字体可变数据处理失败，请提交完整诊断报告", "FONT_VARIATION_ASSERTION", 13, args)
     except Exception as error:
-        print(json.dumps({"status": "error", "message": str(error) or error.__class__.__name__}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
-        return 1
+        return report_error(error, str(error) or error.__class__.__name__, "FONT_INSTANCE_ERROR", 1, args)
 
 
 if __name__ == "__main__":

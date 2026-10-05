@@ -45,7 +45,7 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
         CFG="${'$'}MOD/config"
         LOG="${'$'}MOD/logs/fontswitch.log"
         OUT_DIR=/sdcard/LuoShu/reports
-        OUT="${'$'}OUT_DIR/LuoShu-diagnostic-summary.txt"
+        OUT="${'$'}OUT_DIR/Ziyu-diagnostic-${'$'}(date '+%Y%m%d-%H%M%S').txt"
         mkdir -p "${'$'}OUT_DIR" 2>/dev/null || exit 20
         read_value() {
             sed -n "s/^${'$'}2=//p" "${'$'}1" 2>/dev/null | head -n1 | tr -d '\r\n'
@@ -96,7 +96,7 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
         [ -n "${'$'}warningCount" ] || warningCount=0
         [ -n "${'$'}errorCount" ] || errorCount=0
         {
-            printf 'report=luoshu-sanitized-diagnostic-v1\n'
+            printf 'report=ziyu-diagnostic-v2\n'
             printf 'time=%s\n' "${'$'}(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)"
             printf 'moduleVersion=%s\n' "${'$'}{version:-unknown}"
             printf 'moduleVersionCode=%s\n' "${'$'}{versionCode:-0}"
@@ -117,10 +117,35 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
             printf 'rootManager=%s\n' "${'$'}rootManager"
             printf 'mountEngine=%s\n' "${'$'}mountEngine"
             printf 'androidSdk=%s\n' "${'$'}(getprop ro.build.version.sdk 2>/dev/null)"
+            printf 'androidRelease=%s\n' "${'$'}(getprop ro.build.version.release 2>/dev/null)"
+            printf 'deviceBrand=%s\n' "${'$'}(getprop ro.product.brand 2>/dev/null)"
+            printf 'deviceModel=%s\n' "${'$'}(getprop ro.product.model 2>/dev/null)"
+            printf 'kernel=%s\n' "${'$'}(uname -r 2>/dev/null)"
             printf 'recentWarningCount=%s\n' "${'$'}warningCount"
             printf 'recentErrorCount=%s\n' "${'$'}errorCount"
-            printf 'privacy=device identifiers, accounts, chat content and source font names omitted; system slots and APK font resource names may be included\n'
+            printf 'privacy=no serial, accounts or chat content collected; font names, paths, selected axes and exception stacks included\n'
         } > "${'$'}OUT" 2>/dev/null || exit 21
+        # Explicit allowlist: never export arbitrary config files or all system properties.
+        for name in axes_task.conf switch_task.conf font_mix.conf device-font-engine.conf self-mount.conf; do
+            printf '\n[config:%s]\n' "${'$'}name" >> "${'$'}OUT"
+            if [ -f "${'$'}CFG/${'$'}name" ]; then
+                head -c 16384 "${'$'}CFG/${'$'}name" >> "${'$'}OUT"
+                printf '\n' >> "${'$'}OUT"
+            else
+                printf 'unavailable\n' >> "${'$'}OUT"
+            fi
+        done
+        printf '\n[recent-operation-log]\n' >> "${'$'}OUT"
+        tail -n 180 "${'$'}LOG" 2>/dev/null | tail -c 196608 >> "${'$'}OUT"
+        printf '\n[persistent-font-diagnostics]\n' >> "${'$'}OUT"
+        count=0
+        for file in ${'$'}(ls -1t "${'$'}MOD/logs/font-diagnostics"/*.json 2>/dev/null); do
+            count=${'$'}((count + 1))
+            [ "${'$'}count" -le 12 ] || break
+            printf '\n[file:%s]\n' "${'$'}{file##*/}" >> "${'$'}OUT"
+            head -c 32768 "${'$'}file" >> "${'$'}OUT"
+            printf '\n' >> "${'$'}OUT"
+        done
         LAYOUT_HELPER="${'$'}MOD/common/font_layout_diagnostic.sh"
         LAYOUT_OUT="${'$'}OUT_DIR/LuoShu-font-layout.json"
         if [ -f "${'$'}LAYOUT_HELPER" ]; then
@@ -157,7 +182,7 @@ internal fun DiagnosticExportButton(
 ) {
     LuoShuHeaderAction(
         icon = Icons.Rounded.Description,
-        contentDescription = "生成脱敏诊断报告",
+        contentDescription = "导出完整诊断报告",
         onClick = onClick,
         enabled = !state.busy,
         loading = state.busy,
@@ -189,12 +214,12 @@ internal fun DiagnosticExportDialog(
             )
         },
         title = {
-            Text(if (failed) "诊断报告生成失败" else "脱敏诊断报告已生成", fontWeight = FontWeight.Black)
+            Text(if (failed) "诊断报告生成失败" else "完整诊断报告已生成", fontWeight = FontWeight.Black)
         },
         text = {
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    if (failed) state.error else "报告包含引擎状态、字体度量、系统字体槽位及相关应用的字体资源信息，用于排查偏移和漏替换。不包含设备标识、账号或聊天内容。",
+                    if (failed) state.error else "请把下面的报告文件发给开发者。报告包含机型与版本、任务参数、字体名称和路径、字重、错误码、异常堆栈及挂载诊断，不采集序列号、账号或聊天内容。",
                     color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                 )

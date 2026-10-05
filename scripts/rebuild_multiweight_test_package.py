@@ -19,7 +19,11 @@ replacements = {
     name: (ROOT / name).read_text(encoding="utf-8").encode("utf-8")
     for name in (
         "common/legacy_v14_4/v143_auto_multiweight_mix.sh",
+        "common/legacy_v14_4/v142_weighted_mix.sh",
         "common/legacy_v14_4/font_instance.py",
+        "common/font_instance.py",
+        "common/composite_font.py",
+        "common/legacy_v14_4/composite_font.py",
     )
 }
 replacements["bundled/Ziyu-App.apk"] = apk

@@ -373,16 +373,19 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    from font_instance import report_error
+    args = None
     try:
-        result = build(parse_args())
+        args = parse_args()
+        result = build(args)
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
-    except MemoryError:
-        print(json.dumps({"status": "error", "message": "生成复合字体时内存不足，请更换体积较小的中文字体后重试"}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
-        return 12
+    except MemoryError as exc:
+        return report_error(exc, "生成复合字体时内存不足，请更换体积较小的中文字体后重试",
+                            "FONT_COMPOSITE_MEMORY", 12, args, stage="font-composite")
     except Exception as exc:
-        print(json.dumps({"status": "error", "message": str(exc) or exc.__class__.__name__}, ensure_ascii=False, separators=(",", ":")), file=sys.stderr)
-        return 1
+        return report_error(exc, str(exc) or exc.__class__.__name__,
+                            "FONT_COMPOSITE_ERROR", 1, args, stage="font-composite")
 
 
 if __name__ == "__main__":

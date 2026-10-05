@@ -190,21 +190,35 @@ run_instance() {
     _axes="$4"
     _weight=$(safe_weight "$_axes")
     mkdir -p "${_destination%/*}" "$MODDIR/cache/tmp" 2>/dev/null || return 1
+    LUOSHU_TASK_ID="${_wanted:-unknown}" \
+    LUOSHU_FONT_FAMILY="${_family:-}" \
+    LUOSHU_GENERATED_WEIGHT="${_target:-}" \
+    LUOSHU_WEIGHT_MODE="${_mode:-}" \
     PYTHONHOME="$PYROOT" \
     PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages" \
     LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     TMPDIR="$MODDIR/cache/tmp" \
         "$PYBIN" "$INSTANCE_PY" --input "$_source" --output "$_destination" \
-        --role "$_role" --weight "$_weight" --axes "$_axes" >/dev/null 2>"${_destination}.err"
+        --role "$_role" --weight "$_weight" --axes "$_axes" >"${_destination}.report.json" 2>"${_destination}.err"
     _code=$?
     if [ "$_code" -ne 0 ]; then
         [ -s "${_destination}.err" ] || printf 'FontTools process exited with code %s\n' "$_code" >"${_destination}.err"
+        printf '[MIX_PROCESS] task=%s role=%s generated_weight=%s effective_weight=%s exit_code=%s python=%s helper_sha256=%s\n' \
+            "${_wanted:-unknown}" "$_role" "${_target:-}" "$_weight" "$_code" "$PYBIN" "$(hash_file "$INSTANCE_PY")" >>"$LOG_FILE"
         return 1
     fi
     [ -s "$_destination" ] || {
         printf 'FontTools reported success but produced no font file\n' >"${_destination}.err"
         return 1
     }
+    if grep -q '"variationFallbacks":\[{' "${_destination}.report.json" 2>/dev/null; then
+        printf '[MIX_WARNING] task=%s role=%s original-outline compatibility applied\n' "${_wanted:-unknown}" "$_role" >>"$LOG_FILE"
+        cat "${_destination}.report.json" >>"$LOG_FILE"
+        persist_instance_report "${_destination}.report.json"
+        _warning=$(sed -n 's/.*"warning":"\([^"]*\)".*/\1/p' "${_destination}.report.json" | head -n1)
+        case "$_role" in cjk) _label=中文;; latin) _label=英文;; *) _label=数字;; esac
+        [ -z "$_warning" ] || printf '%s：%s\n' "$_label" "$_warning" >>"$_root/variation-warnings.txt"
+    fi
     rm -f "${_destination}.err" 2>/dev/null || true
     chmod 0644 "$_destination" 2>/dev/null || true
 }
@@ -220,8 +234,19 @@ prepare_source() (
     [ "$_mode" != auto ] || _effective=$(with_weight "$_axes" "$_target")
     _lookup=$(safe_weight "$_effective")
     _source=$(find_best_source "$_family" "$_lookup")
-    [ -f "$_source" ] || return 1
-    font_validate "$_source" text || return 1
+    _source_bytes=missing
+    [ ! -f "$_source" ] || _source_bytes=$(wc -c <"$_source" | tr -d '[:space:]')
+    printf '[MIX_PREPARE] task=%s role=%s family=%s generated_weight=%s effective_weight=%s mode=%s axes=%s source=%s source_bytes=%s output=%s\n' \
+        "${_wanted:-unknown}" "$_role" "$_family" "$_target" "$_lookup" "$_mode" "$_effective" "$_source" \
+        "$_source_bytes" "$_destination" >>"$LOG_FILE"
+    [ -f "$_source" ] || {
+        printf 'FONT_SOURCE_NOT_FOUND: family=%s effective_weight=%s source_directory=%s\n' "$_family" "$_lookup" "$SOURCE_FONTS" >"${_destination}.err"
+        return 1
+    }
+    font_validate "$_source" text || {
+        printf 'FONT_SOURCE_INVALID: file=%s format=%s reason=%s\n' "$_source" "${FONT_CHECK_FORMAT:-unknown}" "${FONT_CHECK_MESSAGE:-validation-failed}" >"${_destination}.err"
+        return 1
+    }
     if [ "$FONT_CHECK_VARIABLE" = true ] || [ "$FONT_CHECK_FORMAT" = TTC ]; then
         if [ "$_mode" = fixed ] && [ -n "${_root:-}" ]; then
             _fixed_cache="$_root/prepared-fixed/${_role}.ttf"
@@ -240,6 +265,19 @@ prepare_source() (
         cp -f "$_source" "$_destination" 2>/dev/null || return 1
         chmod 0644 "$_destination" 2>/dev/null || true
     fi
+)
+
+persist_instance_report() (
+    _pir_source="$1"
+    _pir_dir="$MODDIR/logs/font-diagnostics"
+    _pir_id=$(printf '%s-%s-%s' "${_wanted:-unknown}" "${_role:-unknown}" "${_target:-0}" | tr -cd 'a-zA-Z0-9_.-')
+    mkdir -p "$_pir_dir" || return 1
+    cp "$_pir_source" "$_pir_dir/${_pir_id}.json" || return 1
+    _pir_count=0
+    for _pir_old in $(ls -1t "$_pir_dir"/*.json 2>/dev/null); do
+        _pir_count=$((_pir_count + 1))
+        [ "$_pir_count" -le 24 ] || rm -f "$_pir_old"
+    done
 )
 
 prepare_error_detail() {
@@ -261,6 +299,10 @@ log_prepare_failure() {
     printf '[%s] [MIX] %s %s prepare failed: %s\n' \
         "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" \
         "$_lpf_role" "$_lpf_weight" "${_lpf_detail:-unknown error}" >>"$LOG_FILE" 2>/dev/null || true
+    if [ -s "$_lpf_error" ]; then
+        cat "$_lpf_error" >>"$LOG_FILE" 2>/dev/null || true
+        _role="$_lpf_role" _target="$_lpf_weight" persist_instance_report "$_lpf_error" || true
+    fi
     printf '%s' "$_lpf_detail"
 }
 
@@ -318,15 +360,21 @@ build_composite_cached() (
     _tmp_report="${_tmp}.json"
     _tmp_error="${_tmp}.err"
     rm -f "$_tmp" "$_tmp_report" "$_tmp_error" 2>/dev/null || true
+    LUOSHU_TASK_ID="${_wanted:-unknown}" LUOSHU_GENERATED_WEIGHT="${_weight:-}" \
     MODDIR="$MODDIR" sh "$COMPOSITE_RUNNER" --cjk "$_cjk" --latin "$_latin" --digit "$_digit" \
         --output "$_tmp" --progress "$_progress" >"$_tmp_report" 2>"$_tmp_error"
     _code=$?
     [ "$_code" -eq 0 ] && [ -s "$_tmp" ] || {
+        printf '[MIX_ERROR] code=FONT_COMPOSITE_FAILED stage=font-composite task=%s generated_weight=%s exit_code=%s cjk=%s latin=%s digit=%s output=%s\n' \
+            "${_wanted:-unknown}" "${_weight:-}" "$_code" "$_cjk" "$_latin" "$_digit" "$_tmp" >>"$LOG_FILE"
+        _role=composite _target="${_weight:-0}" persist_instance_report "$_tmp_error" || true
         [ ! -s "$_tmp_error" ] || cat "$_tmp_error" >>"$LOG_FILE" 2>/dev/null || true
         rm -f "$_tmp" "$_tmp_report" "$_tmp_error" 2>/dev/null || true
         return 1
     }
     font_validate "$_tmp" text || {
+        printf '[MIX_ERROR] code=FONT_COMPOSITE_INVALID stage=output-validation task=%s generated_weight=%s file=%s reason=%s\n' \
+            "${_wanted:-unknown}" "${_weight:-}" "$_tmp" "${FONT_CHECK_MESSAGE:-validation-failed}" >>"$LOG_FILE"
         rm -f "$_tmp" "$_tmp_report" "$_tmp_error" 2>/dev/null || true
         return 1
     }
@@ -370,6 +418,10 @@ worker() {
     _digit_mode=$(normalize_mode "$(read_value "$TASK_FILE" digitMode)")
     _root=$(read_value "$TASK_FILE" root)
     _family=LuoShuAutoMix
+    printf '[MIX_TASK] task=%s core=legacy-multiweight module=%s kernel=%s android=%s device=%s root=%s script_sha256=%s\n' \
+        "$_wanted" "$(read_value "$MODDIR/module.prop" version)" "$(uname -r)" \
+        "$(getprop ro.build.version.sdk 2>/dev/null)" "$(getprop ro.product.model 2>/dev/null)" \
+        "$(id -u)" "$(hash_file "$0")" >>"$LOG_FILE"
     mkdir -p "$_root/fonts" "$_root/prepared" 2>/dev/null || {
         update_task "$_wanted" failed '无法创建自动多字重缓存' 100 "$(date +%s)"
         exit 1
@@ -412,6 +464,8 @@ worker() {
 
     update_task "$_wanted" running '正在应用自动多字重字体族' 88 ''
     _result=$(LUOSHU_PUBLIC_DIR="$_root" MODDIR="$MODDIR" sh "$FONT_MANAGER" action switch "$_family" 2>&1)
+    _switch_code=$?
+    printf '[MIX_APPLY] task=%s stage=font-switch exit_code=%s family=%s\n' "$_wanted" "$_switch_code" "$_family" >>"$LOG_FILE"
     printf '%s\n' "$_result" >>"$LOG_FILE" 2>/dev/null || true
     printf '%s\n' "$_result" | grep -q '"status":"ok"' || {
         update_task "$_wanted" failed '自动多字重字体族应用失败' 100 "$(date +%s)"
@@ -422,7 +476,12 @@ worker() {
         update_task "$_wanted" failed '组合配置保存失败' 100 "$(date +%s)"
         rm -rf "$_root"; clear_auto_worker_pid "$_wanted"; exit 1
     }
-    update_task "$_wanted" success '自动多字重复合字体已准备，完整重启后生效' 100 "$(date +%s)"
+    _warning_note=''
+    if [ -s "$_root/variation-warnings.txt" ]; then
+        _warning_summary=$(head -n3 "$_root/variation-warnings.txt" | awk '{printf "%s%s", NR==1?"":"；", $0}')
+        _warning_note="；兼容提醒：$_warning_summary。其余字形已按所选字重正常处理，完整详情见日志"
+    fi
+    update_task "$_wanted" success "自动多字重复合字体已准备，完整重启后生效${_warning_note}" 100 "$(date +%s)"
     rm -rf "$_root" 2>/dev/null || true
     clear_auto_worker_pid "$_wanted"
 }

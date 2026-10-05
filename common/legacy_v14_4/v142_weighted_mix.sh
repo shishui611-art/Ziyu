@@ -188,6 +188,19 @@ find_best_source() {
     printf '%s\n' "$_best"
 }
 
+persist_fixed_report() (
+    _pfr_source="$1"
+    _pfr_dir="$MODDIR/logs/font-diagnostics"
+    _pfr_id=$(printf '%s-%s-%s' "${_wanted:-unknown}" "${_role:-unknown}" "${_weight:-0}" | tr -cd 'a-zA-Z0-9_.-')
+    mkdir -p "$_pfr_dir" || return 1
+    cp "$_pfr_source" "$_pfr_dir/${_pfr_id}.json" || return 1
+    _pfr_count=0
+    for _pfr_old in $(ls -1t "$_pfr_dir"/*.json 2>/dev/null); do
+        _pfr_count=$((_pfr_count + 1))
+        [ "$_pfr_count" -le 24 ] || rm -f "$_pfr_old"
+    done
+)
+
 run_instance() {
     _source="$1"
     _destination="$2"
@@ -198,6 +211,8 @@ run_instance() {
     _error="${_destination}.err"
     [ -x "$PYBIN" ] || chmod 0755 "$PYBIN" 2>/dev/null || true
     (
+        export LUOSHU_TASK_ID="${_wanted:-unknown}" LUOSHU_FONT_FAMILY="$_family"
+        export LUOSHU_GENERATED_WEIGHT="$_weight" LUOSHU_WEIGHT_MODE=fixed
         export PYTHONHOME="$PYROOT"
         export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
         export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -211,8 +226,20 @@ run_instance() {
         _message=$(sed -n 's/^.*"message":"\([^"]*\)".*$/\1/p' "$_error" "$_report" 2>/dev/null | tail -n1)
         [ -n "$_message" ] || _message=$(tail -n1 "$_error" 2>/dev/null | tr -d '\r')
         [ -n "$_message" ] || _message="字体实例化失败（代码 $_code）"
+        _last_prepare_error="$_message"
+        printf '[MIX_ERROR] task=%s stage=font-instance role=%s family=%s effective_weight=%s axes=%s exit_code=%s source=%s\n' \
+            "${_wanted:-unknown}" "$_role" "$_family" "$_weight" "$_axes" "$_code" "$_source" >>"$LOG_FILE"
+        cat "$_error" >>"$LOG_FILE" 2>/dev/null || true
+        persist_fixed_report "$_error" || true
         echo "错误：$_message" >&2
         return 1
+    fi
+    if grep -q '"variationFallbacks":\[{' "$_report" 2>/dev/null; then
+        cat "$_report" >>"$LOG_FILE"
+        persist_fixed_report "$_report" || true
+        _warning=$(sed -n 's/.*"warning":"\([^"]*\)".*/\1/p' "$_report" | head -n1)
+        case "$_role" in cjk) _label=中文;; latin) _label=英文;; *) _label=数字;; esac
+        [ -z "$_warning" ] || printf '%s：%s\n' "$_label" "$_warning" >>"$_root/variation-warnings.txt"
     fi
     rm -f "$_error" 2>/dev/null || true
     chmod 0644 "$_destination" "$_report" 2>/dev/null || true
@@ -220,6 +247,7 @@ run_instance() {
 }
 
 prepare_slot() {
+    _last_prepare_error=''
     _role="$1"
     _family="$2"
     _axes="$3"
@@ -227,8 +255,10 @@ prepare_slot() {
     _internal="$5"
     _weight=$(safe_weight "$_axes")
     _source=$(find_best_source "$_family" "$_weight")
-    [ -f "$_source" ] || { echo "错误：找不到字体族 $_family" >&2; return 1; }
-    font_validate "$_source" text || { echo "错误：字体 $_family 无效：$FONT_CHECK_ERROR" >&2; return 1; }
+    printf '[MIX_PREPARE] task=%s stage=prepare-source role=%s family=%s effective_weight=%s mode=fixed axes=%s source=%s\n' \
+        "${_wanted:-unknown}" "$_role" "$_family" "$_weight" "$_axes" "$_source" >>"$LOG_FILE"
+    [ -f "$_source" ] || { _last_prepare_error="找不到字体族 $_family"; echo "错误：$_last_prepare_error" >&2; return 1; }
+    font_validate "$_source" text || { _last_prepare_error="字体 $_family 无效：$FONT_CHECK_ERROR"; echo "错误：$_last_prepare_error" >&2; return 1; }
     _destination="$_root/fonts/${_internal}-Regular.ttf"
     mkdir -p "${_destination%/*}" 2>/dev/null || return 1
     if [ "$FONT_CHECK_VARIABLE" = true ] || [ "$FONT_CHECK_FORMAT" = TTC ]; then
@@ -275,17 +305,17 @@ worker() {
 
     update_task "$_wanted" running '正在准备中文字体' 4 '' ''
     prepare_slot cjk "$_cjk" "$_cjk_axes" "$_root" LuoShuMixCJK || {
-        update_task "$_wanted" failed '中文字体准备失败' 100 '' "$(date +%s)"
+        update_task "$_wanted" failed "中文字体准备失败${_last_prepare_error:+：$_last_prepare_error}" 100 '' "$(date +%s)"
         rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
     }
     update_task "$_wanted" running '正在准备英文字体' 14 '' ''
     prepare_slot latin "$_latin" "$_latin_axes" "$_root" LuoShuMixLatin || {
-        update_task "$_wanted" failed '英文字体准备失败' 100 '' "$(date +%s)"
+        update_task "$_wanted" failed "英文字体准备失败${_last_prepare_error:+：$_last_prepare_error}" 100 '' "$(date +%s)"
         rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
     }
     update_task "$_wanted" running '正在准备数字字体' 24 '' ''
     prepare_slot digit "$_digit" "$_digit_axes" "$_root" LuoShuMixDigit || {
-        update_task "$_wanted" failed '数字字体准备失败' 100 '' "$(date +%s)"
+        update_task "$_wanted" failed "数字字体准备失败${_last_prepare_error:+：$_last_prepare_error}" 100 '' "$(date +%s)"
         rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
     }
 
@@ -347,6 +377,10 @@ worker() {
             [ -n "$_base_message" ] || _base_message='完整复合字体正在后台生成'
             case "$_base_state" in
                 success)
+                    if [ -s "$_root/variation-warnings.txt" ]; then
+                        _warning_summary=$(head -n3 "$_root/variation-warnings.txt" | awk '{printf "%s%s", NR==1?"":"；", $0}')
+                        _base_message="$_base_message；兼容提醒：$_warning_summary。其余字形已按所选字重正常处理，完整详情见日志"
+                    fi
                     update_task "$_wanted" success "$_base_message" 100 "$_child" "$(date +%s)"
                     rewrite_public_config
                     rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 0
