@@ -49,7 +49,7 @@ class RefactorVersionTest(unittest.TestCase):
         self.assertEqual(version_info('v4.4.4')['tag'], 'v4.4.4')
 
     def test_unknown_series_or_malformed_or_unrequested_number_rejected(self):
-        for series, version in [('other','v1.0.0'), ('refactor','v1.0.1'), ('refactor','v2.1.1'), ('refactor','v0.0.0'), ('refactor','v01.0.0'), ('refactor','v1.0.0;echo bad'), ('refactor','v1.0'), ('ziyu','v1.0.1'), ('','v1.100.0'), ('','v999999.0.0')]:
+        for series, version in [('other','v1.0.0'), ('refactor','v1.0.1'), ('refactor','v2.1.1'), ('refactor','v0.0.0'), ('refactor','v01.0.0'), ('refactor','v1.0.0;echo bad'), ('refactor','v1.0'), ('ziyu','v1.10.0'), ('','v1.100.0'), ('','v999999.0.0')]:
             with self.subTest(series=series, version=version):
                 with self.assertRaises(ValueError):
                     version_info(version, series)
@@ -87,7 +87,7 @@ class RefactorVersionTest(unittest.TestCase):
 
     def test_metadata_uses_refactor_assets_and_advances_both_old_channels(self):
         info=version_info('v1.0.0','refactor')
-        metadata=build_metadata(repository='xgl34222220-ops/LuoShu',version=info['version'],version_code=info['versionCode'],tag=info['tag'],notes_file=info['notesFile'])
+        metadata=build_metadata(repository='xgl34222220-ops/LuoShu',version=info['version'],version_code=info['versionCode'],tag=info['tag'],notes_file=info['notesFile'],artifact_name='LuoShu')
         self.assertIn('/refactor-v1.0.0/LuoShu-v1.0.0.zip',metadata['zipUrl'])
         self.assertIn('/refactor-v1.0.0/RELEASE_NOTES_refactor-v1.0.0.md',metadata['changelog'])
         with tempfile.TemporaryDirectory() as d:
@@ -109,30 +109,41 @@ class RefactorVersionTest(unittest.TestCase):
 
 class ZiyuForkVersionTest(unittest.TestCase):
     def test_fork_has_an_independent_1_0_release_line_and_monotonic_codes(self):
-        versions = ('v1.0.0', 'v1.1.1', 'v2.0.0', 'v2.2.2')
+        versions = ('v1.1.0', 'v1.1.1', 'v1.2.0', 'v2.0.0')
         infos = [version_info(version, 'ziyu') for version in versions]
-        self.assertEqual([item['versionCode'] for item in infos], [80000, 80101, 90000, 90202])
+        self.assertEqual([item['versionCode'] for item in infos], [11000, 11001, 12000, 20000])
         self.assertTrue(all(a['versionCode'] < b['versionCode'] for a, b in zip(infos, infos[1:])))
-        self.assertTrue(all(item['versionCode'] > 70000 for item in infos))
-        self.assertEqual(infos[0]['tag'], 'ziyu-v1.0.0')
-        self.assertEqual(infos[0]['title'], '字域 1.0.0')
+        self.assertTrue(all(item['appVersionCode'] == item['versionCode'] for item in infos))
+        self.assertEqual(infos[0]['tag'], 'ziyu-v1.1.0')
+        self.assertEqual(infos[0]['title'], '字域 1.1.0')
         self.assertEqual(infos[0]['nextStable'], 'v1.1.1')
 
     def test_ziyu_metadata_targets_this_fork_and_its_release(self):
-        info = version_info('v1.0.0', 'ziyu')
+        info = version_info('v1.1.0', 'ziyu')
         metadata = build_metadata(repository='shishui611-art/Ziyu', version=info['version'],
                                   version_code=info['versionCode'], tag=info['tag'],
                                   notes_file=info['notesFile'], artifact_name='Ziyu')
-        self.assertIn('/ziyu-v1.0.0/Ziyu-v1.0.0.zip', metadata['zipUrl'])
-        self.assertEqual(metadata['versionCode'], 80000)
+        self.assertIn('/ziyu-v1.1.0/Ziyu-v1.1.0.zip', metadata['zipUrl'])
+        self.assertEqual(metadata['versionCode'], 11000)
+
+    def test_new_code_epoch_can_advance_old_offset_metadata(self):
+        info = version_info('v1.1.0', 'ziyu')
+        metadata = build_metadata(repository='shishui611-art/Ziyu', version=info['version'],
+                                  version_code=info['versionCode'], tag=info['tag'], notes_file=info['notesFile'], artifact_name='Ziyu')
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'update.json'
+            output.write_text(json.dumps({'version': 'v1.0.0', 'versionCode': 80000}))
+            self.assertTrue(advance_fallback_channel(metadata, output))
+            output.write_text(json.dumps({'version': 'v1.2.0', 'versionCode': 12000}))
+            self.assertFalse(advance_fallback_channel(metadata, output))
 
     def test_repository_properties_match_ziyu_first_release(self):
         props = read_properties(ROOT / 'module.prop')
-        self.assertEqual(props['version'], 'v1.0.0')
+        self.assertEqual(props['version'], 'v1.1.0')
         self.assertEqual(props['versionSeries'], 'ziyu')
         info = version_info(props['version'], props['versionSeries'])
         self.assertEqual(int(props['versionCode']), info['versionCode'])
-        self.assertEqual(info['tag'], 'ziyu-v1.0.0')
+        self.assertEqual(info['tag'], 'ziyu-v1.1.0')
         self.assertTrue((ROOT / info['notesFile']).is_file())
 
 

@@ -116,7 +116,7 @@ class IntegrationTest(unittest.TestCase):
         for file in ('common/google_font_fallback_core.py', 'common/google_font_fallback.py', 'common/google_font_fallback.sh'):
             self.assertIn(file, manifest)
             self.assertTrue((ROOT / file).is_file())
-        ui = ROOT / 'android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/settings'
+        ui = ROOT / 'android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/settings'
         self.assertIn('SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()', (ui / 'SettingsHubScreen.kt').read_text())
         page = (ui / 'GoogleFontCompatibilityPage.kt').read_text()
         for text in ('怎么用', '影响与恢复', '恢复原设置', '了解影响，确认开启', '停用模块不会保证自动撤销'):

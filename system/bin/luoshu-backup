@@ -10,8 +10,8 @@ CONFIG_DIR="$MODDIR/config"
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '; }
 trusted_stage() {
     case "$1" in
-        /data/user/0/io.github.xgl34222220.luoshu/cache/full_backup/*|/data/data/io.github.xgl34222220.luoshu/cache/full_backup/*|\
-        /data/user/0/io.github.xgl34222220.luoshu.debug/cache/full_backup/*|/data/data/io.github.xgl34222220.luoshu.debug/cache/full_backup/*|\
+        /data/user/0/io.github.xgl34222220.ziyu/cache/full_backup/*|/data/data/io.github.xgl34222220.ziyu/cache/full_backup/*|\
+        /data/user/0/io.github.xgl34222220.ziyu.debug/cache/full_backup/*|/data/data/io.github.xgl34222220.ziyu.debug/cache/full_backup/*|\
         /tmp/luoshu-full-backup-test/*) return 0 ;;
     esac
     return 1

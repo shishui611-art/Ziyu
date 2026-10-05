@@ -23,7 +23,7 @@
 
 它不是简单把一个字体文件复制到几十个系统路径，而是先读取当前设备真实字体配置，再根据中文、英文、数字的角色分别生成和映射字体负载，尽量兼顾覆盖范围、字体度量、系统稳定性和存储占用。
 
-字域在本 fork 中从 **v1.0.0** 开始独立编号。这个编号代表字域 fork 的版本，不等同于 LuoShu 上游的版本；模块和 App 的内部升级号保持递增，以支持覆盖安装。
+字域在本 fork 中从 **v1.0.0** 开始独立编号。这个编号代表字域 fork 的版本，不等同于 LuoShu 上游的版本；从 1.1.0 起，模块与 App 统一采用新编号，1.1.0 的 versionCode 为 11000。APK 包名改为 Ziyu，首次使用需要重新授予 Root；已有模块字体数据继续兼容。
 
 ## 主要能力
 
@@ -40,7 +40,7 @@
 
 ## 首发与验证状态
 
-首发版本定为 **字域 v1.0.0**。本 fork 的安装包会发布在 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)；正式发布前此页面可能没有可下载附件。上游 LuoShu 的 Releases 仅供查看上游历史，不能代替字域安装包。
+当前源码版本为 **字域 v1.1.0**。安装包和已发布版本请查看 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)，本地测试包不代表已正式发布。上游 LuoShu 的 Releases 用于查看上游历史。
 
 Release 发布流程验证模块 ZIP、独立 APK 和 SHA-256 后，会自动同步本 fork 的 `update.json`。App 的“检查更新”读取这份清单，显示 Release 版本并提供对应下载；没有已验证的 Release 资产时，不会显示可下载更新。
 
@@ -48,7 +48,7 @@ Release 发布流程验证模块 ZIP、独立 APK 和 SHA-256 后，会自动同
 
 ## 快速开始
 
-1. 字域首发 Release 发布后，从 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载模块 ZIP；发布前页面没有安装包，请勿用 LuoShu 上游包代替。
+1. 从 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载本 fork 的模块 ZIP；测试包请按对应更新说明验证。
 2. **关闭 Root 管理器中的「默认卸载模块」功能。**
 3. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入模块。
 4. 完整重启手机。
@@ -56,7 +56,7 @@ Release 发布流程验证模块 ZIP、独立 APK 和 SHA-256 后，会自动同
 6. 在 App 中导入字体，选择中文、英文和数字字体。
 7. 应用字体，等待任务完成后按提示完整重启。
 
-**签名说明：**字域 fork 使用独立的正式签名，不能覆盖安装 LuoShu 上游签名的 App。若设备已安装上游 App，安装字域 App 前需先卸载上游 App；卸载可能清除 App 本地数据。字域后续版本必须继续使用同一签名密钥。
+**包名与签名说明：**1.1.0 起使用 `io.github.xgl34222220.ziyu`，Debug 包使用 `.ziyu.debug`，Android 会作为新 App 安装。首次打开需重新授予 Root，旧 App 的私有设置不会自动迁移，可先导出备份再导入新 App。相同包名的后续更新必须继续使用同一签名密钥；正式签名与本地 Debug 签名不能互相覆盖。
 
 > 不需要安装额外挂载模块，也不需要手工修改 `fonts.xml`。
 
@@ -191,8 +191,10 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 字域 fork 的版本线从 **1.0.0** 开始，后续按项目策略递增：
 
 ```text
-1.0.0 → 1.1.1 → 2.0.0 → 2.2.2 → 3.0.0 → 3.3.3 → ...
+1.1.0 → 1.1.1 → 1.2.0 → ...
 ```
+
+模块与 App 的 versionCode 均为 `major*10000 + minor*1000 + patch`，不再添加 70000 偏移，也不再乘以 100。次版本限制为 0–9，修订号为 0–999。
 
 当前版本号与是否已发布，以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 和模块信息为准；上游 LuoShu 版本号不会代替本 fork 的版本号。
 

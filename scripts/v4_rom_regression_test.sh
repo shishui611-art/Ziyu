@@ -14,6 +14,6 @@ grep -q 'physical-{name}' common/device_font_payload_build.py
 ! grep -A20 '^_luoshu_coloros_root_pairs()' common/coloros_global.sh | grep -Eq '/vendor/fonts|/odm/fonts|/oem/fonts|/oplus_'
 grep -q 'ColorOS 原厂模板不可用' common/device_font_payload_policy.sh
 ! grep -q '请先恢复系统默认字体并完整重启一次' common/device_font_payload_policy.sh
-grep -q 'fun rebootDevice()' android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt
-! grep -A12 'fun rebootDevice()' android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt | grep -q 'operationBusy || mixState.busy'
+grep -q 'fun rebootDevice()' android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt
+! grep -A12 'fun rebootDevice()' android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt | grep -q 'operationBusy || mixState.busy'
 echo 'v4 device regression guards passed'

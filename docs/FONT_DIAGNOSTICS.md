@@ -3,7 +3,7 @@
 ## 用户提交问题
 
 更新模块和 App 后，复现一次问题，在「字体刷写」右上角点击报告按钮。
-将生成的 `内部存储/LuoShu/reports/Ziyu-diagnostic-时间.txt` 文件发给开发者。
+将生成的 `内部存储/Ziyu/reports/Ziyu-diagnostic-时间.txt` 文件发给开发者。
 截图可以辅助说明，但无法代替报告里的原始异常栈。
 
 报告包含机型、Android/模块版本、Root 与挂载状态、任务参数、字体名称及路径、

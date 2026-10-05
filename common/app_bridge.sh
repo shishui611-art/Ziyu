@@ -340,8 +340,8 @@ preview_export() {
     _dest="$2"
     _weight="${3:-400}"
     case "$_dest" in
-        /data/user/0/io.github.xgl34222220.luoshu/cache/*|/data/data/io.github.xgl34222220.luoshu/cache/*|\
-        /data/user/0/io.github.xgl34222220.luoshu.debug/cache/*|/data/data/io.github.xgl34222220.luoshu.debug/cache/*) ;;
+        /data/user/0/io.github.xgl34222220.ziyu/cache/*|/data/data/io.github.xgl34222220.ziyu/cache/*|\
+        /data/user/0/io.github.xgl34222220.ziyu.debug/cache/*|/data/data/io.github.xgl34222220.ziyu.debug/cache/*) ;;
         *) printf '{"status":"error","message":"预览目标目录不受信任"}\n'; return 1 ;;
     esac
     _src="$(find_preview_source "$_family" "$_weight")"

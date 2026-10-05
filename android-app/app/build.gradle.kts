@@ -30,17 +30,17 @@ val hasReleaseSigning = listOf(
 ).all { !it.isNullOrBlank() }
 
 android {
-    namespace = "io.github.xgl34222220.luoshu"
+    namespace = "io.github.xgl34222220.ziyu"
     // Miuix 0.9.3 publishes against API 37. This is compile-time only: targetSdk and the
     // install/runtime floor stay unchanged, while shader calls remain capability-gated.
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.xgl34222220.luoshu"
+        applicationId = "io.github.xgl34222220.ziyu"
         minSdk = 28
         targetSdk = 36
         // module.prop is the only version source shared by the module, native App and CI artifacts.
-        versionCode = moduleVersionCode * 100 + 1
+        versionCode = moduleVersionCode
         versionName = appVersionName
     }
 

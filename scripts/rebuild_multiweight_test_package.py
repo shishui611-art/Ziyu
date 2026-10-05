@@ -24,16 +24,24 @@ replacements = {
         "common/font_instance.py",
         "common/composite_font.py",
         "common/legacy_v14_4/composite_font.py",
+        "common/app_installer.sh",
+        "common/app_bridge.sh",
+        "common/font_archive_export.sh",
+        "common/native_import.sh",
+        "system/bin/luoshu-backup",
+        "module.prop",
+        "README.md",
     )
 }
 replacements["bundled/Ziyu-App.apk"] = apk
 with zipfile.ZipFile(args.base) as base:
     if base.testzip() is not None:
         raise SystemExit("Base package CRC check failed")
-    prop = base.read("bundled/app.prop").decode("utf-8").splitlines()
-    replacements["bundled/app.prop"] = ("\n".join(
-        f"sha256={hashlib.sha256(apk).hexdigest()}" if line.startswith("sha256=") else line
-        for line in prop) + "\n").encode("utf-8")
+    prop = dict(line.split("=", 1) for line in base.read("bundled/app.prop").decode("utf-8").splitlines() if "=" in line)
+    module = dict(line.split("=", 1) for line in (ROOT / "module.prop").read_text(encoding="utf-8").splitlines() if "=" in line)
+    prop.update(package="io.github.xgl34222220.ziyu.debug", versionCode=module["versionCode"],
+                versionName=module["version"].removeprefix("v") + "-debug", sha256=hashlib.sha256(apk).hexdigest())
+    replacements["bundled/app.prop"] = ("\n".join(f"{key}={value}" for key, value in prop.items()) + "\n").encode("utf-8")
     missing = replacements.keys() - set(base.namelist())
     if missing:
         raise SystemExit(f"Expected entries missing: {missing}")

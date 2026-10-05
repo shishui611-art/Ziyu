@@ -64,9 +64,9 @@ APP_PACKAGE=$(read_prop package "$META")
 APP_VERSION_CODE=$(read_prop versionCode "$META")
 APK_SHA256=$(read_prop sha256 "$META")
 
-[ -n "$APP_PACKAGE" ] || APP_PACKAGE="io.github.xgl34222220.luoshu.debug"
+[ -n "$APP_PACKAGE" ] || APP_PACKAGE="io.github.xgl34222220.ziyu.debug"
 case "$APP_PACKAGE" in
-    io.github.xgl34222220.luoshu|io.github.xgl34222220.luoshu.debug) ;;
+    io.github.xgl34222220.ziyu|io.github.xgl34222220.ziyu.debug) ;;
     *)
         log_app ERROR "拒绝安装未知包名：$APP_PACKAGE"
         touch "$PENDING" 2>/dev/null || true
@@ -79,7 +79,7 @@ case "$APP_VERSION_CODE" in
     ''|*[!0-9]*)
         _module_code=$(read_prop versionCode "$MODDIR/module.prop")
         case "$_module_code" in ''|*[!0-9]*) _module_code=0 ;; esac
-        APP_VERSION_CODE=$((_module_code * 100 + 1))
+        APP_VERSION_CODE="$_module_code"
         ;;
 esac
 

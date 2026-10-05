@@ -149,9 +149,9 @@ grep -q '已保留当前字体负载' "$ROOT/customize.sh"
 sh "$ROOT/scripts/module_update_state_test.sh"
 
 # 所有字体卡片必须使用同一套短双行样张，任何字体字宽都不得把第二行挤掉。
-grep -q '字域字体 Aa' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
-grep -q '中文 ABC 123' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
-! grep -q '中文 English 0123456789' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
+grep -q '字域字体 Aa' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/font/FontUiSupport.kt"
+grep -q '中文 ABC 123' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/font/FontUiSupport.kt"
+! grep -q '中文 English 0123456789' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/font/FontUiSupport.kt"
 # 导入按钮不得裁掉“体”，复合收尾不得对硬链接别名重复读取大字体。
 sh "$ROOT/scripts/mix_finalize_performance_test.sh"
 
@@ -173,9 +173,9 @@ grep -q 'native_font_index.json' "$ROOT/common/native_import.sh"
 grep -q 'native_font_index.key' "$ROOT/common/native_import.sh"
 grep -q 'native-v3|' "$ROOT/common/font_manager_v4.sh"
 grep -q 'manifest-fast' "$ROOT/common/font_manager.sh"
-grep -q 'font-index-v3.json' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/FontIndexStore.kt"
+grep -q 'font-index-v3.json' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt"
 grep -q 'prepared-v8' "$ROOT/common/multiweight_mix_task.sh"
-grep -q 'supportsCjk' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt"
-grep -q 'fontPreviewWeight' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeFontPreview.kt"
+grep -q 'supportsCjk' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt"
+grep -q 'fontPreviewWeight' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeFontPreview.kt"
 
 echo 'LuoShu App-only stability checks passed.'

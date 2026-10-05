@@ -4,7 +4,7 @@
 
     <!--
       Miuix Blur only executes behind the API 33 RuntimeShader capability gate.
-      Keep the app installable on API 28-32, where LuoShu uses the safe Haze fallback.
+      Keep the app installable on API 28-32, where Ziyu uses the safe Haze fallback.
     -->
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
@@ -14,14 +14,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
-        android:name=".LuoShuApplication"
+        android:name=".ZiyuApplication"
         android:allowBackup="false"
         android:hardwareAccelerated="true"
-        android:icon="@mipmap/ic_luoshu"
-        android:roundIcon="@mipmap/ic_luoshu"
+        android:icon="@mipmap/ic_ziyu"
+        android:roundIcon="@mipmap/ic_ziyu"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.LuoShuHybrid"
+        android:theme="@style/Theme.Ziyu"
         android:usesCleartextTraffic="false">
 
         <activity

@@ -68,8 +68,8 @@ ok grep -q '_progress_message=' "$ROOT/common/weighted_mix_task.sh"
 ok grep -q '完整复合字体后台进程已退出' "$ROOT/common/weighted_mix_task.sh"
 
 # The import action must fit the full Chinese label on one line.
-ok grep -q 'else -> 148.dp' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportOverlay.kt"
-ok grep -q 'softWrap = false' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportOverlay.kt"
-ok grep -q 'modifier = modifier.fillMaxWidth()' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportOverlay.kt"
+ok grep -q 'else -> 148.dp' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"
+ok grep -q 'softWrap = false' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"
+ok grep -q 'modifier = modifier.fillMaxWidth()' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"
 
 echo 'Mix finalization uses metadata-only validation, stock monospace preservation, and real progress stages.'

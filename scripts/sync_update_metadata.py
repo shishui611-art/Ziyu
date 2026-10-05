@@ -24,7 +24,7 @@ def build_metadata(
     version_code: int,
     tag: str,
     notes_file: str,
-    artifact_name: str = "LuoShu",
+    artifact_name: str = "Ziyu",
 ) -> dict[str, object]:
     if "/" not in repository or repository.startswith("/") or repository.endswith("/"):
         raise ValueError("repository must be owner/name")
@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-code", required=True, type=int)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--notes-file", required=True)
-    parser.add_argument("--artifact-name", default="LuoShu")
+    parser.add_argument("--artifact-name", default="Ziyu")
     parser.add_argument("--output", required=True)
     parser.add_argument("--fallback-output")
     return parser.parse_args()
@@ -78,7 +78,14 @@ def advance_fallback_channel(metadata: dict, output: Path) -> bool:
     """Let preview-channel users receive a newer stable without downgrading RCs."""
     if output.is_file():
         current = json.loads(output.read_text(encoding="utf-8"))
-        if int(current["versionCode"]) > int(metadata["versionCode"]):
+        ziyu = "/Ziyu/" in str(metadata.get("zipUrl", ""))
+        def semver(value):
+            match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", str(value))
+            return tuple(map(int, match.groups())) if match else None
+        next_version, old_version = semver(metadata.get("version")), semver(current.get("version"))
+        if ziyu and next_version and old_version and old_version > next_version:
+            return False
+        if not (ziyu and next_version and old_version and next_version > old_version) and int(current["versionCode"]) > int(metadata["versionCode"]):
             return False
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

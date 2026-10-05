@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "LuoShuHybrid"
+rootProject.name = "Ziyu"
 include(":app")

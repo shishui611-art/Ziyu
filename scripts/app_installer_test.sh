@@ -11,7 +11,7 @@ cp "$ROOT/common/app_installer.sh" "$MOD/common/app_installer.sh"
 printf 'fake-apk\n' > "$MOD/bundled/Ziyu-App.apk"
 APK_HASH=$(sha256sum "$MOD/bundled/Ziyu-App.apk" | awk '{print $1}')
 cat > "$MOD/bundled/app.prop" <<'EOF'
-package=io.github.xgl34222220.luoshu.debug
+package=io.github.xgl34222220.ziyu.debug
 versionCode=1432001
 sha256=APP_HASH
 EOF
@@ -54,7 +54,7 @@ chmod 0755 "$BIN/pm"
 
 cat > "$MOD/config/app_install_state.conf" <<EOF
 status=installed
-package=io.github.xgl34222220.luoshu.debug
+package=io.github.xgl34222220.ziyu.debug
 versionCode=1432001
 apkSha256=$APK_HASH
 EOF
@@ -69,7 +69,7 @@ test ! -e "$CALLS"
 
 cat > "$MOD/config/app_install_state.conf" <<'EOF'
 status=installed
-package=io.github.xgl34222220.luoshu.debug
+package=io.github.xgl34222220.ziyu.debug
 versionCode=1432001
 apkSha256=old-alpha-build
 EOF
@@ -124,5 +124,15 @@ grep -qx 'permanent-failure' "$TMP/permanent.out"
 test -f "$MOD/config/app_install_pending"
 grep -q '^status=blocked$' "$MOD/config/app_install_state.conf"
 grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE' "$MOD/logs/app-install.log"
+
+# Ziyu 1.1.0 uses the module code directly when App metadata omits it.
+printf 'version=v1.1.0\nversionCode=11000\n' > "$MOD/module.prop"
+printf 'package=io.github.xgl34222220.ziyu.debug\nsha256=%s\n' "$APK_HASH" > "$MOD/bundled/app.prop"
+MOCK_VERSION=0 MOCK_PM_CALLS="$CALLS" \
+APP_INSTALL_PM_BIN="$BIN/pm" APP_INSTALL_DUMPSYS_BIN="$BIN/dumpsys" \
+MODDIR="$MOD" sh "$MOD/common/app_installer.sh" test-ziyu-version > "$TMP/ziyu.out"
+grep -qx 'installed' "$TMP/ziyu.out"
+grep -q '^versionCode=11000$' "$MOD/config/app_install_state.conf"
+grep -q '^package=io.github.xgl34222220.ziyu.debug$' "$MOD/config/app_install_state.conf"
 
 printf 'Bundled App installer tests passed.\n'

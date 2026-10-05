@@ -209,7 +209,7 @@ class SmokeRun:
         self.adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
         self.adb("shell", "wm", "dismiss-keyguard")
         self.adb("shell", "cmd", "uimode", "night", "no")
-        launch = self.text("shell", "am", "start", "-W", "-n", f"{self.package}/io.github.xgl34222220.luoshu.MainActivity", timeout=45)
+        launch = self.text("shell", "am", "start", "-W", "-n", f"{self.package}/io.github.xgl34222220.ziyu.MainActivity", timeout=45)
         (self.output / "launch.txt").write_text(launch, encoding="utf-8")
         if "Status: ok" not in launch or "Error:" in launch:
             raise RuntimeError(f"MainActivity launch failed: {launch}")
@@ -236,7 +236,7 @@ class SmokeRun:
         # Exercise STOPPED -> STARTED without stopping the process or masking crashes.
         self.adb("shell", "input", "keyevent", "KEYCODE_HOME")
         time.sleep(1)
-        self.adb("shell", "am", "start", "-W", "-n", f"{self.package}/io.github.xgl34222220.luoshu.MainActivity", timeout=45)
+        self.adb("shell", "am", "start", "-W", "-n", f"{self.package}/io.github.xgl34222220.ziyu.MainActivity", timeout=45)
         root = self.wait_page("设置", "你的洛书")
         self.capture("dark-settings-resumed", root)
         self.assert_running()
@@ -259,7 +259,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--package", default="io.github.xgl34222220.luoshu.debug")
+    parser.add_argument("--package", default="io.github.xgl34222220.ziyu.debug")
     parser.add_argument("--serial")
     args = parser.parse_args()
     if not args.apk.is_file():

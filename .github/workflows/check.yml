@@ -174,8 +174,8 @@ jobs:
 
           test "$(unzip -p "$module" module.prop | sed -n 's/^version=//p')" = "$LUOSHU_VERSION"
           test "$(unzip -p "$module" module.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_VERSION_CODE"
-          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.xgl34222220.luoshu.debug'
-          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$((LUOSHU_VERSION_CODE * 100 + 1))"
+          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.xgl34222220.ziyu.debug'
+          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_APP_VERSION_CODE"
 
           unzip -p "$module" LICENSE | grep -q 'GNU GENERAL PUBLIC LICENSE'
           unzip -p "$module" NOTICE.md | grep -q 'GPL-3.0-only'

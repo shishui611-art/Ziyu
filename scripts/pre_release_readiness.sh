@@ -174,7 +174,7 @@ else
 fi
 
 if grep -q 'module.prop is the only version source' "$ROOT/android-app/app/build.gradle.kts" 2>/dev/null && \
-   grep -q 'versionCode = moduleVersionCode \* 100 + 1' "$ROOT/android-app/app/build.gradle.kts" 2>/dev/null; then
+   grep -q 'versionCode = moduleVersionCode$' "$ROOT/android-app/app/build.gradle.kts" 2>/dev/null; then
     add_check ready app-version-source 'App 版本来源' '原生 App 继续以 module.prop 为唯一版本源'
 else
     add_check blocker app-version-source 'App 版本来源' '原生 App 版本配置未证明与 module.prop 同源'

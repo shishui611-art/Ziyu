@@ -30,10 +30,10 @@ class DiagnosticExportTest(unittest.TestCase):
             props = root / "getprop"
             props.write_text('#!/bin/sh\ncase "$1" in ro.product.model) echo PLK110;; ro.build.version.sdk) echo 37;; esac\n', encoding="utf-8")
             props.chmod(0o755)
-            kotlin = (ROOT / "android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/DiagnosticExportUi.kt").read_text(encoding="utf-8")
+            kotlin = (ROOT / "android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/DiagnosticExportUi.kt").read_text(encoding="utf-8")
             command = textwrap.dedent(kotlin.split('val command = """', 1)[1].split('""".trimIndent()', 1)[0]).replace("${'$'}", "$")
             command = command.replace("MOD=/data/adb/modules/LuoShu", 'MOD="$TEST_ROOT/module"')
-            command = command.replace("OUT_DIR=/sdcard/LuoShu/reports", 'OUT_DIR="$TEST_ROOT/reports"')
+            command = command.replace("OUT_DIR=/sdcard/Ziyu/reports", 'OUT_DIR="$TEST_ROOT/reports"')
             script = root / "export.sh"
             script.write_text('cd "$TEST_ROOT"\nPATH="$PWD:$PATH"\n' + command, encoding="utf-8")
             environment = os.environ.copy()

@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - android-app/app/src/main/java/io/github/xgl34222220/luoshu/MainActivity.kt
-      - android-app/app/src/main/java/io/github/xgl34222220/luoshu/DisplayPerformanceController.kt
-      - android-app/app/src/test/java/io/github/xgl34222220/luoshu/DisplayPerformanceControllerTest.kt
+      - android-app/app/src/main/java/io/github/xgl34222220/ziyu/MainActivity.kt
+      - android-app/app/src/main/java/io/github/xgl34222220/ziyu/DisplayPerformanceController.kt
+      - android-app/app/src/test/java/io/github/xgl34222220/ziyu/DisplayPerformanceControllerTest.kt
       - .github/workflows/app-display-performance.yml
 permissions:
   contents: read

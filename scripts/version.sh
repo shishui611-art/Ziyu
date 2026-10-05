@@ -14,7 +14,10 @@ version_prop_get() {
 LUOSHU_VERSION=$(version_prop_get version)
 LUOSHU_VERSION_CODE=$(version_prop_get versionCode)
 LUOSHU_ARTIFACT_VERSION=$(printf '%s' "$LUOSHU_VERSION" | sed 's#[ /]#-#g')
-LUOSHU_APP_VERSION_CODE=$((LUOSHU_VERSION_CODE * 100 + 1))
+case "$(version_prop_get versionSeries)" in
+    ziyu) LUOSHU_APP_VERSION_CODE="$LUOSHU_VERSION_CODE" ;;
+    *) LUOSHU_APP_VERSION_CODE=$((LUOSHU_VERSION_CODE * 100 + 1)) ;;
+esac
 
 LUOSHU_RELEASE_TAG=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field tag --check) || return 1
 LUOSHU_RELEASE_NOTES="RELEASE_NOTES_${LUOSHU_RELEASE_TAG}.md"

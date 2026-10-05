@@ -43,39 +43,39 @@ grep -q 'prewarm-start' "$ROOT/common/app_bridge.sh"
 # Legacy App endpoints are inert: keep on-demand cache reuse, not background work.
 grep -qx 'prewarm_start() { return 0; }' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -qx 'prewarm_font() { return 0; }' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
-grep -q 'fun prewarmFont' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt"
-grep -q 'viewModel.prewarmFont(it.id)' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuAppShell.kt"
+grep -q 'fun prewarmFont' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt"
+grep -q 'viewModel.prewarmFont(it.id)' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuAppShell.kt"
 grep -q 'stat -c %s' "$ROOT/common/legacy_v14_4/font_check.sh"
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|device_font_payload_build' \
     "$ROOT/common/legacy_v14_4_switch.sh"
 
 grep -q 'MiuixTaskCenterHeader(' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/LogsScreenMiuix.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsScreenMiuix.kt"
 grep -q 'DiagnosticExportButton(' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/LogsScreenMiuix.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsScreenMiuix.kt"
 grep -q 'horizontalArrangement = Arrangement.spacedBy(10.dp)' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/LogsScreenMiuix.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsScreenMiuix.kt"
 ! grep -q 'top = if (style == UiStyle.MIUIX)' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/LogsRoute.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsRoute.kt"
 # All routed header actions keep an accessible touch target while their visible surface stays quiet.
-grep -q 'LuoShuHeaderAction(' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/DiagnosticExportUi.kt"
+grep -q 'ZiyuHeaderAction(' \
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/DiagnosticExportUi.kt"
 grep -q 'HeaderTouchTarget = 48.dp' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/theme/LuoShuIconSystem.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/theme/ZiyuIconSystem.kt"
 grep -q 'HeaderContainer = 44.dp' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/theme/LuoShuIconSystem.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/theme/ZiyuIconSystem.kt"
 grep -q 'HeaderGlyph = 21.dp' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/theme/LuoShuIconSystem.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/theme/ZiyuIconSystem.kt"
 grep -q 'timeoutSeconds = 390' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt"
 grep -q 'advertisedTimeout' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt"
 grep -q 'DeviceTrustLevel.SYSTEM' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/home/DeviceTrustUi.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/DeviceTrustUi.kt"
 grep -q 'DeviceTrustLevel.COMPATIBILITY' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/home/DeviceTrustUi.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/DeviceTrustUi.kt"
 grep -q 'attempt < 9' \
-    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/home/HomeRoute.kt"
+    "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/HomeRoute.kt"
 grep -q 'LUOSHU_BOOT_VERIFY_RETRY_LIMIT:-3' "$ROOT/common/device_font_boot_verify.sh"
 
 sh "$ROOT/scripts/font_switch_task_test.sh"

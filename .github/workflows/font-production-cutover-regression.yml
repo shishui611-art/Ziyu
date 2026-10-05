@@ -14,9 +14,9 @@ on:
       - common/font_manager.sh
       - common/font_switch_task.sh
       - common/app_bridge.sh
-      - android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt
-      - android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/home/HomeContract.kt
-      - android-app/app/src/test/java/io/github/xgl34222220/luoshu/ui/home/HomeContractTest.kt
+      - android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt
+      - android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/HomeContract.kt
+      - android-app/app/src/test/java/io/github/xgl34222220/ziyu/ui/home/HomeContractTest.kt
       - scripts/universal_font_cutover_gate_test.py
       - scripts/universal_font_cutover_test.sh
       - scripts/universal_cutover_next_boot_test.sh

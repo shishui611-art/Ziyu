@@ -57,29 +57,29 @@ for file in \
   scripts/auto_multiweight_mode_test.sh scripts/auto_multiweight_engine_test.sh scripts/mix_finalize_performance_test.sh scripts/font_library_ui_layout_test.sh scripts/v2_source_audit.sh \
   docs/RELEASING.md docs/TEST_MATRIX.md \
   android-app/app/build.gradle.kts \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/MainActivity.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuHost.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuAppShell.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportOverlay.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportViewModel.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportQueueStore.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/FontMetadataInspector.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeFontPreview.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/glass/LiquidGlassLens.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontDefaultAxes.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/appearance/AppearanceSettings.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/TaskCenterModel.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/LogsContract.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/LogsRoute.kt \
-  android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/logs/ImportTaskControls.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/NativeImportStateTest.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/NativeImportQueueStoreTest.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/NativeImportTaskCenterTest.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/NativeImportControlsTest.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/ui/logs/TaskCenterModelTest.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/ui/home/HomeContractTest.kt \
-  android-app/app/src/test/java/io/github/xgl34222220/luoshu/ui/appearance/AppearanceSettingsTest.kt; do
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/MainActivity.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuHost.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuAppShell.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportQueueStore.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontMetadataInspector.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeFontPreview.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/glass/LiquidGlassLens.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/font/FontDefaultAxes.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/appearance/AppearanceSettings.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/TaskCenterModel.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsContract.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsRoute.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/ImportTaskControls.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/NativeImportStateTest.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/NativeImportQueueStoreTest.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/NativeImportTaskCenterTest.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/NativeImportControlsTest.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/ui/logs/TaskCenterModelTest.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/ui/home/HomeContractTest.kt \
+  android-app/app/src/test/java/io/github/xgl34222220/ziyu/ui/appearance/AppearanceSettingsTest.kt; do
   test -f "$ROOT/$file"
 done
 test ! -d "$ROOT/webroot"
@@ -115,7 +115,7 @@ test ! -e "$ROOT/common/font_report.sh"
 # 单包构建必须显式传入 APK；Debug 包只能由测试工作流明确放行。
 grep -q "LUOSHU_APP_APK is required" "$ROOT/scripts/build.sh"
 grep -q 'LUOSHU_ALLOW_DEBUG_APP' "$ROOT/scripts/build.sh"
-grep -q 'io.github.xgl34222220.luoshu.debug' "$ROOT/scripts/build.sh"
+grep -q 'io.github.xgl34222220.ziyu.debug' "$ROOT/scripts/build.sh"
 grep -q 'Ziyu-${VERSION}.zip' "$ROOT/scripts/build.sh"
 grep -q 'bundled/Ziyu-App.apk' "$ROOT/scripts/build.sh"
 ! grep -RIn 'LUOSHU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
@@ -171,22 +171,22 @@ grep -q 'normalize_font_metrics' "$ROOT/common/font_instance.py"
 grep -q 'LuoShuMono' "$ROOT/common/font_config_overlay.py"
 grep -q 'worker "$_request"' "$ROOT/common/weighted_mix_task.sh"
 grep -q 'axes_task.conf' "$ROOT/common/weighted_mix_task.sh"
-grep -q 'OpenMultipleDocuments' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportOverlay.kt"
-grep -q 'takePersistableUriPermission' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportViewModel.kt"
-grep -q 'fun pauseImport' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportViewModel.kt"
-grep -q 'fun cancelImport' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportViewModel.kt"
-grep -q 'fun retryFailed' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportViewModel.kt"
-grep -q 'fun clearRecord' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportViewModel.kt"
-grep -q 'forResume' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportQueueStore.kt"
-grep -q 'forRetryFailures' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportQueueStore.kt"
-grep -q 'cancelRemaining' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportQueueStore.kt"
-grep -q 'encodeImportQueue' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeImportQueueStore.kt"
-grep -q 'viewModel<NativeImportViewModel>()' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuHost.kt"
-grep -q 'setFontVariationSettings' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/NativeFontPreview.kt"
-grep -q 'updateMixAxis' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuViewModel.kt"
-grep -q 'resolveAndCacheFontDefaultAxes' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/dialogs/FontPickerDialog.kt"
-grep -q 'cachedFontDefaultWeight' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontUiSupport.kt"
-grep -q 'optDouble("default"' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/font/FontDefaultAxes.kt"
+grep -q 'OpenMultipleDocuments' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"
+grep -q 'takePersistableUriPermission' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
+grep -q 'fun pauseImport' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
+grep -q 'fun cancelImport' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
+grep -q 'fun retryFailed' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
+grep -q 'fun clearRecord' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
+grep -q 'forResume' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportQueueStore.kt"
+grep -q 'forRetryFailures' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportQueueStore.kt"
+grep -q 'cancelRemaining' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportQueueStore.kt"
+grep -q 'encodeImportQueue' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportQueueStore.kt"
+grep -q 'viewModel<NativeImportViewModel>()' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuHost.kt"
+grep -q 'setFontVariationSettings' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeFontPreview.kt"
+grep -q 'updateMixAxis' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt"
+grep -q 'resolveAndCacheFontDefaultAxes' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/dialogs/FontPickerDialog.kt"
+grep -q 'cachedFontDefaultWeight' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/font/FontUiSupport.kt"
+grep -q 'optDouble("default"' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/font/FontDefaultAxes.kt"
 grep -q 'testImplementation("junit:junit:4.13.2")' "$ROOT/android-app/app/build.gradle.kts"
 
 # Miuix 悬浮底栏必须使用真实背景取样、RuntimeShader 折射和连续圆角；图标文字保持为独立内容层。
@@ -196,11 +196,11 @@ grep -q 'compileSdk = 37' "$ROOT/android-app/app/build.gradle.kts"
 grep -q 'targetSdk = 36' "$ROOT/android-app/app/build.gradle.kts"
 grep -q 'minSdk = 28' "$ROOT/android-app/app/build.gradle.kts"
 grep -q 'tools:overrideLibrary="top.yukonga.miuix.kmp.blur"' "$ROOT/android-app/app/src/main/AndroidManifest.xml"
-grep -q 'Modifier.layerBackdrop(liquidBackdrop)' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuAppShell.kt"
-grep -q 'Modifier.drawBackdrop' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/navigation/kernelsu/FloatingBottomBar.kt"
-grep -q 'backdrop = combinedBackdrop' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/navigation/kernelsu/FloatingBottomBar.kt"
-grep -q 'isRuntimeShaderSupported()' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/LuoShuAppShell.kt"
-grep -q 'chromaticAberration' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/luoshu/ui/glass/LiquidGlassLens.kt"
+grep -q 'Modifier.layerBackdrop(liquidBackdrop)' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuAppShell.kt"
+grep -q 'Modifier.drawBackdrop' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/navigation/kernelsu/FloatingBottomBar.kt"
+grep -q 'backdrop = combinedBackdrop' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/navigation/kernelsu/FloatingBottomBar.kt"
+grep -q 'isRuntimeShaderSupported()' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuAppShell.kt"
+grep -q 'chromaticAberration' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/glass/LiquidGlassLens.kt"
 
 # HyperOS 必须保留紧凑控件的原厂度量壳，并按真实分区写入 MiSans 与数字字重目标。
 grep -q '_hyperos_metric_shell_files' "$ROOT/common/hyperos_global.sh"
@@ -369,7 +369,7 @@ echo 'Ziyu App-only source checks passed.'
 # Font refresh/import/mix performance contracts.
 grep -q 'native-v3' common/font_manager.sh
 grep -q 'manifest-fast' common/font_manager.sh
-grep -q 'font-index-v3.json' android-app/app/src/main/java/io/github/xgl34222220/luoshu/FontIndexStore.kt
+grep -q 'font-index-v3.json' android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt
 grep -q 'prepared-v8' common/multiweight_mix_task.sh
 
 # Stable 1.1.1 one-shot regressions plus v2 legacy migration and weight lifecycle.

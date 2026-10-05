@@ -10,7 +10,7 @@ ZIP_NAME=$(basename "$ZIP")
 SIZE_REPORT="$OUT/Ziyu-${VERSION}-size.txt"
 APP_APK="${LUOSHU_APP_APK:-}"
 ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
-EXPECTED_VERSION_CODE=$((LUOSHU_VERSION_CODE * 100 + 1))
+EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
 # The App-only release also carries the offline ARM64 WOFF2 decoder. Keep a
 # tight 11.25 MiB ceiling while retaining the full Python/FontTools runtime.
 MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-11796480}"
@@ -46,9 +46,9 @@ esac
   exit 67
 }
 case "$APP_PACKAGE" in
-  io.github.xgl34222220.luoshu)
+  io.github.xgl34222220.ziyu)
     ;;
-  io.github.xgl34222220.luoshu.debug)
+  io.github.xgl34222220.ziyu.debug)
     [ "$ALLOW_DEBUG_APP" = "1" ] || {
       echo 'Debug App packaging requires LUOSHU_ALLOW_DEBUG_APP=1.' >&2
       exit 68

@@ -86,7 +86,7 @@ jobs:
           (cd dist && sha256sum "$(basename "$debug_module")" "$(basename "$debug_app")" > "SHA256SUMS.txt")
 
           unzip -t "$debug_module" >/dev/null
-          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.xgl34222220.luoshu.debug'
+          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.xgl34222220.ziyu.debug'
           test "$(unzip -p "$debug_module" bundled/Ziyu-App.apk | sha256sum | awk '{print $1}')" = "$(sha256sum "$debug_app" | awk '{print $1}')"
 
           echo "DEBUG_MODULE=$debug_module" >> "$GITHUB_ENV"
