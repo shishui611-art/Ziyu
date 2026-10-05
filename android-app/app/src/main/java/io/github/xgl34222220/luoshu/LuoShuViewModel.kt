@@ -283,6 +283,34 @@ internal class LuoShuViewModel(application: Application) : AndroidViewModel(appl
         launchFontWork(force = force, showErrors = force)
     }
 
+    fun importSystemFonts() {
+        if (operationBusy || mixState.busy || !snapshot.installed) return
+        operationBusy = true
+        operationMessage = "正在读取并添加系统原厂字体…"
+        fontError = ""
+        viewModelScope.launch {
+            try {
+                val result = RootShell.exec(
+                    "sh ${RootShell.quote(bridge)} import_system_fonts",
+                    timeoutMs = 120_000L,
+                )
+                val root = firstJson(result.stdout)
+                if (result.code != 0 || root.optString("status") != "ok") {
+                    error(root.optString("message", result.stderr.ifBlank { "系统字体添加失败" }))
+                }
+                operationMessage = "已添加系统默认中文、英文和数字字体，可在组合页选择"
+                refreshFonts(force = true)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                fontError = error.message ?: "系统字体添加失败"
+                operationMessage = ""
+            } finally {
+                operationBusy = false
+            }
+        }
+    }
+
     private fun requestFontPrewarm() {
         if (prewarmRequested && fonts.isNotEmpty()) return
         prewarmRequested = true

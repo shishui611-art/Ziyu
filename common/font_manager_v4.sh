@@ -84,7 +84,7 @@ if ! type detect_font_family >/dev/null 2>&1; then
     detect_font_family() {
         _name="${1%.*}"
         case "$_name" in
-            *-Regular|*-Bold|*-Light|*-Medium|*-Thin|*-Black|*-Heavy|*-regular|*-bold|*-light|*-medium|*-thin|*-black|*-heavy)
+            *-Variable|*-variable|*-Regular|*-Bold|*-Light|*-Medium|*-Thin|*-Black|*-Heavy|*-regular|*-bold|*-light|*-medium|*-thin|*-black|*-heavy)
                 _name="${_name%-*}"
                 ;;
         esac

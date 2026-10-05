@@ -331,6 +331,8 @@ check_hyperos() {
 # ============================================================
 detect_font_family() {
     result="${1%.*}"
+    case "$result" in *"-Variable") result="${result%-Variable}" ;; esac
+    case "$result" in *"-variable") result="${result%-variable}" ;; esac
     case "$result" in *"-Regular") result="${result%-Regular}" ;; esac
     case "$result" in *"-ExtraBold") result="${result%-ExtraBold}" ;; esac
     case "$result" in *"-UltraBold") result="${result%-UltraBold}" ;; esac

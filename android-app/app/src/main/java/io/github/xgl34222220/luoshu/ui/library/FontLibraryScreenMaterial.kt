@@ -30,7 +30,7 @@ import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -107,6 +107,7 @@ internal fun FontLibraryScreenMaterial(
                 active = state.activeFontId == "default",
                 busy = state.operationBusy,
                 onRestore = actions.restoreDefault,
+                onImport = actions.importSystemFonts,
             )
         }
 
@@ -188,7 +189,6 @@ private fun MaterialLibraryOverview(state: FontLibraryUiState) {
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
     ) {
         Box(
             modifier = Modifier
@@ -255,7 +255,6 @@ private fun MaterialBrowsePanel(state: FontLibraryUiState, actions: FontLibraryA
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(12.dp)) {
             OutlinedTextField(
@@ -359,14 +358,13 @@ private fun MaterialSectionLabel(title: String, subtitle: String) {
 }
 
 @Composable
-private fun MaterialSystemFontCard(active: Boolean, busy: Boolean, onRestore: () -> Unit) {
+private fun MaterialSystemFontCard(active: Boolean, busy: Boolean, onRestore: () -> Unit, onImport: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -414,6 +412,12 @@ private fun MaterialSystemFontCard(active: Boolean, busy: Boolean, onRestore: ()
                 )
             }
         }
+        androidx.compose.material3.TextButton(
+            onClick = onImport,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        ) { Text("添加系统字体到字体库，用于组合") }
+
     }
 }
 
@@ -437,7 +441,6 @@ private fun MaterialFontCard(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (active) 6.dp else 2.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -748,7 +751,6 @@ private fun MaterialLibraryEmpty(state: FontLibraryUiState) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(34.dp),

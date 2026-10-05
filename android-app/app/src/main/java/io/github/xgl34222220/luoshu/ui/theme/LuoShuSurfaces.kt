@@ -31,7 +31,7 @@ internal fun LuoShuSurfaceCard(
             lerp(tokens.cardBackground, MaterialTheme.colorScheme.primaryContainer, .16f)
         } else tokens.cardBackground,
         contentColor = tokens.textPrimary,
-        shadowElevation = 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(
             modifier = Modifier.padding(LuoShuLayoutTokens.CardPadding),

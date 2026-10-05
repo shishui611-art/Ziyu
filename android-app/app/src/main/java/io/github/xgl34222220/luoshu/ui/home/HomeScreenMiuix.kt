@@ -29,7 +29,7 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -185,7 +185,7 @@ private fun MiuixPageHeader(state: HomeUiState, onRefresh: () -> Unit) {
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = LocalMiuixTokens.current.elevatedCardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+
         ) {
             IconButton(onClick = onRefresh, modifier = Modifier.size(50.dp)) {
                 if (state.loading) {
@@ -204,7 +204,7 @@ private fun MiuixFontHero(state: HomeUiState) {
     val scheme = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(30.dp)
     Card(
-        modifier = Modifier.fillMaxWidth().shadow(8.dp, shape, clip = false),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
     ) {
@@ -306,7 +306,6 @@ private fun MiuixMetricCard(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Surface(
@@ -351,7 +350,6 @@ private fun MiuixActionGroup(items: List<MiuixHomeAction>) {
     Card(
         shape = RoundedCornerShape(34.dp),
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 5.dp)) {
             items.forEachIndexed { index, item ->

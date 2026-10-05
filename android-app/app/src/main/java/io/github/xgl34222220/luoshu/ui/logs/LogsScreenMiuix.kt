@@ -34,7 +34,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -140,7 +140,7 @@ private fun MiuixTaskCenterHeader(
             Card(
                 shape = LuoShuShapeTokens.Medium,
                 colors = CardDefaults.cardColors(containerColor = tokens.elevatedCardBackground),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+
             ) {
                 IconButton(onClick = onRefresh, modifier = Modifier.size(50.dp)) {
                     Icon(Icons.Rounded.Refresh, contentDescription = "刷新任务和日志")
@@ -156,7 +156,6 @@ private fun MiuixTaskOverview(state: LogsUiState) {
     Card(
         shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -228,7 +227,6 @@ private fun MiuixTaskCard(task: TaskCenterItem) {
     Card(
         shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -293,7 +291,6 @@ private fun MiuixTaskEmpty() {
     Card(
         shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -321,7 +318,6 @@ private fun MiuixLogSummary(state: LogsUiState) {
     Card(
         shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 7.dp)) {
             MiuixLogSummaryRow(Icons.Rounded.Description, "日志行数", state.lineCount.toString(), MaterialTheme.colorScheme.primary)
@@ -373,7 +369,6 @@ private fun MiuixLogPanel(content: String) {
     Card(
         shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column {
             Row(

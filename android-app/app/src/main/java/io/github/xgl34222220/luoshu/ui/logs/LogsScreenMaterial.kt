@@ -31,7 +31,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -175,7 +175,6 @@ private fun MaterialTaskCard(task: TaskCenterItem) {
     Card(
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = .86f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (task.current) 5.dp else 1.dp),
     ) {
         Column(Modifier.padding(17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -266,7 +265,6 @@ private fun MaterialTerminal(content: String) {
     Card(
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = Color(0xFF111318)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
         Column {
             Row(

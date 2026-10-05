@@ -35,7 +35,8 @@ python3 -m py_compile \
   "$ROOT/common/minimal_xml_router.py" \
   "$ROOT/common/universal_font_compiler.py" \
   "$ROOT/common/universal_font_deployment.py" \
-  "$ROOT/common/font_inventory.py"
+  "$ROOT/common/font_inventory.py" \
+  "$ROOT/common/system_font_library.py"
 
 # App-only 活跃源码清单。WebUI 前端及其准备脚本必须彻底不存在。
 for file in \
@@ -293,6 +294,7 @@ sh "$ROOT/scripts/universal_mount_runtime_test.sh"
 python3 "$ROOT/scripts/font_inventory_test.py" --font "$FONT_INVENTORY_TEST_FONT"
 python3 "$ROOT/scripts/stock_metric_contract_test.py"
 python3 "$ROOT/scripts/font_inventory_symlink_test.py"
+python3 "$ROOT/scripts/system_font_library_test.py"
 python3 "$ROOT/scripts/hyperos_cjk_routing_test.py"
 python3 "$ROOT/scripts/google_font_fallback_test.py"
 python3 "$ROOT/scripts/google_font_fallback_integration_test.py"

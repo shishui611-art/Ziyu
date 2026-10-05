@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.studio
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import android.view.Gravity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -292,7 +293,7 @@ private fun PreviewPanel(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(if (style == UiStyle.MIUIX) 28.dp else 23.dp),
         color = if (style == UiStyle.MIUIX) tokens.cardBackground else MaterialTheme.colorScheme.surfaceContainerLow,
-        shadowElevation = if (style == UiStyle.MIUIX) 5.dp else 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(Modifier.padding(15.dp)) {
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.Black)

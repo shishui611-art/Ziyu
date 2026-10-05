@@ -43,7 +43,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -246,6 +246,7 @@ internal fun FontLibraryScreenCompact(
                 active = state.activeFontId == "default", busy = state.operationBusy,
                 cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
                 onRestore = actions.restoreDefault,
+                onImport = actions.importSystemFonts,
             )
         }
         if (!state.loading && state.fonts.isEmpty()) {
@@ -298,7 +299,7 @@ internal fun FontLibraryScreenCompact(
 @Composable
 private fun CompactSystemFontRow(
     active: Boolean, busy: Boolean, cardColor: Color,
-    textPrimary: Color, textSecondary: Color, onRestore: () -> Unit,
+    textPrimary: Color, textSecondary: Color, onRestore: () -> Unit, onImport: () -> Unit,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < .5f
     Card(
@@ -308,7 +309,6 @@ private fun CompactSystemFontRow(
             0.5.dp,
             if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .08f)) {
@@ -329,6 +329,12 @@ private fun CompactSystemFontRow(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             ) { Text("恢复", fontSize = 13.sp) }
         }
+        androidx.compose.material3.TextButton(
+            onClick = onImport,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        ) { Text("添加系统字体到字体库，用于组合") }
+
     }
 }
 
@@ -356,7 +362,6 @@ private fun CompactFontRow(
                 else -> LuoShuLayoutTokens.LightCardOutline
             },
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

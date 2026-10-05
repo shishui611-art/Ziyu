@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.settings
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -242,7 +243,7 @@ private fun GoogleStepCard(number: String, title: String, body: String) {
 @Composable
 private fun GoogleCompatibilityCard(title: String, content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
-        color = LocalMiuixTokens.current.cardBackground, shadowElevation = 1.dp) {
+        color = LocalMiuixTokens.current.cardBackground, shadowElevation = LuoShuLayoutTokens.CardElevation) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
             content()

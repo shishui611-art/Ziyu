@@ -8,6 +8,7 @@ import android.view.Window
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -263,7 +264,11 @@ private fun ProvideMaterialTokens(settings: AppearanceSettings, content: @Compos
         shapes = MaterialShapes,
         typography = MaterialTypography,
     ) {
-        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+        CompositionLocalProvider(
+            LocalMiuixTokens provides tokens,
+            LocalContentColor provides scheme.onSurface,
+            content = content,
+        )
     }
 }
 
@@ -318,7 +323,11 @@ private fun ProvideCouiTokens(settings: AppearanceSettings, content: @Composable
         shapes = CouiShapes,
         typography = CouiTypography,
     ) {
-        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+        CompositionLocalProvider(
+            LocalMiuixTokens provides tokens,
+            LocalContentColor provides scheme.onSurface,
+            content = content,
+        )
     }
 }
 
@@ -378,7 +387,11 @@ private fun ProvideMiuixTokens(settings: AppearanceSettings, content: @Composabl
         shapes = MaterialTheme.shapes,
         typography = MaterialTheme.typography,
     ) {
-        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+        CompositionLocalProvider(
+            LocalMiuixTokens provides tokens,
+            LocalContentColor provides scheme.onSurface,
+            content = content,
+        )
     }
 }
 

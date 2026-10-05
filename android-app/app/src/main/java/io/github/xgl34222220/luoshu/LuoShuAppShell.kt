@@ -220,6 +220,7 @@ internal fun LuoShuAppShell(
             },
             delete = { pendingDelete = it },
             restoreDefault = { restoreDefault = true },
+            importSystemFonts = viewModel::importSystemFonts,
         )
     }
     val studioActions = remember(viewModel, features) {

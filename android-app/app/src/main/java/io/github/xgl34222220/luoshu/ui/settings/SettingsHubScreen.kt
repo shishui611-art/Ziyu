@@ -51,7 +51,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -306,7 +306,7 @@ private fun SettingsOverviewCard(health: SystemHealthSnapshot, onClick: () -> Un
         modifier = Modifier.fillMaxWidth(),
         shape = LuoShuShapeTokens.Card,
         color = if (!health.loading && health.level == HealthLevel.HEALTHY) tokens.successContainer else tokens.cardBackground,
-        shadowElevation = 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(Modifier.padding(LuoShuLayoutTokens.CardPadding), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -362,7 +362,7 @@ private fun SettingsGroup(content: @Composable () -> Unit) {
         shape = LuoShuShapeTokens.Card,
         color = tokens.cardBackground,
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column { content() }
     }
@@ -761,7 +761,6 @@ private fun SettingCard(title: String, content: @Composable () -> Unit) {
             0.5.dp,
             if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(LuoShuLayoutTokens.CardPadding)) {
             Text(title, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
@@ -785,7 +784,6 @@ private fun StatusCard(title: String, subtitle: String, level: HealthLevel, load
             0.5.dp,
             if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -59,6 +59,7 @@ internal fun FontLibraryRoute(
             apply = { latestActions.apply(it) },
             delete = { latestActions.delete(it) },
             restoreDefault = { latestActions.restoreDefault() },
+            importSystemFonts = { latestActions.importSystemFonts() },
             details = { detailFont = it },
             setFilter = { filter = it },
             setSort = { sort = it },

@@ -46,6 +46,7 @@ internal data class FontLibraryActions(
     val apply: (FontItem) -> Unit,
     val delete: (FontItem) -> Unit,
     val restoreDefault: () -> Unit,
+    val importSystemFonts: () -> Unit = {},
     val details: (FontItem) -> Unit = {},
     val setFilter: (FontLibraryFilter) -> Unit = {},
     val setSort: (FontLibrarySort) -> Unit = {},

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,7 +63,7 @@ internal fun StudioPreviewTheme(
         )
     }
     MaterialTheme(colorScheme = scheme, shapes = shapes, typography = typography) {
-        CompositionLocalProvider(LocalMiuixTokens provides tokens, content = content)
+        CompositionLocalProvider(LocalMiuixTokens provides tokens, LocalContentColor provides scheme.onSurface, content = content)
     }
 }
 

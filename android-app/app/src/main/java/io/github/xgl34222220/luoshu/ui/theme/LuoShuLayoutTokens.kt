@@ -16,6 +16,7 @@ internal object LuoShuLayoutTokens {
     val ItemGap = SpacingLg
     val CardGap = SpacingLg
     val CardPadding = 22.dp
+    val CardElevation = 4.dp
     val CompactPadding = SpacingLg
     val FloatingDockSafeBottom = 92.dp
     val FloatingDockHorizontal = 28.dp

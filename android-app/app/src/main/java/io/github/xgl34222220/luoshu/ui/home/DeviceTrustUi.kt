@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.home
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -184,7 +185,7 @@ internal fun DeviceTrustChip(
         shape = RoundedCornerShape(if (style == UiStyle.MIUIX) 18.dp else 16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = presentation.color,
-        shadowElevation = 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),

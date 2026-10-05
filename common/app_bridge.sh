@@ -429,6 +429,9 @@ case "${1:-status}" in
         sh "$FONT_MANAGER" action validate "${2:-}"
         ;;
     stock_scan) manager_ready || exit 1; sh "$FONT_MANAGER" action stock_scan ;;
+    import_system_fonts)
+        MODDIR="$MODDIR" sh "$MODDIR/common/system_font_library.sh"
+        ;;
     switch_start) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" start "${2:-default}" ;;
     switch_status) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" status "${2:-}" ;;
     delete) manager_ready || exit 1; sh "$FONT_MANAGER" action delete "${2:-}" ;;

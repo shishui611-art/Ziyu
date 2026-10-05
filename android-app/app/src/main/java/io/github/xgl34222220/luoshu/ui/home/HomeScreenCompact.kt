@@ -35,7 +35,7 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -126,7 +126,7 @@ internal fun HomeScreenCompact(
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
                 color = if (statusHealthy) tokens.successContainer else cardColor,
-                shadowElevation = 0.dp,
+                shadowElevation = LuoShuLayoutTokens.CardElevation,
                 border = BorderStroke(
                     0.5.dp,
                     if (dark) Color.Transparent else LuoShuLayoutTokens.LightCardOutline,
@@ -313,7 +313,7 @@ private fun HomeGlobalWeightCard(
         shape = MaterialTheme.shapes.large,
         color = cardColor,
         modifier = Modifier.fillMaxWidth(),
-        shadowElevation = 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(
             Modifier.padding(LuoShuLayoutTokens.CardPadding),
@@ -385,7 +385,7 @@ private fun HomeShortcut(title: String, subtitle: String, icon: ImageVector, onC
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
         color = tokens.cardBackground,
-        shadowElevation = 1.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Surface(shape = RoundedCornerShape(15.dp), color = tokens.elevatedCardBackground) {

@@ -31,7 +31,7 @@ import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -115,6 +115,7 @@ internal fun FontLibraryScreenMiuix(
                 active = state.activeFontId == "default",
                 busy = state.operationBusy,
                 onRestore = actions.restoreDefault,
+                onImport = actions.importSystemFonts,
             )
         }
 
@@ -172,7 +173,7 @@ private fun MiuixLibraryHeader(state: FontLibraryUiState, onRefresh: () -> Unit)
         Card(
             shape = LuoShuShapeTokens.Medium,
             colors = CardDefaults.cardColors(containerColor = tokens.elevatedCardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+
         ) {
             IconButton(
                 onClick = onRefresh,
@@ -195,7 +196,6 @@ private fun MiuixBrowsePanel(state: FontLibraryUiState, actions: FontLibraryActi
     Card(
         shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(LuoShuLayoutTokens.CompactPadding)) {
             OutlinedTextField(
@@ -331,13 +331,12 @@ private fun MiuixSectionLabel(title: String, subtitle: String) {
 }
 
 @Composable
-private fun MiuixSystemFontRow(active: Boolean, busy: Boolean, onRestore: () -> Unit) {
+private fun MiuixSystemFontRow(active: Boolean, busy: Boolean, onRestore: () -> Unit, onImport: () -> Unit) {
     val tokens = LocalMiuixTokens.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -385,6 +384,12 @@ private fun MiuixSystemFontRow(active: Boolean, busy: Boolean, onRestore: () -> 
                 )
             }
         }
+        androidx.compose.material3.TextButton(
+            onClick = onImport,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        ) { Text("添加系统字体到字体库，用于组合") }
+
     }
 }
 
@@ -680,7 +685,7 @@ private fun MiuixLibraryNotice(message: String, error: Boolean, busy: Boolean = 
     Surface(
         shape = RoundedCornerShape(27.dp),
         color = if (error) MaterialTheme.colorScheme.errorContainer else tokens.cardBackground,
-        shadowElevation = if (error) 0.dp else 4.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(15.dp),
@@ -713,7 +718,6 @@ private fun MiuixLibraryEmpty(state: FontLibraryUiState) {
     Card(
         shape = LuoShuShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(34.dp),

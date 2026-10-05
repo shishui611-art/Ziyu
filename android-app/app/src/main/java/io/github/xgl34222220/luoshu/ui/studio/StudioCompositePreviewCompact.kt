@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.studio
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import android.view.Gravity
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -274,7 +275,7 @@ private fun CompactPreviewCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(if (style == UiStyle.MIUIX) 27.dp else 22.dp),
         color = if (style == UiStyle.MIUIX) tokens.cardBackground else MaterialTheme.colorScheme.surfaceContainerLow,
-        shadowElevation = if (style == UiStyle.MIUIX) 4.dp else 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

@@ -2,6 +2,7 @@ package io.github.xgl34222220.luoshu
 
 import android.content.Context
 import android.graphics.Typeface
+import android.os.Build
 import android.util.LruCache
 import android.util.TypedValue
 import android.view.Gravity
@@ -73,6 +74,8 @@ private class PreviewTextView(context: Context) : TextView(context) {
     init {
         includeFontPadding = false
         setSingleLine(false)
+        // Compose supplies the exact theme color; Android must not recolor it.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) isForceDarkAllowed = false
     }
 
     fun render(

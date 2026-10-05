@@ -28,7 +28,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -133,7 +133,6 @@ private fun MiuixCompositionMap(state: FontStudioUiState, actions: FontStudioAct
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
             modifier = Modifier
@@ -201,7 +200,6 @@ private fun MiuixStudioTask(state: FontStudioUiState) {
     Card(
         shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -248,7 +246,6 @@ private fun MiuixSlotCard(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -350,7 +347,6 @@ private fun MiuixCoverageGroup(state: FontStudioUiState, actions: FontStudioActi
     Card(
         shape = LuoShuShapeTokens.Large,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -422,7 +418,6 @@ private fun MiuixFinalAction(state: FontStudioUiState, actions: FontStudioAction
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(LuoShuLayoutTokens.CardPadding)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
