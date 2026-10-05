@@ -196,7 +196,7 @@ private fun MaterialFontHero(state: HomeUiState) {
     val scheme = MaterialTheme.colorScheme
     Card(
         shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(containerColor = scheme.primary, contentColor = scheme.onPrimary),
     ) {
         Box(
             modifier = Modifier

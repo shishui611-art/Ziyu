@@ -188,7 +188,7 @@ private fun MaterialLibraryOverview(state: FontLibraryUiState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(containerColor = scheme.primary, contentColor = scheme.onPrimary),
     ) {
         Box(
             modifier = Modifier
