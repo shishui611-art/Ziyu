@@ -66,7 +66,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -404,16 +403,12 @@ internal fun LuoShuAppShell(
                             }
                         }
                         AppPage.Logs -> {
-                            val detailShape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp)
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(start = if (appearance.uiStyle == UiStyle.MIUIX) 6.dp else 0.dp)
                                     .then(
                                         if (appearance.uiStyle == UiStyle.MIUIX) {
                                             Modifier
-                                                .shadow(22.dp, detailShape, clip = false)
-                                                .clip(detailShape)
                                                 .background(LocalMiuixTokens.current.pageBackground)
                                         } else {
                                             Modifier

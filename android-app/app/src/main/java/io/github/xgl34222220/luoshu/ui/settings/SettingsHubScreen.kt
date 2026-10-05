@@ -76,7 +76,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -190,17 +189,13 @@ internal fun SettingsHubRoute(
                 onOpenTasks = onOpenTasks,
             )
         } else {
-            val detailShape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp)
             Column(
                 Modifier
                     .fillMaxSize()
                     .navigationBarsPadding()
-                    .padding(start = if (settings.uiStyle == UiStyle.MIUIX) 6.dp else 0.dp)
                     .then(
                         if (settings.uiStyle == UiStyle.MIUIX) {
                             Modifier
-                                .shadow(22.dp, detailShape, clip = false)
-                                .clip(detailShape)
                                 .background(LocalMiuixTokens.current.pageBackground)
                         } else {
                             Modifier
