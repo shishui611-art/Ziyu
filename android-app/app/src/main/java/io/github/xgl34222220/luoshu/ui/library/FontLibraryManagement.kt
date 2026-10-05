@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.library
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -474,7 +475,7 @@ private fun ManagementFamilyRow(
             selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = .62f)
             else -> MaterialTheme.colorScheme.surfaceContainerLow
         },
-        shadowElevation = if (selected) 3.dp else 0.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(Modifier.padding(11.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

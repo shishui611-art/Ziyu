@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.logs
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -66,7 +67,7 @@ internal fun FlashProgressCard(state: LogsUiState) {
         modifier = Modifier.fillMaxWidth().animateContentSize(tween(220)),
         shape = RoundedCornerShape(26.dp),
         color = tokens.cardBackground,
-        shadowElevation = 2.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(
             modifier = Modifier.background(Brush.verticalGradient(listOf(accent.copy(alpha = .075f), tokens.cardBackground)))

@@ -1,5 +1,6 @@
 package io.github.xgl34222220.luoshu.ui.logs
 
+import io.github.xgl34222220.luoshu.ui.theme.LuoShuLayoutTokens
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,7 +60,7 @@ internal fun ImportTaskControls(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
         color = container.copy(alpha = .98f),
-        shadowElevation = 8.dp,
+        shadowElevation = LuoShuLayoutTokens.CardElevation,
     ) {
         Column(Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
             Text(
