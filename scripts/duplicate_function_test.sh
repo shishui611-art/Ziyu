@@ -30,10 +30,7 @@ _luoshu_self_visible_root
 _luoshu_visible_path
 _verify_font_copy
 apply_font_by_rom
-axis_value
-clean_spec
 clear_managed_text_fonts
-config_json
 copy_as_coloros
 copy_as_hyperos
 current_boot_id
@@ -41,7 +38,6 @@ device_font_dynamic_mount_apply
 device_font_payload_build_install
 device_font_payload_clear
 fail_json
-find_best_source
 font_config_disable
 font_config_enable_for_payload
 font_config_mark_boot_success
@@ -95,19 +91,8 @@ luoshu_process_starttime
 luoshu_used_partitions
 luoshu_write_mount_probe
 luoshu_write_mount_probes
-prune_composite_cache
 python_run
 read_prop
-read_value
-recover_task
-role_weight
-run_instance
-safe_weight
-start_mix
-status_json
-update_task
-worker
-write_task
 ALLOW
 
 # v4.0.0 deliberately sources common/module_update_hotfix_v4.sh after

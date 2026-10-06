@@ -25,6 +25,7 @@ on:
       - 'scripts/legacy_multiweight_worker_test.py'
       - 'scripts/app_controls_bridge_test.py'
       - 'scripts/home_backend_status_test.py'
+      - 'scripts/duplicate_function_test.sh'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
