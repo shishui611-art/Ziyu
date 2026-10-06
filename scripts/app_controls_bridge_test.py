@@ -16,10 +16,10 @@ class AppControlsBridgeTest(unittest.TestCase):
             module = Path(directory)
             (module/'common').mkdir()
             (module/'config').mkdir()
-            for name in ('app_bridge.sh', 'mount_backend_preferences.sh', 'root_manager_detection.sh', 'meta_mount_detection.sh', 'action_control.sh', 'action_control.py', 'log_review.sh'):
+            for name in ('app_bridge.sh', 'mount_backend_preferences.sh', 'mount_backend_details.sh', 'root_manager_detection.sh', 'meta_mount_detection.sh', 'action_control.sh', 'action_control.py', 'log_review.sh'):
                 shutil.copy2(ROOT/'common'/name, module/'common'/name)
             (module/'module.prop').write_text('id=LuoShu\n')
-            env = dict(os.environ, MODDIR=str(module), LUOSHU_PYTHON=sys.executable, LUOSHU_META_TEST_ENGINE='hybrid-mount', LUOSHU_META_TEST_USABLE='1')
+            env = dict(os.environ, MODDIR=str(module), LUOSHU_PYTHON=sys.executable)
             shell = shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
             env['PATH'] = str(Path(shell).parent) + os.pathsep + env.get('PATH', '')
             def request(*arguments):
@@ -28,9 +28,10 @@ class AppControlsBridgeTest(unittest.TestCase):
                 return json.loads(result.stdout)
             preference = request('mount_preferences', 'set', 'self')
             self.assertTrue(preference['ok'])
-            self.assertEqual('self', preference['preferredBackend'])
-            self.assertEqual('hybrid-mount', preference['metaEngine'])
-            self.assertTrue(preference['metaUsable'])
+            self.assertEqual('auto', preference['preferredBackend'])
+            self.assertEqual('automatic-provider-first', preference['policy'])
+            self.assertIn('providerName', preference)
+            self.assertIn('mountMethod', preference)
             self.assertFalse(request('action_status')['data']['undoAvailable'])
             self.assertTrue(request('log_review', 'mark')['data']['viewed'])
             self.assertTrue(request('log_review', 'clear')['data']['cleared'])
