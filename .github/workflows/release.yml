@@ -190,10 +190,18 @@ jobs:
           log="$RUNNER_TEMP/ziyu-release-source-check.log"
           if ! sh -x ./scripts/check.sh >"$log" 2>&1; then
             tail -n 160 "$log" >&2
-            diagnostic="$(tail -n 12 "$log" | tr '\r\n' '  ' | cut -c1-1800 | sed 's/%/%25/g')"
+            failed_command="$(grep -E '^\+ (python3|sh|bash|PYTHONPATH)' "$log" | tail -n 1 | tr '\r\n' ' ' | cut -c1-500 || true)"
+            failure_detail="$(grep -aE '^(FAIL:|ERROR:|Traceback|[[:space:]]+File |AssertionError:|[[:alnum:]_]+Error:|FAILED \(|Ran [0-9]+ tests?)' "$log" | tail -n 24 | tr '\r\n' '  ' | cut -c1-4500 || true)"
+            diagnostic="command=$failed_command details=$failure_detail"
+            if [[ "$diagnostic" == 'command= details=' ]]; then
+              diagnostic="$(tail -n 20 "$log" | tr '\r\n' '  ' | cut -c1-4500)"
+            fi
+            diagnostic="$(printf '%s' "$diagnostic" | sed 's/%/%25/g')"
             echo "::error title=Source regression checks failed::$diagnostic"
             {
               echo '## Source regression checks failed'
+              echo
+              echo "Failed source-check command: $failed_command"
               echo
               echo 'Last 40 lines from the source check log:'
               echo '```text'
