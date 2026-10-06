@@ -22,6 +22,7 @@ on:
       - 'common/mount_backend_preferences.sh'
       - 'scripts/status_provider_hotfix_test.py'
       - 'scripts/stock_inventory_scan_wrapper_test.py'
+      - 'scripts/legacy_multiweight_worker_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:

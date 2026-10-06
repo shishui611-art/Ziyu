@@ -24,6 +24,10 @@ class LegacyMultiweightWorkerTest(unittest.TestCase):
             module = root / "module"
             (module / "config").mkdir(parents=True)
             (module / "common").mkdir()
+            router = module / "common/legacy_v14_4/mix_router.sh"
+            router.parent.mkdir(parents=True)
+            router.write_text('#!/bin/sh\n[ "${1:-}" = finalize ] || exit 2\nexit 0\n', encoding="utf-8")
+            router.chmod(0o755)
             (module / "logs").mkdir()
             task = module / "config/axes_task.conf"
             task.write_text("task=fixed-test\nstate=running\ncjk=CJK\nlatin=Latin\ndigit=Digit\n"
