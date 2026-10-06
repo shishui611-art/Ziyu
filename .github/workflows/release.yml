@@ -28,6 +28,7 @@ on:
       - 'scripts/duplicate_function_test.sh'
       - 'scripts/legacy_switch_core_test.sh'
       - 'scripts/font_library_ui_layout_test.sh'
+      - 'scripts/release_v2_retirement_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:

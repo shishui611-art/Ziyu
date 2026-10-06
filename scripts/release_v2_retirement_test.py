@@ -83,5 +83,5 @@ case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; delete) pr
         r=subprocess.run(['sh','-c','ui_print() { printf "%s\\n" "$*"; }; . "$1"; luoshu_install_header v2.0.0; luoshu_install_step 1 环境; luoshu_install_step 2 扫描; luoshu_install_step 3 App; luoshu_install_step 4 挂载; luoshu_install_complete','sh',str(ROOT/'common/install_ui.sh')],capture_output=True,text=True,check=True)
         self.assertIn('2.0.0',r.stdout);self.assertNotIn('%',r.stdout)
         for n in range(1,5):self.assertEqual(r.stdout.count(f'[{n}/4]'),1)
-        self.assertIn('请完整重启手机',r.stdout)
+        self.assertIn('请完整重启；实际挂载结果见字域 App「挂载详情」',r.stdout)
 if __name__=='__main__':unittest.main(verbosity=2)
