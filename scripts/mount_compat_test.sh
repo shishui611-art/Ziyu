@@ -34,32 +34,36 @@ sync_dual() {
 case_dual_sync() {
     new_module dual-sync
     sync_dual
-    ok test -f "$META/LuoShu/system/fonts/Roboto-Regular.ttf"
-    ok test -f "$META/LuoShu/product/fonts/Test.ttf"
-    ok test -f "$META/LuoShu/system/etc/luoshu/mount-probe.conf"
-    ok test -f "$META/LuoShu/product/etc/luoshu/mount-probe.conf"
+    # Payload publication is deferred to the boot transaction; preparation must
+    # not create or mutate a provider's active tree or publish premature probes.
+    no test -e "$META/LuoShu"
+    no test -e "$MODULE/config/mount-probes-expected.conf"
     ok grep -q '^engine=meta-overlayfs$' "$MODULE/config/mount_compat.conf"
+    ok grep -q '^backend=overlayfs$' "$MODULE/config/mount_compat.conf"
     ok grep -q '^state=prepared$' "$MODULE/config/mount_compat.conf"
-    ok grep -q '^partitions=system,product$' "$MODULE/config/mount_compat.conf"
+    ok grep -q '^detail=字体负载已准备，完整重启后发布并验证$' "$MODULE/config/mount_compat.conf"
 }
 
 case_dual_replace() {
     new_module dual-replace
+    mkdir -p "$META/LuoShu/system/fonts"
+    printf provider-owned > "$META/LuoShu/system/fonts/Old.ttf"
     sync_dual
-    rm -f "$MODULE/system/fonts/Roboto-Regular.ttf"
-    printf stale > "$META/LuoShu/system/fonts/Old.ttf"
-    sync_dual
-    no test -e "$META/LuoShu/system/fonts/Old.ttf"
+    ok test "$(cat "$META/LuoShu/system/fonts/Old.ttf")" = provider-owned
     no test -e "$META/LuoShu/system/fonts/Roboto-Regular.ttf"
-    ok test -s "$META/LuoShu/system/etc/luoshu/mount-probe.conf"
+    no test -e "$MODULE/config/mount-probes-expected.conf"
+    ok grep -q '^state=prepared$' "$MODULE/config/mount_compat.conf"
 }
 
 case_dual_verify() {
     new_module dual-verify
-    sync_dual
+    # Verification consumes probes published by the active boot transaction;
+    # preparation itself no longer writes them into the provider tree.
     mkdir -p "$VISIBLE/system/etc/luoshu" "$VISIBLE/product/etc/luoshu"
-    cp "$MODULE/system/etc/luoshu/mount-probe.conf" "$VISIBLE/system/etc/luoshu/mount-probe.conf"
-    cp "$MODULE/product/etc/luoshu/mount-probe.conf" "$VISIBLE/product/etc/luoshu/mount-probe.conf"
+    printf 'system|system-nonce|/system/etc/luoshu/mount-probe.conf\nproduct|product-nonce|/product/etc/luoshu/mount-probe.conf\n' \
+        > "$MODULE/config/mount-probes-expected.conf"
+    printf 'nonce=system-nonce\npartition=system\n' > "$VISIBLE/system/etc/luoshu/mount-probe.conf"
+    printf 'nonce=product-nonce\npartition=product\n' > "$VISIBLE/product/etc/luoshu/mount-probe.conf"
     MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_META_TEST_ENGINE=meta-overlayfs \
     LUOSHU_META_TEST_ROOT="$META" LUOSHU_VISIBLE_PROBE_ROOT="$VISIBLE" sh -c '
         . "$MODDIR/common/mount_compat.sh"
@@ -82,19 +86,19 @@ case_dual_verify() {
 
 case_dual_unsupported() {
     new_module dual-unsupported
-    mkdir -p "$MODULE/my_product/fonts"
-    printf vendor-font > "$MODULE/my_product/fonts/Oem.ttf"
-    if sync_dual; then
-        echo 'unsupported meta-overlayfs partition unexpectedly succeeded' >&2
+    if MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_META_TEST_ENGINE=meta-overlayfs sh -c '
+        . "$MODDIR/common/mount_compat.sh"
+        luoshu_meta_partition_supported my_product
+    '; then
+        echo 'undeclared meta-overlayfs partition unexpectedly supported' >&2
         exit 1
     fi
-    ok grep -q 'my_product' "$MODULE/config/mount_compat.conf"
     MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_META_TEST_ENGINE=meta-overlayfs \
-    LUOSHU_META_TEST_ROOT="$META" LUOSHU_META_EXTRA_PARTITIONS=my_product sh -c '
+    LUOSHU_META_EXTRA_PARTITIONS=my_product sh -c '
         . "$MODDIR/common/mount_compat.sh"
-        luoshu_sync_mount_payload Demo
+        luoshu_meta_partition_supported my_product
     '
-    ok test -f "$META/LuoShu/my_product/fonts/Oem.ttf"
+    ok test ! -e "$META/LuoShu"
 }
 
 case_direct_source() {
@@ -108,8 +112,8 @@ case_direct_source() {
     '
     no test -e "$META/LuoShu"
     ok grep -q '^engine=mountify$' "$MODULE/config/mount_compat.conf"
-    ok grep -q '^system|' "$MODULE/config/mount-probes-expected.conf"
-    no grep -q '^product|' "$MODULE/config/mount-probes-expected.conf"
+    ok grep -q '^backend=mountify$' "$MODULE/config/mount_compat.conf"
+    no test -e "$MODULE/config/mount-probes-expected.conf"
 
     MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_META_TEST_ENGINE=hybrid-mount \
     LUOSHU_META_TEST_BACKEND=kasumi sh -c '
@@ -128,8 +132,8 @@ case_direct_source() {
         . "$MODDIR/common/mount_compat.sh"
         luoshu_sync_mount_payload Demo
     '
-    no test -e "$MODULE/skip_mount"
-    no test -e "$MODULE/mount_error"
+    ok test -e "$MODULE/skip_mount"
+    ok test -e "$MODULE/mount_error"
     ok test "$(cksum "$MAGIC_CONFIG")" = "$MAGIC_BEFORE"
     ok grep -q '"vendor"' "$MAGIC_CONFIG"
     no grep -q '"product"' "$MAGIC_CONFIG"
@@ -143,18 +147,16 @@ case_direct_source() {
         . "$MODDIR/common/mount_compat.sh"
         luoshu_sync_mount_payload FontA
     '
-    no test -e "$MODULE/disable"
-    no test -e "$MODULE/config/font-boot-failures"
+    ok test -e "$MODULE/disable"
+    ok test -e "$MODULE/config/font-boot-failures"
     touch "$MODULE/remove"
-    if MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_META_TEST_ENGINE=magic-mount \
+    MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_META_TEST_ENGINE=magic-mount \
        LUOSHU_MAGIC_MOUNT_CONFIG="$MAGIC_CONFIG" sh -c '
         . "$MODDIR/common/mount_compat.sh"
         luoshu_sync_mount_payload FontA
-    '; then
-        echo 'remove marker was unexpectedly cleared' >&2
-        exit 1
-    fi
+    '
     ok test -e "$MODULE/remove"
+    no test -e "$META/LuoShu"
 }
 
 case_timeout() {
