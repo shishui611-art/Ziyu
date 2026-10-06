@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +57,8 @@ fun HomeRoute(
 ) {
     var trustState by remember { mutableStateOf(DeviceTrustState()) }
     var showTrustDetails by remember { mutableStateOf(false) }
+    var showMountSettings by remember { mutableStateOf(false) }
+    var showUndo by remember { mutableStateOf(false) }
     var showAcceptanceGuide by remember { mutableStateOf(false) }
     var trustRefreshGeneration by remember { mutableIntStateOf(0) }
     var stockScanBusy by remember { mutableStateOf(false) }
@@ -92,6 +96,13 @@ fun HomeRoute(
         trustContent = {
             if (state.moduleInstalled) {
                 Column(Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { actions.mountSettings(); showMountSettings = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) { Text("挂载方式：选择元模块 / 自挂载") }
+                    if (state.taskRunning) {
+                        OutlinedButton(onClick = actions.cancelTask, modifier = Modifier.fillMaxWidth()) { Text("终止当前字体任务") }
+                    }
+                    if (state.undoAvailable) {
+                        OutlinedButton(onClick = { showUndo = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) { Text("撤销上一次字体应用") }
+                    }
                     DeviceTrustChip(
                         style = style,
                         state = trustState,
@@ -135,6 +146,27 @@ fun HomeRoute(
             }
         },
     )
+
+    if (showMountSettings) {
+        AlertDialog(
+            onDismissRequest = { showMountSettings = false },
+            title = { Text("字体挂载方式") },
+            text = { Column {
+                Text(state.mountPreferences)
+                TextButton(onClick = { actions.setMountBackend("meta") }) { Text("使用元模块挂载") }
+                TextButton(onClick = { actions.setMountBackend("self") }) { Text("使用字域自挂载") }
+                TextButton(onClick = actions.cancelMountChange) { Text("撤销本次挂载设置变更") }
+                Text("切换在完整重启后生效。只有验证和失败清理能力满足要求的元模块才能使用，否则安全回退自挂载。")
+            } },
+            confirmButton = { TextButton(onClick = { showMountSettings = false }) { Text("完成") } },
+        )
+    }
+    if (showUndo) {
+        AlertDialog(onDismissRequest = { showUndo = false }, title = { Text("撤销字体应用") },
+            text = { Text("恢复上一次实际应用的字体。已重启生效的字体需要再次重启才能完成回退。") },
+            confirmButton = { TextButton(onClick = { showUndo = false; actions.undoApply() }) { Text("确认回退") } },
+            dismissButton = { TextButton(onClick = { showUndo = false }) { Text("取消") } })
+    }
 
     if (showTrustDetails) {
         DeviceTrustDialog(

@@ -10,8 +10,6 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 WEIGHTED="$MODDIR/common/v142_weighted_mix.sh"
-AUTO_WEIGHTED="$MODDIR/common/v143_auto_multiweight_mix.sh"
-MODE_HELPER="$MODDIR/common/mix_weight_mode.sh"
 ENGINE="$MODDIR/common/font_mix.sh"
 ROLE_CHECK="$MODDIR/common/font_role_check.sh"
 TASK_FILE="$MODDIR/config/mix_task.conf"
@@ -20,7 +18,6 @@ USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
 MODULE_DIR="$MODDIR"
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 [ -f "$MODDIR/common/font_check.sh" ] && . "$MODDIR/common/font_check.sh"
-[ -f "$MODE_HELPER" ] && . "$MODE_HELPER"
 json_escape(){ printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '; }
 read_value(){ sed -n "s/^${1}=//p" "$TASK_FILE" 2>/dev/null | head -n1 | tr -d '\r\n'; }
 
@@ -47,34 +44,18 @@ if [ -f "$WEIGHTED" ]; then
     case "${1:-config}" in
         start)
             precheck_mix "$2" "$3" "$4" || exit 0
-            _cjk_mode=fixed
-            _latin_mode=fixed
-            _digit_mode=fixed
-            if type infer_mix_weight_mode >/dev/null 2>&1; then
-                _cjk_mode=$(infer_mix_weight_mode "$2" "${5:-wght=400}")
-                _latin_mode=$(infer_mix_weight_mode "$3" "${6:-wght=400}")
-                _digit_mode=$(infer_mix_weight_mode "$4" "${7:-wght=400}")
-            fi
-            if [ -f "$AUTO_WEIGHTED" ]; then
-                sh "$AUTO_WEIGHTED" start "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "$_cjk_mode" "$_latin_mode" "$_digit_mode"
-            else
-                sh "$WEIGHTED" start "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}"
-            fi
+            # Every slot already carries the user's selected axis values. A
+            # combination is one static result, never an implicit 100-900 family.
+            sh "$WEIGHTED" start "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}"
             ;;
         config)
-            if [ -f "$AUTO_WEIGHTED" ]; then sh "$AUTO_WEIGHTED" config
-            else sh "$WEIGHTED" config
-            fi
+            sh "$WEIGHTED" config
             ;;
         status)
-            if [ -f "$AUTO_WEIGHTED" ]; then sh "$AUTO_WEIGHTED" status "$2"
-            else sh "$WEIGHTED" status "$2"
-            fi
+            sh "$WEIGHTED" status "$2"
             ;;
         recover)
-            if [ -f "$AUTO_WEIGHTED" ]; then sh "$AUTO_WEIGHTED" recover
-            else sh "$WEIGHTED" recover
-            fi
+            sh "$WEIGHTED" recover
             ;;
         *) printf '{"status":"error","message":"未知组合桥命令"}\n' ;;
     esac

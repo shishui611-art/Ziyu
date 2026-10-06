@@ -76,6 +76,9 @@ monitor_task() {
                     # Do not depend on the App staying alive long enough to poll status.
                     # A completed fixed-weight task must atomically become the real
                     # module's next-boot payload from this background monitor too.
+                    # Selected preparation is finalized by the owning axes worker;
+                    # it remains responsible for cancellation and library status.
+                    [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" != true ] || exit 0
                     write_finalize_state running '正在提交下一启动字体负载'
                     if finalize_next_payload; then
                         write_finalize_state success '复合字体已准备，完整重启后生效'
@@ -83,7 +86,8 @@ monitor_task() {
                         printf '[%s] legacy-v14 composite task committed for next boot: %s\n' \
                             "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_wanted" >>"$LOG_FILE" 2>/dev/null || true
                     else
-                        write_finalize_state failed '复合字体已生成，但下一启动负载提交失败'
+                        _failure=$(sed -n 's/^message=//p' "$FINALIZE_STATE" 2>/dev/null | head -n1)
+                        write_finalize_state failed "${_failure:-复合字体已生成，但下一启动负载提交失败}"
                         printf '[%s] legacy-v14 composite task finished but next payload commit FAILED: %s\n' \
                             "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_wanted" >>"$LOG_FILE" 2>/dev/null || true
                     fi

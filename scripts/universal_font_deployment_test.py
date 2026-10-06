@@ -145,10 +145,11 @@ def main() -> int:
         assert manifest["schema"] == "universal-font-deployment-v1"
         assert manifest["backendNeutral"] is True
         assert manifest["summary"]["activationReady"] is True
-        assert manifest["summary"]["backendCount"] == 3
+        assert manifest["summary"]["backendCount"] == 4
         assert manifest["summary"]["dynamicMountCount"] == 1
         assert manifest["backendProfiles"]["Magisk"]["mountStage"] == "post-fs-data"
         assert manifest["backendProfiles"]["KernelSU"]["mountStage"] == "post-mount"
+        assert manifest["backendProfiles"]["SukiSU Ultra"]["mountStage"] == "post-mount"
         assert manifest["backendProfiles"]["APatch"]["mountStage"] == "post-mount"
         assert {
             value["backend"] for value in manifest["backendProfiles"].values()

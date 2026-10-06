@@ -68,20 +68,16 @@ case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; delete) pr
         # Uninstall must not default to writing zero for users who never opted in.
         self.assertNotRegex((ROOT/'.luoshu-runtime/compat/v227/uninstall.sh').read_text(),r'(?m)^\s*settings\s')
         runtime=(ROOT/'common/font_weight_runtime.sh').read_text()
-        self.assertIn('fw_set()',runtime)
+        self.assertNotIn('fw_set()',runtime)
         self.assertIn('fw_boot()',runtime)
         self.assertIn('fw_matches_original',runtime)
         self.assertIn('font_weight_runtime.sh" service', (ROOT/'service.sh').read_text())
-    def test_global_weight_controls_are_wired_back_to_the_home_screen(self):
-        alpha=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/ziyu/Alpha15FeatureViewModel.kt').read_text()
-        contract=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/HomeContract.kt').read_text()
-        home=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/HomeScreenCompact.kt').read_text()
-        shell=(ROOT/'android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuAppShell.kt').read_text()
-        self.assertIn('SystemWeightState',alpha)
-        self.assertIn('font_weight_set',alpha)
-        self.assertIn('HomeWeightUiState',contract)
-        self.assertIn('全局粗细微调',home)
-        self.assertIn('features.systemWeight',shell)
+    def test_global_weight_controls_have_been_removed(self):
+        base=ROOT/'android-app/app/src/main/java/io/github/xgl34222220/ziyu'
+        self.assertNotIn('HomeGlobalWeightCard', (base/'ui/home/HomeScreenCompact.kt').read_text())
+        self.assertNotIn('refreshSystemWeight', (base/'ZiyuAppShell.kt').read_text())
+        self.assertNotIn('previewSystemWeight', (base/'Alpha15FeatureViewModel.kt').read_text())
+
     def test_installer_static_phases_no_fake_percent_or_background_jobs(self):
         s=(ROOT/'common/install_ui.sh').read_text();self.assertNotIn('sleep ',s)
         r=subprocess.run(['sh','-c','ui_print() { printf "%s\\n" "$*"; }; . "$1"; luoshu_install_header v2.0.0; luoshu_install_step 1 环境; luoshu_install_step 2 扫描; luoshu_install_step 3 App; luoshu_install_step 4 挂载; luoshu_install_complete','sh',str(ROOT/'common/install_ui.sh')],capture_output=True,text=True,check=True)

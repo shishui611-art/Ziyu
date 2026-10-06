@@ -76,13 +76,12 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
         [ -f "${'$'}MOD/post-mount.sh" ] && postMountScript=present
         cachePending=no
         [ -s "${'$'}CFG/device-font-cache-pending.conf" ] && cachePending=yes
-        rootManager=Root
-        if command -v apd >/dev/null 2>&1 || [ -d /data/adb/ap ] || [ -d /data/adb/apatch ]; then
-            rootManager=APatch
-        elif command -v ksud >/dev/null 2>&1 || [ -d /data/adb/ksu ]; then
-            rootManager=KernelSU
-        elif command -v magisk >/dev/null 2>&1 || [ -d /data/adb/magisk ]; then
-            rootManager=Magisk
+        rootManager=unknown
+        if [ -f "${'$'}MOD/common/root_manager_detection.sh" ]; then
+            . "${'$'}MOD/common/root_manager_detection.sh" >/dev/null 2>&1 || true
+            if type luoshu_detect_root_manager >/dev/null 2>&1; then
+                rootManager="${'$'}(luoshu_detect_root_manager 2>/dev/null)"
+            fi
         fi
         mountEngine=unknown
         if [ -f "${'$'}MOD/common/mount_compat.sh" ]; then

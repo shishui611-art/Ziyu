@@ -95,76 +95,47 @@ esac
         self.assertEqual(payload.get('status'), 'ok', payload)
         return payload.get('data', {})
 
-    def test_first_change_backs_up_an_unset_value_and_reset_restores_unset(self):
-        changed = self.data(self.run_action('set', '550'))
-        self.assertEqual(changed['weight'], 550)
-        self.assertEqual(self.value.read_text(), '150\n')
-        self.assertIn('present=false', (self.config / 'font_weight_original.conf').read_text())
-        self.assertIn('adjustment=0', (self.config / 'font_weight_original.conf').read_text())
+    def own_old_setting(self, original='0', present='true', adjustment='150'):
+        (self.config / 'font_weight.conf').write_text(f'weight=550\nadjustment={adjustment}\n')
+        (self.config / 'font_weight_original.conf').write_text(f'present={present}\nadjustment={original}\n')
 
-        status = self.data(self.run_action('status'))
-        self.assertTrue(status['supported'])
-        self.assertEqual(status['weight'], 550)
-        self.assertEqual(status['adjustment'], 150)
-
-        reset = self.data(self.run_action('reset'))
-        self.assertTrue(reset['reset'])
+    def test_retired_setter_cannot_change_system_weight(self):
+        result = self.run_action('set', '550')
+        self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.value.read_text(), 'null\n')
+        self.assertFalse(self.calls.exists())
+        self.assertFalse(self.data(self.run_action('status'))['supported'])
+
+    def test_boot_restores_owned_original_once(self):
+        self.own_old_setting(original='20')
+        self.value.write_text('150\n')
+        self.data(self.run_action('boot'))
+        self.assertEqual(self.value.read_text(), '20\n')
+        writes = self.calls.read_text().count('put:')
+        self.data(self.run_action('boot'))
+        self.assertEqual(self.calls.read_text().count('put:'), writes)
         self.assertFalse((self.config / 'font_weight.conf').exists())
-        self.assertFalse((self.config / 'font_weight_original.conf').exists())
 
-    def test_existing_system_adjustment_is_restored_after_reset(self):
-        self.value.write_text('80\n')
-        self.data(self.run_action('set', '560'))
-        original = (self.config / 'font_weight_original.conf').read_text()
-        self.assertIn('present=true', original)
-        self.assertIn('adjustment=80', original)
-        self.data(self.run_action('reset'))
-        self.assertEqual(self.value.read_text(), '80\n')
-
-    def test_boot_reapplies_owned_value_once_after_system_reset(self):
-        self.data(self.run_action('set', '620'))
-        self.value.write_text('0\n')
-        before = self.calls.read_text().count('put:')
-        result = self.run_action('boot')
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertEqual(self.value.read_text(), '220\n')
-        self.assertEqual(self.calls.read_text().count('put:'), before + 1)
-
-        result = self.run_action('boot')
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertEqual(self.calls.read_text().count('put:'), before + 1)
-
-    def test_external_change_is_never_overwritten_or_reset(self):
-        self.data(self.run_action('set', '570'))
+    def test_external_change_is_preserved(self):
+        self.own_old_setting()
         self.value.write_text('45\n')
-        result = self.run_action('boot')
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.data(self.run_action('boot'))
         self.assertEqual(self.value.read_text(), '45\n')
-        self.assertFalse((self.config / 'font_weight.conf').exists())
-        self.assertFalse((self.config / 'font_weight_original.conf').exists())
+        self.assertNotIn('put:', self.calls.read_text())
 
-        self.data(self.run_action('set', '530'))
-        self.value.write_text('25\n')
-        reset = self.data(self.run_action('reset'))
-        self.assertFalse(reset['reset'])
-        self.assertEqual(self.value.read_text(), '25\n')
-
-    def test_weight_must_be_inside_range_and_on_ten_point_step(self):
-        for value in ('299', '701', '505', 'text'):
-            result = self.run_action('set', value)
-            self.assertNotEqual(result.returncode, 0, value)
+    def test_unset_original_is_deleted_after_retirement(self):
+        self.own_old_setting(present='false')
+        self.value.write_text('150\n')
+        self.data(self.run_action('boot'))
         self.assertEqual(self.value.read_text(), 'null\n')
-        self.assertFalse((self.config / 'font_weight.conf').exists())
-        self.assertNotIn('put:', self.calls.read_text() if self.calls.exists() else '')
 
-    def test_settings_read_is_read_only_and_does_not_create_public_font_storage(self):
-        status = self.data(self.run_action('status'))
-        self.assertTrue(status['supported'])
-        self.assertFalse((self.root / 'public').exists())
-        self.assertFalse((self.config / 'font_weight.conf').exists())
-        self.assertEqual(self.calls.read_text().count('get'), 1)
-        self.assertFalse(self.calls.read_text().count('put'))
+    def test_failed_restore_keeps_backup_for_retry(self):
+        self.own_old_setting(original='20')
+        self.value.write_text('150\n')
+        result = self.run_action('boot', SETTINGS_FAIL='put')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((self.config / 'font_weight_original.conf').exists())
+        self.assertEqual(self.value.read_text(), '150\n')
 
 
 if __name__ == '__main__':

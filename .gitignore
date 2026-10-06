@@ -19,3 +19,7 @@ android-app/.kotlin/
 android-app/build/
 android-app/app/build/
 android-app/local.properties
+.luoshu-runtime/bin/
+cache/
+.mix_edit.py
+.small_font_repro.py

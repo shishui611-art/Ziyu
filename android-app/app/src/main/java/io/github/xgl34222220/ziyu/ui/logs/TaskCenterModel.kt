@@ -18,6 +18,7 @@ internal enum class TaskPhase(val label: String) {
     RUNNING("进行中"),
     SUCCESS("已完成"),
     FAILED("失败"),
+    CANCELLED("已取消"),
     WAITING_REBOOT("等待重启"),
     INFO("记录"),
 }
@@ -38,6 +39,11 @@ internal data class TaskCenterItem(
 
     val completed: Boolean
         get() = phase == TaskPhase.SUCCESS || phase == TaskPhase.WAITING_REBOOT
+
+    val cancellable: Boolean
+        get() = current && active && id.isNotBlank() &&
+            !id.startsWith("current-") && !id.startsWith("latest-") &&
+            kind in setOf(TaskKind.APPLY, TaskKind.RESTORE, TaskKind.MIX)
 }
 
 private val structuredLog = Regex("^\\[([^]]+)]\\s+\\[([^]]+)]\\s+(.*)$")
@@ -64,13 +70,15 @@ internal fun taskPhaseFor(level: String, message: String, state: String = ""): T
     // Persisted terminal states win over stale stage text. A stage=100 is not
     // evidence of success: backend errors and reboot-pending remain distinct.
     return when (state.lowercase()) {
-        "failed", "error", "cancelled", "timeout" -> TaskPhase.FAILED
+        "failed", "error", "timeout" -> TaskPhase.FAILED
+        "cancelled", "canceled" -> TaskPhase.CANCELLED
         "queued" -> TaskPhase.QUEUED
-        "running" -> TaskPhase.RUNNING
+        "running", "cancelling" -> TaskPhase.RUNNING
         "prepared", "pending-reboot" -> TaskPhase.WAITING_REBOOT
         "success" -> if ("重启后" in normalized || "等待重启" in normalized || "reboot required" in normalized)
             TaskPhase.WAITING_REBOOT else TaskPhase.SUCCESS
         else -> when {
+            "已取消" in normalized || "cancelled" in normalized -> TaskPhase.CANCELLED
             "failed" in normalized || "error" in normalized || "失败" in normalized || "错误" in normalized -> TaskPhase.FAILED
             "重启后" in normalized || "等待重启" in normalized || "reboot required" in normalized -> TaskPhase.WAITING_REBOOT
             "queued" in normalized || "排队" in normalized || "等待执行" in normalized -> TaskPhase.QUEUED
@@ -86,6 +94,7 @@ internal fun taskTitle(kind: TaskKind, phase: TaskPhase): String = when (phase) 
     TaskPhase.RUNNING -> "${kind.label}进行中"
     TaskPhase.SUCCESS -> "${kind.label}已完成"
     TaskPhase.FAILED -> "${kind.label}失败"
+    TaskPhase.CANCELLED -> "${kind.label}已取消"
     TaskPhase.WAITING_REBOOT -> "${kind.label}等待重启"
     TaskPhase.INFO -> kind.label
 }

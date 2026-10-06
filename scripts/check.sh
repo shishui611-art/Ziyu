@@ -3,6 +3,13 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/version.sh"
 
+# NTFS checkout files do not carry POSIX execute bits. The final ZIP gate must
+# check Unix modes; source existence on Windows cannot establish those modes.
+source_executable() {
+  if test -x "$1"; then return 0; fi
+  case "$(uname -s)" in MINGW*|MSYS*) test -s "$1" ;; *) return 1 ;; esac
+}
+
 # Source checks run with the host Python, while release workflows prepare the
 # pure-Python FontTools payload for the bundled Android runtime.  Make that
 # payload visible to every host-side Python test as well; otherwise a clean CI
@@ -22,6 +29,8 @@ done
 python3 -m py_compile \
   "$ROOT/common/composite_font.py" \
   "$ROOT/common/font_instance.py" \
+  "$ROOT/common/font_prepare_cache.py" \
+  "$ROOT/common/mix_library.py" "$ROOT/common/font_structure.py" "$ROOT/scripts/small_digit_font_test.py" \
   "$ROOT/common/font_metrics_normalize.py" \
   "$ROOT/common/font_coverage.py" \
   "$ROOT/common/font_axis_info.py" \
@@ -35,6 +44,8 @@ python3 -m py_compile \
   "$ROOT/common/minimal_xml_router.py" \
   "$ROOT/common/universal_font_compiler.py" \
   "$ROOT/common/universal_font_deployment.py" \
+  "$ROOT/common/font_route_verify.py" \
+  "$ROOT/common/hybrid_mount_runtime.py" \
   "$ROOT/common/font_inventory.py" \
   "$ROOT/common/system_font_library.py"
 
@@ -49,8 +60,8 @@ for file in \
   common/multiweight_mix_task.sh common/mix_weight_mode.sh \
   common/app_bridge.sh common/font_manager.sh common/font_active_state.sh common/font_boot_state.sh common/font_library_cache.sh common/app_installer.sh \
   common/font_provider_cache.sh common/font_validation_cache.sh common/font_weight_runtime.sh \
-  common/mount_compat.sh common/rom_adapters.sh common/hyperos_global.sh common/util_functions.sh \
-  scripts/assert.sh scripts/module_layout_test.sh scripts/duplicate_function_test.sh scripts/device_font_cache_budget_test.sh scripts/provider_pid_scan_test.sh scripts/build.sh scripts/version.sh scripts/module_payload_manifest.txt scripts/prepare_composite_runtime.sh scripts/mount_compat_test.sh scripts/customize_reenable_test.sh \
+  common/mount_compat.sh common/meta_mount_detection.sh common/mount_backend_runtime.sh common/root_manager_detection.sh common/font_route_verify.py common/hybrid_mount_runtime.py common/rom_adapters.sh common/hyperos_global.sh common/util_functions.sh \
+  scripts/assert.sh scripts/module_layout_test.sh scripts/duplicate_function_test.sh scripts/device_font_cache_budget_test.sh scripts/provider_pid_scan_test.sh scripts/build.sh scripts/version.sh scripts/module_payload_manifest.txt scripts/prepare_composite_runtime.sh scripts/mount_compat_test.sh scripts/mount_backend_orchestration_test.sh scripts/font_route_verify_test.py scripts/hybrid_mount_runtime_test.py scripts/hybrid_mount_unload_test.sh scripts/self_mount_test.sh scripts/customize_reenable_test.sh \
   scripts/device_validation_gate.py scripts/device_validation_gate_test.py docs/device_validation.json \
   scripts/stability_test.sh scripts/legacy_switch_core_test.sh scripts/native_zip_import_test.sh scripts/native_preview_source_test.sh scripts/font_source_profile_test.py scripts/font_source_profile_bridge_test.sh scripts/font_weight_runtime_test.py scripts/universal_font_plan_test.py scripts/universal_font_plan_bridge_test.sh scripts/minimal_xml_router_test.py scripts/minimal_xml_router_bridge_test.sh scripts/universal_font_compiler_test.py scripts/universal_font_compiler_bridge_test.sh scripts/universal_font_deployment_test.py scripts/universal_font_deployment_bridge_test.sh scripts/universal_mount_runtime_test.sh scripts/app_bridge_status_test.sh scripts/font_boot_state_test.sh \
   scripts/font_library_cache_test.sh scripts/app_installer_test.sh scripts/hyperos_global_mapping_test.sh scripts/coloros_consistency_mapping_test.sh scripts/font_config_variable_weight_test.sh scripts/font_metrics_normalization_test.py scripts/font_config_monospace_test.py \
@@ -58,6 +69,7 @@ for file in \
   docs/RELEASING.md docs/TEST_MATRIX.md \
   android-app/app/build.gradle.kts \
   android-app/app/src/main/java/io/github/xgl34222220/ziyu/MainActivity.kt \
+  android-app/app/src/main/java/io/github/xgl34222220/ziyu/InitializationViewModel.kt \
   android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuHost.kt \
   android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuAppShell.kt \
   android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt \
@@ -133,13 +145,10 @@ grep -q 'native_font_index.json' "$ROOT/service.sh"
 ! grep -qE '重启界面|刷新字体缓存|回滚' "$ROOT/common/luoshu_cli.sh"
 
 # 字体处理、安全门禁和原生桥能力必须保留。
-grep -q 'full-composite-v12' "$ROOT/common/font_mix.sh"
-grep -q 'build_composite_file' "$ROOT/common/font_mix.sh"
+grep -q 'font_mix_controller.sh' "$ROOT/common/font_mix.sh"
+grep -q 'build_composite_file' "$ROOT/common/legacy_v14_4/font_mix_engine.sh"
 sh "$ROOT/scripts/mix_entry_router_test.sh"
-grep -q 'for _weight in 100 200 300 400 500 600 700 800 900' "$ROOT/common/legacy_v14_4/v143_auto_multiweight_mix.sh"
-grep -q 'build_composite_cached' "$ROOT/common/legacy_v14_4/v143_auto_multiweight_mix.sh"
-grep -q 'LuoShuAutoMix' "$ROOT/common/legacy_v14_4/v143_auto_multiweight_mix.sh"
-grep -q 'cjkMode=%s' "$ROOT/common/legacy_v14_4/v143_auto_multiweight_mix.sh"
+sh "$ROOT/scripts/auto_multiweight_engine_test.sh"
 grep -q 'mix_variable_default_weight' "$ROOT/common/mix_weight_mode.sh"
 grep -q 'common/font_mix_controller.sh' "$ROOT/common/app_bridge.sh"
 grep -q 'native_import.sh' "$ROOT/common/app_bridge.sh"
@@ -169,8 +178,8 @@ grep -q 'instantiateVariableFont' "$ROOT/common/font_instance.py"
 grep -q -- '--axes' "$ROOT/common/font_instance.py"
 grep -q 'normalize_font_metrics' "$ROOT/common/font_instance.py"
 grep -q 'LuoShuMono' "$ROOT/common/font_config_overlay.py"
-grep -q 'worker "$_request"' "$ROOT/common/weighted_mix_task.sh"
-grep -q 'axes_task.conf' "$ROOT/common/weighted_mix_task.sh"
+grep -q 'worker "$_request"' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+grep -q 'axes_task.conf' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 grep -q 'OpenMultipleDocuments' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"
 grep -q 'takePersistableUriPermission' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
 grep -q 'fun pauseImport' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportViewModel.kt"
@@ -253,7 +262,7 @@ grep -q 'Copyright (c) 2013-2017 by the WOFF2 Authors.' "$ROOT/licenses/WOFF2-LI
 grep -q 'Permission is hereby granted, free of charge' "$ROOT/licenses/WOFF2-LICENSE.txt"
 grep -q 'Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.' "$ROOT/licenses/Brotli-LICENSE.txt"
 grep -q 'Permission is hereby granted, free of charge' "$ROOT/licenses/Brotli-LICENSE.txt"
-test -x "$ROOT/.luoshu-runtime/bin/woff2_decompress"
+source_executable "$ROOT/.luoshu-runtime/bin/woff2_decompress"
 file "$ROOT/.luoshu-runtime/bin/woff2_decompress" | grep -q 'ARM aarch64'
 grep -q 'fb9c3379f2605b10f3e8f1d9636664ab5576775c' "$ROOT/scripts/prepare_composite_runtime.sh"
 grep -q '533843e3546cd24c8344eaa899c6b0b681c8d222' "$ROOT/scripts/prepare_composite_runtime.sh"
@@ -274,11 +283,19 @@ python3 "$ROOT/scripts/device_validation_gate_test.py"
 python3 "$ROOT/scripts/sync_update_metadata_test.py"
 python3 "$ROOT/scripts/release_branch_cleanup_test.py"
 sh "$ROOT/scripts/mount_compat_test.sh"
+sh "$ROOT/scripts/self_mount_test.sh"
+bash "$ROOT/scripts/mount_backend_orchestration_test.sh"
+sh "$ROOT/scripts/installer_payload_preserve_test.sh"
+sh "$ROOT/scripts/mountinfo_procfs_test.sh"
+sh "$ROOT/scripts/hybrid_meta_detection_test.sh"
+python3 "$ROOT/scripts/font_route_verify_test.py"
+python3 "$ROOT/scripts/hybrid_mount_runtime_test.py"
+bash "$ROOT/scripts/hybrid_mount_unload_test.sh"
 sh "$ROOT/scripts/hyperos_global_mapping_test.sh"
 sh "$ROOT/scripts/coloros_consistency_mapping_test.sh"
 sh "$ROOT/scripts/module_layout_test.sh"
 python3 "$ROOT/scripts/coloros_metrics_batch_test.py"
-FONT_INVENTORY_TEST_FONT=$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)
+FONT_INVENTORY_TEST_FONT=${FONT_INVENTORY_TEST_FONT:-$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)}
 [ -s "$FONT_INVENTORY_TEST_FONT" ]
 python3 "$ROOT/scripts/font_source_profile_test.py" --font "$FONT_INVENTORY_TEST_FONT"
 sh "$ROOT/scripts/font_source_profile_bridge_test.sh" "$FONT_INVENTORY_TEST_FONT"
@@ -333,8 +350,16 @@ python3 "$ROOT/scripts/legacy_composite_layout_test.py"
 python3 "$ROOT/scripts/hyperos_layout_freetype_test.py"
 python3 "$ROOT/scripts/font_config_monospace_test.py"
 sh "$ROOT/scripts/auto_multiweight_mode_test.sh"
-sh "$ROOT/scripts/auto_multiweight_engine_test.sh"
 python3 "$ROOT/scripts/legacy_multiweight_worker_test.py"
+python3 "$ROOT/scripts/mix_workflow_test.py"
+python3 "$ROOT/scripts/small_digit_font_test.py"
+python3 "$ROOT/scripts/action_control_test.py"
+python3 "$ROOT/scripts/app_controls_bridge_test.py"
+python3 "$ROOT/scripts/home_backend_status_test.py"
+bash "$ROOT/scripts/font_undo_boot_test.sh"
+bash "$ROOT/scripts/physical_payload_manifest_test.sh"
+bash "$ROOT/scripts/service_mount_truth_test.sh"
+bash "$ROOT/scripts/mount_backend_preferences_test.sh"
 python3 "$ROOT/scripts/font_instance_gvar_recovery_test.py"
 python3 "$ROOT/scripts/diagnostic_export_test.py"
 sh "$ROOT/scripts/background_mix_worker_test.sh"
@@ -363,14 +388,14 @@ sh "$ROOT/scripts/legacy_mix_34_progress_test.sh"
 sh "$ROOT/scripts/legacy_mix_finalize_race_test.sh"
 sh "$ROOT/scripts/stock_scan_lock_test.sh"
 
-test -x "$ROOT/common/python/bin/luoshu-python"
+source_executable "$ROOT/common/python/bin/luoshu-python"
 echo 'Ziyu App-only source checks passed.'
 
 # Font refresh/import/mix performance contracts.
 grep -q 'native-v3' common/font_manager.sh
 grep -q 'manifest-fast' common/font_manager.sh
 grep -q 'font-index-v3.json' android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt
-grep -q 'prepared-v8' common/multiweight_mix_task.sh
+grep -q 'LUOSHU_PREPARE_CACHE' common/legacy_v14_4/v142_weighted_mix.sh
 
 # Stable 1.1.1 one-shot regressions plus v2 legacy migration and weight lifecycle.
 PYTHONPATH="$ROOT/common:$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest -q stable111_repair_test stable111_round2_test release_v2_retirement_test

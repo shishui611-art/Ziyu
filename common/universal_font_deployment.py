@@ -15,7 +15,7 @@ import os
 import shutil
 import tempfile
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import minimal_xml_router
@@ -33,6 +33,7 @@ ALLOWED_PARTITIONS = {
 BACKEND_PROFILES = {
     "Magisk": {"mountStage": "post-fs-data", "backend": "self-mount"},
     "KernelSU": {"mountStage": "post-mount", "backend": "self-mount"},
+    "SukiSU Ultra": {"mountStage": "post-mount", "backend": "self-mount"},
     "APatch": {"mountStage": "post-mount", "backend": "self-mount"},
 }
 
@@ -82,8 +83,10 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         temp.unlink(missing_ok=True)
 
 
-def _safe_logical(path_value: str, *, dynamic: bool = False) -> Path:
-    path = Path(path_value)
+def _safe_logical(path_value: str, *, dynamic: bool = False) -> PurePosixPath:
+    # These are Android logical mount paths, always POSIX even when the
+    # deployment planner is tested or run on Windows.
+    path = PurePosixPath(path_value)
     parts = path.parts
     if not parts or parts[0] != "/":
         raise DeploymentError(f"逻辑路径必须是绝对路径：{path_value}")
@@ -98,7 +101,7 @@ def _safe_logical(path_value: str, *, dynamic: bool = False) -> Path:
     return path
 
 
-def _payload_relative(logical: Path) -> Path:
+def _payload_relative(logical: PurePosixPath) -> Path:
     return Path(*logical.parts[1:])
 
 
@@ -481,7 +484,7 @@ def validate_payload_integrity(
         if logical in seen_logical:
             raise DeploymentError(f"Deployment 逻辑路径重复：{logical}")
         seen_logical.add(logical)
-        partitions.add(Path(logical).parts[1])
+        partitions.add(PurePosixPath(logical).parts[1])
         if payload_root is not None:
             payload = payload_root / str(item.get("payloadPath") or "")
             if not payload.is_file():

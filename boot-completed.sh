@@ -28,8 +28,13 @@ if [ "$_lfbc_active" != default ]; then
         type font_config_boot_guard >/dev/null 2>&1 && \
             font_config_boot_guard "$_lfbc_active" >/dev/null 2>&1 || true
     fi
-    type luoshu_private_self_mount_ensure >/dev/null 2>&1 && \
-        luoshu_private_self_mount_ensure >/dev/null 2>&1 || true
+fi
+
+# Recheck the selected backend without invoking a second mount path.
+if [ -f "$MODDIR/common/mount_backend_runtime.sh" ]; then
+    mkdir -p "$MODDIR/logs" 2>/dev/null || true
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/mount_backend_runtime.sh" hook service \
+        >> "$MODDIR/logs/mount-backend.log" 2>&1 || true
 fi
 
 _lfbc_attempt=1

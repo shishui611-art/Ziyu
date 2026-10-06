@@ -1,7 +1,7 @@
 id=LuoShu
 name=字域字体加载器
-version=v1.1.0
-versionCode=11000
+version=v1.1.13
+versionCode=11013
 versionSeries=ziyu
 author=@酷安 柔性体
 description=字域：ColorOS 17 优化，兼容其他 Android；内置 App、私有字体挂载与完整错误诊断

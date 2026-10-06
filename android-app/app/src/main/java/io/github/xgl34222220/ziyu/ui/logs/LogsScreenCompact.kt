@@ -138,13 +138,26 @@ internal fun LogsScreenCompact(
             when (tab) {
                 LogsTab.TASKS -> {
                     item(key = "overview") { OverviewCard(state) }
+                    if (state.undoAvailable) {
+                        item(key = "undo-apply") {
+                            Column {
+                                TextButton(onClick = actions.undoApply, enabled = state.activeTaskCount == 0) {
+                                    Text(if (state.undoRebootRequired) "恢复上一套字体（需重启）" else "撤销待重启的字体应用")
+                                }
+                                if (state.undoRebootRequired) Text("只准备回退负载，确认完整重启后生效", color = tokens.textSecondary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (state.actionMessage.isNotBlank()) {
+                        item(key = "action-result") { Text(state.actionMessage, color = tokens.textSecondary, fontSize = 13.sp) }
+                    }
                     item(key = "task-heading") { ZiyuSectionHeading("最近任务", "${state.tasks.size} 条记录") }
                     if (state.tasks.isEmpty()) {
                         item(key = "task-empty") {
                             EmptyState(Icons.Rounded.CheckCircle, "还没有字体任务", "扫描、导入、应用或组合字体后，进度和结果会显示在这里。")
                         }
                     } else {
-                        items(state.tasks, key = { "task-${it.id}" }) { TaskCard(it) }
+                        items(state.tasks, key = { "task-${it.id}" }) { TaskCard(it, actions) }
                     }
                 }
                 LogsTab.ISSUES -> {
@@ -188,6 +201,12 @@ internal fun LogsScreenCompact(
                                     Metric("日志", state.lineCount, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
                                     Metric("警告", state.warningCount, tokens.warning, Modifier.weight(1f))
                                     Metric("错误", state.errorCount, MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = actions.markViewed, enabled = !state.logsViewed) {
+                                        Text(if (state.logsViewed) "已查看" else "标记为已查看")
+                                    }
+                                    TextButton(onClick = actions.clearLogs, enabled = state.lineCount > 0) { Text("清空日志") }
                                 }
                                 OutlinedTextField(
                                     value = query,
@@ -281,14 +300,14 @@ private fun IssueSummary(failedCount: Int, warningCount: Int, errorCount: Int) {
 }
 
 @Composable
-private fun TaskCard(task: TaskCenterItem) {
+private fun TaskCard(task: TaskCenterItem, actions: LogsActions = LogsActions(refresh = {})) {
     val tokens = LocalMiuixTokens.current
     var expanded by rememberSaveable(task.id) { mutableStateOf(false) }
     val color = when (task.phase) {
         TaskPhase.FAILED -> MaterialTheme.colorScheme.error
         TaskPhase.SUCCESS -> tokens.success
         TaskPhase.WAITING_REBOOT -> tokens.warning
-        TaskPhase.INFO -> tokens.textSecondary
+        TaskPhase.INFO, TaskPhase.CANCELLED -> tokens.textSecondary
         else -> MaterialTheme.colorScheme.primary
     }
     Card(
@@ -318,6 +337,9 @@ private fun TaskCard(task: TaskCenterItem) {
                 }
                 Spacer(Modifier.weight(1f))
                 if (task.active && task.progress >= 0) Text("${task.progress.coerceIn(0, 100)}%", color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                if (task.cancellable) {
+                    TextButton(onClick = { actions.cancelTask(if (task.kind == TaskKind.MIX) "mix" else "switch", task.id) }) { Text("停止此任务") }
+                }
             }
             if (task.active) {
                 if (task.progress >= 0) {

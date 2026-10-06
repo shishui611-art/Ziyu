@@ -165,7 +165,7 @@ sh -c '
     [ "$(luoshu_self_mount_stage_for_manager Magisk)" = post-fs-data ]
     [ "$(luoshu_self_mount_stage_for_manager unknown)" = post-fs-data ]
 ' sh "$ROOT"
-grep -q 'luoshu_self_mount_stage_for_manager' "$ROOT/post-fs-data.sh"
+grep -q 'mount_backend_runtime.sh' "$ROOT/post-fs-data.sh"
 
 # Exercise the production router and its preserved v4 implementation together:
 # APatch waits for post-mount, while Magisk still mounts in post-fs-data.
@@ -175,6 +175,7 @@ mkdir -p "$STAGE_MODULE/common" "$STAGE_MODULE/.luoshu-runtime/core" "$STAGE_MOD
 cp "$ROOT/post-fs-data.sh" "$STAGE_MODULE/post-fs-data.sh"
 cp "$ROOT/.luoshu-runtime/core/post-fs-data.sh" "$STAGE_MODULE/.luoshu-runtime/core/post-fs-data.sh"
 cp "$ROOT/common/mount_self_backend.sh" "$STAGE_MODULE/common/mount_self_backend.sh"
+cp "$ROOT/common/mount_backend_runtime.sh" "$STAGE_MODULE/common/mount_backend_runtime.sh"
 cat >"$STAGE_MODULE/common/private_payload.sh" <<'EOF_PRIVATE_STAGE'
 luoshu_private_mount_module_view() { printf 'view\n' >>"$LUOSHU_STAGE_LOG"; }
 luoshu_private_unmount_module_view() { printf 'unmount\n' >>"$LUOSHU_STAGE_LOG"; }
@@ -186,25 +187,28 @@ exit 0
 EOF_BOOT_STAGE
 
 : >"$STAGE_LOG"
-LUOSHU_STAGE_LOG="$STAGE_LOG" LUOSHU_TEST_ROOT_MANAGER=APatch sh "$STAGE_MODULE/post-fs-data.sh"
+LUOSHU_STAGE_LOG="$STAGE_LOG" LUOSHU_TEST_ROOT_MANAGER=APatch \
+LUOSHU_BACKEND_TEST_MODE=1 LUOSHU_BACKEND_TEST_MANAGER=APatch \
+sh "$STAGE_MODULE/post-fs-data.sh"
 grep -qx view "$STAGE_LOG"
 grep -qx unmount "$STAGE_LOG"
 ! grep -qx ensure "$STAGE_LOG"
 
 : >"$STAGE_LOG"
-LUOSHU_STAGE_LOG="$STAGE_LOG" LUOSHU_TEST_ROOT_MANAGER=Magisk sh "$STAGE_MODULE/post-fs-data.sh"
+LUOSHU_STAGE_LOG="$STAGE_LOG" LUOSHU_TEST_ROOT_MANAGER=Magisk \
+LUOSHU_BACKEND_TEST_MODE=1 LUOSHU_BACKEND_TEST_MANAGER=Magisk \
+sh "$STAGE_MODULE/post-fs-data.sh"
 grep -qx view "$STAGE_LOG"
-grep -qx ensure "$STAGE_LOG"
+test -f "$STAGE_MODULE/config/test-self-mounted"
 ! grep -qx unmount "$STAGE_LOG"
 
-# Production policy never detects or configures a metamodule. Engine injection is
-# retained only for legacy regression fixtures.
+# Production policy uses the real Meta detector; the test override exercises its
+# selector without requiring a rooted host.
 MODE=$(MODDIR="$ROOT" MODULE_DIR="$ROOT" sh -c '. "$1/common/mount_compat.sh"; luoshu_detect_mount_engine' sh "$ROOT")
 [ "$MODE" = self-mount ]
 INJECTED=$(MODDIR="$ROOT" MODULE_DIR="$ROOT" LUOSHU_META_TEST_ENGINE=hybrid-mount sh -c '. "$1/common/mount_compat.sh"; luoshu_detect_mount_engine' sh "$ROOT")
 [ "$INJECTED" = hybrid-mount ]
-grep -q 'External metamodules are intentionally ignored' "$ROOT/post-mount.sh"
-! grep -Eq '_luoshu_(mountify|magic_mount|hybrid_mount)_present|/data/adb/metamodule' "$ROOT/post-mount.sh"
+grep -q 'mount_backend_runtime.sh' "$ROOT/post-mount.sh"
 
 sh -n "$ROOT/common/private_payload.sh"
 sh -n "$ROOT/common/mount_self_fallback.sh"

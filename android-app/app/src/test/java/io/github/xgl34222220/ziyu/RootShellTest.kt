@@ -9,9 +9,22 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 
 class RootShellTest {
+    // Exercise a single native request process on each host. MSYS `exec`
+    // emulation creates another Windows process that inherits its pipe.
+    private val windowsHost = System.getProperty("os.name").startsWith("Windows")
+    private fun sleepingRequest(pidFile: java.io.File, output: Boolean = false): List<String> {
+        if (windowsHost) {
+            val path = pidFile.path.replace("'", "''")
+            val print = if (output) "[Console]::Write('started');" else ""
+            return listOf("powershell.exe", "-NoProfile", "-Command", "[IO.File]::WriteAllText('$path', \$PID.ToString()); $print Start-Sleep -Seconds 30")
+        }
+        val print = if (output) "printf started;" else ""
+        return listOf("sh", "-c", "printf '%s' \"\$\$\" > ${RootShell.quote(pidFile.path)}; $print exec sleep 30")
+    }
     @Test
     fun preservesExitCodeAndBothOutputStreams() = runBlocking {
         val result = executeProcess(listOf("sh", "-c", "printf '字体正常'; printf 'warning' >&2; exit 7"), 2_000L)
@@ -47,7 +60,7 @@ class RootShellTest {
         var pid = 0L
         try {
             val job = launch {
-                executeProcess(listOf("sh", "-c", "printf '%s' \"\$\$\" > ${RootShell.quote(pidFile.path)}; exec sleep 30"), 30_000L)
+                executeProcess(sleepingRequest(pidFile), 30_000L)
             }
             withTimeout(3_000L) {
                 while (!pidFile.exists() || pidFile.length() == 0L) delay(10L)
@@ -70,15 +83,15 @@ class RootShellTest {
         try {
             val result = withTimeout(3_000L) {
                 executeProcess(
-                    listOf("sh", "-c", "printf '%s' \"\$\$\" > ${RootShell.quote(pidFile.path)}; printf started; exec sleep 30"),
-                    200L,
+                    sleepingRequest(pidFile, output = true),
+                    if (windowsHost) 1_000L else 200L,
                 )
             }
             assertEquals(124, result.code)
             assertEquals("started", result.stdout)
             assertTrue(result.stderr.contains("超时"))
-            val pid = pidFile.readText().toLong()
             withTimeout(2_000L) {
+                val pid = pidFile.readText().toLong()
                 while (ProcessHandle.of(pid).map { it.isAlive }.orElse(false)) delay(10L)
             }
         } finally {
@@ -91,6 +104,7 @@ class RootShellTest {
 
     @Test
     fun cancellingARequestDoesNotKillItsDetachedFontWorker() = runBlocking {
+        assumeFalse("Requires Android/Linux detached-shell process semantics", windowsHost)
         val directory = Files.createTempDirectory("luoshu-detached").toFile()
         val ready = directory.resolve("ready")
         val finished = directory.resolve("finished")
@@ -115,6 +129,10 @@ class RootShellTest {
 
     @Test
     fun aDescendantHoldingThePipeDoesNotExtendTheRequestLifetime() = runBlocking {
+        // Windows process/pipe exit notifications differ from Android/Linux,
+        // even with a native JVM parent/child. Keep this Linux CI assertion;
+        // explicitly report it skipped locally instead of widening its deadline.
+        assumeFalse("Requires Android/Linux process and inherited-pipe semantics", windowsHost)
         val result = withTimeout(1_500L) {
             executeProcess(listOf("sh", "-c", "sleep 2 & printf submitted"), 5_000L)
         }

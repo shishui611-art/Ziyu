@@ -38,6 +38,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +65,12 @@ internal fun FontStudioScreenMaterial(
     actions: FontStudioActions,
     topAction: @Composable () -> Unit,
 ) {
+    val applyRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(state.busy, state.taskState) {
+        if (state.busy || state.taskState == "success" || state.taskState == "failed") {
+            applyRequester.bringIntoView()
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -79,9 +89,6 @@ internal fun FontStudioScreenMaterial(
         if (state.error.isNotBlank()) {
             item { MaterialStudioNotice(state.error, error = true) }
         }
-        if (state.busy || state.taskState == "success") {
-            item { MaterialStudioTask(state) }
-        }
 
         state.slots.forEach { slotState ->
             item(key = slotState.slot.name) {
@@ -89,7 +96,18 @@ internal fun FontStudioScreenMaterial(
             }
         }
 
-        item { MaterialFinalAction(state, actions) }
+        item {
+            Column(modifier = Modifier.bringIntoViewRequester(applyRequester),
+                   verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                MaterialFinalAction(state, actions)
+                if (state.busy || state.taskState == "success" || state.taskState == "failed") {
+                    MaterialStudioTask(state)
+                    if (state.busy || state.operationBusy) {
+                        androidx.compose.material3.OutlinedButton(onClick = actions.cancel, modifier = Modifier.fillMaxWidth()) { Text("终止当前任务") }
+                    }
+                }
+            }
+        }
         item { ZiyuSectionHeading("字形覆盖", "需要时查看所选中文字体包含哪些字符") }
         item { MaterialCoverageCard(state, actions) }
     }
@@ -181,7 +199,7 @@ private fun MaterialStudioTask(state: FontStudioUiState) {
                 Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (state.busy) "正在生成组合字体" else "组合字体已生成", fontWeight = FontWeight.SemiBold)
+                    Text(if (state.busy) "正在生成组合字体" else if (state.taskState == "failed") "组合未完成" else "组合字体已保存", fontWeight = FontWeight.SemiBold)
                     Text(state.message, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = .74f), fontSize = 12.sp)
                 }
                 Text("${state.progress}%", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold)
@@ -370,7 +388,7 @@ private fun MaterialFinalAction(state: FontStudioUiState, actions: FontStudioAct
                     Text(if (direct != null) "准备应用" else "让这个组合成为日常", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (direct != null) "三个部分使用同一款字体，可直接应用。"
-                        else "按上面的字体和字重生成组合，然后应用到系统。",
+                        else "按所选字重生成组合，保存到字体库并预览。",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
@@ -378,7 +396,7 @@ private fun MaterialFinalAction(state: FontStudioUiState, actions: FontStudioAct
             }
             Spacer(Modifier.height(17.dp))
             Button(
-                onClick = { if (direct != null) actions.applyDirect(direct) else actions.startMix() },
+                onClick = { if (direct != null) actions.applyDirect(direct) else actions.startMix("") },
                 enabled = !state.loading && !state.busy && !state.operationBusy && selectionReady,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
                 shape = MaterialTheme.shapes.large,
@@ -388,7 +406,7 @@ private fun MaterialFinalAction(state: FontStudioUiState, actions: FontStudioAct
                 Text(
                     if (state.busy || state.operationBusy) "正在处理，请稍候…"
                     else if (!selectionReady) "先选择组合字体"
-                    else if (direct != null) "直接应用此字体" else "生成并应用",
+                    else if (direct != null) "直接应用此字体" else "生成组合",
                     fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 )
             }

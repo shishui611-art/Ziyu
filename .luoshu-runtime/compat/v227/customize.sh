@@ -36,14 +36,9 @@ else
     ui_print "✓ 系统：通用 Android"
 fi
 
-ROOT_MANAGER="Root"
-if command -v apd >/dev/null 2>&1 || [ -d /data/adb/apatch ]; then
-    ROOT_MANAGER="APatch"
-elif command -v ksud >/dev/null 2>&1 || [ -d /data/adb/ksu ]; then
-    ROOT_MANAGER="KernelSU / SukiSU Ultra"
-elif command -v magisk >/dev/null 2>&1 || [ -d /data/adb/magisk ]; then
-    ROOT_MANAGER="Magisk"
-fi
+ROOT_MANAGER=unknown
+[ ! -f "$MODPATH/common/root_manager_detection.sh" ] || . "$MODPATH/common/root_manager_detection.sh"
+type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager >/dev/null
 ui_print "✓ Root：$ROOT_MANAGER"
 ui_print "✓ 挂载：字域私有自挂载"
 
@@ -80,6 +75,16 @@ if type luoshu_runtime_recovery_required >/dev/null 2>&1 && \
 elif type luoshu_migrate_active_install >/dev/null 2>&1; then
     if luoshu_migrate_active_install "$OLD_MOD" "$MODPATH"; then
         UPDATE_PRESERVED=true
+    else
+        _migration_rc=$?
+        _migration_active=$(head -n1 "$OLD_MOD/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
+        if [ -n "$_migration_active" ] && [ "$_migration_active" != default ]; then
+            ui_print "✗ 无法完整迁移当前字体：$_migration_active"
+            ui_print "• 原因：${LUOSHU_UPDATE_FAILURE_REASON:-migration-failed}"
+            ui_print '• 本次更新已中止，避免把当前字体静默切回原厂；原模块负载未删除'
+            abort '当前字体负载迁移失败，请导出日志；也可先在旧版明确恢复原厂并重启后更新'
+            exit 1
+        fi
     fi
 fi
 
@@ -104,7 +109,7 @@ if [ "$UPDATE_PRESERVED" != true ]; then
         # old payload cannot be trusted, and still run the universal stock scan.
         printf '%s\n' "$_old_selected" > "$MODPATH/config/previous_font.conf" 2>/dev/null || true
         : > "$MODPATH/config/stock_inventory_scan_pending" 2>/dev/null || true
-        ui_print "• 旧字体负载 $_old_selected 无法完整迁移；继续安装并重新扫描本机字体槽位"
+        ui_print "• 恢复边界：旧字体选择 $_old_selected 已记录，本次明确使用原厂字体"
     fi
     printf 'default\n' > "$MODPATH/config/active_font.conf"
 fi

@@ -46,8 +46,9 @@ internal data class FontStudioActions(
     val updateWeight: (MixSlot, Int) -> Unit,
     val updateAxis: (MixSlot, String, Float) -> Unit,
     val inspectCoverage: (String) -> Unit,
-    val startMix: () -> Unit,
+    val startMix: (String) -> Unit,
     val applyDirect: (String) -> Unit,
+    val cancel: () -> Unit = {},
 )
 
 internal fun ZiyuViewModel.toFontStudioUiState(features: Alpha15FeatureViewModel): FontStudioUiState {
@@ -85,7 +86,8 @@ internal fun ZiyuViewModel.toFontStudioUiState(features: Alpha15FeatureViewModel
         ),
         fonts = fonts,
         coverage = features.coverage,
-        directApplyFontId = directApplyFontId(current),
+        // Studio applications always create one named result using the selected weights.
+        directApplyFontId = null,
         hasFonts = fonts.isNotEmpty(),
     )
 }

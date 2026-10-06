@@ -85,9 +85,28 @@ font_validate() {
 
     FONT_CHECK_SIZE=$(wc -c < "$_file" 2>/dev/null | tr -d '[:space:]')
     case "$FONT_CHECK_SIZE" in ''|*[!0-9]*) FONT_CHECK_SIZE=0 ;; esac
-    if [ "$FONT_CHECK_SIZE" -lt 4096 ]; then
-        FONT_CHECK_ERROR="字体文件过小（${FONT_CHECK_SIZE} 字节），可能损坏或不是字体"
+    # SFNT has a 12-byte header; compact numeric fonts may be under 1 KiB.
+    if [ "$FONT_CHECK_SIZE" -lt 12 ]; then
+        FONT_CHECK_ERROR="字体头不完整"
         return 1
+    fi
+    if [ "$FONT_CHECK_SIZE" -lt 4096 ]; then
+        _struct_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+        _struct_root="$_struct_module/common/python"
+        _struct_checker="$_struct_module/common/font_structure.py"
+        _struct_python="${LUOSHU_HOST_PYTHON:-$_struct_root/bin/luoshu-python}"
+        if [ ! -f "$_struct_checker" ] || [ ! -x "$_struct_python" ]; then
+            FONT_CHECK_ERROR="字体结构校验器不可用"
+            return 1
+        fi
+        if [ -n "${LUOSHU_HOST_PYTHON:-}" ]; then
+            _struct_error=$("$_struct_python" "$_struct_checker" "$_file" 2>&1)
+        else
+            _struct_error=$(PYTHONHOME="$_struct_root" PYTHONPATH="$_struct_root/lib/python3.14/site-packages" \
+                LD_LIBRARY_PATH="$_struct_root/lib:$_struct_root/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+                "$_struct_python" "$_struct_checker" "$_file" 2>&1)
+        fi
+        [ "$?" -eq 0 ] || { FONT_CHECK_ERROR="字体结构无效：$_struct_error"; return 1; }
     fi
 
     FONT_CHECK_FORMAT=$(font_detect_format "$_file")

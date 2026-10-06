@@ -164,11 +164,6 @@ internal fun ZiyuAppShell(
     LaunchedEffect(Unit) {
         viewModel.refresh()
     }
-    LaunchedEffect(viewModel.snapshot.installed, viewModel.snapshot.rootGranted) {
-        if (viewModel.snapshot.installed && viewModel.snapshot.rootGranted) {
-            features.refreshSystemWeight()
-        }
-    }
     LaunchedEffect(page) {
         when (page) {
             AppPage.Home -> Unit
@@ -192,9 +187,6 @@ internal fun ZiyuAppShell(
         HomeActions(
             refresh = {
                 viewModel.refresh()
-                if (viewModel.snapshot.installed && viewModel.snapshot.rootGranted) {
-                    features.refreshSystemWeight()
-                }
             },
             openFontLibrary = { page = AppPage.Library },
             openFontStudio = { page = AppPage.Studio },
@@ -205,8 +197,11 @@ internal fun ZiyuAppShell(
             openSettings = { page = AppPage.Settings },
             restoreDefault = { restoreDefault = true },
             reboot = viewModel::rebootDevice,
-            previewSystemWeight = features::previewSystemWeight,
-            resetSystemWeight = features::resetSystemWeight,
+            mountSettings = viewModel::loadMountPreferences,
+            setMountBackend = viewModel::setMountPreference,
+            cancelMountChange = viewModel::cancelMountPreference,
+            undoApply = viewModel::undoFontApplication,
+            cancelTask = viewModel::cancelCurrentTask,
         )
     }
     val libraryActions = remember(viewModel) {
@@ -231,9 +226,10 @@ internal fun ZiyuAppShell(
             inspectCoverage = features::inspectCoverage,
             startMix = viewModel::startMix,
             applyDirect = viewModel::applyFont,
+            cancel = viewModel::cancelCurrentTask,
         )
     }
-    val logsActions = remember(viewModel) { LogsActions(refresh = viewModel::refreshLogs) }
+    val logsActions = remember(viewModel) { LogsActions(refresh = viewModel::refreshLogs, cancelTask = viewModel::cancelTask, undoApply = viewModel::undoFontApplication, markViewed = viewModel::markLogsViewed, clearLogs = viewModel::clearLogs) }
     val appearanceActions = remember(appearanceViewModel) {
         AppearanceActions(
             setUiStyle = appearanceViewModel::setUiStyle,
@@ -367,7 +363,7 @@ internal fun ZiyuAppShell(
                             CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
                                 HomeRoute(
                                     style = appearance.uiStyle,
-                                    state = viewModel.snapshot.toHomeUiState(features.systemWeight),
+                                    state = viewModel.snapshot.toHomeUiState().copy(mountPreferences = viewModel.mountPreferences, undoAvailable = viewModel.undoAvailable),
                                     actions = homeActions,
                                 )
                             }
@@ -473,6 +469,8 @@ internal fun ZiyuAppShell(
             }
 
         }
+
+        CombinationResultDialogs(viewModel)
 
         pendingApply?.let { font ->
             FontActionDialogRoute(

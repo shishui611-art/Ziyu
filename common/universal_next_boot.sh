@@ -73,11 +73,17 @@ _ufnb_discard_invalid_next() {
 
 universal_font_next_boot_activate() {
     _ufnb_mod=$(_ufnb_module)
+    LUOSHU_ACTION_CONTROL_LIBRARY=true . "$_ufnb_mod/common/action_control.sh" || return 1
+    LUOSHU_ACTION_CONTROL_LIBRARY=false
     _ufnb_cfg="$_ufnb_mod/config"
     _ufnb_state="$_ufnb_cfg/universal-font-next.conf"
     _ufnb_next="$_ufnb_mod/.luoshu-payload-next"
     _ufnb_live="$_ufnb_mod/.luoshu-payload"
     [ -s "$_ufnb_state" ] && [ -d "$_ufnb_next" ] || return 2
+    if luoshu_undo_cancel_pending_boot "$_ufnb_mod" "$_ufnb_state"; then
+        _ufnb_log 'cancelled task stage discarded before activation'
+        return 2
+    fi
 
     _ufnb_font=$(_ufnb_value "$_ufnb_state" font)
     _ufnb_id=$(_ufnb_value "$_ufnb_state" deploymentId)
@@ -86,6 +92,7 @@ universal_font_next_boot_activate() {
     _ufnb_previous_mode=$(_ufnb_value "$_ufnb_state" previousMode)
     _ufnb_previous_legacy=$(_ufnb_value "$_ufnb_state" previousLegacy)
     _ufnb_recovery=$(_ufnb_value "$_ufnb_state" recovery)
+    _ufnb_undo=$(_ufnb_value "$_ufnb_state" undo)
     [ "$_ufnb_previous_legacy" = true ] || _ufnb_previous_legacy=false
     [ "$_ufnb_recovery" = true ] || _ufnb_recovery=false
 
@@ -136,7 +143,8 @@ universal_font_next_boot_activate() {
     _ufnb_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
     [ -n "$_ufnb_boot" ] || _ufnb_boot="$(date +%s 2>/dev/null || echo 0)-$$"
     _ufnb_retired_root="$_ufnb_mod/.luoshu-retired"
-    _ufnb_retired="$_ufnb_retired_root/universal-${_ufnb_boot}"
+    _ufnb_retired="$_ufnb_retired_root/universal-${_ufnb_boot}-$$"
+    while [ -e "$_ufnb_retired" ]; do _ufnb_retired="${_ufnb_retired}-next"; done
     _ufnb_backup="$_ufnb_cfg/.universal-next-backup.$$"
     mkdir -p "$_ufnb_retired_root" "$_ufnb_backup" 2>/dev/null || {
         _ufnb_discard_invalid_next "$_ufnb_state" "$_ufnb_next" activation-state-dir-failed "$_ufnb_previous_font"
@@ -145,7 +153,7 @@ universal_font_next_boot_activate() {
     [ ! -f "$_ufnb_cfg/universal-font-runtime.conf" ] || cp -fp "$_ufnb_cfg/universal-font-runtime.conf" "$_ufnb_backup/runtime.conf" 2>/dev/null || true
     [ ! -f "$_ufnb_cfg/font_runtime_legacy_v14_4.conf" ] || cp -fp "$_ufnb_cfg/font_runtime_legacy_v14_4.conf" "$_ufnb_backup/legacy.conf" 2>/dev/null || true
     [ ! -f "$_ufnb_cfg/active_font.conf" ] || cp -fp "$_ufnb_cfg/active_font.conf" "$_ufnb_backup/active.conf" 2>/dev/null || true
-    rm -rf "$_ufnb_retired" 2>/dev/null || true
+    luoshu_undo_capture_config "$_ufnb_mod" || return 1
 
     if [ -d "$_ufnb_live" ]; then
         mv "$_ufnb_live" "$_ufnb_retired" 2>/dev/null || {
@@ -162,6 +170,13 @@ universal_font_next_boot_activate() {
     fi
 
     _ufnb_runtime="$_ufnb_cfg/universal-font-runtime.conf"
+    if ! luoshu_undo_restore_config "$_ufnb_mod" "$_ufnb_state"; then
+        mv "$_ufnb_live" "$_ufnb_next" 2>/dev/null || true
+        [ ! -d "$_ufnb_retired" ] || mv "$_ufnb_retired" "$_ufnb_live" 2>/dev/null || true
+        luoshu_undo_restore_dir "$_ufnb_mod" "$_ufnb_cfg/.font-undo-config-stage.$$" || true
+        _ufnb_restore_previous_selection "$_ufnb_cfg" "$_ufnb_previous_font"
+        return 1
+    fi
     {
         printf 'state=active\n'
         printf 'pipeline=universal-font-deployment-v1\n'
@@ -174,6 +189,7 @@ universal_font_next_boot_activate() {
     } > "$_ufnb_runtime.tmp.$$" 2>/dev/null && mv -f "$_ufnb_runtime.tmp.$$" "$_ufnb_runtime" 2>/dev/null || {
         rm -rf "$_ufnb_live" 2>/dev/null || true
         [ ! -d "$_ufnb_retired" ] || mv "$_ufnb_retired" "$_ufnb_live" 2>/dev/null || true
+        luoshu_undo_restore_dir "$_ufnb_mod" "$_ufnb_cfg/.font-undo-config-stage.$$" || true
         _ufnb_restore_file "$_ufnb_backup/runtime.conf" "$_ufnb_cfg/universal-font-runtime.conf"
         _ufnb_restore_file "$_ufnb_backup/legacy.conf" "$_ufnb_cfg/font_runtime_legacy_v14_4.conf"
         _ufnb_discard_invalid_next "$_ufnb_state" "$_ufnb_next" runtime-state-commit-failed "$_ufnb_previous_font"
@@ -197,6 +213,7 @@ universal_font_next_boot_activate() {
         mv -f "$_ufnb_cfg/universal-font-activated.conf.tmp.$$" "$_ufnb_cfg/universal-font-activated.conf" 2>/dev/null || {
             rm -rf "$_ufnb_live" 2>/dev/null || true
             [ ! -d "$_ufnb_retired" ] || mv "$_ufnb_retired" "$_ufnb_live" 2>/dev/null || true
+            luoshu_undo_restore_dir "$_ufnb_mod" "$_ufnb_cfg/.font-undo-config-stage.$$" || true
             _ufnb_restore_file "$_ufnb_backup/runtime.conf" "$_ufnb_cfg/universal-font-runtime.conf"
             _ufnb_restore_file "$_ufnb_backup/legacy.conf" "$_ufnb_cfg/font_runtime_legacy_v14_4.conf"
             _ufnb_discard_invalid_next "$_ufnb_state" "$_ufnb_next" activation-metadata-commit-failed "$_ufnb_previous_font"
@@ -205,6 +222,9 @@ universal_font_next_boot_activate() {
             return 1
         }
     chmod 0644 "$_ufnb_cfg/universal-font-activated.conf" 2>/dev/null || true
+    luoshu_undo_commit_record "$_ufnb_mod" "$_ufnb_cfg/universal-font-activated.conf" "$_ufnb_undo" || {
+        _ufnb_log 'cannot persist explicit undo metadata; retired payload retained'
+    }
 
     # Only after both runtime state and recovery metadata are committed do we
     # retire the previous engine mode for this boot.

@@ -14,6 +14,7 @@ _lmcl_base="$_lmcl_module/common/mount_compat_base.sh"
 _lmcl_fallback="$_lmcl_module/common/mount_self_fallback.sh"
 _lmcl_policy="$_lmcl_module/common/mount_compat_policy.sh"
 _lmcl_private_policy="$_lmcl_module/common/private_mount_policy.sh"
+_lmcl_meta_detection="$_lmcl_module/common/meta_mount_detection.sh"
 _lmcl_atomic="$_lmcl_module/common/mount_self_atomic.sh"
 _lmcl_font_runtime="$_lmcl_module/common/font_runtime_policy.sh"
 _lmcl_font_cleanup="$_lmcl_module/common/font_runtime_cleanup.sh"
@@ -34,7 +35,8 @@ if [ "${0##*/}" = mount_compat.sh ]; then
         [ ! -f "$6" ] || . "$6"
         [ ! -f "$7" ] || . "$7"
         [ ! -f "$8" ] || . "$8"
-        case "$9" in
+        [ ! -f "$9" ] || . "$9"
+        case "${10}" in
             status)
                 luoshu_mount_status_json
                 printf "\n"
@@ -45,7 +47,7 @@ if [ "${0##*/}" = mount_compat.sh ]; then
                 printf "warning=%s\n" "$(luoshu_mount_detection_warning)"
                 ;;
             verify)
-                luoshu_mount_verify_active "${10}"
+                luoshu_mount_verify_active "${11}"
                 ;;
             *)
                 printf "usage: %s {status|detect|verify [font]}\n" "$0" >&2
@@ -54,7 +56,7 @@ if [ "${0##*/}" = mount_compat.sh ]; then
         esac
     ' sh "$_lmcl_base" "$_lmcl_fallback" "$_lmcl_policy" "$_lmcl_private_policy" \
         "$_lmcl_atomic" "$_lmcl_font_runtime" "$_lmcl_font_cleanup" "$_lmcl_font_mount" \
-        "$_lmcl_command" "$_lmcl_argument"
+        "$_lmcl_meta_detection" "$_lmcl_command" "$_lmcl_argument"
     exit $?
 fi
 
@@ -66,7 +68,8 @@ fi
 [ -f "$_lmcl_font_runtime" ] && . "$_lmcl_font_runtime"
 [ -f "$_lmcl_font_cleanup" ] && . "$_lmcl_font_cleanup"
 [ -f "$_lmcl_font_mount" ] && . "$_lmcl_font_mount"
+[ -f "$_lmcl_meta_detection" ] && . "$_lmcl_meta_detection"
 
 unset _lmcl_module _lmcl_base _lmcl_fallback _lmcl_policy _lmcl_private_policy \
-    _lmcl_atomic _lmcl_font_runtime _lmcl_font_cleanup _lmcl_font_mount \
+    _lmcl_atomic _lmcl_font_runtime _lmcl_font_cleanup _lmcl_font_mount _lmcl_meta_detection \
     _lmcl_command _lmcl_argument

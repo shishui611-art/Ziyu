@@ -587,6 +587,7 @@ prepare_next_payload() {
         printf 'state=prepared\n'
         printf 'font=%s\n' "$_font"
         printf 'previousFont=%s\n' "$_previous"
+        printf 'taskId=%s\n' "${LUOSHU_TASK_SCOPE_TASK:-${LUOSHU_SWITCH_TASK_ID:-}}"
         printf 'previousLegacy=%s\n' "$_previous_legacy"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_next_tmp" 2>/dev/null || {

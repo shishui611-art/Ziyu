@@ -16,10 +16,18 @@ internal data class LogsUiState(
     val completedTaskCount: Int = 0,
     val failedTaskCount: Int = 0,
     val rebootRequired: Boolean = false,
+    val logsViewed: Boolean = false,
+    val undoAvailable: Boolean = false,
+    val undoRebootRequired: Boolean = false,
+    val actionMessage: String = "",
 )
 
 internal data class LogsActions(
     val refresh: () -> Unit,
+    val cancelTask: (String, String) -> Unit = { _, _ -> },
+    val undoApply: () -> Unit = {},
+    val markViewed: () -> Unit = {},
+    val clearLogs: () -> Unit = {},
 )
 
 internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
@@ -174,6 +182,10 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
         completedTaskCount = tasks.count { it.completed },
         failedTaskCount = tasks.count { it.phase == TaskPhase.FAILED },
         rebootRequired = rebootRequired || snapshot.rebootRequired,
+        logsViewed = logsViewed,
+        undoAvailable = undoAvailable,
+        undoRebootRequired = undoRebootRequired,
+        actionMessage = operationMessage,
     )
 }
 
@@ -186,7 +198,7 @@ internal fun LogsUiState.withNativeImport(state: NativeImportState): LogsUiState
         NativeImportPhase.PAUSED -> TaskPhase.INFO
         NativeImportPhase.SUCCESS -> TaskPhase.SUCCESS
         NativeImportPhase.FAILED -> TaskPhase.FAILED
-        NativeImportPhase.CANCELLED -> TaskPhase.INFO
+        NativeImportPhase.CANCELLED -> TaskPhase.CANCELLED
     }
     val title = when (state.phase) {
         NativeImportPhase.PAUSED -> "字体导入已暂停"

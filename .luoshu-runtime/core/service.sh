@@ -144,7 +144,7 @@ MODULE_DIR="$MODDIR"
     if [ -f "$MODDIR/common/font_library_cache.sh" ] && [ -f "$MODDIR/common/font_manager.sh" ]; then
         _font_fp=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_library_cache.sh" value 2>/dev/null)
         _font_fp_old=$(cat "$MODDIR/config/native_font_index.key" 2>/dev/null)
-        case "$_font_fp_old" in native-v1\|*) _font_fp_old="${_font_fp_old##*|}" ;; esac
+        case "$_font_fp_old" in native-v1\|*) _font_fp_old="${_font_fp_old##*'|'}" ;; esac
         if [ -n "$_font_fp" ] && { [ "$_font_fp" != "$_font_fp_old" ] || [ ! -s "$MODDIR/config/native_font_index.json" ]; }; then
             if MODDIR="$MODDIR" sh "$MODDIR/common/font_manager.sh" action list refresh >/dev/null 2>&1; then
                 log_service "INFO" "原生字体索引后台预热完成"
@@ -197,6 +197,11 @@ MODULE_DIR="$MODDIR"
             MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/device_font_load_verify.sh" verify >/dev/null 2>&1
             _load_verify_rc=$?
             _load_verify_state=$(sed -n 's/^state=//p' "$MODDIR/config/device-font-load-verification.conf" 2>/dev/null | head -n1)
+            # A stale verified file is not success when the verifier itself
+            # failed (for example an unwritable state file during an update).
+            if [ "$_load_verify_state" = verified ] && [ "$_load_verify_rc" -ne 0 ]; then
+                _load_verify_state=failed
+            fi
             case "$_load_verify_state" in
                 verified|not-applicable) break ;;
             esac

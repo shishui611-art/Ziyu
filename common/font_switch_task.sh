@@ -139,10 +139,15 @@ reconcile_task() {
     _task=$(read_value task); _font=$(read_value font); _started=$(read_value started)
     _pid=$(read_value pid); _task_boot=$(read_value bootId); _now_boot=$(current_boot_id)
     _percent=$(read_value percent); _elapsed=$(read_value elapsed)
+    _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
     case "$_started" in ''|*[!0-9]*) _started=0 ;; esac
 
     if [ -n "$_task_boot" ] && [ -n "$_now_boot" ] && [ "$_task_boot" != "$_now_boot" ]; then
-        write_task "$_task" failed "$_font" '设备已重启，上一字体切换任务已结束' \
+        _reconciled_state=failed; _reconciled_message='设备已重启，上一字体切换任务已结束'
+        if [ "$_cancel_task" = "$_task" ]; then
+            _reconciled_state=cancelled; _reconciled_message='字体应用已取消，设备重启后已释放任务'
+        fi
+        write_task "$_task" "$_reconciled_state" "$_font" "$_reconciled_message" \
             "$_started" "$(date +%s 2>/dev/null || echo 0)" '' '' '' "${_elapsed:-0}" "$_now_boot" false 100
         type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_task"
         return 0
@@ -156,7 +161,14 @@ reconcile_task() {
     _age=$((_now - _started))
     [ "$_state" = queued ] && [ "$_age" -ge 0 ] 2>/dev/null && [ "$_age" -lt 8 ] 2>/dev/null && return 0
 
-    write_task "$_task" failed "$_font" '字体切换进程已结束，任务锁已自动释放' \
+    _reconciled_state=failed; _reconciled_message='字体切换进程已结束，任务锁已自动释放'
+    if [ "$_cancel_task" = "$_task" ] &&
+       grep -Fq '"leftoverPids": []' "$WORKER_PID_FILE.cleanup.json" 2>/dev/null &&
+       grep -Fq "\"task\": \"$_task\"" "$WORKER_PID_FILE.cleanup.json" 2>/dev/null; then
+        _reconciled_state=cancelled; _reconciled_message='字体应用已取消，当前生效字体保持原样'
+        sh "$MODDIR/common/action_control.sh" discard-pending "$_task" >/dev/null 2>&1 || true
+    fi
+    write_task "$_task" "$_reconciled_state" "$_font" "$_reconciled_message" \
         "$_started" "$_now" '' '' '' "${_elapsed:-0}" "$_now_boot" false 100
     type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_task"
 }
@@ -189,6 +201,12 @@ run_bounded() {
     LUOSHU_SWITCH_PROGRESS_FILE="$_progress_file" sh "$MANAGER" action switch "$_font" > "$_output" 2>&1 &
     _child=$!; _switch_child=$_child; _elapsed=0; _next_heartbeat=0
     while pid_alive "$_child"; do
+        _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
+        if [ "$_cancel_task" = "$_task" ]; then
+            terminate_child_tree "$_child"; wait "$_child" 2>/dev/null || true
+            _switch_child=
+            return 130
+        fi
         if [ "$_elapsed" -ge "$TIMEOUT_SECONDS" ]; then
             terminate_child_tree "$_child"; wait "$_child" 2>/dev/null || true
             _switch_child=
@@ -219,7 +237,12 @@ worker_signal_exit() {
         wait "$_switch_child" 2>/dev/null || true
         _switch_child=
     fi
-    write_task "$_worker_task" failed "$_font" '字体切换已终止，当前启动字体未被改动' \
+    _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
+    _signal_state=failed; _signal_message='字体切换已终止，当前启动字体未被改动'
+    if [ "$_cancel_task" = "$_worker_task" ]; then
+        _signal_state=cancelled; _signal_message='字体应用已取消，当前生效字体保持原样'
+    fi
+    write_task "$_worker_task" "$_signal_state" "$_font" "$_signal_message" \
         "$_started" "$(date +%s 2>/dev/null || echo 0)" '' '' '' "${_elapsed:-0}" '' false 100 || true
     exit "$_switch_signal_code"
 }
@@ -241,7 +264,12 @@ run_worker() {
 
     run_bounded "$_font" "$_output" "$_task" "$_started" "$_progress"
     _rc=$?; _finished=$(date +%s 2>/dev/null || echo 0)
-    if [ "$_rc" -eq 0 ] && grep -q '"status":"ok"' "$_output" 2>/dev/null; then
+    _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
+    if [ "$_cancel_task" = "$_task" ]; then
+        sh "$MODDIR/common/action_control.sh" discard-pending "$_task" >/dev/null 2>&1 || true
+        write_task "$_task" cancelled "$_font" '字体应用已取消，当前生效字体保持原样' \
+            "$_started" "$_finished" '' '' '' 0 '' false 100
+    elif [ "$_rc" -eq 0 ] && grep -q '"status":"ok"' "$_output" 2>/dev/null; then
         cat "$_output" >> "$LOG_FILE" 2>/dev/null || true
         if grep -q '"reused":true' "$_output" 2>/dev/null; then
             write_task "$_task" success "$_font" '100% · 当前字体已验证，无需重新生成或重启' \

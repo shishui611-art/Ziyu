@@ -168,6 +168,14 @@ def parse_axis_spec(spec: str) -> dict[str, float]:
     return result
 
 
+def check_mix_cancellation():
+    task = os.environ.get("LUOSHU_MIX_PARENT_TASK")
+    marker = os.environ.get("LUOSHU_MIX_CANCEL_FILE")
+    if task and marker and Path(marker).is_file():
+        if f"task={task}" in Path(marker).read_text(encoding="utf-8").splitlines():
+            raise InstanceError("组合任务已取消")
+
+
 def materialize(
     source: Path,
     output: Path,
@@ -179,6 +187,7 @@ def materialize(
 ) -> dict[str, object]:
     if not source.is_file() or source.stat().st_size < 12:
         raise InstanceError(f"字体源文件不可用：{source}")
+    check_mix_cancellation()
     requested_weight = clamp_weight(requested_axes.get("wght", requested_weight))
     face = pick_face(source, role, requested_weight)
     kwargs: dict[str, object] = {
@@ -196,29 +205,26 @@ def materialize(
     try:
         if variable:
             variation_fallbacks = guard_gvar(font)
-            # A composite uses only the assigned role's codepoints from its
-            # Latin/digit inputs. Subset first: large imported variable fonts
-            # can contain malformed gvar data in unrelated CJK glyphs, and
-            # instancing the entire file needlessly parses all of those glyphs.
-            if role in ("latin", "digit"):
-                latin = (set(range(0x20, 0x30)) | set(range(0x3A, 0x7F))
-                         | set(range(0xA0, 0x250)) | set(range(0x300, 0x370))
-                         | set(range(0x1E00, 0x1F00)) | set(range(0x2000, 0x2070))
-                         | set(range(0x20A0, 0x20D0)) | set(range(0x2100, 0x2150)))
-                digits = (set(range(0x30, 0x3A)) | set(range(0xFF10, 0xFF1A))
-                          | {0xB2, 0xB3, 0xB9} | set(range(0x2070, 0x207A))
-                          | set(range(0x2080, 0x208A)))
-                role_codepoints = (latin | digits) if role == "latin" else digits
-                # Donor slots contribute glyf/CFF outlines to the composite,
-                # not SVG colour documents indexed by the source glyph IDs.
-                # Drop that optional table before subsetting: the offline
-                # Android payload deliberately has no native lxml extension.
-                # FontTools compares stripped table tags in drop_tables.
-                options = subset.Options()
-                options.drop_tables.append("SVG")
-                role_subset = subset.Subsetter(options=options)
-                role_subset.populate(unicodes=role_codepoints)
-                role_subset.subset(font)
+        if role in ("latin", "digit"):
+            latin = (set(range(0x20, 0x30)) | set(range(0x3A, 0x7F))
+                     | set(range(0xA0, 0x250)) | set(range(0x300, 0x370))
+                     | set(range(0x1E00, 0x1F00)) | set(range(0x2000, 0x2070))
+                     | set(range(0x20A0, 0x20D0)) | set(range(0x2100, 0x2150)))
+            digits = (set(range(0x30, 0x3A)) | set(range(0xFF10, 0xFF1A))
+                      | {0xB2, 0xB3, 0xB9} | set(range(0x2070, 0x207A))
+                      | set(range(0x2080, 0x208A)))
+            role_codepoints = (latin | digits) if role == "latin" else digits
+            # Donor slots contribute glyf/CFF outlines to the composite,
+            # not SVG colour documents indexed by the source glyph IDs.
+            # Drop that optional table before subsetting: the offline
+            # Android payload deliberately has no native lxml extension.
+            # FontTools compares stripped table tags in drop_tables.
+            options = subset.Options()
+            options.drop_tables.append("SVG")
+            role_subset = subset.Subsetter(options=options)
+            role_subset.populate(unicodes=role_codepoints)
+            role_subset.subset(font)
+        if variable:
             known_axes = {str(axis.axisTag): axis for axis in font["fvar"].axes}
             ignored_axes = sorted(tag for tag in requested_axes if tag not in known_axes)
             for tag, axis in known_axes.items():
@@ -228,7 +234,7 @@ def materialize(
         elif requested_axes:
             ignored_axes = sorted(tag for tag in requested_axes if tag != "wght")
 
-        final_weight = clamp_weight(location.get("wght", requested_weight))
+        final_weight = clamp_weight(location.get("wght", requested_weight) if variable else font_weight(font))
         for fallback in variation_fallbacks:
             fallback["weight"] = final_weight
             fallback["message"] = f'{fallback["characters"] or fallback["glyph"]}在 {final_weight} 字重无法处理，已保留原始轮廓'
@@ -248,6 +254,7 @@ def materialize(
             if temp_path.stat().st_size < 12:
                 raise InstanceError("可变轴实例化输出异常为空")
             os.chmod(temp_path, 0o644)
+            check_mix_cancellation()
             os.replace(temp_path, output)
         finally:
             temp_path.unlink(missing_ok=True)

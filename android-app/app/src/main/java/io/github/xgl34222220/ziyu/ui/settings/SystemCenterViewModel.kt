@@ -73,6 +73,7 @@ internal data class SystemHealthSnapshot(
     val level: HealthLevel
         get() = when {
             error.isNotBlank() || !modulePresent -> HealthLevel.ERROR
+            alignmentState == "failed" || selfMountState == "failed" -> HealthLevel.ERROR
             activeFont != "default" && payloadFonts <= 0 -> HealthLevel.ERROR
             lockState == "stale" -> HealthLevel.WARNING
             conflicts.isNotEmpty() || recentErrors > 0 || cachePending -> HealthLevel.WARNING

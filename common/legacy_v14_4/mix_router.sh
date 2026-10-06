@@ -2,7 +2,7 @@
 # Current App -> v14.4 composite-core compatibility router.
 # Composite generation is isolated from the payload mounted by the current boot.
 # The compatibility runtime writes into .luoshu-mix-stage; a successful task is then
-# committed as the real module's .luoshu-payload-next for atomic activation next boot.
+# saved as a reusable library font; applying it is a separate safe-switch request.
 set +e
 
 REALMOD="${MODDIR:-}"
@@ -35,6 +35,30 @@ read_value() {
 json_escape_router() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
 }
+
+mix_python() {
+    _mp_root="$REALMOD/common/python"
+    PYTHONHOME="$_mp_root" PYTHONPATH="$_mp_root/lib/python3.14/site-packages" \
+        LD_LIBRARY_PATH="$_mp_root/lib:$_mp_root/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_mp_root/bin/luoshu-python" "$@"
+}
+
+publish_named_mix() (
+    _pnm_name=$(read_value "$MIX_STAGE_STATE" mixName)
+    [ -n "$_pnm_name" ] || _pnm_name=组合字体
+    _pnm_request=$(read_value "$MIX_STAGE_STATE" requestId)
+    _pnm_public=$(read_value "$MIX_STAGE_STATE" publicRoot)
+    [ -n "$_pnm_public" ] || _pnm_public=/sdcard/LuoShu
+    _pnm_source="$MIX_STAGE/mix-composite.ttf"
+    [ -s "$_pnm_source" ] || return 1
+    _pnm_result=$(mix_python "$REALMOD/common/mix_library.py" --source "$_pnm_source" \
+        --library "$_pnm_public/fonts" --name "$_pnm_name" --request "$_pnm_request" 2>&1)
+    _pnm_rc=$?
+    printf '[MIX_LIBRARY] request=%s exit_code=%s result=%s\n' "$_pnm_request" "$_pnm_rc" "$_pnm_result" >>"$LOG_FILE"
+    [ "$_pnm_rc" -eq 0 ] || return 1
+    printf '%s\n' "$_pnm_result" >"$REALMOD/config/mix-library-result.json"
+    rm -f "$REALMOD/config/native_font_index.json" "$REALMOD/config/native_font_index.key" 2>/dev/null || true
+)
 
 # The App reads this on every entry to the combination page.  Building the entire
 # compatibility runtime just to read three small config files can exceed the App's
@@ -106,9 +130,21 @@ mix_reconcile_fast() (
     _mrf_age=$((_mrf_now - _mrf_started))
     [ "$_mrf_age" -ge 20 ] 2>/dev/null || return 0
     _mrf_tmp="${_mrf_file}.reconcile.$$"
-    printf '%s\n' "$_mrf_snapshot" | awk -F '=' -v now="$_mrf_now" '
-        $1 != "state" && $1 != "message" && $1 != "percent" && $1 != "finished" {print}
-        END {print "state=failed"; print "message=字体组合后台进程已退出，任务已自动释放，请重新应用";
+    _mrf_terminal=failed
+    _mrf_message='字体组合后台进程已退出，任务已自动释放，请重新生成'
+    if [ "$(read_value "$REALMOD/config/mix_task.cancel" task)" = "$_mrf_task" ]; then
+        _mrf_terminal=cancelled
+        _mrf_message='组合任务已取消'
+    elif [ "$(read_value "$_mrf_file" result)" = prepared ] && \
+         [ -s "$(read_value "$_mrf_file" previewSource)" ]; then
+        _mrf_terminal=success
+        _mrf_message='字体组合已保存，请预览后确认应用'
+    fi
+    printf '%s\n' "$_mrf_snapshot" | awk -F '=' -v now="$_mrf_now" -v state="$_mrf_terminal" -v message="$_mrf_message" '
+        $1 != "state" && $1 != "message" && $1 != "percent" && $1 != "finished" {
+            if (state != "cancelled" || ($1 != "result" && $1 != "generatedFontId" && $1 != "generatedFontName" && $1 != "previewSource")) print
+        }
+        END {print "state=" state; print "message=" message;
              print "percent=100"; print "finished=" now}' > "$_mrf_tmp" || return 0
     # A new request or worker may have arrived while the lightweight checks ran.
     # Do not publish a stale failure over its task record or erase its sidecars.
@@ -122,6 +158,17 @@ mix_reconcile_fast() (
         luoshu_clear_task_pid "$_mrf_pid_file" "$_mrf_task"
     done
 )
+
+mix_axis_weight() {
+    _maw_value=$(printf '%s' "$1" | tr ',' '\n' | sed -n 's/^wght=//p' | head -n1)
+    case "$_maw_value" in ''|*[!0-9.]*) _maw_value=400 ;; esac
+    printf '%s' "$_maw_value"
+}
+
+mix_cancelled() {
+    _mc_task=$(read_value "$REALMOD/config/axes_task.conf" task)
+    [ -n "$_mc_task" ] && [ "$(read_value "$REALMOD/config/mix_task.cancel" task)" = "$_mc_task" ]
+}
 
 mix_status_json_fast() {
     mix_reconcile_fast
@@ -142,24 +189,23 @@ mix_status_json_fast() {
     _percent=$(read_value "$_task_file" percent)
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
 
-    if [ "$_state" = success ]; then
-        _next_font=$(read_value "$NEXT_STATE" font)
-        if [ -d "$NEXT_PAYLOAD" ] && [ "$_next_font" = mix ]; then
-            _percent=100
+    _finalize_state=$(read_value "$REALMOD/config/mix-finalize-state.conf" state)
+    _finalize_request=$(read_value "$REALMOD/config/mix-finalize-state.conf" requestId)
+    _stage_request=$(read_value "$MIX_STAGE_STATE" requestId)
+    if [ "$_state" = success ] && [ "$(read_value "$_task_file" result)" != prepared ]; then
+        if [ "$_finalize_request" = "$_stage_request" ] && [ "$_finalize_state" = failed ]; then
+            _state=failed
+            _message=$(read_value "$REALMOD/config/mix-finalize-state.conf" message)
         else
-            _finalize_state=$(read_value "$REALMOD/config/mix-finalize-state.conf" state)
-            _finalize_message=$(read_value "$REALMOD/config/mix-finalize-state.conf" message)
-            if [ "$_finalize_state" = failed ]; then
-                _state=failed
-                _message="${_finalize_message:-复合字体负载提交失败}"
-                _percent=100
-            else
-                _state=running
-                _message="${_finalize_message:-正在提交下一启动字体负载}"
-                _percent=99
-            fi
+            _state=running
+            _message='正在保存组合到字体库'
+            _percent=99
         fi
     fi
+    _generated_id=$(read_value "$_task_file" generatedFontId)
+    _generated_name=$(read_value "$_task_file" generatedFontName)
+    _preview_source=$(read_value "$_task_file" previewSource)
+    _result=$(read_value "$_task_file" result)
 
     _cjk=$(read_value "$_task_file" cjk)
     _latin=$(read_value "$_task_file" latin)
@@ -167,10 +213,13 @@ mix_status_json_fast() {
     _cjk_axes=$(read_value "$_task_file" cjkAxes); [ -n "$_cjk_axes" ] || _cjk_axes=wght=400
     _latin_axes=$(read_value "$_task_file" latinAxes); [ -n "$_latin_axes" ] || _latin_axes=wght=400
     _digit_axes=$(read_value "$_task_file" digitAxes); [ -n "$_digit_axes" ] || _digit_axes=wght=400
-    printf '{"status":"ok","data":{"task":"%s","state":"%s","message":"%s","cjk":"%s","latin":"%s","digit":"%s","cjkWeight":400,"latinWeight":400,"digitWeight":400,"cjkAxes":"%s","latinAxes":"%s","digitAxes":"%s","timeout":720,"progress":{"message":"%s","percent":%s}}}\n' \
+    printf '{"status":"ok","data":{"task":"%s","state":"%s","message":"%s","cjk":"%s","latin":"%s","digit":"%s","cjkWeight":%s,"latinWeight":%s,"digitWeight":%s,"cjkAxes":"%s","latinAxes":"%s","digitAxes":"%s","result":"%s","generatedFontId":"%s","generatedFontName":"%s","previewSource":"%s","rebootRequired":false,"timeout":720,"progress":{"message":"%s","percent":%s}}}\n' \
         "$(json_escape_router "$_task")" "$(json_escape_router "$_state")" "$(json_escape_router "$_message")" \
         "$(json_escape_router "$_cjk")" "$(json_escape_router "$_latin")" "$(json_escape_router "$_digit")" \
+        "$(mix_axis_weight "$_cjk_axes")" "$(mix_axis_weight "$_latin_axes")" "$(mix_axis_weight "$_digit_axes")" \
         "$(json_escape_router "$_cjk_axes")" "$(json_escape_router "$_latin_axes")" "$(json_escape_router "$_digit_axes")" \
+        "$(json_escape_router "$_result")" "$(json_escape_router "$_generated_id")" \
+        "$(json_escape_router "$_generated_name")" "$(json_escape_router "$_preview_source")" \
         "$(json_escape_router "$_message")" "$_percent"
 }
 
@@ -242,20 +291,11 @@ clear_mix_text_payload() {
 
 prepare_mix_stage() {
     mkdir -p "$REALMOD/config" "$REALMOD/cache" "$REALMOD/logs" 2>/dev/null || return 1
+    rm -f "$REALMOD/config/mix-finalize-state.conf" "$REALMOD/config/mix-library-result.json" 2>/dev/null || true
     rm -rf "$MIX_STAGE" 2>/dev/null || true
     mkdir -p "$MIX_STAGE" 2>/dev/null || return 1
-    if [ -d "$LIVE_PAYLOAD" ]; then
-        _clone_source="$LIVE_PAYLOAD"
-    else
-        _clone_source=$(mix_clone_source 2>/dev/null || true)
-    fi
-    if [ -n "$_clone_source" ] && ! clone_mix_tree "$_clone_source"; then
-        printf '[%s] [MIX] stage clone failed source=%s live=%s next=%s\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" \
-            "$_clone_source" "$LIVE_PAYLOAD" "$NEXT_PAYLOAD" >> "$LOG_FILE" 2>/dev/null || true
-        return 1
-    fi
-    clear_mix_text_payload "$MIX_STAGE" || return 1
+    # Generation needs only a font artifact. No live payload clone or ROM
+    # aliases are produced until the user explicitly applies the saved family.
 
     _previous=$(head -n1 "$ACTIVE_CONF" 2>/dev/null | tr -d '\r\n')
     [ -n "$_previous" ] || _previous=default
@@ -266,6 +306,7 @@ prepare_mix_stage() {
         printf 'requestId=%s\n' "$_request"
         printf 'cjk=%s\nlatin=%s\ndigit=%s\n' "$1" "$2" "$3"
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$4" "$5" "$6"
+        printf 'mixName=%s\npublicRoot=%s\n' "${7:-}" "${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
         printf 'previousFont=%s\n' "$_previous"
         printf 'previousLegacy=%s\n' "$_previous_legacy"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
@@ -334,6 +375,7 @@ write_next_state() {
     {
         printf 'state=prepared\n'
         printf 'font=mix\n'
+        printf 'mixName=%s\npublicRoot=%s\n' "$(read_value "$MIX_STAGE_STATE" mixName)" "$(read_value "$MIX_STAGE_STATE" publicRoot)"
         printf 'requestId=%s\n' "$_request"
         printf 'cjk=%s\nlatin=%s\ndigit=%s\n' \
             "$(read_value "$MIX_STAGE_STATE" cjk)" "$(read_value "$MIX_STAGE_STATE" latin)" "$(read_value "$MIX_STAGE_STATE" digit)"
@@ -441,18 +483,36 @@ write_legacy_mix_mode() {
 
 finalize_mix_stage() {
     if ! finalize_lock_acquire; then
-        printf '{"status":"error","message":"复合字体已生成但提交锁不可用，请稍后重试"}\n'
+        printf '{"status":"error","message":"字体库保存锁不可用，请稍后重试"}\n'
         return 1
     fi
-    commit_mix_stage_if_needed
-    _commit_rc=$?
+    if mix_cancelled; then
+        finalize_lock_release >/dev/null 2>&1 || true
+        printf '{"status":"error","message":"组合任务已取消"}\n'
+        return 1
+    fi
+    _prepared_rc=0
+    stage_generation_matches && publish_named_mix || _prepared_rc=$?
+    if [ "$_prepared_rc" -ne 0 ]; then
+        printf 'state=failed\nrequestId=%s\nmessage=保存组合到字体库失败，请查看 MIX_LIBRARY 日志\n' \
+            "$(read_value "$MIX_STAGE_STATE" requestId)" >"$REALMOD/config/mix-finalize-state.conf"
+        finalize_lock_release >/dev/null 2>&1 || true
+        printf '{"status":"error","message":"保存组合到字体库失败"}\n'
+        return 1
+    fi
+    # Persist the preparation result in the task record so a reopened App can
+    # preview the exact saved bytes without touching font application state.
+    _prepared_json="$REALMOD/config/mix-library-result.json"
+    _prepared_task="$REALMOD/config/axes_task.conf"
+    _prepared_tmp="${_prepared_task}.prepared.$$"
+    if ! mix_python "$REALMOD/common/mix_library.py" --persist-task "$_prepared_task" --result-file "$_prepared_json" >>"$LOG_FILE" 2>&1; then
+        finalize_lock_release >/dev/null 2>&1 || true
+        return 1
+    fi
+    printf 'state=success\nrequestId=%s\nmessage=字体组合已保存，请预览后确认应用\n' \
+        "$(read_value "$MIX_STAGE_STATE" requestId)" >"$REALMOD/config/mix-finalize-state.conf"
     finalize_lock_release >/dev/null 2>&1 || true
-    if [ "$_commit_rc" -ne 0 ]; then
-        printf '{"status":"error","message":"复合字体已生成但下一启动负载提交失败"}\n'
-        return 1
-    fi
-    write_legacy_mix_mode
-    printf '{"status":"ok","data":{"font":"mix","rebootRequired":true,"pipeline":"atomic-next-boot-composite"}}\n'
+    cat "$_prepared_json"
     return 0
 }
 
@@ -476,6 +536,7 @@ setup_runtime() {
     force_link "$LEGACY/font_mix_runtime.sh" "$RUNTIME/common/font_mix.sh" || return 1
     force_link "$LEGACY/font_mix_engine.sh" "$RUNTIME/common/font_mix_engine.sh" || return 1
     force_link "$LEGACY/font_instance.py" "$RUNTIME/common/font_instance.py" || return 1
+    [ ! -f "$REALMOD/common/font_prepare_cache.py" ] || force_link "$REALMOD/common/font_prepare_cache.py" "$RUNTIME/common/font_prepare_cache.py" || return 1
     force_link "$LEGACY/composite_font.py" "$RUNTIME/common/composite_font.py" || return 1
     force_link "$LEGACY/composite_layout.py" "$RUNTIME/common/composite_layout.py" || return 1
     force_link "$REALMOD/common/luoshu_composite.sh" "$RUNTIME/common/luoshu_composite.sh" || return 1
@@ -483,7 +544,8 @@ setup_runtime() {
     force_link "$REALMOD/common/font_role_check.sh" "$RUNTIME/common/font_role_check.sh" || return 1
     force_link "$REALMOD/common/font_role_check.py" "$RUNTIME/common/font_role_check.py" || return 1
     force_link "$LEGACY/util_functions.sh" "$RUNTIME/common/util_functions.sh" || return 1
-    force_link "$LEGACY/font_check.sh" "$RUNTIME/common/font_check.sh" || return 1
+    force_link "$REALMOD/common/font_check.sh" "$RUNTIME/common/font_check.sh" || return 1
+    force_link "$REALMOD/common/font_structure.py" "$RUNTIME/common/font_structure.py" || return 1
     force_link "$LEGACY/rom_adapters.sh" "$RUNTIME/common/rom_adapters.sh" || return 1
     # Keep the v14.4 font engine, but use the current detached-task and nested-task
     # handoff helpers. Without them Android can keep the public task at 34% until
@@ -535,8 +597,19 @@ if [ "$_cmd" = status ]; then
 fi
 case "$_cmd" in
     start)
-        prepare_mix_stage "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" || {
-            printf '{"status":"error","message":"无法创建复合字体下一启动暂存负载"}\n'
+        mkdir -p "$REALMOD/logs" 2>/dev/null || exit 1
+        mix_reconcile_fast
+        case "$(read_value "$REALMOD/config/axes_task.conf" state)" in
+            queued|running|cancelling)
+                printf '{"status":"error","message":"已有字体组合任务正在运行或取消"}\n'
+                exit 1 ;;
+        esac
+        if [ -n "${8:-}" ] && ! mix_python "$REALMOD/common/mix_library.py" --validate-name --name "$8" >>"$LOG_FILE" 2>&1; then
+            printf '{"status":"error","message":"组合名称无效，或保存字体库组件不可用"}\n'
+            exit 2
+        fi
+        prepare_mix_stage "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" || {
+            printf '{"status":"error","message":"无法创建复合字体生成暂存目录"}\n'
             exit 1
         }
         _payload="$MIX_STAGE"
@@ -554,6 +627,7 @@ setup_runtime "$_payload" || {
     [ "$_cmd" != start ] || { rm -rf "$MIX_STAGE" 2>/dev/null || true; rm -f "$MIX_STAGE_STATE" 2>/dev/null || true; }
     exit 1
 }
+export LUOSHU_MIX_PREPARE_ONLY=true
 export LUOSHU_REAL_MODDIR="$REALMOD"
 export LUOSHU_MIX_REQUEST_ID="$(read_value "$MIX_STAGE_STATE" requestId)"
 export LUOSHU_MIX_MANIFEST="$MIX_MANIFEST"

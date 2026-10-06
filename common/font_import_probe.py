@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from fontTools.ttLib import TTFont
+from font_structure import validate_font
 
 
 CJK_UI_PROBES = tuple(map(ord, "中文字体系统默认洛书汉字ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"))
@@ -44,6 +45,8 @@ def inspect(path: Path) -> tuple[str, str, int, bool, bool, bool]:
             kwargs["fontNumber"] = 0
     font = TTFont(str(path), **kwargs)
     try:
+        if path.stat().st_size < 4096:
+            validate_font(font, path.stat().st_size)
         try:
             weight = int(font["OS/2"].usWeightClass)
         except Exception:

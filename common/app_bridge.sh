@@ -10,6 +10,8 @@ if [ -z "$MODDIR" ]; then
         MODDIR="/data/adb/modules/LuoShu"
     fi
 fi
+[ -f "$MODDIR/common/root_manager_detection.sh" ] && . "$MODDIR/common/root_manager_detection.sh"
+[ -f "$MODDIR/common/meta_mount_detection.sh" ] && . "$MODDIR/common/meta_mount_detection.sh"
 FONT_MANAGER="$MODDIR/common/font_manager.sh"
 FONT_SWITCH_TASK="$MODDIR/common/font_switch_task.sh"
 SAFE_SWITCH="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"
@@ -41,35 +43,46 @@ read_prop() {
 }
 
 root_manager() {
-    if command -v apd >/dev/null 2>&1 || [ -d /data/adb/ap ] || [ -d /data/adb/apatch ]; then
-        printf 'APatch'
-    elif command -v ksud >/dev/null 2>&1 || [ -d /data/adb/ksu ]; then
-        # A display label must not wait on a root-manager daemon invocation.
-        case "${KSU_VER:-} $(getprop ro.build.version.incremental 2>/dev/null)" in
-            *SukiSU*|*sukisu*|*SUKISU*) printf 'SukiSU Ultra' ;;
-            *) printf 'KernelSU' ;;
-        esac
-    elif command -v magisk >/dev/null 2>&1 || [ -d /data/adb/magisk ]; then
-        printf 'Magisk'
-    else
-        printf 'Root'
+    if type luoshu_detect_root_manager >/dev/null 2>&1; then
+        _root=$(luoshu_detect_root_manager 2>/dev/null)
+        [ -n "$_root" ] && [ "$_root" != unknown ] && { printf '%s' "$_root"; return; }
     fi
+    # Keep the App label aligned with boot-hook identity. An unknown `su`
+    # provider is shown generically instead of being guessed from /data/adb/ksu.
+    printf 'Root'
 }
 
 mount_engine() {
-    if type luoshu_detect_mount_engine >/dev/null 2>&1; then
-        case "$(luoshu_detect_mount_engine)" in
-            self-mount) printf '字域自挂载' ;;
-            magic-mount|magic-mount-rs) printf 'Magic Mount' ;;
-            mountify) printf 'Mountify' ;;
-            meta-overlayfs|dual-dir-metamodule) printf 'Meta OverlayFS' ;;
-            hybrid-mount) printf 'Hybrid Mount' ;;
-            native-module-mount) printf 'Root 原生挂载' ;;
-            *) printf '字域自挂载' ;;
+    _backend_file=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && luoshu_current_boot_backend_state)
+    if [ -n "$_backend_file" ]; then
+        _backend_active=$(read_prop "$_backend_file" active_backend)
+        _backend_selected=$(read_prop "$_backend_file" selected_backend)
+        _backend_verify=$(read_prop "$_backend_file" verification)
+        _backend_error=$(read_prop "$_backend_file" last_error)
+        case "$_backend_active" in
+            self) _backend_label='字域自挂载' ;;
+            meta) _backend_label="元模块挂载 · $(read_prop "$_backend_file" meta_engine)" ;;
+            *) case "$_backend_selected" in
+                self) _backend_label='字域自挂载' ;;
+                meta) _backend_label="元模块挂载 · $(read_prop "$_backend_file" meta_engine)" ;;
+                *) _backend_label='挂载后端' ;;
+            esac ;;
         esac
+        if [ "$_backend_verify" = failed ]; then
+            case "$_backend_selected" in self) _backend_label='自挂载' ;; esac
+            case "$_backend_error" in
+                *rollback-failed*|*rollback-verification-failed*|*cleanup*|*backend-conflict*) printf '%s失败 · 回滚待检查' "$_backend_label" ;;
+                font-route-verification-failed) printf '%s失败 · 已回滚' "$_backend_label" ;;
+                *) printf '%s失败 · 未生效' "$_backend_label" ;;
+            esac
+        elif [ "$_backend_active" = none ] || [ "$_backend_verify" = pending ]; then
+            printf '%s · 待验证' "$_backend_label"
+        else
+            printf '%s' "$_backend_label"
+        fi
         return
     fi
-    printf '字域自挂载'
+    printf '本次启动尚未确认挂载后端'
 }
 
 select_task_file() {
@@ -155,6 +168,35 @@ status_json() {
     [ -n "$_verification_grade" ] || _verification_grade='PENDING'
     [ -n "$_mount_state" ] || _mount_state='unknown'
 
+    # The unified transaction owns the final outcome. Legacy self/universal
+    # caches can still say mounted after final route verification rolled back.
+    _backend_current=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && luoshu_current_boot_backend_state)
+    _backend_rollback_uncertain=false
+    if [ -n "$_backend_current" ]; then
+        _backend_verification=$(read_prop "$_backend_current" verification)
+        _backend_active=$(read_prop "$_backend_current" active_backend)
+        case "$_backend_verification" in
+            failed)
+                _mount_state=failed
+                _mount_failed=$(read_prop "$_backend_current" last_error)
+                _verification_state=failed; _verification_grade=FAIL
+                _verification_mode=backend-failed; _verification_reason="$_mount_failed"
+                case "$_mount_failed" in *rollback-failed*|*rollback-verification-failed*|*cleanup*|*backend-conflict*) _backend_rollback_uncertain=true ;; esac
+                ;;
+            passed|pass)
+                case "$_backend_active" in self|meta) _mount_state=mounted ;; *) _mount_state=pending ;; esac
+                ;;
+            not-applicable) _mount_state=not-applicable ;;
+            pending)
+                _mount_state=pending; _verification_state=pending; _verification_grade=PENDING
+                _verification_reason=backend-awaiting-verification
+                ;;
+        esac
+    elif [ -f "$MODDIR/config/mount-backend.conf" ]; then
+        _mount_state=pending; _verification_state=pending; _verification_grade=PENDING
+        _verification_reason=backend-current-boot-unconfirmed
+    fi
+
     _cutover_file="$MODDIR/config/universal-font-cutover.conf"
     _rollback_file="$MODDIR/config/universal-font-rollback.conf"
     _cutover_state="$(read_prop "$_cutover_file" state)"
@@ -169,8 +211,9 @@ status_json() {
     [ -n "$_rollback_state" ] || _rollback_state=none
 
     _selected="$(select_task_file)"
-    _task_type="${_selected%%|*}"
-    _task_file="${_selected#*|}"
+    IFS='|' read -r _task_type _task_file <<EOF_TASK_SELECTION
+$_selected
+EOF_TASK_SELECTION
     _task_id=''
     _task_state='idle'
     _task_message='暂无后台任务'
@@ -204,6 +247,10 @@ status_json() {
         _font_effect_state=system
     elif [ "$_reboot_required" = true ]; then
         _font_effect_state=pending-reboot
+    elif [ "$_mount_state" = failed ] && [ -n "$_backend_current" ]; then
+        _font_effect_state=failed
+        _effective_active=default
+        [ "$_backend_rollback_uncertain" = true ] && _effective_active=unknown
     elif [ -n "$_verification_active" ] && [ "$_verification_active" != "$_active" ]; then
         _verification_state=pending
         _verification_mode=unknown
@@ -366,6 +413,48 @@ weight_axis_info() {
 }
 
 case "${1:-status}" in
+    action_cancel) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" cancel "${2:-}" "${3:-}" ;;
+    action_undo) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" undo ;;
+    action_status) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" status ;;
+    log_review) MODDIR="$MODDIR" sh "$MODDIR/common/log_review.sh" "${2:-status}" ;;
+    diagnostic_bundle)
+        # Full (unsanitized but non-secret) module-side bundle, usable even when
+        # the in-app sanitized export cannot run its flow.
+        [ -f "$MODDIR/common/diagnostic_bundle.sh" ] || { printf '{"ok":false,"error":"bundle-helper-missing"}\n'; exit 4; }
+        _db_path=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/diagnostic_bundle.sh" dump "${2:-app-manual}")
+        _db_rc=$?
+        if [ "$_db_rc" -eq 0 ] && [ -s "$_db_path" ]; then
+            _db_public="/sdcard/Ziyu/reports/$(basename "$_db_path")"
+            [ -s "$_db_public" ] || _db_public=""
+            printf '{"ok":true,"path":"%s","publicPath":"%s"}\n' "$(json_escape "$_db_path")" "$(json_escape "$_db_public")"
+        else
+            printf '{"ok":false,"error":"bundle-dump-failed"}\n'
+        fi
+        exit "$_db_rc"
+        ;;
+    mount_preferences)
+        _mp=$(MODDIR="$MODDIR" sh "$MODDIR/common/mount_backend_preferences.sh" "${2:-get}" "${3:-}")
+        _mp_rc=$?
+        _mp_ensure=none
+        if [ "$_mp_rc" -eq 0 ] && type luoshu_meta_mount_detect >/dev/null 2>&1; then
+            luoshu_detect_root_manager >/dev/null 2>&1
+            luoshu_meta_mount_detect >/dev/null 2>&1
+            # When the user explicitly picks Meta, close the only fixable gap
+            # ourselves instead of asking them to edit Hybrid Mount TOML.
+            if [ "${2:-get}" = set ] && [ "${3:-}" = meta ] && [ "${META_USABLE:-0}" != 1 ] && \
+               type luoshu_meta_hybrid_ensure_vfs_rule >/dev/null 2>&1; then
+                if luoshu_meta_hybrid_ensure_vfs_rule; then
+                    _mp_ensure="${LUOSHU_META_ENSURE_RESULT:-applied}"
+                    luoshu_meta_mount_detect >/dev/null 2>&1
+                else
+                    _mp_ensure="${LUOSHU_META_ENSURE_RESULT:-failed}"
+                fi
+            fi
+            printf '%s' "$_mp" | sed 's/}[[:space:]]*$//'
+            printf ',"metaEngine":"%s","metaUsable":%s,"metaEnabled":%s,"metaUsableReason":"%s","metaEnsureResult":"%s"}\n' "$(json_escape "${META_ENGINE:-none}")" "$( [ "${META_USABLE:-0}" = 1 ] && echo true || echo false )" "$( [ "${META_ENABLED:-0}" = 1 ] && echo true || echo false )" "$(json_escape "${META_USABLE_REASON:-}")" "$(json_escape "$_mp_ensure")"
+        else printf '%s\n' "$_mp"; fi
+        exit "$_mp_rc"
+        ;;
     status) status_json ;;
     fonts)
         manager_ready || exit 1
@@ -436,7 +525,7 @@ case "${1:-status}" in
     switch_status) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" status "${2:-}" ;;
     delete) manager_ready || exit 1; sh "$FONT_MANAGER" action delete "${2:-}" ;;
     mix_config) mix_ready || exit 1; sh "$MIX_ENGINE" config ;;
-    mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" ;;
+    mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" ;;
     mix_status) mix_ready || exit 1; sh "$MIX_ENGINE" status "${2:-}" ;;
     reboot) manager_ready || exit 1; sh "$FONT_MANAGER" action reboot_device ;;
     logs)

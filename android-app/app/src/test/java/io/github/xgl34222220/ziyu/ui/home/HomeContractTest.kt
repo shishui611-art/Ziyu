@@ -1,8 +1,6 @@
 package io.github.xgl34222220.ziyu.ui.home
 
 import io.github.xgl34222220.ziyu.ModuleSnapshot
-import io.github.xgl34222220.ziyu.SystemWeightState
-import io.github.xgl34222220.ziyu.snapSystemWeight
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,31 +8,35 @@ import org.junit.Test
 
 class HomeContractTest {
     @Test
-    fun globalWeightSnapsToTenAndClampsToTheSupportedRange() {
-        assertEquals(300, snapSystemWeight(100))
-        assertEquals(550, snapSystemWeight(554))
-        assertEquals(560, snapSystemWeight(555))
-        assertEquals(700, snapSystemWeight(900))
+    fun pendingTransactionIsNotReportedHealthyEvenWhenRebootIsRequested() {
+        val state = ModuleSnapshot(
+            installed = true, rootGranted = true, activeFont = "DemoFont",
+            fontEffectState = "pending-reboot", mountState = "pending", rebootRequired = true,
+        ).toHomeUiState()
+        assertFalse(state.mountHealthy)
     }
 
     @Test
-    fun globalWeightControlsAreMappedIntoTheHomeState() {
-        val state = ModuleSnapshot(installed = true, rootGranted = true).toHomeUiState(
-            SystemWeightState(
-                loading = false,
-                supported = true,
-                weight = 560,
-                min = 300,
-                max = 700,
-                step = 10,
-                message = "系统粗细已更新",
-            ),
-        )
+    fun failedBackendIsNotHealthyWhenConfiguredFontIsStock() {
+        val state = ModuleSnapshot(
+            installed = true, rootGranted = true, activeFont = "default",
+            mountState = "failed", mountFailure = "font-route-verification-failed",
+        ).toHomeUiState()
+        assertFalse(state.mountHealthy)
+        assertEquals("挂载验证未通过", state.taskTitle)
+        assertTrue(state.taskMessage.contains("font-route-verification-failed"))
+    }
 
-        assertTrue(state.systemWeight.supported)
-        assertEquals(560, state.systemWeight.weight)
-        assertEquals(10, state.systemWeight.step)
-        assertEquals("系统粗细已更新", state.systemWeight.message)
+    @Test
+    fun failedRollbackDoesNotPretendSystemFontWasRestored() {
+        val state = ModuleSnapshot(
+            installed = true, rootGranted = true, activeFont = "DemoFont", effectiveFont = "unknown",
+            fontEffectState = "failed", mountState = "failed",
+            mountFailure = "font-route-verification-failed;rollback-failed",
+        ).toHomeUiState()
+        assertEquals("DemoFont（挂载失败，回滚待检查）", state.currentFont)
+        assertFalse(state.mountHealthy)
+        assertTrue(state.taskMessage.contains("安全回滚尚未确认"))
     }
 
     @Test

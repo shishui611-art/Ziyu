@@ -204,6 +204,7 @@ _ud_stage_prepared() {
     {
         printf 'state=prepared\n'
         printf 'font=%s\n' "$_uds_family"
+        printf 'taskId=%s\n' "${LUOSHU_TASK_SCOPE_TASK:-${LUOSHU_SWITCH_TASK_ID:-}}"
         printf 'deploymentId=%s\n' "$_uds_id"
         printf 'payloadDigest=%s\n' "$_uds_digest"
         printf 'previousFont=%s\n' "$UD_PREVIOUS_FONT"

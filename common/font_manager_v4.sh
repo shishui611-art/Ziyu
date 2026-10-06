@@ -540,8 +540,8 @@ EOF_RECORD
   type font_detect_format >/dev/null 2>&1 && _format=$(font_detect_format "$_file" 2>/dev/null)
   _valid=true
   _error=''
-  if [ "$_bytes" -lt 4096 ] 2>/dev/null; then
-      _valid=false; _error='字体文件过小'
+  if [ "$_bytes" -lt 12 ] 2>/dev/null; then
+      _valid=false; _error='字体头不完整'
   elif [ -z "$_format" ] || [ "$_format" = UNKNOWN ]; then
       _valid=false; _error='字体格式无法识别'
   fi
@@ -553,6 +553,7 @@ EOF_RECORD
   _date=$(stat -c '%y' "$_file" 2>/dev/null | cut -c1-10)
   _display_name="$_family"
   _supports_cjk=true
+  _combination=false
   _cfg="$USER_FONTS_DIR/${_family}.conf"
   if [ -f "$_cfg" ]; then
       _configured_name=$(sed -n 's/^name=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '
@@ -561,13 +562,16 @@ EOF_RECORD
       _configured_cjk=$(sed -n 's/^supports_cjk=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '
 ')
       case "$_configured_cjk" in true) _supports_cjk=true ;; false) _supports_cjk=false ;; esac
+      _configured_combination=$(sed -n 's/^combination=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '
+')
+      case "$_configured_combination" in true) _combination=true ;; esac
   fi
 
   [ "$_first" = true ] || printf ','
-  printf '{"id":"%s","name":"%s","weights":[%s],"variants":{%s},"familyType":"%s","file":"%s","size":"%s","bytes":%s,"format":"%s","valid":%s,"warning":"","error":"%s","variable":%s,"supportsCjk":%s,"date":"%s"}' \
+  printf '{"id":"%s","name":"%s","weights":[%s],"variants":{%s},"familyType":"%s","file":"%s","size":"%s","bytes":%s,"format":"%s","valid":%s,"warning":"","error":"%s","variable":%s,"supportsCjk":%s,"combination":%s,"date":"%s"}' \
       "$(json_escape "$_family")" "$(json_escape "$_display_name")" "$_weights_json" "$_variants_json" "$(json_escape "$_family_type")" \
       "$(json_escape "$_record_name")" "$(format_filesize "$_bytes")" "$_bytes" "$(json_escape "$_format")" "$_valid" \
-      "$(json_escape "$_error")" "$_variable" "$_supports_cjk" "$(json_escape "$_date")"
+      "$(json_escape "$_error")" "$_variable" "$_supports_cjk" "$_combination" "$(json_escape "$_date")"
   _first=false
         done < "$_families"
         printf ']}}
@@ -734,10 +738,11 @@ handle_action() {
         switch_status) switch_task_status_json "$_param" ;;
         delete) delete_font_json "$_param" ;;
         font_weight_status)
-            MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/font_weight_runtime.sh" status
+            printf '%s\n' '{"status":"ok","data":{"supported":false,"message":"全局字重功能已移除，请在系统设置或组合页调整"}}'
             ;;
         font_weight_set)
-            MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/font_weight_runtime.sh" set "$_param"
+            printf '%s\n' '{"status":"error","message":"全局字重功能已移除"}'
+            return 2
             ;;
         font_weight_reset)
             MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/font_weight_runtime.sh" reset

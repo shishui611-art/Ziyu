@@ -7,6 +7,7 @@ import io.github.xgl34222220.ziyu.ZiyuViewModel
 internal enum class FontLibraryFilter(val label: String) {
     ALL("全部"),
     FAVORITE("收藏"),
+    COMBINATION("组合"),
     VARIABLE("可变字体"),
     MULTI_WEIGHT("多字重"),
     CONFLICT("重复 / 冲突"),
@@ -62,6 +63,7 @@ internal fun FontLibraryUiState.forDisplay(
         when (selectedFilter) {
             FontLibraryFilter.ALL -> true
             FontLibraryFilter.FAVORITE -> font.id in favoriteIds
+            FontLibraryFilter.COMBINATION -> font.valid && font.combination
             FontLibraryFilter.VARIABLE -> font.valid && font.variable
             FontLibraryFilter.MULTI_WEIGHT -> font.valid && !font.variable && font.weights.size >= 2
             FontLibraryFilter.CONFLICT -> font.id in issueIds

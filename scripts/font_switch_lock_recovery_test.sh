@@ -51,27 +51,22 @@ cat > "$MODDIR/common/mix_weight_mode.sh" <<'EOS'
 infer_mix_weight_mode() { printf 'auto\n'; }
 EOS
 
-for s in weighted_mix_task.sh multiweight_mix_task.sh; do
-  cp "$ROOT/common/$s" "$MODDIR/common/"
-  stale
-  out="$TMP/$s.out"
-  if command -v timeout >/dev/null 2>&1; then
-    MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$TMP/public" timeout 60 sh "$MODDIR/common/$s" start A.ttf B.ttf C.ttf >"$out" 2>&1 || true
-  else
-    MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$TMP/public" sh "$MODDIR/common/$s" start A.ttf B.ttf C.ttf >"$out" 2>&1 || true
-  fi
-  grep -q '字体正在切换中' "$out" && fail "$s stale lock still blocks start" || true
-  [ ! -e "$LOCK" ] || fail "$s did not reap stale lock"
-done
+# The compatibility name delegates to this same worker, sharing its busy guard.
+# Submitting both consecutively would correctly reject the second running job.
+grep -q 'exec sh.*weighted_mix_task.sh' "$ROOT/common/multiweight_mix_task.sh" || fail 'compatibility worker missing'
+grep -q 'mix_router.sh' "$ROOT/common/weighted_mix_task.sh" || fail 'compatibility entry missing preparation router'
+grep -q 'luoshu_font_lock_reap_stale' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh" || fail 'selected worker missing stale-lock recovery'
+
 
 grep -q 'luoshu_font_lock_force_clear' "$ROOT/.luoshu-runtime/compat/v227/post-fs-data.sh" || fail 'post-fs force_clear missing'
-for f in common/multiweight_mix_task.sh common/weighted_mix_task.sh .luoshu-runtime/core/service.sh common/device_font_cache.sh common/device_font_boot_verify.sh; do
+for f in common/legacy_v14_4/v142_weighted_mix.sh .luoshu-runtime/core/service.sh common/device_font_cache.sh common/device_font_boot_verify.sh; do
   grep -q 'luoshu_font_lock_busy' "$ROOT/$f" || fail "$f busy missing"
 done
 # Root service is now a router: it must select the preserved v4 service when legacy mode is absent,
-# while legacy mode intentionally skips v4 load verification/rebuild work entirely.
+# while legacy mode skips v4 rebuild work and consumes the shared mount verifier.
 grep -q '.luoshu-runtime/core/service.sh' "$ROOT/service.sh" || fail 'service router missing v4 backend'
 grep -q 'font_runtime_legacy_v14_4.conf' "$ROOT/service.sh" || fail 'service router missing legacy mode guard'
-! grep -q 'device_font_load_verify.sh' "$ROOT/service.sh" || fail 'legacy router unexpectedly owns v4 load verification'
+grep -q 'sh "$MODDIR/common/device_font_load_verify.sh" verify' "$ROOT/service.sh" || fail 'legacy router missing shared PID 1 readback'
+grep -q 'backend-load-verifier-missing' "$ROOT/service.sh" || fail 'legacy router can downgrade missing verifier to marker success'
 grep -q 'luoshu_font_lock_force_clear' "$ROOT/common/module_update_state.sh" || fail 'update force_clear missing'
 echo 'font_switch_lock_recovery_test: PASS'

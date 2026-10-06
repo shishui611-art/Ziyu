@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.widget.TextView
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -225,6 +226,7 @@ internal fun NativeFontPreview(
     textSizeSp: Float = 25f,
     gravity: Int = Gravity.START or Gravity.CENTER_VERTICAL,
     maxLines: Int = 2,
+    onReady: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current.applicationContext
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
@@ -343,7 +345,9 @@ internal fun NativeFontPreview(
     ) ?: Typeface.DEFAULT
     val failure = preview.error.ifBlank { variationError }
     val failed = failure.isNotBlank()
-    val renderedText = if (failed) "预览失败 · $failure" else text
+    val ready = preview.typeface != null && !failed
+    LaunchedEffect(ready) { onReady(ready) }
+    val renderedText = if (failed) "预览失败 · $failure" else if (!ready) "正在加载字体样例…" else text
     val renderedColor = if (failed) errorColor else textColor
     val renderedSize = if (failed) minOf(textSizeSp, 12f) else textSizeSp
 

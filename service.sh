@@ -8,12 +8,20 @@ MODDIR="${0%/*}"
 UNIVERSAL_MODE="$MODDIR/config/universal-font-runtime.conf"
 UNIVERSAL_RUNTIME="$MODDIR/common/universal_mount_runtime.sh"
 UNIVERSAL_VERIFY="$MODDIR/common/universal_font_runtime_verify.sh"
+MOUNT_BACKEND_RUNTIME="$MODDIR/common/mount_backend_runtime.sh"
 LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
 V4_SERVICE="$MODDIR/.luoshu-runtime/core/service.sh"
 
-# The global weight preference is a one-shot system setting. Restore it only
-# after Android has completed boot; the runtime checks that the current value is
-# still ours (or the captured original) before writing anything.
+# A Meta backend is verified after the manager's mount stage. The runtime is a
+# no-op for a self backend already committed at its Root-specific hook.
+mkdir -p "$MODDIR/logs" 2>/dev/null || true
+if [ -f "$MOUNT_BACKEND_RUNTIME" ]; then
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MOUNT_BACKEND_RUNTIME" hook service \
+        >> "$MODDIR/logs/mount-backend.log" 2>&1 || true
+fi
+
+# Retire the old global weight override after boot. Restore only a value still
+# owned by this module; preserve subsequent user/system changes.
 if [ -f "$MODDIR/common/font_weight_runtime.sh" ]; then
     (
         mkdir -p "$MODDIR/logs" 2>/dev/null || true
@@ -68,10 +76,11 @@ fi
     [ -n "$_active" ] || _active=default
     _mount_state=$(sed -n 's/^state=//p' "$MOUNT_STATE_FILE" 2>/dev/null | head -n1 | tr -d '\r\n')
     _mount_failed=$(sed -n 's/^failed=//p' "$MOUNT_STATE_FILE" 2>/dev/null | head -n1 | tr -d '\r\n')
-    _boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+    _backend_state="$MODDIR/config/mount-backend.conf"
+    _backend_active=$(sed -n 's/^active_backend=//p' "$_backend_state" 2>/dev/null | head -n1 | tr -d '\r\n')
+    _backend_verify=$(sed -n 's/^verification=//p' "$_backend_state" 2>/dev/null | head -n1 | tr -d '\r\n')
+    _boot_id="${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
     _now=$(date +%s 2>/dev/null || echo 0)
-
-    rm -f "$MODDIR/config/text_reboot_required.conf" 2>/dev/null || true
 
     _verify_state=pending
     _verify_mode=compatibility
@@ -80,12 +89,31 @@ fi
         _verify_state=not-applicable
         _verify_mode=system
         _verify_reason=default-font
+    elif [ -f "$MODDIR/common/device_font_load_verify.sh" ]; then
+        # The shared verifier gives the current-boot backend verdict priority and
+        # reads the XML/CJK route through PID 1, never a stale self-mount marker.
+        MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/device_font_load_verify.sh" verify >> "$LOG" 2>&1
+        _verify_rc=$?
+        _verify_state=$(sed -n 's/^state=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
+        _verify_mode=$(sed -n 's/^mode=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
+        _verify_reason=$(sed -n 's/^reason=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
+        if [ "$_verify_rc" -ne 0 ] && [ "$_verify_state" = verified ]; then
+            _verify_state=failed
+            _verify_reason=load-verifier-command-failed
+        fi
+        [ -n "$_verify_state" ] || _verify_state=pending
+        [ -n "$_verify_reason" ] || _verify_reason=load-verifier-evidence-missing
+    elif [ -f "$_backend_state" ]; then
+        # Do not downgrade to the old marker if the new verification helper is
+        # missing from an incomplete update. Retain the payload for diagnostics.
+        _verify_state=failed
+        _verify_reason=backend-load-verifier-missing
     else
         case "$_mount_state" in
             mounted|degraded|confirmed|verified)
                 _verify_state=verified
                 _verify_mode=mount-confirmed
-                _verify_reason=physical-self-mount-active
+                _verify_reason=physical-font-backend-active
                 ;;
             failed)
                 _verify_state=failed
@@ -112,13 +140,24 @@ fi
 
     case "$_verify_state" in
         verified|not-applicable)
-            rm -rf "$MODDIR/.luoshu-retired" "$MODDIR"/.luoshu-payload-stage.* 2>/dev/null || true
+            rm -f "$MODDIR/config/text_reboot_required.conf" 2>/dev/null || true
+            # Keep the previous actual payload for explicit undo across reboots.
+            rm -rf "$MODDIR"/.luoshu-payload-stage.* 2>/dev/null || true
+            if [ -f "$MODDIR/common/action_control.sh" ]; then
+                LUOSHU_ACTION_CONTROL_LIBRARY=true . "$MODDIR/common/action_control.sh"
+                LUOSHU_ACTION_CONTROL_LIBRARY=false
+                luoshu_undo_prune_retired "$MODDIR" >> "$LOG" 2>&1 || true
+            fi
             printf '[%s] font load confirmed: active=%s mount=%s\n' \
                 "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_active" "$_mount_state" >> "$LOG" 2>/dev/null
             ;;
         failed)
-            printf '[%s] font load FAILED: active=%s mount=%s detail=%s; retired payload retained\n' \
-                "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_active" "$_mount_state" "$_mount_failed" >> "$LOG" 2>/dev/null
+            printf '[%s] font load FAILED: active=%s mount=%s backend=%s verification=%s reason=%s detail=%s; retired payload retained\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_active" "$_mount_state" "$_backend_active" "$_backend_verify" "$_verify_reason" "$_mount_failed" >> "$LOG" 2>/dev/null
+            # Produce a shareable diagnostic bundle without adb: written into
+            # the module and copied to /sdcard/Ziyu/reports when possible.
+            MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+                sh "$MODDIR/common/diagnostic_bundle.sh" dump-once-per-boot "boot-verify-failed" >> "$LOG" 2>&1 || true
             ;;
         *)
             printf '[%s] font load pending: active=%s mount=%s; retired payload retained\n' \

@@ -64,7 +64,7 @@ run_manager() {
   rm -rf "$TMP/state"; mkdir -p "$TMP/state"
   printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
   MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" \
-  LUOSHU_PYTHON=python3 \
+  LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
   LUOSHU_UNIVERSAL_TEST_MANAGER="$manager" \
   LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
   LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
@@ -90,7 +90,7 @@ run_manager APatch post-mount
 echo "PHASE7_MOUNT wrong-hook"
 # Wrong hook is a no-op, not a mount failure.
 set +e
-MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON=python3 \
+MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
   LUOSHU_UNIVERSAL_TEST_MANAGER=KernelSU LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
   sh "$MOD/common/universal_mount_runtime.sh" hook post-fs-data >/dev/null 2>&1
 RC=$?
@@ -102,7 +102,7 @@ echo "PHASE7_MOUNT dynamic-only"
 rm -rf "$MOD/.luoshu-payload/system"
 rm -f "$TMP/system-mounted"
 printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
-MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON=python3 \
+MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
   LUOSHU_UNIVERSAL_TEST_MANAGER=Magisk \
   LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
   LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
@@ -124,7 +124,7 @@ echo "PHASE7_MOUNT rollback"
 rm -f "$TMP/system-rollback"
 printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
 set +e
-FAIL_DYNAMIC=1 MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON=python3 \
+FAIL_DYNAMIC=1 MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
   LUOSHU_UNIVERSAL_TEST_MANAGER=Magisk \
   LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
   LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \

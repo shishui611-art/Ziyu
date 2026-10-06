@@ -13,6 +13,7 @@ if [ -z "$MODDIR" ]; then
 fi
 
 CONFIG_DIR="$MODDIR/config"
+export LUOSHU_PREPARE_CACHE="$MODDIR/cache/prepared-selected-v1"
 CACHE_ROOT="$MODDIR/cache/axes-mix"
 USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
 BASE_ENGINE="$MODDIR/common/font_mix.sh"
@@ -36,6 +37,7 @@ MODULE_DIR="$MODDIR"
 [ -f "$MODDIR/common/font_check.sh" ] && . "$MODDIR/common/font_check.sh"
 [ -f "$MODDIR/common/background_task.sh" ] && . "$MODDIR/common/background_task.sh"
 [ -f "$MODDIR/common/mix_task_handoff.sh" ] && . "$MODDIR/common/mix_task_handoff.sh"
+[ -f "$MODDIR/common/font_switch_lock.sh" ] && . "$MODDIR/common/font_switch_lock.sh"
 
 json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
@@ -125,6 +127,8 @@ role_weight() {
 }
 
 write_task() {
+    _wt_task="$1"
+    _wt_state="$2"
     _tmp="$TASK_FILE.tmp.$$"
     {
         printf 'task=%s\n' "$1"
@@ -134,6 +138,12 @@ write_task() {
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$7" "$8" "$9"
         shift 9
         printf 'root=%s\nchildTask=%s\nstarted=%s\nfinished=%s\npercent=%s\n' "$1" "$2" "$3" "$4" "$5"
+        if [ "$_wt_state" != cancelled ] && [ "$(read_value "$TASK_FILE" task)" = "$_wt_task" ]; then
+            for _wt_field in result generatedFontId generatedFontName previewSource; do
+                _wt_value=$(read_value "$TASK_FILE" "$_wt_field")
+                [ -z "$_wt_value" ] || printf '%s=%s\n' "$_wt_field" "$_wt_value"
+            done
+        fi
     } >"$_tmp" 2>/dev/null && mv -f "$_tmp" "$TASK_FILE" 2>/dev/null
     chmod 0644 "$TASK_FILE" 2>/dev/null || true
 }
@@ -214,7 +224,9 @@ run_instance() {
         export LUOSHU_TASK_ID="${_wanted:-unknown}" LUOSHU_FONT_FAMILY="$_family"
         export LUOSHU_GENERATED_WEIGHT="$_weight" LUOSHU_WEIGHT_MODE=fixed
         export PYTHONHOME="$PYROOT"
-        export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
+        # CPython on Android resolves font_instance.py's symlink into the
+        # legacy directory; sys.path[0] therefore cannot find runtime helpers.
+        export PYTHONPATH="$MODDIR/common:$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
         export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         export TMPDIR="${TMPDIR:-$MODDIR/cache/tmp}"
         mkdir -p "$TMPDIR" 2>/dev/null || true
@@ -255,19 +267,139 @@ prepare_slot() {
     _internal="$5"
     _weight=$(safe_weight "$_axes")
     _source=$(find_best_source "$_family" "$_weight")
-    printf '[MIX_PREPARE] task=%s stage=prepare-source role=%s family=%s effective_weight=%s mode=fixed axes=%s source=%s\n' \
+    printf '[MIX_PREPARE] task=%s stage=prepare-source role=%s family=%s selected_weight=%s mode=fixed axes=%s source=%s\n' \
         "${_wanted:-unknown}" "$_role" "$_family" "$_weight" "$_axes" "$_source" >>"$LOG_FILE"
     [ -f "$_source" ] || { _last_prepare_error="找不到字体族 $_family"; echo "错误：$_last_prepare_error" >&2; return 1; }
     font_validate "$_source" text || { _last_prepare_error="字体 $_family 无效：$FONT_CHECK_ERROR"; echo "错误：$_last_prepare_error" >&2; return 1; }
     _destination="$_root/fonts/${_internal}-Regular.ttf"
     mkdir -p "${_destination%/*}" 2>/dev/null || return 1
-    if [ "$FONT_CHECK_VARIABLE" = true ] || [ "$FONT_CHECK_FORMAT" = TTC ]; then
+    if [ "$FONT_CHECK_VARIABLE" = true ] || [ "$FONT_CHECK_FORMAT" = TTC ] || [ "$_role" != cjk ]; then
         run_instance "$_source" "$_destination" "$_role" "$_axes" || return 1
     else
         cp -f "$_source" "$_destination" 2>/dev/null || return 1
         chmod 0644 "$_destination" 2>/dev/null || true
     fi
+    # Check the exact selected instance, including TTC face and static family
+    # weight; a different valid member of the family cannot satisfy this slot.
+    if [ -f "$MODDIR/common/font_role_check.py" ]; then
+        _selected_check=$(PYTHONHOME="$PYROOT" \
+            PYTHONPATH="$MODDIR/common:$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages" \
+            LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$PYBIN" "$MODDIR/common/font_role_check.py" "$_destination" "$_role" 2>&1)
+        [ "$?" -eq 0 ] || { _last_prepare_error="所选字体实例缺少必要字形：$_selected_check"; return 1; }
+    fi
     [ -s "$_destination" ]
+}
+
+start_prepare_job() {
+    _spj_role="$1"
+    _spj_family="$2"
+    _spj_axes="$3"
+    _spj_root="$4"
+    _spj_internal="$5"
+    _spj_status="$_spj_root/prepare-${_spj_role}.status"
+    rm -f "$_spj_status" "$_spj_status.tmp."* 2>/dev/null || true
+    (
+        export ZIYU_DEFER_PREPARE_CACHE_CLEANUP=1
+        if prepare_slot "$_spj_role" "$_spj_family" "$_spj_axes" "$_spj_root" "$_spj_internal"; then
+            _spj_state=success
+            _spj_message=''
+            _spj_code=0
+        else
+            _spj_code=$?
+            _spj_state=failed
+            _spj_message="${_last_prepare_error:-字体准备失败（代码 $_spj_code）}"
+        fi
+        _spj_tmp="$_spj_status.tmp.$$"
+        {
+            printf 'state=%s\nmessage=%s\nexitCode=%s\n' "$_spj_state" "$_spj_message" "$_spj_code"
+        } >"$_spj_tmp" 2>/dev/null && mv -f "$_spj_tmp" "$_spj_status" 2>/dev/null
+        rm -f "$_spj_tmp" 2>/dev/null || true
+        [ "$_spj_state" = success ]
+    ) >"$_spj_root/prepare-${_spj_role}.log" 2>&1 &
+    PREPARE_JOB_PID=$!
+}
+
+prune_prepare_cache() {
+    [ -x "$PYBIN" ] || return 0
+    PYTHONHOME="$PYROOT" \
+        PYTHONPATH="$MODDIR/common:$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages" \
+        LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$PYBIN" "$MODDIR/common/font_prepare_cache.py" --prune "$CACHE_ROOT" \
+        >/dev/null 2>>"$LOG_FILE" || printf '[MIX_PREPARE] cache cleanup skipped after parallel preparation\n' >>"$LOG_FILE"
+}
+
+prepare_jobs_finished() {
+    _pjf_root="$1"
+    _pjf_completed=0
+    _pjf_failed_role=''
+    _pjf_failed_message=''
+    for _pjf_role in cjk latin digit; do
+        _pjf_status="$_pjf_root/prepare-${_pjf_role}.status"
+        _pjf_state=$(read_value "$_pjf_status" state)
+        case "$_pjf_state" in
+            success) _pjf_completed=$((_pjf_completed + 1)) ;;
+            failed)
+                if [ -z "$_pjf_failed_role" ]; then
+                    _pjf_failed_role="$_pjf_role"
+                    _pjf_failed_message=$(read_value "$_pjf_status" message)
+                fi
+                _pjf_completed=$((_pjf_completed + 1))
+                ;;
+        esac
+    done
+    PREPARE_JOBS_COMPLETED="$_pjf_completed"
+    PREPARE_JOBS_FAILED_ROLE="$_pjf_failed_role"
+    PREPARE_JOBS_FAILED_MESSAGE="$_pjf_failed_message"
+}
+
+parallel_prepare_slots() {
+    _pps_wanted="$1"
+    _pps_cjk="$2"; _pps_latin="$3"; _pps_digit="$4"
+    _pps_cjk_axes="$5"; _pps_latin_axes="$6"; _pps_digit_axes="$7"
+    _pps_root="$8"
+
+    update_task "$_pps_wanted" running '正在并行准备中文、英文和数字字体' 4 '' ''
+    start_prepare_job cjk "$_pps_cjk" "$_pps_cjk_axes" "$_pps_root" LuoShuMixCJK
+    _pps_cjk_pid="$PREPARE_JOB_PID"
+    start_prepare_job latin "$_pps_latin" "$_pps_latin_axes" "$_pps_root" LuoShuMixLatin
+    _pps_latin_pid="$PREPARE_JOB_PID"
+    start_prepare_job digit "$_pps_digit" "$_pps_digit_axes" "$_pps_root" LuoShuMixDigit
+    _pps_digit_pid="$PREPARE_JOB_PID"
+
+    _pps_last_completed=-1
+    while :; do
+        prepare_jobs_finished "$_pps_root"
+        if [ "$PREPARE_JOBS_COMPLETED" -ne "$_pps_last_completed" ]; then
+            _pps_last_completed="$PREPARE_JOBS_COMPLETED"
+            case "$_pps_last_completed" in
+                0) _pps_percent=4 ;;
+                1) _pps_percent=14 ;;
+                2) _pps_percent=24 ;;
+                *) _pps_percent=30 ;;
+            esac
+            update_task "$_pps_wanted" running "字体准备中（$_pps_last_completed/3）" "$_pps_percent" '' ''
+        fi
+        [ "$PREPARE_JOBS_COMPLETED" -eq 3 ] && break
+        sleep 1
+    done
+
+    wait "$_pps_cjk_pid" 2>/dev/null; _pps_cjk_rc=$?
+    wait "$_pps_latin_pid" 2>/dev/null; _pps_latin_rc=$?
+    wait "$_pps_digit_pid" 2>/dev/null; _pps_digit_rc=$?
+    prepare_jobs_finished "$_pps_root"
+    for _pps_role in cjk latin digit; do
+        [ ! -f "$_pps_root/prepare-${_pps_role}.log" ] || cat "$_pps_root/prepare-${_pps_role}.log" >>"$LOG_FILE" 2>/dev/null
+    done
+    prune_prepare_cache
+    if [ "$PREPARE_JOBS_COMPLETED" -ne 3 ] || [ "$_pps_cjk_rc" -ne 0 ] || \
+       [ "$_pps_latin_rc" -ne 0 ] || [ "$_pps_digit_rc" -ne 0 ] || \
+       [ -n "$PREPARE_JOBS_FAILED_ROLE" ]; then
+        [ -n "$PREPARE_JOBS_FAILED_ROLE" ] || PREPARE_JOBS_FAILED_ROLE=unknown
+        [ -n "$PREPARE_JOBS_FAILED_MESSAGE" ] || PREPARE_JOBS_FAILED_MESSAGE='字体准备进程异常退出，请查看详细日志'
+        return 1
+    fi
+    return 0
 }
 
 rewrite_public_config() {
@@ -285,15 +417,36 @@ rewrite_public_config() {
         printf 'cjkWeight=%s\nlatinWeight=%s\ndigitWeight=%s\n' \
             "$(safe_weight "$_cjk_axes")" "$(safe_weight "$_latin_axes")" "$(safe_weight "$_digit_axes")"
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$_cjk_axes" "$_latin_axes" "$_digit_axes"
-        [ ! -f "$MIX_CONF" ] || grep -v -E '^(cjk|latin|digit|cjkWeight|latinWeight|digitWeight|cjkAxes|latinAxes|digitAxes)=' "$MIX_CONF" 2>/dev/null
+        printf 'cjkMode=fixed\nlatinMode=fixed\ndigitMode=fixed\n'
+        [ ! -f "$MIX_CONF" ] || grep -v -E '^(cjk|latin|digit|cjkWeight|latinWeight|digitWeight|cjkAxes|latinAxes|digitAxes|cjkMode|latinMode|digitMode)=' "$MIX_CONF" 2>/dev/null
     } >"$_tmp" 2>/dev/null && mv -f "$_tmp" "$MIX_CONF" 2>/dev/null
     cp -f "$MIX_CONF" "$AXES_CONF" 2>/dev/null || true
     chmod 0644 "$MIX_CONF" "$AXES_CONF" 2>/dev/null || true
 }
 
+mix_cancel_checkpoint() {
+    if [ "${MIX_LOCAL_CANCEL:-false}" = true ] || \
+       { [ -n "${_wanted:-}" ] && [ "$(read_value "${LUOSHU_MIX_CANCEL_FILE:-$CONFIG_DIR/mix_task.cancel}" task)" = "$_wanted" ]; }; then
+        case "${_root:-}" in "$CACHE_ROOT"/axes-*) rm -rf "$_root" 2>/dev/null || true ;; esac
+        _mcc_module="${LUOSHU_REAL_MODDIR:-$MODDIR}"
+        _mcc_state="$_mcc_module/config/mix-stage-next.conf"
+        if [ -n "${LUOSHU_MIX_REQUEST_ID:-}" ] && \
+           [ "$(read_value "$_mcc_state" requestId)" = "$LUOSHU_MIX_REQUEST_ID" ]; then
+            rm -rf "$_mcc_module/.luoshu-mix-stage" 2>/dev/null || true
+            rm -f "$_mcc_state" 2>/dev/null || true
+        fi
+        update_task "$_wanted" cancelled '组合任务已取消' 100 '' "$(date +%s)"
+        clear_worker_pid "$_wanted"
+        exit 0
+    fi
+}
+
 worker() {
     trap '' HUP
+    trap 'MIX_LOCAL_CANCEL=true' TERM INT
     _wanted="$1"
+    export LUOSHU_MIX_PARENT_TASK="$_wanted"
+    export LUOSHU_MIX_CANCEL_FILE="${LUOSHU_REAL_MODDIR:-$MODDIR}/config/mix_task.cancel"
     [ "$(read_value "$TASK_FILE" task)" = "$_wanted" ] || exit 0
     _cjk=$(read_value "$TASK_FILE" cjk)
     _latin=$(read_value "$TASK_FILE" latin)
@@ -303,22 +456,21 @@ worker() {
     _digit_axes=$(read_value "$TASK_FILE" digitAxes)
     _root=$(read_value "$TASK_FILE" root)
 
-    update_task "$_wanted" running '正在准备中文字体' 4 '' ''
-    prepare_slot cjk "$_cjk" "$_cjk_axes" "$_root" LuoShuMixCJK || {
-        update_task "$_wanted" failed "中文字体准备失败${_last_prepare_error:+：$_last_prepare_error}" 100 '' "$(date +%s)"
-        rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
-    }
-    update_task "$_wanted" running '正在准备英文字体' 14 '' ''
-    prepare_slot latin "$_latin" "$_latin_axes" "$_root" LuoShuMixLatin || {
-        update_task "$_wanted" failed "英文字体准备失败${_last_prepare_error:+：$_last_prepare_error}" 100 '' "$(date +%s)"
-        rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
-    }
-    update_task "$_wanted" running '正在准备数字字体' 24 '' ''
-    prepare_slot digit "$_digit" "$_digit_axes" "$_root" LuoShuMixDigit || {
-        update_task "$_wanted" failed "数字字体准备失败${_last_prepare_error:+：$_last_prepare_error}" 100 '' "$(date +%s)"
+    mix_cancel_checkpoint
+    parallel_prepare_slots "$_wanted" "$_cjk" "$_latin" "$_digit" \
+        "$_cjk_axes" "$_latin_axes" "$_digit_axes" "$_root" || {
+        mix_cancel_checkpoint
+        case "$PREPARE_JOBS_FAILED_ROLE" in
+            cjk) _failed_label=中文 ;;
+            latin) _failed_label=英文 ;;
+            digit) _failed_label=数字 ;;
+            *) _failed_label=字体 ;;
+        esac
+        update_task "$_wanted" failed "${_failed_label}字体准备失败${PREPARE_JOBS_FAILED_MESSAGE:+：$PREPARE_JOBS_FAILED_MESSAGE}" 100 '' "$(date +%s)"
         rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
     }
 
+    mix_cancel_checkpoint
     update_task "$_wanted" running '正在启动完整复合字体引擎' 34 '' ''
     _previous_child=$(read_value "$BASE_TASK_FILE" task)
     _response_file="$_root/base-engine-start.json"
@@ -377,15 +529,24 @@ worker() {
             [ -n "$_base_message" ] || _base_message='完整复合字体正在后台生成'
             case "$_base_state" in
                 success)
+                    mix_cancel_checkpoint
+                    update_task "$_wanted" running '正在保存组合到字体库' 99 "$_child" ''
+                    if ! MODDIR="${LUOSHU_REAL_MODDIR:-$MODDIR}" sh "${LUOSHU_REAL_MODDIR:-$MODDIR}/common/legacy_v14_4/mix_router.sh" finalize >>"$LOG_FILE" 2>&1; then
+                        mix_cancel_checkpoint
+                        update_task "$_wanted" failed '保存组合到字体库失败，请查看日志' 100 "$_child" "$(date +%s)"
+                        rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
+                    fi
+                    _base_message='字体组合已保存，请预览后确认应用'
                     if [ -s "$_root/variation-warnings.txt" ]; then
-                        _warning_summary=$(head -n3 "$_root/variation-warnings.txt" | awk '{printf "%s%s", NR==1?"":"；", $0}')
+                        _warning_summary=$(head -n3 "$_root/variation-warnings.txt" | awk '{printf "%s%s", (NR == 1 ? "" : "；"), $0}')
                         _base_message="$_base_message；兼容提醒：$_warning_summary。其余字形已按所选字重正常处理，完整详情见日志"
                     fi
                     update_task "$_wanted" success "$_base_message" 100 "$_child" "$(date +%s)"
-                    rewrite_public_config
+                    # Generation records selections; applying uses the library id.
                     rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 0
                     ;;
                 failed)
+                    mix_cancel_checkpoint
                     update_task "$_wanted" failed "$_base_message" 100 "$_child" "$(date +%s)"
                     rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
                     ;;
@@ -460,7 +621,7 @@ start_mix() {
     [ -n "$_cjk" ] && [ -n "$_latin" ] && [ -n "$_digit" ] || {
         printf '{"status":"error","message":"请选择中文、英文和数字字体"}\n'; return
     }
-    [ ! -f "$TEXT_REBOOT_REQUIRED" ] || {
+    [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ] || [ ! -f "$TEXT_REBOOT_REQUIRED" ] || {
         printf '{"status":"error","message":"本次开机已更改文字字体，请先重启手机"}\n'; return
     }
     if [ -s "$WORKER_PID" ]; then
@@ -469,7 +630,14 @@ start_mix() {
             printf '{"status":"error","message":"已有字体组合任务正在运行"}\n'; return
         }
     fi
-    [ ! -e "$LOCK_FILE" ] || { printf '{"status":"error","message":"字体正在切换中"}\n'; return; }
+    if type luoshu_font_lock_busy >/dev/null 2>&1; then
+        if luoshu_font_lock_busy "$LOCK_FILE"; then
+            printf '{"status":"error","message":"字体正在切换中"}\n'; return
+        fi
+        luoshu_font_lock_reap_stale "$LOCK_FILE" >/dev/null 2>&1 || true
+    else
+        [ ! -e "$LOCK_FILE" ] || { printf '{"status":"error","message":"字体正在切换中"}\n'; return; }
+    fi
     [ -n "$_cjk_axes" ] || _cjk_axes='wght=400'
     [ -n "$_latin_axes" ] || _latin_axes='wght=400'
     [ -n "$_digit_axes" ] || _digit_axes='wght=400'

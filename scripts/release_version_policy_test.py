@@ -78,8 +78,9 @@ class RefactorVersionTest(unittest.TestCase):
         info=version_info(props['version'],props.get('versionSeries',''))
         self.assertEqual(int(props['versionCode']),info['versionCode'])
         policy=json.loads((ROOT/'config/stable_version_policy.json').read_text())
-        self.assertEqual(policy['currentStable'],info['version'])
-        self.assertEqual(policy['nextStable'],info['nextStable'])
+        stable = version_info(policy['currentStable'], props.get('versionSeries', ''))
+        self.assertGreaterEqual(info['versionCode'], stable['versionCode'])
+        self.assertEqual(policy['nextStable'], stable['nextStable'])
         result=subprocess.run([SH,'-c','. ./scripts/version.sh; printf "%s|%s|%s|%s" "$LUOSHU_VERSION" "$LUOSHU_RELEASE_TAG" "$LUOSHU_RELEASE_NOTES" "$LUOSHU_APP_VERSION_CODE"'],cwd=ROOT,capture_output=True,text=True,encoding='utf-8',errors='replace',check=True)
         self.assertEqual(result.stdout,f"{info['version']}|{info['tag']}|{info['notesFile']}|{info['appVersionCode']}")
         self.assertTrue((ROOT/info['notesFile']).is_file())
@@ -137,13 +138,15 @@ class ZiyuForkVersionTest(unittest.TestCase):
             output.write_text(json.dumps({'version': 'v1.2.0', 'versionCode': 12000}))
             self.assertFalse(advance_fallback_channel(metadata, output))
 
-    def test_repository_properties_match_ziyu_first_release(self):
+    def test_repository_properties_match_current_ziyu_version(self):
         props = read_properties(ROOT / 'module.prop')
-        self.assertEqual(props['version'], 'v1.1.0')
         self.assertEqual(props['versionSeries'], 'ziyu')
         info = version_info(props['version'], props['versionSeries'])
         self.assertEqual(int(props['versionCode']), info['versionCode'])
-        self.assertEqual(info['tag'], 'ziyu-v1.1.0')
+        self.assertEqual(info['appVersionCode'], info['versionCode'])
+        self.assertEqual(info['tag'], 'ziyu-' + info['version'])
+        notes = read_properties(ROOT / 'config/version_notes.conf')
+        self.assertEqual(notes['version'], info['version'])
         self.assertTrue((ROOT / info['notesFile']).is_file())
 
 

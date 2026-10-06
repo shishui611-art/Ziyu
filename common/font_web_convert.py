@@ -61,8 +61,11 @@ def extension_for_format(value: str) -> str:
 
 def validate_decoded(path: Path) -> tuple[str, int]:
     fmt = sfnt_format(path)
-    if path.stat().st_size < 4096:
+    if path.stat().st_size < 12:
         raise ValueError("转换结果异常为空")
+    if path.stat().st_size < 4096:
+        from font_structure import validate
+        validate(path)
     if fmt == "TTC":
         collection = TTCollection(str(path), lazy=True)
         try:

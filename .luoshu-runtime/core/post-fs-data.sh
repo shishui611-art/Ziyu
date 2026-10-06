@@ -12,25 +12,21 @@ _lpf_temp="$MODDIR/.post-fs-data-v227.$$.sh"
 luoshu_private_mount_module_view "$MODDIR" >/dev/null 2>&1 || true
 
 sed '$d' "$_lpf_base" > "$_lpf_temp" 2>/dev/null || exit 0
+_lpf_selector_previous="${LUOSHU_BACKEND_SELECTOR_ACTIVE:-}"
+LUOSHU_BACKEND_SELECTOR_ACTIVE=1
+export LUOSHU_BACKEND_SELECTOR_ACTIVE
 . "$_lpf_temp"
 _lpf_rc=$?
 rm -f "$_lpf_temp" 2>/dev/null || true
+if [ -n "$_lpf_selector_previous" ]; then
+    LUOSHU_BACKEND_SELECTOR_ACTIVE="$_lpf_selector_previous"
+    export LUOSHU_BACKEND_SELECTOR_ACTIVE
+else
+    unset LUOSHU_BACKEND_SELECTOR_ACTIVE
+fi
 [ "$_lpf_rc" -eq 0 ] || exit "$_lpf_rc"
 
-[ -f "$MODDIR/common/mount_self_backend.sh" ] && . "$MODDIR/common/mount_self_backend.sh"
-_lpf_root=$(luoshu_detect_root_manager 2>/dev/null | head -n1)
-_lpf_stage=$(luoshu_self_mount_stage_for_manager "$_lpf_root" 2>/dev/null)
-case "$_lpf_stage" in
-    post-mount)
-        # APatch and KernelSU-family managers provide post-mount after their
-        # OverlayFS stage. Keep the payload hidden until that globally visible
-        # stage instead of racing module mounts in blocking post-fs-data.
-        luoshu_private_unmount_module_view "$MODDIR" >/dev/null 2>&1 || true
-        ;;
-    *)
-        # Magisk has no module post-mount stage.
-        type luoshu_private_self_mount_ensure >/dev/null 2>&1 && \
-            luoshu_private_self_mount_ensure >/dev/null 2>&1 || true
-        ;;
-esac
-exit 0
+_lpf_backend_runtime="$MODDIR/common/mount_backend_runtime.sh"
+[ -f "$_lpf_backend_runtime" ] || exit 1
+MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$_lpf_backend_runtime" hook post-fs-data
+exit $?

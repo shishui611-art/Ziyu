@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -129,7 +130,7 @@ class SvgInstanceTest(unittest.TestCase):
         legacy.mkdir(parents=True)
         for source in (ROOT / "common").iterdir():
             if source.name != "legacy_v14_4":
-                (common / source.name).symlink_to(source)
+                (common / source.name).symlink_to(source, target_is_directory=source.is_dir())
         for source in (ROOT / "common/legacy_v14_4").iterdir():
             if source.name != "v14_mix.sh":
                 (legacy / source.name).symlink_to(source)
@@ -138,11 +139,12 @@ class SvgInstanceTest(unittest.TestCase):
         (legacy / "v14_mix.sh").write_text("#!/bin/sh\nprintf '{\"status\":\"ok\"}\\n'\n")
         (module / "module.prop").write_text("id=LuoShu\nversion=test\n")
         result = subprocess.run(
-            ["sh", str(common / "font_mix_controller.sh"), "recover"],
-            env={**os.environ, "MODDIR": str(module),
-                 "LUOSHU_PUBLIC_DIR": str(self.root / "public")},
-            capture_output=True, text=True, timeout=30, check=True,
+            [shutil.which("sh") or r"C:\Program Files\Git\bin\sh.exe", str(common / "font_mix_controller.sh"), "recover"],
+            env={**os.environ, "MODDIR": module.as_posix(),
+                 "LUOSHU_PUBLIC_DIR": (self.root / "public").as_posix()},
+            capture_output=True, text=True, timeout=30,
         )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "ok")
         runtime = module / ".legacy-v14-runtime/common"
         for name in ("font_instance.py", "composite_font.py", "composite_layout.py"):

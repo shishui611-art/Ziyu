@@ -210,45 +210,15 @@ check_magisk_version() {
     ROOT_MANAGER_VER="unknown"
     ROOT_MANAGER_VER_CODE=0
 
-    # 注意：这里不能 source /data/adb/magisk/util_functions.sh！
-    # 那是 Magisk 官方安装流程内部专用的工具函数集，不是给第三方模块调用的 API。
-    # 它的某些版本在被以非预期方式加载时会触发内部前置检查，检查不通过就调用它
-    # 自己的 abort()（内部就是 exit），用 `.` source 方式加载时这个 exit 会直接把
-    # 外层 customize.sh 一并杀死，导致整个模块安装中断失败。
-    # 而且完全没有必要 source 它：Magisk 在执行 customize.sh 之前，早就把
-    # $MAGISK_VER_CODE / $MAGISK_VER 这些变量注入到环境里了，KernelSU 也同理
-    # 会注入 $KSU_VER_CODE 等，直接读现成的环境变量即可。
-
-    # 检测 Magisk（版本号 >= 20400）
-    if [ -n "$MAGISK_VER_CODE" ] && [ "$MAGISK_VER_CODE" -ge 20400 ] 2>/dev/null; then
-        ROOT_MANAGER="Magisk"
-        ROOT_MANAGER_VER="$MAGISK_VER"
-        ROOT_MANAGER_VER_CODE="$MAGISK_VER_CODE"
-        return 0
+    _root_helper="${MODDIR:-${MODULE_DIR:-${MODPATH:-}}}/common/root_manager_detection.sh"
+    [ -f "$_root_helper" ] && . "$_root_helper"
+    if type luoshu_detect_root_manager >/dev/null 2>&1; then
+        luoshu_detect_root_manager >/dev/null 2>&1
+        ROOT_MANAGER="${ROOT_MANAGER:-unknown}"
+        ROOT_MANAGER_VER="${ROOT_VERSION:-unknown}"
+        ROOT_MANAGER_VER_CODE="${ROOT_VERSION_CODE:-0}"
+        [ "$ROOT_MANAGER" != unknown ] && return 0
     fi
-
-    # 检测 KernelSU / SukiSU
-    if [ "$KSU" = "true" ] || [ -n "$KSU_VER_CODE" ] 2>/dev/null; then
-        if [ -n "$SUKISU" ] || [ -n "$SUKISU_VER" ] 2>/dev/null; then
-            ROOT_MANAGER="SukiSU"
-            ROOT_MANAGER_VER="${SUKISU_VER:-${KSU_VER:-unknown}}"
-            ROOT_MANAGER_VER_CODE="${SUKISU_VER_CODE:-${KSU_VER_CODE:-0}}"
-        else
-            ROOT_MANAGER="KernelSU"
-            ROOT_MANAGER_VER="${KSU_VER:-unknown}"
-            ROOT_MANAGER_VER_CODE="${KSU_VER_CODE:-0}"
-        fi
-        return 0
-    fi
-
-    # 尝试从环境变量再次检测（某些版本）
-    if [ -n "$APATCH" ] || [ -n "$APATCH_VER_CODE" ] 2>/dev/null; then
-        ROOT_MANAGER="APatch"
-        ROOT_MANAGER_VER="${APATCH_VER:-unknown}"
-        ROOT_MANAGER_VER_CODE="${APATCH_VER_CODE:-0}"
-        return 0
-    fi
-
     log_message "WARN" "未能检测到 Root 管理器"
     return 1
 }

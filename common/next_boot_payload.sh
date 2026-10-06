@@ -33,6 +33,11 @@ luoshu_next_boot_write_mode() {
         rm -f "$_lnbwm_mode" "$_lnbwm_schema" 2>/dev/null || true
         return 0
     fi
+    # The physical path intentionally preserves ROM XML. Its generated fonts
+    # still need a frozen hash ledger for the backend's PID 1 route verifier.
+    [ -f "$_lnbwm_module/common/physical_payload_manifest.sh" ] || return 1
+    . "$_lnbwm_module/common/physical_payload_manifest.sh" || return 1
+    luoshu_physical_manifest_build "$_lnbwm_module" "$_lnbwm_module/.luoshu-payload" || return 1
     _lnbwm_tmp="${_lnbwm_mode}.tmp.$$"
     {
         printf 'enabled=true\n'
@@ -42,8 +47,9 @@ luoshu_next_boot_write_mode() {
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_lnbwm_tmp" 2>/dev/null && mv -f "$_lnbwm_tmp" "$_lnbwm_mode" 2>/dev/null || return 1
     chmod 0600 "$_lnbwm_mode" 2>/dev/null || true
-    printf 'schema=legacy-physical-safe-v1\n' > "$_lnbwm_schema" 2>/dev/null || true
-    chmod 0644 "$_lnbwm_schema" 2>/dev/null || true
+    printf 'schema=legacy-physical-safe-v1\n' > "$_lnbwm_schema.tmp.$$" 2>/dev/null &&
+        chmod 0644 "$_lnbwm_schema.tmp.$$" 2>/dev/null &&
+        mv -f "$_lnbwm_schema.tmp.$$" "$_lnbwm_schema" 2>/dev/null || return 1
     return 0
 }
 
@@ -63,16 +69,23 @@ luoshu_next_boot_restore_selection() {
 
 luoshu_next_boot_activate() {
     _lnba_module=$(luoshu_next_boot_module)
+    LUOSHU_ACTION_CONTROL_LIBRARY=true . "$_lnba_module/common/action_control.sh" || return 1
+    LUOSHU_ACTION_CONTROL_LIBRARY=false
     _lnba_live="$_lnba_module/.luoshu-payload"
     _lnba_next="$_lnba_module/.luoshu-payload-next"
     _lnba_state="$_lnba_module/config/font-payload-next.conf"
     _lnba_activated="$_lnba_module/config/font-payload-activated.conf"
     [ -d "$_lnba_next" ] && [ -s "$_lnba_state" ] || return 2
+    if luoshu_undo_cancel_pending_boot "$_lnba_module" "$_lnba_state"; then
+        luoshu_next_boot_log 'cancelled task stage discarded before activation'
+        return 2
+    fi
 
     _lnba_font=$(luoshu_next_boot_value "$_lnba_state" font)
     _lnba_previous=$(luoshu_next_boot_value "$_lnba_state" previousFont)
     _lnba_previous_legacy=$(luoshu_next_boot_value "$_lnba_state" previousLegacy)
     _lnba_target_mode=$(luoshu_next_boot_value "$_lnba_state" targetMode)
+    _lnba_undo=$(luoshu_next_boot_value "$_lnba_state" undo)
     _lnba_request=$(luoshu_next_boot_value "$_lnba_state" requestId)
     _lnba_cjk=$(luoshu_next_boot_value "$_lnba_state" cjk)
     _lnba_latin=$(luoshu_next_boot_value "$_lnba_state" latin)
@@ -90,9 +103,10 @@ luoshu_next_boot_activate() {
     _lnba_retired_root="$_lnba_module/.luoshu-retired"
     _lnba_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
     [ -n "$_lnba_boot" ] || _lnba_boot="$(date +%s 2>/dev/null || echo 0)-$$"
-    _lnba_retired="$_lnba_retired_root/payload-${_lnba_boot}"
+    _lnba_retired="$_lnba_retired_root/payload-${_lnba_boot}-$$"
+    while [ -e "$_lnba_retired" ]; do _lnba_retired="${_lnba_retired}-next"; done
     mkdir -p "$_lnba_retired_root" "$_lnba_module/config" 2>/dev/null || return 1
-    rm -rf "$_lnba_retired" 2>/dev/null || true
+    luoshu_undo_capture_config "$_lnba_module" || return 1
 
     if [ -d "$_lnba_live" ]; then
         mv "$_lnba_live" "$_lnba_retired" 2>/dev/null || {
@@ -110,9 +124,17 @@ luoshu_next_boot_activate() {
     fi
 
     chmod 0755 "$_lnba_live" 2>/dev/null || true
+    if ! luoshu_undo_restore_config "$_lnba_module" "$_lnba_state"; then
+        mv "$_lnba_live" "$_lnba_next" 2>/dev/null || true
+        [ ! -d "$_lnba_retired" ] || mv "$_lnba_retired" "$_lnba_live" 2>/dev/null || true
+        luoshu_undo_restore_dir "$_lnba_module" "$_lnba_module/config/.font-undo-config-stage.$$" || true
+        luoshu_next_boot_restore_selection "$_lnba_module" "$_lnba_previous" "$_lnba_previous_legacy"
+        return 1
+    fi
     if ! luoshu_next_boot_write_mode "$_lnba_module" "$_lnba_font" "$_lnba_target_mode"; then
         rm -rf "$_lnba_live" 2>/dev/null || true
         [ ! -d "$_lnba_retired" ] || mv "$_lnba_retired" "$_lnba_live" 2>/dev/null || true
+        luoshu_undo_restore_dir "$_lnba_module" "$_lnba_module/config/.font-undo-config-stage.$$" || true
         luoshu_next_boot_restore_selection "$_lnba_module" "$_lnba_previous" "$_lnba_previous_legacy"
         luoshu_next_boot_log "runtime mode commit failed; previous payload restored"
         return 1
@@ -139,6 +161,10 @@ luoshu_next_boot_activate() {
         printf 'compositeHash=%s\n' "$_lnba_digest"
         printf 'previousFont=%s\n' "$_lnba_previous"
         printf 'previousLegacy=%s\n' "$_lnba_previous_legacy"
+        if [ "$_lnba_previous_legacy" = true ]; then printf 'previousMode=legacy\n'
+        elif [ -s "$_lnba_module/config/.font-undo-config-stage.$$/universal-font-runtime.conf" ]; then printf 'previousMode=universal\n'
+        elif [ "$_lnba_previous" = default ]; then printf 'previousMode=default\n'
+        else printf 'previousMode=classic\n'; fi
         printf 'targetMode=%s\n' "$_lnba_target_mode"
         printf 'retired=%s\n' "$_lnba_retired"
         printf 'bootId=%s\n' "$_lnba_boot"
@@ -146,14 +172,10 @@ luoshu_next_boot_activate() {
     } > "${_lnba_activated}.tmp.$$" 2>/dev/null && \
         mv -f "${_lnba_activated}.tmp.$$" "$_lnba_activated" 2>/dev/null || true
     chmod 0644 "$_lnba_activated" 2>/dev/null || true
+    luoshu_undo_commit_record "$_lnba_module" "$_lnba_activated" "$_lnba_undo" || {
+        luoshu_next_boot_log 'cannot persist explicit undo metadata; retired payload retained'
+    }
     rm -f "$_lnba_state" 2>/dev/null || true
-
-    if [ "$_lnba_font" = default ]; then
-        # No LuoShu font source will be mounted this boot, so the retired custom
-        # payload can be reclaimed immediately before Android finishes starting.
-        rm -rf "$_lnba_retired" 2>/dev/null || true
-        rm -f "$_lnba_activated" 2>/dev/null || true
-    fi
     luoshu_next_boot_log "activated payload for $_lnba_font; previous=$_lnba_previous targetMode=$_lnba_target_mode"
     return 0
 }

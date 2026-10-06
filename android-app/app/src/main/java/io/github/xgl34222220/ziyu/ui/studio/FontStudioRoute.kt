@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +42,11 @@ internal fun FontStudioRoute(
     var showGlyphBrowser by remember { mutableStateOf(false) }
     var showSwitchHistory by remember { mutableStateOf(false) }
     var restoreNotice by remember { mutableStateOf("") }
+    var showMixName by remember { mutableStateOf(false) }
+    var mixName by remember { mutableStateOf("") }
+    val nameValid = mixName.trim().let { name ->
+        name.isNotBlank() && name.length <= 60 && name.none { it in "\r\n\t/\\\u0000|" }
+    }
     val stableActions = remember(studioViewModel) {
         FontStudioActions(
             refresh = { latestActions.refresh() },
@@ -48,8 +55,12 @@ internal fun FontStudioRoute(
             updateWeight = { slot, weight -> latestActions.updateWeight(slot, weight) },
             updateAxis = { slot, tag, value -> latestActions.updateAxis(slot, tag, value) },
             inspectCoverage = { latestActions.inspectCoverage(it) },
-            startMix = { latestActions.startMix() },
+            startMix = {
+                mixName = ""
+                showMixName = true
+            },
             applyDirect = { latestActions.applyDirect(it) },
+            cancel = { latestActions.cancel() },
         )
     }
 
@@ -161,6 +172,35 @@ internal fun FontStudioRoute(
             title = { Text("备份恢复结果", fontWeight = FontWeight.Black) },
             text = { Text(restoreNotice) },
             confirmButton = { TextButton(onClick = { restoreNotice = "" }) { Text("完成") } },
+        )
+    }
+    if (showMixName) {
+        AlertDialog(
+            onDismissRequest = { showMixName = false },
+            title = { Text("为字体组合命名") },
+            text = {
+                Column {
+                    Text("按当前中文、英文和数字字重生成一份组合，完成后保存到字体库。")
+                    OutlinedTextField(
+                        value = mixName,
+                        onValueChange = { mixName = it },
+                        label = { Text("组合名称") },
+                        singleLine = true,
+                        isError = mixName.isNotEmpty() && !nameValid,
+                        supportingText = { Text("1–60 个字符，不能含换行、路径分隔符或竖线") },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = nameValid && !state.busy && !state.operationBusy,
+                    onClick = {
+                        showMixName = false
+                        latestActions.startMix(mixName.trim())
+                    },
+                ) { Text("生成组合") }
+            },
+            dismissButton = { TextButton(onClick = { showMixName = false }) { Text("取消") } },
         )
     }
 }

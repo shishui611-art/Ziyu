@@ -45,7 +45,9 @@ digit=$4
 started=1
 finished=
 EOF_TASK
-        sleep 4
+        : > "$MODDIR/config/fixture-start-alive"
+        while [ -d "$MODDIR" ] && [ ! -e "$MODDIR/config/fixture-start-release" ]; do sleep 0.2; done
+        rm -f "$MODDIR/config/fixture-start-alive"
         cat >"$TASK" <<EOF_TASK
 task=slow-start-inner
 state=success
@@ -61,7 +63,32 @@ EOF_TASK
     recover) printf '%s\n' '{"status":"ok"}' ;;
 esac
 EOF_ENGINE
+# Only publication is mocked in this handoff latency test; real saved-byte and
+# preparation transaction checks are covered by mix_workflow_test.py.
+mkdir -p "$MODULE/common/legacy_v14_4"
+cat >"$MODULE/common/legacy_v14_4/mix_router.sh" <<'EOF_PREPARE'
+#!/bin/sh
+[ "$1" = finalize ] || exit 1
+printf 'result=prepared\ngeneratedFontId=handoff-fixture\n' >> "$MODDIR/config/axes_task.conf"
+printf '%s\n' '{"status":"ok"}'
+EOF_PREPARE
 chmod 0755 "$MODULE/common"/*.sh
+
+# The worker now subsets static donors too. This lifecycle fixture deliberately
+# stubs only font preparation; real outline preservation is covered separately.
+mkdir -p "$MODULE/common/python/bin"
+cat >"$MODULE/common/python/bin/luoshu-python" <<'EOF_INSTANCE'
+#!/bin/sh
+shift
+while [ "$#" -gt 0 ]; do
+    case "$1" in --input) input="$2";; --output) output="$2";; esac
+    shift 2
+done
+[ -z "${LUOSHU_FIXTURE_PREPARE_SLEEP:-}" ] || sleep "$LUOSHU_FIXTURE_PREPARE_SLEEP"
+cp "$input" "$output"
+printf '%s\n' '{"status":"ok"}'
+EOF_INSTANCE
+chmod 0755 "$MODULE/common/python/bin/luoshu-python"
 
 printf 'font-data\n' >"$PUBLIC/fonts/CJK-Regular.ttf"
 printf 'font-data\n' >"$PUBLIC/fonts/Latin-Regular.ttf"
@@ -72,20 +99,32 @@ START=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" \
 OUTER=$(printf '%s\n' "$START" | sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' | tail -n1)
 test -n "$OUTER"
 
+# Measure the async start handoff after source preparation, not its wall time.
+COUNT=0
+while [ ! -s "$MODULE/config/mix_task.conf" ] && [ "$COUNT" -lt 20 ]; do
+    sleep 1
+    COUNT=$((COUNT + 1))
+done
+test -s "$MODULE/config/mix_task.conf"
+
 COUNT=0
 PERCENT=0
-while [ "$COUNT" -lt 3 ]; do
+while [ "$COUNT" -lt 20 ]; do
     PERCENT=$(sed -n 's/^percent=//p' "$MODULE/config/axes_task.conf" 2>/dev/null | head -n1)
     case "$PERCENT" in ''|*[!0-9]*) PERCENT=0 ;; esac
     [ "$PERCENT" -ge 36 ] 2>/dev/null && break
     sleep 1
     COUNT=$((COUNT + 1))
 done
+PERCENT=$(sed -n 's/^percent=//p' "$MODULE/config/axes_task.conf" 2>/dev/null | head -n1)
+case "$PERCENT" in ''|*[!0-9]*) PERCENT=0 ;; esac
 if [ "$PERCENT" -lt 36 ] 2>/dev/null; then
     echo "legacy composite task stayed at ${PERCENT}% while nested start was alive" >&2
     cat "$MODULE/config/axes_task.conf" >&2 2>/dev/null || true
     exit 1
 fi
+test -e "$MODULE/config/fixture-start-alive"
+: > "$MODULE/config/fixture-start-release"
 
 COUNT=0
 while [ "$COUNT" -lt 10 ]; do
@@ -106,17 +145,32 @@ grep -q 'hyperos_metrics_batch.py' "$ROOT/common/hyperos_stage_complete.sh"
 # Replacing a task must also stop its old completion monitor promptly. It must
 # neither poll for the former twelve-minute budget nor finalize the new task.
 printf 'task=newer-task\nstate=running\n' > "$MODULE/config/mix_task.conf"
-python3 - "$ROOT" "$MODULE" <<'PY'
-import os
-from pathlib import Path
-import subprocess
-import sys
-root, module = map(Path, sys.argv[1:])
-subprocess.run(["sh", str(root / "common/legacy_v14_4/font_mix_runtime.sh"),
-                "monitor", "superseded-task"],
-               env={**os.environ, "MODDIR": str(module), "LUOSHU_REAL_MODDIR": str(module)},
-               check=True, timeout=3)
-assert not (module / "config/mix-finalize-state.conf").exists()
-PY
+timeout 3 env MODDIR="$MODULE" LUOSHU_REAL_MODDIR="$MODULE" \
+    sh "$ROOT/common/legacy_v14_4/font_mix_runtime.sh" monitor superseded-task
+test ! -f "$MODULE/config/mix-finalize-state.conf"
+
+# Cancel while donor preparation children are alive. The controller must drain
+# them before deleting the owned input tree and must never start/publish an engine.
+START=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" LUOSHU_FIXTURE_PREPARE_SLEEP=3 \
+    sh "$MODULE/common/v142_weighted_mix.sh" start CJK Latin Digit wght=400 wght=400 wght=400)
+CANCEL_TASK=$(printf '%s\n' "$START" | sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' | tail -n1)
+COUNT=0
+while [ "$COUNT" -lt 30 ]; do
+    [ "$(sed -n 's/^state=//p' "$MODULE/config/axes_task.conf")" = running ] && break
+    sleep 1; COUNT=$((COUNT + 1))
+done
+printf 'task=%s\n' "$CANCEL_TASK" >"$MODULE/config/mix_task.cancel"
+COUNT=0
+while [ "$COUNT" -lt 40 ]; do
+    [ "$(sed -n 's/^state=//p' "$MODULE/config/axes_task.conf")" = cancelled ] && break
+    sleep 1; COUNT=$((COUNT + 1))
+done
+grep -q '^state=cancelled$' "$MODULE/config/axes_task.conf"
+test ! -d "$MODULE/cache/axes-mix/$CANCEL_TASK"
+grep -q '^task=newer-task$' "$MODULE/config/mix_task.conf"
+CANCEL_STATUS=$(MODDIR="$MODULE" sh "$ROOT/common/legacy_v14_4/mix_router.sh" status "$CANCEL_TASK")
+printf '%s\n' "$CANCEL_STATUS" | grep -q '"state":"cancelled"'
+printf '%s\n' "$CANCEL_STATUS" | grep -q '"result":""'
+printf '%s\n' "$CANCEL_STATUS" | grep -q '"generatedFontId":""'
 
 echo 'Legacy composite start advances past 34% before the nested start shell exits.'

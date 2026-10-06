@@ -33,7 +33,7 @@ PY
 # XML/monospace generation remains implemented and regression-tested in the preserved
 # current v4 manager. The App-facing root manager is now only a router, so asking it to
 # contain the old generation body would accidentally reconnect final apply to the 94% path.
-grep -q 'font_config_enable_for_payload' "$ROOT/common/font_mix.sh" || fail 'font_mix.sh missing XML overlay'
+grep -q 'font_mix_controller.sh' "$ROOT/common/font_mix.sh" || fail 'combination entry missing preparation router'
 grep -q 'font_config_enable_for_payload' "$ROOT/common/font_manager_v4.sh" || fail 'v4 switch manager missing XML overlay'
 grep -q '\[ "\$_font_id" != default \] && type font_config_enable_for_payload' "$ROOT/common/font_manager_v4.sh" || fail 'v4 switch manager missing default guard'
 grep -q 'font_config_disable' "$ROOT/common/font_manager_v4.sh" || fail 'v4 manager missing disable path'
@@ -49,5 +49,5 @@ grep -q 'legacy_v14_4_switch.sh' "$ROOT/common/font_manager.sh" || fail 'root ma
     "$ROOT/common/legacy_v14_4_switch.sh" || fail 'legacy switch re-entered v4 XML/slot pipeline'
 
 grep -q 'xmlOverlay=false' "$ROOT/common/multiweight_mix_task.sh" && fail 'multiweight still hard-codes xmlOverlay=false' || true
-grep -q 'font-config-overlay.conf' "$ROOT/common/multiweight_mix_task.sh" || fail 'multiweight does not read actual XML overlay state'
+grep -q 'exec sh.*weighted_mix_task.sh' "$ROOT/common/multiweight_mix_task.sh" || fail 'retired entry does not delegate to the selected-weight worker'
 echo 'font_config_mono_coverage_test: PASS'

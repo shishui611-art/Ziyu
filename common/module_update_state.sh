@@ -5,6 +5,7 @@ LUOSHU_PAYLOAD_SCHEMA_CURRENT="${LUOSHU_PAYLOAD_SCHEMA_CURRENT:-baseline-v9-role
 LUOSHU_UPDATE_ACTIVE=default
 LUOSHU_UPDATE_OLD_SCHEMA=''
 LUOSHU_UPDATE_REBUILD_REQUIRED=false
+LUOSHU_UPDATE_FAILURE_REASON=''
 
 # v3.1-v3.3 changed variable-font preparation, XML overlays, HyperOS metrics and
 # switch caches in several independent layers.  v3.3.4 and later use the v3.0
@@ -79,23 +80,94 @@ luoshu_update_config_is_volatile() {
 }
 
 luoshu_update_payload_partitions() {
+    _lup_config_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}}"
     if type luoshu_private_partitions >/dev/null 2>&1; then
-        luoshu_private_partitions
+        ( MODULE_DIR="$_lup_config_module"; MODDIR="$MODULE_DIR"; luoshu_private_partitions )
         return
     fi
-    printf '%s\n' \
-        'system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product'
+    _lup_partitions='system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product'
+    printf '%s\n' "$_lup_partitions"
+    [ -f "$_lup_config_module/config/device_font_partitions.conf" ] || return 0
+    while IFS= read -r _lup_extra; do
+        case "$_lup_extra" in ''|*[!A-Za-z0-9_]*|[0-9]*|_*|data|proc|sys|dev|mnt|storage|sdcard|apex|metadata|cache|tmp|config|acct|linkerconfig|debug_ramdisk|vendor_dlkm|odm_dlkm|system_dlkm) continue ;; esac
+        case " $_lup_partitions " in *" $_lup_extra "*) continue ;; esac
+        printf '%s\n' "$_lup_extra"
+        _lup_partitions="$_lup_partitions $_lup_extra"
+    done < "$_lup_config_module/config/device_font_partitions.conf"
+}
+
+luoshu_update_payload_root() {
+    # Private storage is the durable artifact, while the public partition view
+    # may be absent or only partially projected in a flashing namespace.
+    if [ -d "$1/.luoshu-payload" ]; then
+        printf '%s/.luoshu-payload\n' "$1"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
+luoshu_update_verify_manifest() {
+    _luvm_module="$1"
+    _luvm_root="$2"
+    _luvm_manifest="$_luvm_module/config/font-payload-manifest.conf"
+    [ -e "$_luvm_manifest" ] || return 0
+    [ -s "$_luvm_manifest" ] || { LUOSHU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
+    _luvm_normalize="${3:-0}"
+    _luvm_records=0
+    _luvm_tmp="$_luvm_manifest.tmp.$$"
+    [ "$_luvm_normalize" != 1 ] || : > "$_luvm_tmp" || return 1
+    while IFS='|' read -r _luvm_rel _luvm_expected _luvm_extra || [ -n "$_luvm_rel" ]; do
+        [ -n "$_luvm_rel" ] || continue
+        case "$_luvm_rel" in /*|../*|*/../*|*/..|*\\*|*//* )
+            LUOSHU_UPDATE_FAILURE_REASON=unsafe-payload-manifest-path; return 1 ;;
+        esac
+        _luvm_partition=${_luvm_rel%%/*}
+        case " $(luoshu_update_payload_partitions "$_luvm_module" | tr '\n' ' ') " in *" $_luvm_partition "*) ;; *)
+            LUOSHU_UPDATE_FAILURE_REASON=unsupported-payload-manifest-partition; return 1 ;;
+        esac
+        [ -s "$_luvm_root/$_luvm_rel" ] || {
+            LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-missing:$_luvm_rel"; return 1;
+        }
+        case "$_luvm_expected" in ''|*[!0-9a-fA-F]*)
+            LUOSHU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;;
+        esac
+        _luvm_actual=$(sha256sum "$_luvm_root/$_luvm_rel" 2>/dev/null | awk '{print $1}')
+        if [ "${#_luvm_expected}" -eq 64 ]; then
+            [ "$_luvm_actual" = "$(printf '%s' "$_luvm_expected" | tr 'A-F' 'a-f')" ] || {
+                LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-hash-mismatch:$_luvm_rel"; return 1;
+            }
+        else
+            # Older supported payloads used POSIX cksum CRC|size. Validate
+            # that contract, then normalize only the staged copy for the new
+            # SHA256/PID1 verifier; never rewrite the running module's ledger.
+            case "$_luvm_expected:$_luvm_extra" in *[!0-9:]*|:*|*:) LUOSHU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;; esac
+            _luvm_crc=$(cksum "$_luvm_root/$_luvm_rel" 2>/dev/null | awk '{print $1 "|" $2}')
+            [ "$_luvm_crc" = "$_luvm_expected|$_luvm_extra" ] || {
+                LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-checksum-mismatch:$_luvm_rel"; return 1;
+            }
+        fi
+        [ "${#_luvm_actual}" -eq 64 ] || { LUOSHU_UPDATE_FAILURE_REASON=payload-sha256-unavailable; return 1; }
+        if [ "$_luvm_normalize" = 1 ]; then
+            printf '%s|%s\n' "$_luvm_rel" "$_luvm_actual" >> "$_luvm_tmp" || return 1
+        fi
+        _luvm_records=$((_luvm_records + 1))
+    done < "$_luvm_manifest"
+    [ "$_luvm_records" -gt 0 ] || { LUOSHU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
+    [ "$_luvm_normalize" != 1 ] || mv -f "$_luvm_tmp" "$_luvm_manifest" || return 1
+    return 0
 }
 
 luoshu_update_has_font_payload() {
-    _module="$1"
-    for _partition in $(luoshu_update_payload_partitions); do
+    _module=$(luoshu_update_payload_root "$1")
+    for _partition in $(luoshu_update_payload_partitions "$1"); do
         case "$_partition" in
             system) _directory="$_module/system/fonts" ;;
             *) _directory="$_module/$_partition" ;;
         esac
         [ -d "$_directory" ] || continue
-        find "$_directory" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) \
+        # Physical aliases are symlinks to immutable *.font anchors. Looking
+        # only for regular TTFs rejects a valid font-store-only installation.
+        find "$_directory" -type f -size +0c \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' -o -iname '*.font' \) \
             -print -quit 2>/dev/null | grep -q . && return 0
     done
     return 1
@@ -224,6 +296,8 @@ luoshu_migrate_active_install() {
     _new="$2"
     [ -f "$_old/module.prop" ] || return 2
     [ "$_old" != "$_new" ] || return 2
+    LUOSHU_UPDATE_FAILURE_REASON=migration-copy-failed
+    _lup_payload_root=$(luoshu_update_payload_root "$_old")
 
     _active=$(head -n1 "$_old/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_active" ] || _active=default
@@ -244,13 +318,21 @@ luoshu_migrate_active_install() {
         LUOSHU_UPDATE_REBUILD_REQUIRED=true
         _lup_rebuild_reason=font-builder-changed
     fi
-    if [ "$_active" = mix ]; then
-        for _mix_key in cjk latin digit; do
-            [ -n "$(luoshu_update_config_value "$_old/config/font_mix.conf" "$_mix_key")" ] || return 1
-        done
-    fi
+    # Copying an already generated mix does not need the original recipe or
+    # source fonts. Those are only needed for the user's next explicit apply.
     if [ "$_active" != default ] && ! luoshu_update_has_font_payload "$_old"; then
+        LUOSHU_UPDATE_FAILURE_REASON=active-font-payload-missing
         return 1
+    fi
+    if [ "$_active" != default ]; then
+        luoshu_update_verify_manifest "$_old" "$_lup_payload_root" || return 1
+        if [ -s "$_old/config/universal-font-runtime.conf" ]; then
+            for _lup_artifact in deployment.json font-plan.json artifact-manifest.json; do
+                [ -s "$_lup_payload_root/.luoshu-runtime/deployment/$_lup_artifact" ] || {
+                    LUOSHU_UPDATE_FAILURE_REASON="universal-artifact-missing:$_lup_artifact"; return 1;
+                }
+            done
+        fi
     fi
 
     mkdir -p "$_new/config" "$_new/system/fonts" 2>/dev/null || return 1
@@ -259,18 +341,38 @@ luoshu_migrate_active_install() {
     # Keep the new release's system/bin runtime, but migrate both system font
     # trees and every supported OEM partition from the active installation.
     for _relative in system/fonts system/etc; do
-        [ -d "$_old/$_relative" ] || continue
+        [ -d "$_lup_payload_root/$_relative" ] || continue
         rm -rf "$_new/$_relative" 2>/dev/null || return 1
         mkdir -p "${_new}/${_relative%/*}" 2>/dev/null || return 1
-        luoshu_copy_update_tree "$_old/$_relative" "$_new/$_relative" || return 1
+        luoshu_copy_update_tree "$_lup_payload_root/$_relative" "$_new/$_relative" || return 1
     done
-    for _partition in $(luoshu_update_payload_partitions); do
+    for _partition in $(luoshu_update_payload_partitions "$_old"); do
         [ "$_partition" != system ] || continue
-        [ -d "$_old/$_partition" ] || continue
+        [ -d "$_lup_payload_root/$_partition" ] || continue
         rm -rf "$_new/$_partition" 2>/dev/null || return 1
         mkdir -p "$_new" 2>/dev/null || return 1
-        luoshu_copy_update_tree "$_old/$_partition" "$_new/$_partition" || return 1
+        luoshu_copy_update_tree "$_lup_payload_root/$_partition" "$_new/$_partition" || return 1
     done
+    if [ "$_active" != default ] && [ -s "$_old/config/universal-font-runtime.conf" ]; then
+        # Keep deployment artifacts beside the fonts they describe, without
+        # overwriting the new release's executable runtime/core.
+        luoshu_copy_update_tree "$_lup_payload_root/.luoshu-runtime/deployment" \
+            "$_new/.luoshu-payload/.luoshu-runtime/deployment" || return 1
+        luoshu_copy_update_tree "$_lup_payload_root/.luoshu-dynamic" \
+            "$_new/.luoshu-payload/.luoshu-dynamic" || return 1
+    fi
+    if [ "$_active" != default ]; then
+        if [ ! -e "$_new/config/font-payload-manifest.conf" ] &&
+           [ "$(luoshu_update_config_value "$_new/config/font_runtime_legacy_v14_4.conf" core)" = physical-safe-v1 ] &&
+           [ "$(luoshu_update_config_value "$_new/config/font-payload-schema.conf" schema)" = legacy-physical-safe-v1 ]; then
+            [ -f "$_new/common/physical_payload_manifest.sh" ] &&
+                . "$_new/common/physical_payload_manifest.sh" &&
+                luoshu_physical_manifest_ensure "$_new" "$_new" || {
+                    LUOSHU_UPDATE_FAILURE_REASON=physical-integrity-contract-missing; return 1;
+                }
+        fi
+        luoshu_update_verify_manifest "$_new" "$_new" 1 || return 1
+    fi
 
     _schema_compatible=false
     [ "$_old_schema" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ] && _schema_compatible=true
@@ -294,5 +396,6 @@ luoshu_migrate_active_install() {
     find "$_new/config" -type d -exec chmod 0755 {} \; 2>/dev/null || true
     find "$_new/config" -type f -exec chmod 0644 {} \; 2>/dev/null || true
     find "$_new/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
+    LUOSHU_UPDATE_FAILURE_REASON=''
     return 0
 }

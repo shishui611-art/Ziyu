@@ -229,17 +229,6 @@ internal fun HomeScreenCompact(
                 }
                 }
             }
-        if (state.moduleInstalled && state.rootGranted) {
-            item(key = "global-font-weight") {
-                HomeGlobalWeightCard(
-                    state = state.systemWeight,
-                    actions = actions,
-                    cardColor = cardColor,
-                    textPrimary = textPrimary,
-                    textSecondary = textSecondary,
-                )
-            }
-        }
         item(key = "font-actions") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZiyuSectionHeading("我的字体", "从挑选到组合，让每一处文字更合心意")
@@ -295,83 +284,6 @@ internal fun HomeScreenCompact(
                 ZiyuGlyph(Icons.Rounded.RestartAlt, null, ZiyuIconTokens.ToolGlyph)
                 Spacer(Modifier.width(8.dp))
                 Text("恢复系统字体")
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeGlobalWeightCard(
-    state: HomeWeightUiState,
-    actions: HomeActions,
-    cardColor: Color,
-    textPrimary: Color,
-    textSecondary: Color,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = cardColor,
-        modifier = Modifier.fillMaxWidth(),
-        shadowElevation = ZiyuLayoutTokens.CardElevation,
-    ) {
-        Column(
-            Modifier.padding(ZiyuLayoutTokens.CardPadding),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ZiyuGlyph(Icons.Rounded.Speed, null, ZiyuIconTokens.SectionGlyph, tint = scheme.primary)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("全局粗细微调", color = textPrimary, style = MaterialTheme.typography.titleSmall)
-                    Text("只调整系统粗细，不改字体文件", color = textSecondary, style = MaterialTheme.typography.bodySmall)
-                }
-                Text(
-                    if (state.loading) "读取中" else state.weight.toString(),
-                    color = scheme.primary,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            when {
-                state.loading -> ZiyuLoadingSkeleton(
-                    Modifier.fillMaxWidth().height(12.dp),
-                    shape = RoundedCornerShape(999.dp),
-                )
-                !state.supported -> Text(
-                    state.error.ifBlank { "当前系统不支持全局粗细微调" },
-                    color = scheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                else -> {
-                    Slider(
-                        value = state.weight.coerceIn(state.min, state.max).toFloat(),
-                        onValueChange = actions.previewSystemWeight,
-                        enabled = !state.applying,
-                        valueRange = state.min.toFloat()..state.max.toFloat(),
-                        steps = (((state.max - state.min) / state.step) - 1).coerceAtLeast(0),
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${state.min} · 细", color = textSecondary, style = MaterialTheme.typography.labelSmall)
-                        Spacer(Modifier.weight(1f))
-                        Text("${state.max} · 粗", color = textSecondary, style = MaterialTheme.typography.labelSmall)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            state.error.ifBlank { state.message },
-                            modifier = Modifier.weight(1f),
-                            color = if (state.error.isNotBlank()) scheme.error else textSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2,
-                        )
-                        TextButton(
-                            onClick = actions.resetSystemWeight,
-                            enabled = state.ownedByModule && !state.applying,
-                        ) {
-                            Text("恢复原始")
-                        }
-                    }
-                }
             }
         }
     }

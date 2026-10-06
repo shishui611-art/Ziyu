@@ -40,6 +40,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -67,6 +71,12 @@ internal fun FontStudioScreenMiuix(
     actions: FontStudioActions,
     topAction: @Composable () -> Unit,
 ) {
+    val applyRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(state.busy, state.taskState) {
+        if (state.busy || state.taskState == "success" || state.taskState == "failed") {
+            applyRequester.bringIntoView()
+        }
+    }
     val dockBottomPadding = maxOf(LocalDockContentPadding.current, ZiyuLayoutTokens.FloatingDockSafeBottom)
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -86,9 +96,6 @@ internal fun FontStudioScreenMiuix(
         if (state.error.isNotBlank()) {
             item { MiuixStudioNotice(state.error, error = true) }
         }
-        if (state.busy || state.taskState == "success") {
-            item { MiuixStudioTask(state) }
-        }
 
         state.slots.forEach { slotState ->
             item(key = slotState.slot.name) {
@@ -96,7 +103,18 @@ internal fun FontStudioScreenMiuix(
             }
         }
 
-        item { MiuixFinalAction(state, actions) }
+        item {
+            Column(modifier = Modifier.bringIntoViewRequester(applyRequester),
+                   verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                MiuixFinalAction(state, actions)
+                if (state.busy || state.taskState == "success" || state.taskState == "failed") {
+                    MiuixStudioTask(state)
+                    if (state.busy || state.operationBusy) {
+                        androidx.compose.material3.OutlinedButton(onClick = actions.cancel, modifier = Modifier.fillMaxWidth()) { Text("终止当前任务") }
+                    }
+                }
+            }
+        }
         item { ZiyuSectionHeading("字形覆盖", "需要时查看所选中文字体包含哪些字符") }
         item { MiuixCoverageGroup(state, actions) }
     }
@@ -215,7 +233,7 @@ private fun MiuixStudioTask(state: FontStudioUiState) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (state.busy) "正在生成组合字体" else "组合字体已生成",
+                        if (state.busy) "正在生成组合字体" else if (state.taskState == "failed") "组合未完成" else "组合字体已保存",
                         color = tokens.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -444,7 +462,7 @@ private fun MiuixFinalAction(state: FontStudioUiState, actions: FontStudioAction
                     )
                     Text(
                         if (direct != null) "三个部分使用同一款字体，可直接应用。"
-                        else "按上面的字体和字重生成组合，然后应用到系统。",
+                        else "按所选字重生成组合，保存到字体库并预览。",
                         color = tokens.textSecondary,
                         fontSize = 12.sp,
                     )
@@ -452,7 +470,7 @@ private fun MiuixFinalAction(state: FontStudioUiState, actions: FontStudioAction
             }
             Spacer(Modifier.height(12.dp))
             Button(
-                onClick = { if (direct != null) actions.applyDirect(direct) else actions.startMix() },
+                onClick = { if (direct != null) actions.applyDirect(direct) else actions.startMix("") },
                 enabled = !state.loading && !state.busy && !state.operationBusy && selectionReady,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
                 shape = RoundedCornerShape(18.dp),
@@ -467,7 +485,7 @@ private fun MiuixFinalAction(state: FontStudioUiState, actions: FontStudioAction
                 Text(
                     if (state.busy || state.operationBusy) "正在处理，请稍候…"
                     else if (!selectionReady) "先选择组合字体"
-                    else if (direct != null) "直接应用此字体" else "生成并应用",
+                    else if (direct != null) "直接应用此字体" else "生成组合",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                 )

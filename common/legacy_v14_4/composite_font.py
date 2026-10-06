@@ -57,6 +57,11 @@ REQUIRED_DIGITS = set(DIGIT_PROBES)
 
 
 def _progress(path: str | None, stage: str, message: str, percent: int) -> None:
+    task = os.environ.get("LUOSHU_MIX_PARENT_TASK")
+    marker = os.environ.get("LUOSHU_MIX_CANCEL_FILE")
+    if task and marker and Path(marker).is_file():
+        if f"task={task}" in Path(marker).read_text(encoding="utf-8").splitlines():
+            raise CompositeError("组合任务已取消")
     if not path:
         return
     target = Path(path)

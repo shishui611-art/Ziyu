@@ -7,6 +7,7 @@ MOD="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
 ADB_ROOT="${LUOSHU_ADB_ROOT:-/data/adb}"
 MODULES_ROOT="${LUOSHU_MODULES_ROOT:-$ADB_ROOT/modules}"
 ACTION="${1:-report}"
+[ ! -f "$MOD/common/root_manager_detection.sh" ] || . "$MOD/common/root_manager_detection.sh"
 
 read_value() {
     sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
@@ -24,16 +25,13 @@ safe_count() {
 root_manager() {
     if [ -n "${LUOSHU_ROOT_MANAGER:-}" ]; then
         printf '%s\n' "$LUOSHU_ROOT_MANAGER"
-    elif [ -n "${APATCH:-}" ] || [ -n "${APATCH_VER_CODE:-}" ] || [ -d "$ADB_ROOT/ap" ] || [ -d "$ADB_ROOT/apatch" ] || command -v apd >/dev/null 2>&1; then
-        printf 'APatch\n'
-    elif [ -n "${SUKISU:-}" ] || [ -n "${SUKISU_VER:-}" ]; then
-        printf 'SukiSU\n'
-    elif [ "${KSU:-}" = true ] || [ -n "${KSU_VER_CODE:-}" ] || [ -d "$ADB_ROOT/ksu" ] || command -v ksud >/dev/null 2>&1; then
-        printf 'KernelSU\n'
-    elif [ -n "${MAGISK_VER_CODE:-}" ] || [ -d "$ADB_ROOT/magisk" ] || command -v magisk >/dev/null 2>&1; then
-        printf 'Magisk\n'
     else
-        printf 'Unknown\n'
+        [ ! -f "$MOD/common/root_manager_detection.sh" ] || . "$MOD/common/root_manager_detection.sh"
+        if type luoshu_detect_root_manager >/dev/null 2>&1; then
+            MODDIR="$MOD" luoshu_detect_root_manager
+        else
+            printf 'unknown\n'
+        fi
     fi
 }
 
@@ -147,6 +145,28 @@ lock_state() {
 }
 
 mount_engine() {
+    _hme_state=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && MODDIR="$MOD" luoshu_current_boot_backend_state)
+    if [ -n "$_hme_state" ]; then
+        _hme_active=$(read_value "$_hme_state" active_backend)
+        _hme_selected=$(read_value "$_hme_state" selected_backend)
+        _hme_verify=$(read_value "$_hme_state" verification)
+        case "${_hme_active:-none}" in
+            self) _hme_label='字域自挂载' ;;
+            meta) _hme_label="元模块挂载 · $(read_value "$_hme_state" meta_engine)" ;;
+            *) case "$_hme_selected" in
+                self) _hme_label='字域自挂载' ;;
+                meta) _hme_label="元模块挂载 · $(read_value "$_hme_state" meta_engine)" ;;
+                *) _hme_label='挂载后端' ;;
+            esac ;;
+        esac
+        case "$_hme_verify" in
+            failed) printf '%s失败\n' "$_hme_label" ;;
+            pending) printf '%s · 待验证\n' "$_hme_label" ;;
+            *) printf '%s\n' "$_hme_label" ;;
+        esac
+        return
+    fi
+    [ ! -f "$MOD/config/mount-backend.conf" ] || { printf '本次启动尚未确认挂载后端\n'; return; }
     if [ -f "$MOD/common/mount_compat.sh" ]; then
         MODULE_DIR="$MOD"
         . "$MOD/common/mount_compat.sh" >/dev/null 2>&1 || true
@@ -177,6 +197,31 @@ report() {
     [ -f "$MOD/module.prop" ] && _r_module=true
     _r_pending=false
     [ -d "${LUOSHU_MODULES_UPDATE_ROOT:-$ADB_ROOT/modules_update}/LuoShu" ] && _r_pending=true
+    _r_alignment=$(read_value "$MOD/config/device-font-load-verification.conf" state)
+    _r_alignment_mode=$(read_value "$MOD/config/device-font-load-verification.conf" mode)
+    _r_self_state=$(read_value "$MOD/config/self-mount.conf" state)
+    _r_self_backend=$(read_value "$MOD/config/self-mount.conf" backend)
+    _r_backend_state=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && MODDIR="$MOD" luoshu_current_boot_backend_state)
+    if [ -n "$_r_backend_state" ]; then
+        case "$(read_value "$_r_backend_state" verification)" in
+            failed)
+                _r_alignment=failed; _r_alignment_mode=backend-failed
+                case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=failed ;; *) _r_self_state=not-active ;; esac
+                ;;
+            pending)
+                _r_alignment=pending; _r_alignment_mode=backend-pending
+                case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=pending ;; *) _r_self_state=not-active ;; esac
+                ;;
+            passed|pass)
+                _r_alignment=verified; _r_alignment_mode=backend-verified
+                case "$(read_value "$_r_backend_state" active_backend)" in
+                    self) _r_self_state=mounted; _r_self_backend=self ;;
+                    meta) _r_self_state=not-active; _r_self_backend=none ;;
+                esac ;;
+        esac
+    elif [ -f "$MOD/config/mount-backend.conf" ]; then
+        _r_alignment=pending; _r_alignment_mode=backend-current-boot-unconfirmed; _r_self_state=pending
+    fi
 
     printf 'healthVersion=1\n'
     printf 'modulePresent=%s\n' "$_r_module"
@@ -190,10 +235,10 @@ report() {
     printf 'lockState=%s\n' "$(lock_state)"
     printf 'engineState=%s\n' "$(read_value "$MOD/config/device-font-engine.conf" state)"
     printf 'templateState=%s\n' "$(read_value "$MOD/config/device-font-template.state" state)"
-    printf 'alignmentState=%s\n' "$(read_value "$MOD/config/device-font-load-verification.conf" state)"
-    printf 'alignmentMode=%s\n' "$(read_value "$MOD/config/device-font-load-verification.conf" mode)"
-    printf 'selfMountState=%s\n' "$(read_value "$MOD/config/self-mount.conf" state)"
-    printf 'selfMountBackend=%s\n' "$(read_value "$MOD/config/self-mount.conf" backend)"
+    printf 'alignmentState=%s\n' "$_r_alignment"
+    printf 'alignmentMode=%s\n' "$_r_alignment_mode"
+    printf 'selfMountState=%s\n' "$_r_self_state"
+    printf 'selfMountBackend=%s\n' "$_r_self_backend"
     printf 'mountEngine=%s\n' "$(mount_engine)"
     printf 'cachePending=%s\n' "$(bool_file "$MOD/config/device-font-cache-pending.conf")"
     printf 'rebootRequired=%s\n' "$_r_reboot"

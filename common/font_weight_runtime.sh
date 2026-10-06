@@ -155,87 +155,6 @@ fw_snap() {
     printf '%s\n' "$_fw_snap_value"
 }
 
-fw_status() {
-    if ! fw_read_current; then
-        printf '%s\n' '{"status":"ok","data":{"supported":false,"weight":400,"adjustment":0,"systemAdjustment":null,"originalAdjustment":0,"originalPresent":false,"ownedByModule":false,"min":300,"max":700,"step":10,"message":"当前系统不支持读取安全字体粗细设置"}}'
-        return 0
-    fi
-    _fw_system_present="$FW_PRESENT"
-    _fw_system_adjustment="$FW_ADJUSTMENT"
-    _fw_weight=$(fw_snap $((400 + _fw_system_adjustment)))
-    _fw_adjustment="$_fw_system_adjustment"
-    _fw_original=0
-    _fw_original_present=false
-    _fw_owned=false
-    _fw_message='拖动后会立即应用；部分未刷新的应用需要重新打开'
-    if fw_load_active && fw_load_original; then
-        if fw_matches_active || fw_matches_original; then
-            _fw_weight="$FW_LAST_WEIGHT"
-            _fw_adjustment="$FW_LAST_ADJUSTMENT"
-            _fw_original="$FW_ORIG_ADJUSTMENT"
-            _fw_original_present="$FW_ORIG_PRESENT"
-            _fw_owned=true
-            if fw_matches_original && ! fw_matches_active; then
-                _fw_message="本次开机系统值回到了原始粗细；开机服务将恢复 $_fw_weight"
-            fi
-        else
-            _fw_message='系统粗细已被其他设置更改；字域会保留该值'
-        fi
-    fi
-    if [ "$_fw_system_present" = true ]; then _fw_json_system="$_fw_system_adjustment"; else _fw_json_system=null; fi
-    printf '{"status":"ok","data":{"supported":true,"weight":%s,"adjustment":%s,"systemAdjustment":%s,"originalAdjustment":%s,"originalPresent":%s,"ownedByModule":%s,"min":300,"max":700,"step":10,"message":"%s"}}\n' \
-        "$_fw_weight" "$_fw_adjustment" "$_fw_json_system" "$_fw_original" "$_fw_original_present" "$_fw_owned" "$(fw_json_escape "$_fw_message")"
-}
-
-fw_set() {
-    _fw_input="$1"
-    case "$_fw_input" in ''|*[!0-9]*) fw_error '粗细仅支持 300 到 700，步进为 10'; return 2 ;; esac
-    [ "$_fw_input" -ge 300 ] 2>/dev/null && [ "$_fw_input" -le 700 ] 2>/dev/null && [ $((_fw_input % 10)) -eq 0 ] || {
-        fw_error '粗细仅支持 300 到 700，步进为 10'
-        return 2
-    }
-    fw_read_current || { fw_error '当前系统不支持字体粗细设置'; return 5; }
-    _fw_original_created=false
-
-    if [ -s "$FW_CURRENT" ]; then
-        if fw_load_active && fw_load_original && { fw_matches_active || fw_matches_original; }; then
-            : # Keep the original value captured at the first user change.
-        else
-            # The current setting no longer belongs to this module. An explicit
-            # slider change opts back in and captures the newer system value.
-            fw_clear_owned_state
-        fi
-    elif [ -s "$FW_ORIGINAL" ]; then
-        rm -f "$FW_ORIGINAL" 2>/dev/null || true
-    fi
-
-    if [ ! -s "$FW_ORIGINAL" ]; then
-        fw_write_original "$FW_PRESENT" "$FW_ADJUSTMENT" || { fw_error '无法保存原始系统粗细'; return 1; }
-        _fw_original_created=true
-    fi
-    _fw_target_adjustment=$((_fw_input - 400))
-    fw_put_current "$_fw_target_adjustment" || {
-        [ "$_fw_original_created" != true ] || rm -f "$FW_ORIGINAL" 2>/dev/null || true
-        fw_error '无法写入系统字体粗细'
-        return 4
-    }
-    fw_read_current && [ "$FW_PRESENT" = true ] && [ "$FW_ADJUSTMENT" = "$_fw_target_adjustment" ] || {
-        if fw_load_original; then fw_restore_original >/dev/null 2>&1 || true; fi
-        fw_error '系统未确认新的字体粗细设置'
-        return 4
-    }
-    fw_write_active "$_fw_input" "$_fw_target_adjustment" || {
-        fw_load_original && fw_restore_original >/dev/null 2>&1 || true
-        fw_clear_owned_state
-        fw_error '无法保存当前系统粗细状态，已尝试恢复原值'
-        return 1
-    }
-    fw_report feature-enabled >/dev/null 2>&1 || true
-    fw_apply_notifications
-    printf '{"status":"ok","data":{"weight":%s,"adjustment":%s,"message":"系统粗细已更新；未刷新的应用请重新打开"}}\n' \
-        "$_fw_input" "$_fw_target_adjustment"
-}
-
 fw_reset() {
     if ! fw_load_active || ! fw_load_original; then
         fw_clear_owned_state
@@ -262,21 +181,8 @@ fw_reset() {
 }
 
 fw_boot() {
-    fw_load_active && fw_load_original || return 0
-    fw_read_current || return 1
-    if fw_matches_active; then
-        return 0
-    fi
-    if ! fw_matches_original; then
-        fw_clear_owned_state
-        fw_report external-change >/dev/null 2>&1 || true
-        printf '%s\n' 'global font weight: external setting preserved'
-        return 0
-    fi
-    fw_put_current "$FW_LAST_ADJUSTMENT" || return 1
-    fw_read_current && [ "$FW_PRESENT" = true ] && [ "$FW_ADJUSTMENT" = "$FW_LAST_ADJUSTMENT" ] || return 1
-    fw_apply_notifications
-    printf 'global font weight restored: %s\n' "$FW_LAST_WEIGHT"
+    # Retired feature: restore only a setting still owned by this module.
+    fw_reset
 }
 
 fw_service() {
@@ -287,8 +193,7 @@ fw_service() {
     done
     [ "$(getprop sys.boot_completed 2>/dev/null)" = 1 ] || return 0
 
-    # Finish a one-time v2.0 retirement migration before applying this version's
-    # setting. The helper only restores a value still owned by the older release.
+    # Finish a pending retirement migration. Never reapply a global adjustment.
     if [ -f "$FW_MODDIR/common/font_weight_retire.sh" ] && \
        grep -qx 'state=pending' "$FW_MIGRATION" 2>/dev/null; then
         sh "$FW_MODDIR/common/font_weight_retire.sh" "$FW_MODDIR" "$FW_MODDIR" boot \
@@ -304,8 +209,8 @@ fw_service() {
 }
 
 case "${1:-status}" in
-    status) fw_status ;;
-    set) fw_set "${2:-}" ;;
+    status) printf '%s\n' '{"status":"ok","data":{"supported":false,"message":"全局字重功能已移除"}}' ;;
+    set) fw_error '全局字重功能已移除'; exit 2 ;;
     reset) fw_reset ;;
     boot) fw_boot ;;
     service) fw_service ;;

@@ -97,6 +97,7 @@ _uvr_deployment() {
 
 _uvr_mountinfo() {
     [ -n "${LUOSHU_VERIFY_MOUNTINFO:-}" ] && { printf '%s\n' "$LUOSHU_VERIFY_MOUNTINFO"; return 0; }
+    [ "${LUOSHU_VERIFY_MAIN_NAMESPACE:-0}" != 1 ] || { printf '/proc/1/mountinfo\n'; return 0; }
     printf '/proc/self/mountinfo\n'
 }
 
@@ -141,20 +142,18 @@ _uvr_terminal_failure() {
     } > "$OUTPUT_CONF.tmp.$$" 2>/dev/null && mv -f "$OUTPUT_CONF.tmp.$$" "$OUTPUT_CONF" 2>/dev/null || true
     chmod 0644 "$OUTPUT_CONF" 2>/dev/null || true
     _uvr_log "FAIL reason=$_uvr_reason font=$_uvr_font"
-    [ -f "$CUTOVER_CONTROLLER" ] && MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-        sh "$CUTOVER_CONTROLLER" rollback-from-fail "$_uvr_boot" >> "$LOG_FILE" 2>&1 || true
+    if [ "${LUOSHU_VERIFY_NO_CUTOVER:-0}" != 1 ]; then
+        [ -f "$CUTOVER_CONTROLLER" ] && MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+            sh "$CUTOVER_CONTROLLER" rollback-from-fail "$_uvr_boot" >> "$LOG_FILE" 2>&1 || true
+    fi
 }
 
 _uvr_cleanup_retired_on_pass() {
     [ "$(_uvr_value "$OUTPUT_CONF" grade)" = PASS ] || return 0
-    _uvr_retired=$(_uvr_value "$ACTIVATED_CONF" retired)
-    case "$_uvr_retired" in
-        "$MODDIR"/.luoshu-retired/universal-*)
-            rm -rf "$_uvr_retired" 2>/dev/null || return 1
-            rmdir "$MODDIR/.luoshu-retired" 2>/dev/null || true
-            _uvr_log "PASS retired payload released: $_uvr_retired"
-            ;;
-    esac
+    [ -f "$MODDIR/common/action_control.sh" ] || return 0
+    LUOSHU_ACTION_CONTROL_LIBRARY=true . "$MODDIR/common/action_control.sh" || return 1
+    LUOSHU_ACTION_CONTROL_LIBRARY=false
+    luoshu_undo_prune_retired "$MODDIR" >> "$LOG_FILE" 2>&1 || return 1
     return 0
 }
 
@@ -175,6 +174,10 @@ _uvr_run() {
     _uvr_artifacts=$(_uvr_artifacts "$_uvr_font")
     _uvr_deployment=$(_uvr_deployment)
     _uvr_mountinfo=$(_uvr_mountinfo)
+    _uvr_visible_root="${LUOSHU_VERIFY_VISIBLE_ROOT:-}"
+    if [ "${LUOSHU_VERIFY_MAIN_NAMESPACE:-0}" = 1 ] && [ -z "$_uvr_visible_root" ]; then
+        _uvr_visible_root=/proc/1/root
+    fi
 
     [ -s "$_uvr_plan" ] || { _uvr_terminal_failure fontplan-missing "$_uvr_font" "$_uvr_boot"; rm -f "$PID_FILE"; return 1; }
     [ -s "$_uvr_artifacts" ] || { _uvr_terminal_failure artifact-manifest-missing "$_uvr_font" "$_uvr_boot"; rm -f "$PID_FILE"; return 1; }
@@ -182,7 +185,7 @@ _uvr_run() {
     [ -s "$RUNTIME_CONF" ] || { _uvr_terminal_failure runtime-state-missing "$_uvr_font" "$_uvr_boot"; rm -f "$PID_FILE"; return 1; }
 
     _uvr_collect_font_dump || true
-    if [ -n "${LUOSHU_VERIFY_VISIBLE_ROOT:-}" ]; then
+    if [ -n "$_uvr_visible_root" ]; then
         _uvr_python "$VERIFIER" \
             --font-plan "$_uvr_plan" \
             --artifact-manifest "$_uvr_artifacts" \
@@ -191,7 +194,7 @@ _uvr_run() {
             --mount-state "$MOUNT_STATE" \
             --font-dump "$FONT_DUMP" \
             --mountinfo "$_uvr_mountinfo" \
-            --visible-root "$LUOSHU_VERIFY_VISIBLE_ROOT" \
+            --visible-root "$_uvr_visible_root" \
             --active-font "$_uvr_font" \
             --boot-id "$_uvr_boot" \
             --output-json "$OUTPUT_JSON" \
@@ -217,7 +220,7 @@ _uvr_run() {
 
     if [ "$_uvr_grade" = PASS ]; then
         _uvr_cleanup_retired_on_pass
-    elif [ "$_uvr_grade" = FAIL ] && [ -f "$CUTOVER_CONTROLLER" ]; then
+    elif [ "$_uvr_grade" = FAIL ] && [ -f "$CUTOVER_CONTROLLER" ] && [ "${LUOSHU_VERIFY_NO_CUTOVER:-0}" != 1 ]; then
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
             sh "$CUTOVER_CONTROLLER" rollback-from-fail "$_uvr_boot" >> "$LOG_FILE" 2>&1 || true
     fi

@@ -138,8 +138,8 @@ luoshu_font_validation_fast_preflight() {
         FONT_CHECK_SIZE=0
     fi
     case "$FONT_CHECK_SIZE" in ''|*[!0-9]*) FONT_CHECK_SIZE=0 ;; esac
-    if [ "$FONT_CHECK_SIZE" -lt 4096 ] 2>/dev/null; then
-        FONT_CHECK_ERROR='字体文件过小'
+    if [ "$FONT_CHECK_SIZE" -lt 12 ] 2>/dev/null; then
+        FONT_CHECK_ERROR='字体头不完整'
         return 1
     fi
 

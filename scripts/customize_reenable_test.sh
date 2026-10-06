@@ -8,10 +8,12 @@ trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 OLD="$TMP/active/LuoShu"
 NEW="$TMP/update/LuoShu"
 mkdir -p "$OLD/config" "$NEW/config" "$NEW/common"
+cp "$ROOT/common/install_ui.sh" "$ROOT/common/mount_backend_preferences.sh" "$NEW/common/"
 printf 'id=LuoShu\nversion=v2.0.2\nversionCode=20002\n' > "$NEW/module.prop"
 touch "$OLD/disable" "$NEW/disable"
 printf '2\n' > "$OLD/config/font-boot-failures"
 printf 'state=quarantined\n' > "$OLD/config/font-payload-quarantine.conf"
+printf 'preferred_backend=self\n' > "$OLD/config/mount-backend-preference.conf"
 
 # customize.sh intentionally tolerates unavailable Android commands during host-side tests. The
 # regression contract is that a flash immediately re-enables both the active and staged trees.
@@ -25,6 +27,7 @@ test ! -e "$OLD/disable"
 test ! -e "$NEW/disable"
 test ! -e "$OLD/config/font-boot-failures"
 test ! -e "$OLD/config/font-payload-quarantine.conf"
+test "$(sed -n 's/^preferred_backend=//p' "$NEW/config/mount-backend-preference.conf")" = self
 
 # APatch sources customize.sh. The wrapper must return to the manager instead of
 # exiting its parent shell before the staged module is committed.

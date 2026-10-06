@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,6 +29,7 @@ internal data class ModuleSnapshot(
     val version: String = "检测中…",
     val versionCode: Int = 0,
     val activeFont: String = "default",
+    val activeFontName: String = "",
     val effectiveFont: String = "unknown",
     val fontEffectState: String = "unknown",
     val verificationState: String = "unknown",
@@ -55,7 +58,7 @@ internal data class ModuleSnapshot(
         get() = when (activeFont) {
             "mix" -> "完整复合字体"
             "default", "" -> "系统默认字体"
-            else -> activeFont
+            else -> activeFontName.ifBlank { activeFont }
         }
 
     val rollbackTargetLabel: String
@@ -73,6 +76,8 @@ internal data class ModuleSnapshot(
             fontEffectState == "verified" && effectiveFont == activeFont -> activeLabel
             fontEffectState == "failed" && verificationMode.startsWith("universal") ->
                 "${activeLabel}（运行验证失败）"
+            fontEffectState == "failed" && effectiveFont == "unknown" ->
+                "${activeLabel}（挂载失败，回滚待检查）"
             fontEffectState == "failed" -> "系统默认字体（${activeLabel}未生效）"
             fontEffectState == "pending-reboot" -> "${activeLabel}（等待完整重启）"
             else -> "${activeLabel}（已准备，待本次启动验证）"
@@ -88,6 +93,8 @@ internal data class ModuleSnapshot(
                 "通用字体运行验证失败，已准备安全回退到 ${rollbackTargetLabel}；完整重启后恢复"
             fontEffectState == "failed" && verificationMode.startsWith("universal") ->
                 "通用字体运行验证失败，当前启动的实际字体效果无法安全确认；请查看运行日志并重新选择字体或恢复系统字体"
+            fontEffectState == "failed" && effectiveFont == "unknown" ->
+                "本次挂载失败且安全回滚尚未确认，实际字体效果无法安全确认；请查看运行日志"
             mountFailure.isNotBlank() -> "自挂载失败（${mountFailure}），已安全回滚到系统字体"
             else -> when (verificationReason) {
                 "self-mount-not-visible" -> "开机挂载未完整生效，系统已安全使用默认字体"
@@ -113,6 +120,7 @@ internal data class FontItem(
     val error: String,
     val weights: List<String>,
     val supportsCjk: Boolean = true,
+    val combination: Boolean = false,
 ) {
     val weightLabel: String
         get() = when {
@@ -166,6 +174,140 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     private val bridge = "/data/adb/modules/LuoShu/common/app_bridge.sh"
     private val fingerprintBridge = "/data/adb/modules/LuoShu/common/font_library_cache.sh"
     private val fontIndexStore = FontIndexStore(application)
+    private val completionPrefs = application.getSharedPreferences("combination-completion", 0)
+    private var restartJob: Job? = null
+    private var restoredCombinationTask = ""
+    private val mountPreferenceMutex = Mutex()
+    var restartCountdown by mutableStateOf(0)
+        private set
+    var preparedCombination by mutableStateOf<PreparedCombination?>(null)
+        private set
+    var mountPreferences by mutableStateOf("尚未读取挂载设置")
+        private set
+    var logsViewed by mutableStateOf(false)
+        private set
+    var undoAvailable by mutableStateOf(false)
+        private set
+    var undoRebootRequired by mutableStateOf(false)
+        private set
+
+    private fun refreshActionStatus() {
+        viewModelScope.launch {
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} action_status", timeoutMs = 10_000L)
+            runCatching {
+                val root = firstJson(result.stdout)
+                val data = root.optJSONObject("data") ?: root
+                undoAvailable = data.optBoolean("undoAvailable")
+                undoRebootRequired = data.optBoolean("undoRebootRequired")
+            }
+        }
+    }
+
+    fun dismissPreparedCombination() {
+        preparedCombination?.let { completionPrefs.edit().putString("acknowledged", it.taskId).apply() }
+        preparedCombination = null
+    }
+
+    fun applyPreparedCombination(restart: Boolean) {
+        val result = preparedCombination ?: return
+        dismissPreparedCombination()
+        startApplyFont(result.fontId, restart)
+    }
+
+    fun cancelTask(kind: String, taskId: String) {
+        if (kind !in setOf("mix", "switch") || taskId.isBlank()) return
+        viewModelScope.launch {
+            operationMessage = "正在终止任务并清理本次临时状态…"
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} action_cancel ${RootShell.quote(kind)} ${RootShell.quote(taskId)}", timeoutMs = 40_000L)
+            operationMessage = runCatching { val root = firstJson(result.stdout); (root.optJSONObject("data") ?: root).optString("message") }.getOrNull()
+                .orEmpty().ifBlank { result.stderr.ifBlank { "取消请求已提交" } }
+            refresh()
+        }
+    }
+
+    fun cancelCurrentTask() {
+        if (mixState.busy) cancelTask("mix", mixState.taskId)
+        else cancelTask("switch", snapshot.taskId)
+    }
+
+    fun undoFontApplication() {
+        restartJob?.cancel()
+        restartCountdown = 0
+        viewModelScope.launch {
+            operationBusy = true
+            try {
+                val result = RootShell.exec("sh ${RootShell.quote(bridge)} action_undo", timeoutMs = 40_000L)
+                val root = firstJson(result.stdout)
+                val data = root.optJSONObject("data") ?: root
+                if (result.code != 0 || root.optString("status") == "error") error(root.optString("message", result.stderr))
+                operationMessage = data.optString("message", "已准备恢复上一次字体")
+                rebootRequired = data.optBoolean("rebootRequired", false)
+                refresh()
+            } catch (error: Throwable) {
+                operationMessage = error.message ?: "回退失败，请查看日志"
+            } finally { operationBusy = false }
+        }
+    }
+
+    fun markLogsViewed() = logReview("mark")
+    fun clearLogs() = logReview("clear")
+    private fun logReview(action: String) {
+        viewModelScope.launch {
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} log_review $action", timeoutMs = 20_000L)
+            operationMessage = runCatching { val root = firstJson(result.stdout); (root.optJSONObject("data") ?: root).optString("message") }.getOrNull()
+                .orEmpty().ifBlank { result.stderr.ifBlank { "日志操作完成" } }
+            runCatching { val root = firstJson(result.stdout); logsViewed = (root.optJSONObject("data") ?: root).optBoolean("viewed") }
+            refreshLogs()
+        }
+    }
+
+    fun loadMountPreferences() = mountPreferenceRequest("get")
+    fun setMountPreference(value: String) {
+        if (value in setOf("meta", "self", "auto")) mountPreferenceRequest("set $value")
+    }
+    fun cancelMountPreference() = mountPreferenceRequest("cancel")
+    private fun mountPreferenceRequest(action: String) {
+        viewModelScope.launch {
+            mountPreferenceMutex.withLock {
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} mount_preferences $action", timeoutMs = 15_000L)
+            mountPreferences = runCatching {
+                val data = firstJson(result.stdout)
+                if (!data.optBoolean("ok")) error(data.optString("message").ifBlank { data.optString("error", result.stderr) })
+                fun label(value: String) = when (value) { "meta" -> "元模块"; "self" -> "字域自挂载"; "auto" -> "自动选择"; else -> "未启用" }
+                buildString {
+                    append("设置：${label(data.optString("preferredBackend"))}\n实际生效：${label(data.optString("activeBackend"))}")
+                    append("\n检测到：${data.optString("metaEngine", "none")}")
+                    append("\n元模块可用：${if (data.optBoolean("metaUsable")) "是" else "否"}")
+                    val reason = data.optString("metaUsableReason")
+                    if (reason.isNotBlank()) append("\n诊断：$reason")
+                    val failure = data.optString("preferenceFailure")
+                    if (failure.isNotBlank() && failure != "none") append("\n选择未生效原因：$failure")
+                    val lastError = data.optString("lastError")
+                    if (lastError.isNotBlank() && lastError != "none") append("\n挂载验证错误：$lastError")
+                    if (data.optBoolean("pending")) append("\n设置已保存，下次完整重启后切换。元模块失败时先清理，确认安全后回退；不能确认则停止挂载。")
+                }
+            }.getOrElse { it.message ?: "挂载设置读取失败" }
+            if (action != "get") operationMessage = mountPreferences
+            }
+        }
+    }
+
+    private fun acceptPreparedResult(taskId: String, result: JSONObject) {
+        restoredCombinationTask = taskId
+        val fontId = result.optString("generatedFontId")
+        if (CombinationCompletion.shouldPreview(result.optString("state"), result.optString("result"), fontId, taskId, completionPrefs.getString("acknowledged", "").orEmpty())) {
+            preparedCombination = PreparedCombination(taskId, fontId, result.optString("generatedFontName", fontId))
+        }
+    }
+
+    private fun scheduleConfirmedRestart() {
+        restartJob?.cancel()
+        restartJob = viewModelScope.launch {
+            restartCountdown = 10
+            while (restartCountdown > 0) { delay(1_000L); restartCountdown -= 1 }
+            rebootDevice()
+        }
+    }
     private var watchedTaskId: String = ""
     private var cachedFingerprint: String = ""
     private var fontRequestJob: Job? = null
@@ -262,6 +404,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val parsed = parseSnapshot(result.stdout)
             snapshot = parsed
             rebootRequired = parsed.rebootRequired
+            if (parsed.installed) refreshActionStatus()
             resumePendingTask(parsed)
             if (parsed.installed) requestFontPrewarm()
         }
@@ -351,7 +494,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             return
         }
         if (fingerprint.currentFont.isNotBlank()) {
-            snapshot = snapshot.copy(activeFont = fingerprint.currentFont)
+            snapshot = snapshot.copy(activeFont = fingerprint.currentFont, activeFontName = resolvedFontName(fingerprint.currentFont))
         }
         if (fingerprint.value.isNotBlank() && fingerprint.value == cachedFingerprint) {
             persistFontIndex(currentFont = fingerprint.currentFont)
@@ -385,8 +528,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val parsedFonts = parseFonts(data.optJSONArray("fonts") ?: JSONArray())
             val current = data.optString("current", knownFingerprint?.currentFont ?: snapshot.activeFont)
             val fingerprint = knownFingerprint ?: readFontFingerprint()
-            snapshot = snapshot.copy(activeFont = current)
             fonts = parsedFonts
+            snapshot = snapshot.copy(activeFont = current, activeFontName = resolvedFontName(current))
             cachedFingerprint = fingerprint?.value.orEmpty()
             normalizeMixSelections()
             persistFontIndex(currentFont = current)
@@ -504,8 +647,14 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun startMix() {
+    fun startMix(name: String) {
         if (mixState.busy || operationBusy) return
+        val combinationName = name.trim()
+        if (combinationName.isBlank() || combinationName.length > 60 ||
+            combinationName.any { it in "\r\n\t/\\\u0000|" }) {
+            mixState = mixState.copy(error = "请输入 1–60 个字符的组合名称，不含路径分隔符或换行")
+            return
+        }
         val cjk = mixState.cjk
         val latin = mixState.latin
         val digit = mixState.digit
@@ -519,6 +668,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         val digitAxes = serializeAxes(mixState.digitAxes, mixState.digitWeight)
         mixState = mixState.copy(
             busy = true,
+            taskId = "",
             taskState = "queued",
             message = "正在提交复合字体任务…",
             progress = 1,
@@ -533,7 +683,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     append(RootShell.quote(digit)).append(' ')
                     append(RootShell.quote(cjkAxes)).append(' ')
                     append(RootShell.quote(latinAxes)).append(' ')
-                    append(RootShell.quote(digitAxes))
+                    append(RootShell.quote(digitAxes)).append(' ')
+                    append(RootShell.quote(combinationName))
                 }
                 val start = RootShell.exec(command, timeoutMs = 20_000L)
                 if (start.code != 0) error(start.stderr.ifBlank { "无法启动复合字体任务" })
@@ -562,7 +713,9 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun applyFont(fontId: String) {
+    fun applyFont(fontId: String) = startApplyFont(fontId, false)
+
+    private fun startApplyFont(fontId: String, restartAfter: Boolean) {
         if (operationBusy || mixState.busy) return
         operationBusy = true
         operationMessage = if (fontId == "default") "正在准备恢复系统字体…" else "正在验证并应用字体…"
@@ -597,7 +750,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 if (startJson.optString("status") != "ok") error(startJson.optString("message", "无法启动字体切换"))
                 val taskId = startJson.optJSONObject("data")?.optString("task").orEmpty()
                 if (taskId.isBlank()) error("字体任务 ID 缺失")
-                watchSwitchTask(taskId, fontId)
+                watchSwitchTask(taskId, fontId, restartAfter)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Throwable) {
@@ -661,6 +814,9 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 result.stdout.isBlank() -> "当前还没有字体任务日志。"
                 else -> result.stdout.trimEnd()
             }
+            val review = RootShell.exec("sh ${RootShell.quote(bridge)} log_review status", timeoutMs = 8_000L)
+            runCatching { val root = firstJson(review.stdout); logsViewed = (root.optJSONObject("data") ?: root).optBoolean("viewed") }
+            refreshActionStatus()
         }
     }
 
@@ -693,16 +849,24 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     progress = 100,
                     error = "",
                 )
+                if (restoredCombinationTask != state.taskId) {
+                    restoredCombinationTask = state.taskId
+                    viewModelScope.launch {
+                        val result = RootShell.exec("sh ${RootShell.quote(bridge)} mix_status ${RootShell.quote(state.taskId)}", timeoutMs = 15_000L)
+                        runCatching { firstJson(result.stdout).optJSONObject("data")?.let { acceptPreparedResult(state.taskId, it) } }
+                        refreshFonts(force = true)
+                    }
+                }
             }
-            state.taskState == "failed" -> {
+            state.taskState in setOf("failed", "cancelled") -> {
                 if (state.taskType == "mix") {
                     mixState = mixState.copy(
                         busy = false,
                         taskId = state.taskId,
-                        taskState = "failed",
+                        taskState = state.taskState,
                         message = state.taskMessage,
                         progress = 100,
-                        error = state.taskMessage,
+                        error = if (state.taskState == "failed") state.taskMessage else "",
                     )
                 } else {
                     operationMessage = state.taskMessage
@@ -711,7 +875,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    private suspend fun watchSwitchTask(taskId: String, fontId: String) {
+    private suspend fun watchSwitchTask(taskId: String, fontId: String, restartAfter: Boolean = false) {
         if (watchedTaskId == taskId) return
         watchedTaskId = taskId
         operationBusy = true
@@ -726,6 +890,11 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     taskProgress = data.optInt("percent", snapshot.taskProgress).coerceIn(0, 100),
                 )
             }
+            if (result.optString("state") == "cancelled") {
+                operationMessage = result.optString("message", "字体应用已终止")
+                snapshot = snapshot.copy(taskState = "cancelled", taskMessage = operationMessage)
+                return
+            }
             if (result.optString("state") != "success") error(result.optString("message", "字体应用失败"))
             val applied = result.optString("font", fontId).ifBlank { fontId }
             val reused = result.optBoolean("reused", false)
@@ -738,6 +907,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             rebootRequired = nextRebootRequired
             snapshot = snapshot.copy(
                 activeFont = applied,
+                activeFontName = resolvedFontName(applied),
                 taskType = "switch",
                 taskId = taskId,
                 taskState = "success",
@@ -746,6 +916,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 rebootRequired = nextRebootRequired,
             )
             persistFontIndex(currentFont = applied)
+            refreshActionStatus()
+            if (CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
@@ -788,30 +960,30 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     taskProgress = progress.coerceIn(0, 100),
                 )
             }
+            if (result.optString("state") == "cancelled") {
+                mixState = mixState.copy(busy = false, taskState = "cancelled", message = result.optString("message", "组合生成已终止"), error = "")
+                return
+            }
             if (result.optString("state") != "success") error(result.optString("message", "复合字体生成失败"))
-            val reused = result.optBoolean("reused", false)
-            val message = result.optString("message", "复合字体已生成，重启后生效")
-            val nextRebootRequired = if (reused) rebootRequired else true
+            val message = result.optString("message", "组合已保存到字体库，请预览后选择是否应用")
             mixState = mixState.copy(
                 busy = false,
-                enabled = true,
+                enabled = false,
                 taskId = taskId,
                 taskState = "success",
                 message = message,
                 progress = 100,
                 error = "",
             )
-            rebootRequired = nextRebootRequired
             snapshot = snapshot.copy(
-                activeFont = "mix",
                 taskType = "mix",
                 taskId = taskId,
                 taskState = "success",
                 taskMessage = message,
                 taskProgress = 100,
-                rebootRequired = nextRebootRequired,
             )
-            persistFontIndex(currentFont = "mix")
+            acceptPreparedResult(taskId, result)
+            refreshFonts(force = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
@@ -857,7 +1029,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             if (advertisedTimeout > 0) budget.extendTo((advertisedTimeout.toLong() + 30L) * 1_000L)
             onProgress(data)
             when (data.optString("state")) {
-                "success", "failed" -> return data
+                "success", "failed", "cancelled" -> return data
             }
         }
         error("字体任务超时，请查看日志")
@@ -911,6 +1083,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 version = data.optString("version", "未知版本"),
                 versionCode = data.optInt("versionCode", 0),
                 activeFont = data.optString("active", "default"),
+                activeFontName = resolvedFontName(data.optString("active", "default")),
                 effectiveFont = data.optString("effectiveActive", "unknown"),
                 fontEffectState = data.optString("fontEffectState", "unknown"),
                 verificationState = data.optString("verificationState", "unknown"),
@@ -968,10 +1141,16 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     error = item.optString("error", ""),
                     weights = weights,
                     supportsCjk = item.optBoolean("supportsCjk", true),
+                    combination = item.optBoolean("combination", false),
                 ),
             )
         }
     }
+
+    private fun resolvedFontName(id: String): String =
+        fonts.firstOrNull { it.id == id }?.name
+            ?.takeIf { name -> name.isNotBlank() && name != id }
+            .orEmpty()
 
     private fun parseAxes(raw: String, fallbackWeight: Int): Map<String, Float> {
         val axes = linkedMapOf<String, Float>()

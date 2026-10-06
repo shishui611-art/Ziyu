@@ -72,13 +72,17 @@ fi
 # 直接保留 ROM 原配置，不写入动态字体文件。
 if [ "$BOOT_GUARD_OK" -eq 1 ] && [ "$DYNAMIC_VIEW_ALLOWED" -eq 1 ] && [ "$ACTIVE_TEXT" != default ] && \
    type device_font_dynamic_mount_apply >/dev/null 2>&1; then
-    device_font_dynamic_mount_apply
-    _dynamic_rc=$?
-    case "$_dynamic_rc" in
-        0) log_message "INFO" "动态命名字体只读视图已挂载" ;;
-        2) log_message "INFO" "本次启动未挂载动态字体视图，继续使用 ROM 配置" ;;
-        *) log_message "ERROR" "动态字体视图状态异常，已拒绝挂载" ;;
-    esac
+    if [ "${LUOSHU_BACKEND_SELECTOR_ACTIVE:-0}" = 1 ]; then
+        log_message "INFO" "动态命名字体挂载已交给统一后端事务，在 Root hook 中执行并验证"
+    else
+        device_font_dynamic_mount_apply
+        _dynamic_rc=$?
+        case "$_dynamic_rc" in
+            0) log_message "INFO" "动态命名字体只读视图已挂载" ;;
+            2) log_message "INFO" "本次启动未挂载动态字体视图，继续使用 ROM 配置" ;;
+            *) log_message "ERROR" "动态字体视图状态异常，已拒绝挂载" ;;
+        esac
+    fi
 else
     log_message "INFO" "动态字体数据库保持原样；当前启动不需要配置视图"
 fi

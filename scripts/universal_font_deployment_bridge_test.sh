@@ -7,6 +7,7 @@ MOD="$TMP/module"
 mkdir -p "$MOD/common" "$MOD/config/universal-font-plans" "$MOD/config/minimal-xml-route-plans" "$MOD/config/universal-font-artifact-manifests"
 cp "$ROOT/common/universal_font_deployment.sh" "$MOD/common/"
 cp "$ROOT/common/universal_next_boot.sh" "$MOD/common/"
+cp "$ROOT/common/action_control.sh" "$MOD/common/"
 
 cat > "$MOD/common/universal_font_plan.sh" <<'SH'
 #!/bin/sh
@@ -77,7 +78,7 @@ printf '{}\n' > "$MOD/config/universal-font-artifact-manifests/test.json"
 export MODDIR="$MOD"
 export MODULE_DIR="$MOD"
 export CONFIG_DIR="$MOD/config"
-export LUOSHU_PYTHON=python3
+export LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}"
 
 echo "PHASE7_BRIDGE prepare"
 PREP=$(sh "$MOD/common/universal_font_deployment.sh" prepare DemoFamily)

@@ -198,8 +198,8 @@ case_diagnostics() {
 case_static_contracts() {
     ok grep -q 'for _enable_dir in "$MODPATH" "$OLD_MOD"' "$ROOT/customize.sh"
     ok grep -q 'rm -f "$_enable_dir/disable"' "$ROOT/customize.sh"
-    ok grep -q 'common/mount_compat.sh' "$ROOT/common/font_mix.sh"
-    ok grep -q 'luoshu_sync_mount_payload' "$ROOT/common/font_mix.sh"
+    ok grep -q 'font_mix_controller.sh' "$ROOT/common/font_mix.sh"
+    no grep -q 'luoshu_sync_mount_payload' "$ROOT/common/font_mix.sh"
     no grep -q 'luoshu_sync_mount_payload' "$ROOT/post-fs-data.sh"
     no grep -q 'luoshu_sync_mount_payload' "$ROOT/service.sh"
     no grep -q 'prepare_mount_compat.sh' "$ROOT/scripts/build.sh"

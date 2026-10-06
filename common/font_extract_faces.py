@@ -84,8 +84,11 @@ def save_face(source: Path, output_dir: Path, source_hash: str, label: str, inde
             temp_path = Path(handle.name)
         try:
             font.save(str(temp_path), reorderTables=False)
-            if temp_path.stat().st_size < 4096:
+            if temp_path.stat().st_size < 12:
                 raise ValueError("拆分后的字体文件异常为空")
+            if temp_path.stat().st_size < 4096:
+                from font_structure import validate
+                validate(temp_path)
             new_hash = file_sha256(temp_path)
             duplicate = target.is_file() and file_sha256(target) == new_hash
             if duplicate:

@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 
 from fontTools.ttLib import TTCollection, TTFont
+from font_structure import validate_font
+from fontTools.pens.recordingPen import RecordingPen
 
 CJK = tuple(map(ord, "中文字体系统默认洛书汉字"))
 LATIN = tuple(map(ord, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
@@ -49,9 +51,17 @@ def inspect_face(path: Path, index: int, role: str) -> dict[str, object]:
         kwargs["fontNumber"] = index
     font = TTFont(str(path), **kwargs)
     try:
-        cmap = font.getBestCmap() or {}
+        cmap = validate_font(font, path.stat().st_size, decode_all=False)
         probes = required(role)
-        missing = [codepoint for codepoint in probes if codepoint not in cmap]
+        glyphs = font.getGlyphSet()
+        missing = []
+        for codepoint in probes:
+            name = cmap.get(codepoint)
+            pen = RecordingPen()
+            if name and name != '.notdef' and name in glyphs:
+                glyphs[name].draw(pen)
+            if not pen.value:
+                missing.append(codepoint)
         return {
             "face": index if is_collection(path) else -1,
             "required": len(probes),
@@ -64,8 +74,8 @@ def inspect_face(path: Path, index: int, role: str) -> dict[str, object]:
 
 
 def check(path: Path, role: str) -> dict[str, object]:
-    if not path.is_file() or path.stat().st_size < 4096:
-        raise RoleCheckError("字体文件不存在或文件过小")
+    if not path.is_file():
+        raise RoleCheckError("字体文件不存在")
     results = [inspect_face(path, index, role) for index in faces(path)]
     best = max(results, key=lambda item: int(item["present"]), default=None)
     if best is None:

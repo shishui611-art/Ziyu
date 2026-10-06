@@ -7,6 +7,11 @@
 # transactionally, and verifies every partition after reboot.
 set +e
 
+_lmb_root="${MODDIR:-${MODULE_DIR:-}}"
+if [ -n "$_lmb_root" ]; then
+    [ -f "$_lmb_root/common/root_manager_detection.sh" ] && . "$_lmb_root/common/root_manager_detection.sh"
+fi
+
 LUOSHU_MOUNT_MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
 LUOSHU_MOUNT_LOG="${LUOSHU_MOUNT_LOG:-$LUOSHU_MOUNT_MODDIR/logs/mount_compat.log}"
 LUOSHU_MOUNT_LOCK="$LUOSHU_MOUNT_MODDIR/.mount_compat.lock"
@@ -69,16 +74,8 @@ luoshu_payload_partitions() {
     done < "$_lpp_manifest"
 }
 
-luoshu_detect_root_manager() {
-    if [ -n "${APATCH:-}" ] || [ -d /data/adb/ap ] || [ -d /data/adb/apatch ]; then
-        printf 'APatch\n'
-    elif [ -n "${KSU:-}" ] || [ -d /data/adb/ksu ]; then
-        printf 'KernelSU\n'
-    elif [ -n "${MAGISK_VER_CODE:-}" ] || [ -d /data/adb/magisk ]; then
-        printf 'Magisk\n'
-    else
-        printf 'unknown\n'
-    fi
+type luoshu_detect_root_manager >/dev/null 2>&1 || {
+    luoshu_detect_root_manager() { printf 'unknown\n'; }
 }
 
 _luoshu_module_prop_id() {
@@ -957,6 +954,8 @@ _luoshu_hyperos_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/commo
 [ -f "$_luoshu_hyperos_helper" ] && . "$_luoshu_hyperos_helper"
 _luoshu_font_config_partitions="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/font_config_partitions.sh"
 [ -f "$_luoshu_font_config_partitions" ] && . "$_luoshu_font_config_partitions"
+_luoshu_meta_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/meta_mount_detection.sh"
+[ -f "$_luoshu_meta_helper" ] && . "$_luoshu_meta_helper"
 
 if [ "${0##*/}" = mount_compat.sh ]; then
     case "${1:-status}" in

@@ -32,4 +32,18 @@ if [ -f "$MODDIR/common/google_font_fallback.sh" ]; then
     sh "$MODDIR/common/google_font_fallback.sh" restore-owned --json || \
         echo '字域：Google 字体兼容恢复未全部完成，恢复记录仍保留。' >&2
 fi
+# Undo the LuoShu VFS rule this module may have written into Hybrid Mount.
+# Only restore when the live config still carries our marker; otherwise the
+# user edited the file afterwards and their version wins.
+for _hybrid_cfg in \
+    /data/adb/hybrid-mount/config.toml \
+    /data/adb/modules/hybrid_mount/config.toml \
+    /data/adb/modules/meta-hybrid_mount/config.toml \
+    /data/adb/modules/hybrid-mount/config.toml; do
+    [ -f "$_hybrid_cfg" ] || continue
+    command grep -q 'ziyu-luoshu-vfs-rule' "$_hybrid_cfg" 2>/dev/null || continue
+    [ -f "$_hybrid_cfg.luoshu-backup" ] || continue
+    cat "$_hybrid_cfg.luoshu-backup" > "$_hybrid_cfg" 2>/dev/null && \
+        rm -f "$_hybrid_cfg.luoshu-backup"
+done
 . "$MODDIR/.luoshu-runtime/compat/v227/uninstall.sh"

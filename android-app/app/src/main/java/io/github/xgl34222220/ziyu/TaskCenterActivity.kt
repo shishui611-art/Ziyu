@@ -98,7 +98,13 @@ internal fun TaskCenterHost() {
                 false -> LogsRoute(
                     style = appearance.uiStyle,
                     state = model.toLogsUiState(),
-                    actions = LogsActions(refresh = model::refreshLogs),
+                    actions = LogsActions(
+                        refresh = model::refreshLogs,
+                        cancelTask = model::cancelTask,
+                        undoApply = model::undoFontApplication,
+                        markViewed = model::markLogsViewed,
+                        clearLogs = model::clearLogs,
+                    ),
                     onBack = { (context as? Activity)?.finish() },
                 )
             }

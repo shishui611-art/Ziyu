@@ -46,123 +46,13 @@ fi
 printf '%s\n' '{"status":"error","message":"真实启动错误"}' >"$RESPONSE"
 test "$(luoshu_mix_task_message_from_response "$RESPONSE")" = 真实启动错误
 
-# 真实复现：内层引擎成功登记任务并开始运行，但标准输出完全为空。
-# 外层 Worker 必须从 mix_task.conf 接管子任务，不能误判失败并删除输入目录。
-FONT=$(find /usr/share/fonts -type f \( -iname 'DejaVuSans.ttf' -o -iname 'LiberationSans-Regular.ttf' \) -print -quit 2>/dev/null || true)
-if [ -s "$FONT" ]; then
-    MODULE="$TMP/module"
-    PUBLIC="$TMP/public"
-    mkdir -p "$MODULE/common" "$MODULE/config" "$MODULE/logs" "$PUBLIC/fonts"
-    cp "$ROOT/common/weighted_mix_task.sh" "$MODULE/common/weighted_mix_task.sh"
-    cp "$ROOT/common/util_functions.sh" "$MODULE/common/util_functions.sh"
-    cp "$ROOT/common/font_check.sh" "$MODULE/common/font_check.sh"
-    cp "$ROOT/common/background_task.sh" "$MODULE/common/background_task.sh"
-    cp "$ROOT/common/mix_task_handoff.sh" "$MODULE/common/mix_task_handoff.sh"
+# Actual controller handoff and retained startup-pipe regression use the current
+# selected-slot worker. Library publication is independently verified in Python.
+sh "$ROOT/scripts/legacy_mix_34_progress_test.sh"
 
-    cat >"$MODULE/common/font_role_check.sh" <<'EOF_ROLE'
-#!/bin/sh
-exit 0
-EOF_ROLE
-    cat >"$MODULE/common/font_mix.sh" <<'EOF_ENGINE'
-#!/bin/sh
-MODDIR="${MODDIR:-${0%/*}/..}"
-TASK="$MODDIR/config/mix_task.conf"
-case "${1:-}" in
-    start)
-        cat >"$TASK" <<EOF_INNER
-task=base-no-output
-state=success
-message=内层任务已完成
-cjk=$2
-latin=$3
-digit=$4
-started=1
-finished=2
-EOF_INNER
-        chmod 0644 "$TASK" 2>/dev/null || true
-        # 故意不输出 JSON，模拟部分 Android Root Shell 上丢失启动输出。
-        ;;
-    recover) exit 0 ;;
-esac
-exit 0
-EOF_ENGINE
-    chmod 0755 "$MODULE/common"/*.sh
-
-    cp "$FONT" "$PUBLIC/fonts/CJK-Regular.ttf"
-    cp "$FONT" "$PUBLIC/fonts/Latin-Regular.ttf"
-    cp "$FONT" "$PUBLIC/fonts/Digit-Regular.ttf"
-
-    START=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/weighted_mix_task.sh" \
-        start CJK Latin Digit wght=400 wght=400 wght=400)
-    OUTER=$(printf '%s\n' "$START" | sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' | tail -n1)
-    test -n "$OUTER"
-
-    COUNT=0
-    while [ "$COUNT" -lt 30 ]; do
-        STATE=$(sed -n 's/^state=//p' "$MODULE/config/axes_task.conf" 2>/dev/null | head -n1)
-        case "$STATE" in success|failed) break ;; esac
-        sleep 1
-        COUNT=$((COUNT + 1))
-    done
-    STATE=$(sed -n 's/^state=//p' "$MODULE/config/axes_task.conf" 2>/dev/null | head -n1)
-    if [ "$STATE" != success ]; then
-        echo "nested handoff integration failed: state=${STATE:-missing}" >&2
-        echo '--- axes_task.conf ---' >&2
-        cat "$MODULE/config/axes_task.conf" >&2 2>/dev/null || true
-        echo '--- mix_task.conf ---' >&2
-        cat "$MODULE/config/mix_task.conf" >&2 2>/dev/null || true
-        echo '--- fontswitch.log ---' >&2
-        tail -n 80 "$MODULE/logs/fontswitch.log" >&2 2>/dev/null || true
-        exit 1
-    fi
-    test "$(sed -n 's/^childTask=//p' "$MODULE/config/axes_task.conf")" = base-no-output
-    ! grep -q '无法启动完整复合字体引擎' "$MODULE/config/axes_task.conf"
-
-    # The committed payload is authoritative even when the inner controller's
-    # final task-file write is delayed. This is the real-device false-timeout
-    # regression: active/mount data was ready, but the outer task waited 12 min.
-    rm -f "$MODULE/config/text_reboot_required.conf"
-    cat >"$MODULE/common/font_mix.sh" <<'EOF_COMMITTED_ENGINE'
-#!/bin/sh
-MODDIR="${MODDIR:-${0%/*}/..}"
-case "${1:-}" in
-    start)
-        cat >"$MODDIR/config/mix_task.conf" <<EOF_INNER
-task=base-committed
-state=running
-message=正在收尾
-cjk=$2
-latin=$3
-digit=$4
-EOF_INNER
-        printf 'mix\n' >"$MODDIR/config/active_font.conf"
-        printf 'font=mix\ntime=2\nbootId=boot-a\n' >"$MODDIR/config/text_reboot_required.conf"
-        printf 'state=prepared\nfont=mix\ngeneration=test\ntime=2\n' >"$MODDIR/config/font-payload-boot.conf"
-        printf 'system/fonts/LuoShu.ttf|hash|1234\n' >"$MODDIR/config/font-payload-manifest.conf"
-        ;;
-    recover) exit 0 ;;
-esac
-exit 0
-EOF_COMMITTED_ENGINE
-    chmod 0755 "$MODULE/common/font_mix.sh"
-    START=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/weighted_mix_task.sh" \
-        start CJK Latin Digit wght=400 wght=400 wght=400)
-    OUTER=$(printf '%s\n' "$START" | sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' | tail -n1)
-    test -n "$OUTER"
-    COUNT=0
-    while [ "$COUNT" -lt 30 ]; do
-        STATE=$(sed -n 's/^state=//p' "$MODULE/config/axes_task.conf" 2>/dev/null | head -n1)
-        case "$STATE" in success|failed) break ;; esac
-        sleep 1
-        COUNT=$((COUNT + 1))
-    done
-    test "$(sed -n 's/^state=//p' "$MODULE/config/axes_task.conf")" = success
-    grep -q '负载已提交' "$MODULE/config/axes_task.conf"
-fi
-
-grep -q 'mix_task_handoff.sh' "$ROOT/common/weighted_mix_task.sh"
-grep -q 'luoshu_resolve_nested_mix_task' "$ROOT/common/weighted_mix_task.sh"
-grep -q '_response_file=' "$ROOT/common/weighted_mix_task.sh"
-! grep -q '_output=$(LUOSHU_PUBLIC_DIR=' "$ROOT/common/weighted_mix_task.sh"
+grep -q 'mix_task_handoff.sh' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+grep -q 'luoshu_resolve_nested_mix_task' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+grep -q '_response_file=' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+! grep -q '_output=$(LUOSHU_PUBLIC_DIR=' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 
 echo 'Nested mix task handoff survives missing startup output.'

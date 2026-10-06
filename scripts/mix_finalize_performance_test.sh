@@ -59,13 +59,13 @@ ok grep -q "mix_stage weight-map '正在准备九档字体映射' 92" "$ROOT/com
 no grep -q "mix_stage mono-map" "$ROOT/common/font_finalize_hotfix.sh"
 no grep -q '_luoshu_config_make_mono_weight' "$ROOT/common/font_finalize_hotfix.sh"
 
-# Finalization progress must reserve space after glyph generation and expose real stages.
-ok grep -q '完整复合字体已生成", 80' "$ROOT/common/composite_font.py"
-ok grep -q "mix_stage mount-sync '正在同步元模块字体负载' 96" "$ROOT/common/font_mix.sh"
-ok grep -q "mix_stage manifest '正在生成安全启动清单' 98" "$ROOT/common/font_mix.sh"
-no grep -q 'cp -af "$SYSTEM_FONTS_DIR/." "$PAYLOAD_STAGE/"' "$ROOT/common/font_mix.sh"
-ok grep -q '_progress_message=' "$ROOT/common/weighted_mix_task.sh"
-ok grep -q '完整复合字体后台进程已退出' "$ROOT/common/weighted_mix_task.sh"
+# Selected generation finishes at a reusable library artifact and preserves the
+# base engine's content cache, without constructing mount/manifest transactions.
+ok grep -q 'full-composite-v7' "$ROOT/common/legacy_v14_4/font_mix_engine.sh"
+ok grep -q 'LUOSHU_MIX_PREPARE_ONLY' "$ROOT/common/legacy_v14_4/font_mix_engine.sh"
+ok grep -q 'publish_named_mix' "$ROOT/common/legacy_v14_4/mix_router.sh"
+ok grep -q '正在保存组合到字体库' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+! sed -n '/^finalize_mix_stage()/,/^}/p' "$ROOT/common/legacy_v14_4/mix_router.sh" | grep -q 'commit_mix_stage_if_needed'
 
 # The import action must fit the full Chinese label on one line.
 ok grep -q 'else -> 148.dp' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"

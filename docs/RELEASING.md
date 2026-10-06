@@ -4,15 +4,15 @@
 
 ## 字域 fork 正式版本编号
 
-LuoShu 上游的重构系列历史仍使用 `refactor-v*`。字域 fork 从 **v1.0.0** 开始一条独立版本线：`v1.0.0 → v1.1.1 → v2.0.0 → v2.2.2 → v3.0.0`，规则为 `n.0.0 → n.n.n → (n+1).0.0`。字域 tag 使用 `ziyu-v*`，不覆盖上游或既有重构版标签。
+字域 fork 使用独立的 `ziyu-v*` 标签。当前 1.1 系列每次交付新包都递增修订号：`1.1.0 → 1.1.1 → 1.1.2 → …`。正式版、测试版和 Debug 版都遵循这条规则；同一源码版本的模块与 App 保持一致，Debug App 仅在显示版本后增加 `-debug`，例如模块 `v1.1.1` 对应 App `1.1.1` 或 `1.1.1-debug`。
 
-`module.prop` 对字域首发写入 `versionSeries=ziyu`，显示版本为 v1.0.0。内部升级代码必须高于上游已交付的 70000：字域采用 `70000 + major*10000 + minor*100 + patch`；App 为 `moduleVersionCode*100 + 1`。v1.0.0 对应 80000 / 8000001，v1.1.1 对应 80101。旧 `refactor` 系列仍使用 50000 偏移，legacy 版本公式不变。
+`module.prop` 写入 `versionSeries=ziyu`。字域的模块与 App 共用升级编号：`major*10000 + minor*1000 + patch`。`1.1.0 = 11000`，`1.1.1 = 11001`，`1.1.2 = 11002`；Debug 与正式 App 同一源码版本的编号相同。次版本小于 10，修订号小于 1000。LuoShu 上游历史系列的编号不参与字域的新包编号。
 
-`release_version_policy.py` 统一校验编号和系列；发布门禁不再把“显示版本重置”误报为内部编号错误。App 包名、模块 ID、固定签名和数据路径不得随重编号改变，安装时不得要求用户卸载或清除数据。
+`release_version_policy.py` 统一校验编号和系列。每次交付先同步 `module.prop`、`config/version_notes.conf` 与当前发布说明，再重新编译 App。Gradle 从 `module.prop` 读取版本；测试打包脚本还会核对构建元数据中的实际 APK 版本与文件内容，拒绝将旧 APK 标为新版本。模块 ID、数据路径和同一 App 包名的签名不得随修订号改变。
 
 字域首发标签为 **ziyu-v1.0.0**，发布说明为 **RELEASE_NOTES_ziyu-v1.0.0.md**；附件统一命名为 **Ziyu-v1.0.0.zip / Ziyu-App-v1.0.0.apk**。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是比较不同项目的显示版本字符串。
 
-同步更新 `config/stable_version_policy.json` 的 currentStable / nextStable、module.prop、version_notes.conf 与本版说明；只有明确发布请求才创建 Release。本次版本线重置不删除任何旧版本或标签。
+`config/stable_version_policy.json` 的 `currentStable` 与线上更新清单只在正式发布完成后推进；本地 Debug 构建不宣称已发布。只有明确发布请求才创建 Release，不删除旧版本或标签。
 
 ## 首次配置固定 App 签名
 

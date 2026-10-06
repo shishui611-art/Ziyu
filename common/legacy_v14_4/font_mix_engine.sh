@@ -486,13 +486,13 @@ commit_mix_config() {
 apply_mix() {
     _cjk="$1"; _latin="$2"; _digit="$3"
     [ -n "$_cjk" ] && [ -n "$_latin" ] && [ -n "$_digit" ] || { set_mix_error '组合配置不完整'; return 1; }
-    recover_interrupted_payload
+    if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" != true ]; then recover_interrupted_payload; fi
     if [ -e "$LOCK_FILE" ]; then
         _pid=$(cat "$LOCK_FILE" 2>/dev/null)
         if [ -n "$_pid" ] && kill -0 "$_pid" 2>/dev/null; then set_mix_error '字体正在切换中'; return 2; fi
         rm -f "$LOCK_FILE" 2>/dev/null || true
     fi
-    [ ! -f "$TEXT_REBOOT_REQUIRED" ] || { set_mix_error '本次开机已更改文字字体，请先重启手机'; return 3; }
+    [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ] || [ ! -f "$TEXT_REBOOT_REQUIRED" ] || { set_mix_error '本次开机已更改文字字体，请先重启手机'; return 3; }
     echo $$ > "$LOCK_FILE"
     trap cleanup_mix_process EXIT INT TERM
 
@@ -505,6 +505,20 @@ apply_mix() {
 
     mkdir -p "$SYSTEM_FONTS_DIR" "$CONFIG_DIR" "$MODDIR/logs" 2>/dev/null || { set_mix_error '无法创建模块工作目录'; return 4; }
     build_composite_file "$_cjk_src" "$_latin_src" "$_digit_src" || return 5
+    if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ]; then
+        if [ -n "${LUOSHU_MIX_PARENT_TASK:-}" ] && \
+           [ "$(sed -n 's/^task=//p' "${LUOSHU_MIX_CANCEL_FILE:-}" 2>/dev/null | head -n1)" = "$LUOSHU_MIX_PARENT_TASK" ]; then
+            set_mix_error '组合任务已取消'; return 7
+        fi
+        _prepared_dir="${LUOSHU_MIX_MANIFEST%/*}"
+        mkdir -p "$_prepared_dir" 2>/dev/null || return 6
+        cp -f "$COMPOSITE_RESULT" "$_prepared_dir/mix-composite.ttf.tmp.$$" || return 6
+        mv -f "$_prepared_dir/mix-composite.ttf.tmp.$$" "$_prepared_dir/mix-composite.ttf" || return 6
+        write_mix_generation_manifest "$_cjk" "$_latin" "$_digit" || return 6
+        rm -f "$LOCK_FILE" 2>/dev/null || true
+        trap - EXIT INT TERM
+        return 0
+    fi
     payload_stage_begin || { set_mix_error '无法创建字体负载暂存区'; return 5; }
     if [ "$IS_HYPEROS" = "true" ]; then
         populate_hyperos_payload "$PAYLOAD_STAGE" "$COMPOSITE_RESULT" || { set_mix_error '生成 HyperOS 字体负载失败'; return 5; }
@@ -549,7 +563,7 @@ case "${1:-status}" in
             printf '{"status":"error","message":"请选择中文、英文和数字字体"}\n'
             exit 0
         fi
-        if [ -f "$TEXT_REBOOT_REQUIRED" ]; then
+        if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" != true ] && [ -f "$TEXT_REBOOT_REQUIRED" ]; then
             printf '{"status":"error","message":"本次开机已更改文字字体，请先重启手机"}\n'
             exit 0
         fi
@@ -565,7 +579,12 @@ case "${1:-status}" in
                 _message='完整复合字体已准备，完整重启后生效'
                 [ "$COMPOSITE_CACHE_HIT" = true ] && _message='已使用验证缓存准备字体组合，完整重启后生效'
                 write_task "$_task" success "$_message" "$_cjk" "$_latin" "$_digit" "$_started" "$_finished"
-                command -v cmd >/dev/null 2>&1 && cmd notification post -t 字域 luoshu-mix "字体组合已准备，请完整重启手机。" >/dev/null 2>&1 || true
+                if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ]; then
+                    _message='完整复合字体已生成，正在保存字体库'
+                    write_task "$_task" success "$_message" "$_cjk" "$_latin" "$_digit" "$_started" "$_finished"
+                else
+                    command -v cmd >/dev/null 2>&1 && cmd notification post -t 字域 luoshu-mix "字体组合已准备，请完整重启手机。" >/dev/null 2>&1 || true
+                fi
             else
                 _rc=$?; _finished=$(date +%s)
                 _failure="${LAST_MIX_ERROR:-}"

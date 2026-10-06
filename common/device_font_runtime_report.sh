@@ -119,8 +119,9 @@ device_font_runtime_report_collect() {
         "font-payload-boot.conf|font-payload-boot.conf" \
         "font-payload-schema.conf|font-payload-schema.conf" \
         "font-target-coverage.conf|font-target-coverage.conf"; do
-        _dfr_name=${_dfr_pair%%|*}
-        _dfr_output=${_dfr_pair#*|}
+        IFS='|' read -r _dfr_name _dfr_output <<EOF_RUNTIME_PAIR
+$_dfr_pair
+EOF_RUNTIME_PAIR
         _device_font_report_copy "$_dfr_config/$_dfr_name" "$_dfr_stage/$_dfr_output" || true
     done
 

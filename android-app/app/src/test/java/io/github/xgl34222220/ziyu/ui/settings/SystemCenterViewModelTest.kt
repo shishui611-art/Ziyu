@@ -7,6 +7,14 @@ import org.junit.Test
 
 class SystemCenterViewModelTest {
     @Test
+    fun unifiedBackendFailureIsAnErrorEvenAfterStockRollback() {
+        val state = parseHealthReport(
+            "healthVersion=1\nmodulePresent=true\nactiveFont=default\nalignmentState=failed\nselfMountState=failed\n",
+        )
+        assertEquals(HealthLevel.ERROR, state.level)
+    }
+
+    @Test
     fun parsesHealthAndConflicts() {
         val report = """
             healthVersion=1

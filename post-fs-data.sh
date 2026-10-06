@@ -1,15 +1,14 @@
 #!/system/bin/sh
-# LuoShu early-boot router.
-# A foreground switch only prepares .luoshu-payload-next. Activate it here before
-# any LuoShu font source is exposed or mounted, so the previous Android boot never
-# observes its live payload being renamed or rewritten.
+# Root-manager and Meta backend selection is centralized in one mount runtime.
 set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
+
+# Activate a previously prepared payload before exposing any module files.
 UNIVERSAL_NEXT_STATE="$MODDIR/config/universal-font-next.conf"
-UNIVERSAL_NEXT_HELPER="$MODDIR/common/universal_next_boot.sh"
 if [ -s "$UNIVERSAL_NEXT_STATE" ]; then
-    [ -f "$UNIVERSAL_NEXT_HELPER" ] && . "$UNIVERSAL_NEXT_HELPER"
+    NEXT_BOOT_HELPER="$MODDIR/common/universal_next_boot.sh"
+    [ -f "$NEXT_BOOT_HELPER" ] && . "$NEXT_BOOT_HELPER"
     type universal_font_next_boot_activate >/dev/null 2>&1 && \
         universal_font_next_boot_activate >/dev/null 2>&1 || true
 else
@@ -19,122 +18,24 @@ else
         luoshu_next_boot_activate >/dev/null 2>&1 || true
 fi
 
-UNIVERSAL_MODE="$MODDIR/config/universal-font-runtime.conf"
-UNIVERSAL_RUNTIME="$MODDIR/common/universal_mount_runtime.sh"
-if [ -s "$UNIVERSAL_MODE" ]; then
-    [ -f "$UNIVERSAL_RUNTIME" ] && MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-        sh "$UNIVERSAL_RUNTIME" hook post-fs-data >/dev/null 2>&1 || true
-    exit 0
-fi
-
-LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
+RUNTIME="$MODDIR/common/mount_backend_runtime.sh"
 V4_POST_FS="$MODDIR/.luoshu-runtime/core/post-fs-data.sh"
-HYPEROS_LEGACY_COMPAT="$MODDIR/common/legacy_v14_4/hyperos_full_coverage.sh"
+LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
+UNIVERSAL_MODE="$MODDIR/config/universal-font-runtime.conf"
 
-load_self_mount_runtime() {
-    [ -f "$MODDIR/common/private_payload.sh" ] && . "$MODDIR/common/private_payload.sh"
-    [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
-    [ -f "$MODDIR/common/font_config_runtime.sh" ] && . "$MODDIR/common/font_config_runtime.sh"
-    [ -f "$MODDIR/common/font_config_partitions.sh" ] && . "$MODDIR/common/font_config_partitions.sh"
-    # mount_compat.sh is the actual loader for private_mount_policy,
-    # mount_self_atomic, font_runtime_policy and font_runtime_mount. Sourcing only
-    # mount_self_backend.sh leaves luoshu_private_self_mount_ensure undefined and
-    # silently skips the real font mount.
-    [ -f "$MODDIR/common/mount_compat.sh" ] && . "$MODDIR/common/mount_compat.sh"
-    [ -f "$MODDIR/common/mount_self_backend.sh" ] && . "$MODDIR/common/mount_self_backend.sh"
-}
-
-record_mount_loader_failure() {
-    mkdir -p "$MODDIR/config" "$MODDIR/logs" 2>/dev/null || true
-    {
-        printf 'state=failed\n'
-        printf 'backend=none\n'
-        printf 'failed=runtime-loader-missing\n'
-        printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
-    } > "$MODDIR/config/self-mount.conf" 2>/dev/null || true
-    printf '[%s] self-mount runtime loader missing; refusing false success\n' \
-        "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" \
-        >> "$MODDIR/logs/post-fs-data.log" 2>/dev/null || true
-}
-
-scan_stock_before_self_mount_postfs() {
-    _ls_stock_manager="$MODDIR/common/font_manager.sh"
-    _ls_stock_inventory="$MODDIR/config/device_font_inventory.json"
-    [ -f "$_ls_stock_manager" ] || return 0
-    if [ -f "$MODDIR/config/stock_inventory_scan_pending" ] || [ ! -s "$_ls_stock_inventory" ]; then
-        LUOSHU_STOCK_VIEW_VERIFIED=1 LUOSHU_FRESH_STOCK_SCAN=1 MODDIR="$MODDIR" \
-            sh "$_ls_stock_manager" action stock_scan >>"$MODDIR/logs/post-fs-data.log" 2>&1 || true
-    fi
-}
-
-if [ ! -f "$LEGACY_MODE" ]; then
-    if [ -f "$V4_POST_FS" ]; then
-        exec sh "$V4_POST_FS"
-    fi
-
-    load_self_mount_runtime
-    type luoshu_private_mount_module_view >/dev/null 2>&1 && \
-        luoshu_private_mount_module_view "$MODDIR" >/dev/null 2>&1 || true
-    type luoshu_self_mount_stage_for_manager >/dev/null 2>&1 || {
-        record_mount_loader_failure
-        exit 0
-    }
-    _lpf_root=$(luoshu_detect_root_manager 2>/dev/null | head -n1)
-    _lpf_stage=$(luoshu_self_mount_stage_for_manager "$_lpf_root" 2>/dev/null)
-    case "$_lpf_stage" in
-        post-mount)
-            type luoshu_private_unmount_module_view >/dev/null 2>&1 && \
-                luoshu_private_unmount_module_view "$MODDIR" >/dev/null 2>&1 || true
-            ;;
-        *)
-            scan_stock_before_self_mount_postfs
-            type luoshu_private_self_mount_ensure >/dev/null 2>&1 || {
-                record_mount_loader_failure
-                exit 0
-            }
-            luoshu_private_self_mount_ensure >/dev/null 2>&1 || true
-            ;;
-    esac
-    exit 0
+# Keep the verified v2.2.7 initializer for the normal v4 payload, then let its
+# core wrapper hand off to the same selector used by compatibility runtimes.
+if [ ! -s "$UNIVERSAL_MODE" ] && [ ! -f "$LEGACY_MODE" ] && [ -f "$V4_POST_FS" ]; then
+    exec sh "$V4_POST_FS"
 fi
 
-mkdir -p "$MODDIR/config" "$MODDIR/logs" 2>/dev/null || true
-chmod 0755 "$MODDIR" "$MODDIR/common" 2>/dev/null || true
-rm -rf "$MODDIR/config/font_switch.lock" "$MODDIR/config/mount.lock" 2>/dev/null || true
-
-load_self_mount_runtime
-type luoshu_private_mount_module_view >/dev/null 2>&1 && \
-    luoshu_private_mount_module_view "$MODDIR" >/dev/null 2>&1 || true
-
-# HyperOS 3 uses additional upright UI/typeface/clock slots across system_ext,
-# product and mi_ext. Discover every safe physical slot that exists on this ROM
-# before self-mount, rather than relying on a short static filename list.
-[ -f "$HYPEROS_LEGACY_COMPAT" ] && . "$HYPEROS_LEGACY_COMPAT"
-type luoshu_hyperos_full_payload_ensure >/dev/null 2>&1 && \
-    luoshu_hyperos_full_payload_ensure >/dev/null 2>&1 || true
-
-type luoshu_self_mount_stage_for_manager >/dev/null 2>&1 || {
-    record_mount_loader_failure
-    exit 0
-}
-_lpf_root=$(luoshu_detect_root_manager 2>/dev/null | head -n1)
-_lpf_stage=$(luoshu_self_mount_stage_for_manager "$_lpf_root" 2>/dev/null)
-case "$_lpf_stage" in
-    post-mount)
-        type luoshu_private_unmount_module_view >/dev/null 2>&1 && \
-            luoshu_private_unmount_module_view "$MODDIR" >/dev/null 2>&1 || true
-        ;;
-    *)
-        scan_stock_before_self_mount_postfs
-        type luoshu_private_self_mount_ensure >/dev/null 2>&1 || {
-            record_mount_loader_failure
-            exit 0
-        }
-        luoshu_private_self_mount_ensure >/dev/null 2>&1 || true
-        ;;
-esac
-
-printf '[%s] physical compatibility early mount routed: stage=%s\n' \
-    "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "${_lpf_stage:-unknown}" \
-    >> "$MODDIR/logs/post-fs-data.log" 2>/dev/null || true
-exit 0
+mkdir -p "$MODDIR/logs" "$MODDIR/config" 2>/dev/null || true
+if [ -f "$RUNTIME" ]; then
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$RUNTIME" hook post-fs-data \
+        >> "$MODDIR/logs/mount-backend.log" 2>&1
+    _lpf_rc=$?
+else
+    _lpf_rc=1
+    printf 'runtime-loader-missing\n' > "$MODDIR/config/mount-backend-failed" 2>/dev/null || true
+fi
+exit "$_lpf_rc"

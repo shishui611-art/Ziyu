@@ -65,7 +65,8 @@ def build(module: Path, stage: Path) -> dict:
         for source in sorted(root.iterdir()):
             if not source.is_file() or source.suffix.lower() not in FONT_EXTENSIONS:
                 continue
-            logical = str(logical_root / source.name)
+            # Inventory keys describe Android paths, even in a Windows fixture.
+            logical = (logical_root / source.name).as_posix()
             report = {'slot': logical, 'metricsSource': 'preserved'}
             reports.append(report)
             slot = indexed.get(logical)

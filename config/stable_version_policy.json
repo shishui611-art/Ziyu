@@ -5,8 +5,11 @@
   "effectiveFrom": "v1.1.0",
   "currentStable": "v1.1.0",
   "firstRelease": "v1.0.0",
-  "nextStable": "v1.1.1",
+  "nextStable": "v1.1.6",
   "rule": "Semantic versions; major*10000 + minor*1000 + patch",
+  "deliveryRule": "Every new delivery including Debug increments the patch in the 1.1.x series; module and App share one source version",
+  "debugVersionName": "module version without leading v plus -debug",
+  "debugVersionCode": "moduleVersionCode",
   "examples": [
     "v1.1.0",
     "v1.1.1",

@@ -16,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import io.github.xgl34222220.ziyu.rememberNativeImportViewModel
 import io.github.xgl34222220.ziyu.NativeImportPhase
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
@@ -36,6 +39,8 @@ internal fun LogsRoute(
     val hasImportControls = importState.taskId.isNotBlank() && importState.phase != NativeImportPhase.IDLE
     val scope = rememberCoroutineScope()
     var diagnosticState by remember { mutableStateOf(DiagnosticExportState()) }
+    var clearConfirmation by remember { mutableStateOf(false) }
+    val displayActions = actions.copy(clearLogs = { clearConfirmation = true })
     val onDiagnostic = {
         if (!diagnosticState.busy) {
             diagnosticState = DiagnosticExportState(busy = true)
@@ -54,7 +59,7 @@ internal fun LogsRoute(
         LogsScreenCompact(
             style = style,
             state = displayState,
-            actions = actions,
+            actions = displayActions,
             diagnosticState = diagnosticState,
             onDiagnostic = onDiagnostic,
             onBack = onBack,
@@ -80,6 +85,17 @@ internal fun LogsRoute(
             style = style,
             state = diagnosticState,
             onDismiss = { diagnosticState = DiagnosticExportState() },
+        )
+    }
+    if (clearConfirmation) {
+        AlertDialog(
+            onDismissRequest = { clearConfirmation = false },
+            title = { Text("清空运行日志？") },
+            text = { Text("运行日志将被清空。当前任务和字体回退记录会保留，清空后无法恢复这些日志。") },
+            confirmButton = {
+                TextButton(onClick = { clearConfirmation = false; actions.clearLogs() }) { Text("清空日志") }
+            },
+            dismissButton = { TextButton(onClick = { clearConfirmation = false }) { Text("取消") } },
         )
     }
 }

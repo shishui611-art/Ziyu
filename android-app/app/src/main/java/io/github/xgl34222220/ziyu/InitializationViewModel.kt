@@ -71,22 +71,40 @@ private val ROOT_AND_MODULE_PROBE = """
     printf 'uid=%s\n' "${'$'}uid"
     if [ "${'$'}uid" != 0 ]; then exit 1; fi
 
-    if command -v apd >/dev/null 2>&1 || [ -d /data/adb/ap ] || [ -d /data/adb/apatch ]; then
-        root_manager=APatch
-    elif command -v ksud >/dev/null 2>&1 || [ -d /data/adb/ksu ]; then
-        ksu_version="${'$'}(getprop ro.build.version.incremental 2>/dev/null) ${'$'}{KSU_VER:-}"
-        case "${'$'}ksu_version" in
-            *SukiSU*|*sukisu*|*SUKISU*) root_manager='SukiSU Ultra' ;;
-            *) root_manager=KernelSU ;;
-        esac
-    elif command -v magisk >/dev/null 2>&1 || [ -d /data/adb/magisk ]; then
-        root_manager=Magisk
+    module_dir=/data/adb/modules/LuoShu
+    if [ -f "${'$'}module_dir/common/root_manager_detection.sh" ]; then
+        . "${'$'}module_dir/common/root_manager_detection.sh"
+        luoshu_detect_root_manager >/dev/null 2>&1 || true
+        root_manager="${'$'}{ROOT_MANAGER:-unknown}"
     else
-        root_manager='其他兼容 su 环境'
+        # First install has no module copy of the shared detector yet. Mirror its
+        # env-first ordering; the shared /data/adb/ksu directory is not enough to
+        # distinguish KernelSU from a fork or stale installation.
+        suki_env="${'$'}(printf '%s' "${'$'}{SUKISU:-}" | tr '[:upper:]' '[:lower:]')"
+        suki_flag="${'$'}(printf '%s' "${'$'}{KSU_SUKISU:-}" | tr '[:upper:]' '[:lower:]')"
+        apatch_env="${'$'}(printf '%s' "${'$'}{APATCH:-}" | tr '[:upper:]' '[:lower:]')"
+        ksu_env="${'$'}(printf '%s' "${'$'}{KSU:-}" | tr '[:upper:]' '[:lower:]')"
+        if [ "${'$'}suki_flag" = 1 ] || [ "${'$'}suki_flag" = true ] || [ "${'$'}suki_flag" = yes ] || [ -n "${'$'}{SUKISU_VER:-}${'$'}{SUKISU_VER_CODE:-}" ] || { [ -n "${'$'}suki_env" ] && [ "${'$'}suki_env" != 0 ] && [ "${'$'}suki_env" != false ] && [ "${'$'}suki_env" != no ] && [ "${'$'}suki_env" != off ]; }; then
+            root_manager='SukiSU Ultra'
+        elif [ -n "${'$'}{APATCH_VER:-}${'$'}{APATCH_VER_CODE:-}" ] || { [ -n "${'$'}apatch_env" ] && [ "${'$'}apatch_env" != 0 ] && [ "${'$'}apatch_env" != false ] && [ "${'$'}apatch_env" != no ] && [ "${'$'}apatch_env" != off ]; }; then
+            root_manager=APatch
+        elif [ -n "${'$'}{KSU_VER_CODE:-}${'$'}{KSU_KERNEL_VER_CODE:-}" ] || { [ -n "${'$'}ksu_env" ] && [ "${'$'}ksu_env" != 0 ] && [ "${'$'}ksu_env" != false ] && [ "${'$'}ksu_env" != no ] && [ "${'$'}ksu_env" != off ]; }; then
+            root_manager=KernelSU
+        elif [ -n "${'$'}{MAGISK_VER:-}${'$'}{MAGISK_VER_CODE:-}" ]; then
+            root_manager=Magisk
+        elif command -v apd >/dev/null 2>&1 || [ -d /data/adb/ap ] || [ -d /data/adb/apatch ]; then
+            root_manager=APatch
+        elif command -v ksud >/dev/null 2>&1 || [ -x /data/adb/ksu/ksud ] || [ -x /data/adb/ksu/bin/ksud ]; then
+            # Shared KSU paths do not identify the exact manager.
+            root_manager='其他兼容 su 环境'
+        elif command -v magisk >/dev/null 2>&1 || [ -d /data/adb/magisk ]; then
+            root_manager=Magisk
+        else
+            root_manager='其他兼容 su 环境'
+        fi
     fi
     printf 'root_manager=%s\n' "${'$'}root_manager"
 
-    module_dir=/data/adb/modules/LuoShu
     update_dir=/data/adb/modules_update/LuoShu
     module_installed=false
     module_pending_update=false

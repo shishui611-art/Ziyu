@@ -92,7 +92,8 @@ done
 
 # Boot confirmation only confirms the preserved payload. Even a much newer
 # timestamp with matching font, schema and manifest cannot complete migration.
-printf 'system/fonts/Roboto-Regular.ttf|hash|1234\n' > "$NEW/config/font-payload-manifest.conf"
+_fixture_hash=$(sha256sum "$NEW/system/fonts/Roboto-Regular.ttf" | awk '{print $1}')
+printf 'system/fonts/Roboto-Regular.ttf|%s|1234\n' "$_fixture_hash" > "$NEW/config/font-payload-manifest.conf"
 cat > "$NEW/config/font-payload-boot.conf" <<'EOF_BOOT'
 state=confirmed
 font=mix

@@ -5,35 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import kotlin.math.roundToInt
-
-internal data class SystemWeightState(
-    val loading: Boolean = true,
-    val supported: Boolean = false,
-    val weight: Int = 400,
-    val adjustment: Int = 0,
-    val originalAdjustment: Int = 0,
-    val min: Int = 300,
-    val max: Int = 700,
-    val step: Int = 10,
-    val applying: Boolean = false,
-    val ownedByModule: Boolean = false,
-    val message: String = "正在读取系统字体粗细…",
-    val error: String = "",
-)
-
-internal fun snapSystemWeight(value: Int, min: Int = 300, max: Int = 700, step: Int = 10): Int {
-    val safeMin = min.coerceAtLeast(1)
-    val safeMax = max.coerceAtLeast(safeMin)
-    val safeStep = step.coerceAtLeast(1)
-    val clamped = value.coerceIn(safeMin, safeMax)
-    val snapped = safeMin + (((clamped - safeMin).toFloat() / safeStep).roundToInt() * safeStep)
-    return snapped.coerceIn(safeMin, safeMax)
-}
 
 internal data class CoverageGroupMetrics(
     val present: Int = 0,
@@ -73,154 +46,10 @@ internal data class CoverageProbeState(
 )
 
 internal class Alpha15FeatureViewModel : ViewModel() {
-    private val fontManager = "/data/adb/modules/LuoShu/common/font_manager.sh"
     private val coverageTool = "/data/adb/modules/LuoShu/common/font_coverage.sh"
-    private var weightJob: Job? = null
-    private var weightRefreshJob: Job? = null
-    private var lastCommittedWeight: Int? = null
-
-    var systemWeight by mutableStateOf(SystemWeightState())
-        private set
 
     var coverage by mutableStateOf(CoverageProbeState())
         private set
-
-    fun refreshSystemWeight() {
-        if (systemWeight.applying || weightRefreshJob?.isActive == true) return
-        systemWeight = systemWeight.copy(loading = true, error = "")
-        weightRefreshJob = viewModelScope.launch {
-            val result = RootShell.exec(
-                "sh ${RootShell.quote(fontManager)} action font_weight_status",
-                timeoutMs = 20_000L,
-            )
-            try {
-                if (result.code != 0) error(result.stderr.ifBlank { "系统字体粗细读取失败" })
-                val root = firstJson(result.stdout)
-                if (root.optString("status") != "ok") error(root.optString("message", "系统字体粗细读取失败"))
-                val data = root.getJSONObject("data")
-                val minimum = data.optInt("min", 300)
-                val maximum = data.optInt("max", 700).coerceAtLeast(minimum)
-                val step = data.optInt("step", 10).coerceAtLeast(1)
-                val weight = snapSystemWeight(data.optInt("weight", 400), minimum, maximum, step)
-                lastCommittedWeight = weight
-                systemWeight = SystemWeightState(
-                    loading = false,
-                    supported = data.optBoolean("supported", false),
-                    weight = weight,
-                    adjustment = data.optInt("adjustment", weight - 400),
-                    originalAdjustment = data.optInt("originalAdjustment", 0),
-                    min = minimum,
-                    max = maximum,
-                    step = step,
-                    ownedByModule = data.optBoolean("ownedByModule", false),
-                    message = data.optString("message").ifBlank { "拖动后会立即应用；部分应用需要重新打开" },
-                )
-            } catch (error: Throwable) {
-                systemWeight = systemWeight.copy(
-                    loading = false,
-                    supported = false,
-                    error = error.message ?: "系统字体粗细读取失败",
-                    message = "",
-                )
-            }
-        }
-    }
-
-    fun previewSystemWeight(value: Float) {
-        val state = systemWeight
-        if (!state.supported || state.loading) return
-        val snapped = snapSystemWeight(value.roundToInt(), state.min, state.max, state.step)
-        systemWeight = state.copy(
-            weight = snapped,
-            adjustment = snapped - 400,
-            message = "松开后自动应用…",
-            error = "",
-        )
-        weightJob?.cancel()
-        weightJob = viewModelScope.launch {
-            delay(360L)
-            commitSystemWeight(snapped)
-        }
-    }
-
-    fun commitSystemWeight(weight: Int = systemWeight.weight) {
-        val state = systemWeight
-        if (!state.supported || state.loading) return
-        val safe = snapSystemWeight(weight, state.min, state.max, state.step)
-        if (lastCommittedWeight == safe && state.ownedByModule && state.error.isBlank()) {
-            systemWeight = state.copy(message = "当前已是 $safe；未刷新的应用重新打开即可")
-            return
-        }
-        weightJob?.cancel()
-        weightJob = viewModelScope.launch {
-            systemWeight = systemWeight.copy(
-                weight = safe,
-                adjustment = safe - 400,
-                applying = true,
-                message = "正在应用系统粗细 $safe…",
-                error = "",
-            )
-            val result = RootShell.exec(
-                "sh ${RootShell.quote(fontManager)} action font_weight_set ${RootShell.quote(safe.toString())}",
-                timeoutMs = 20_000L,
-            )
-            try {
-                if (result.code != 0) error(result.stderr.ifBlank { "无法写入系统字体粗细" })
-                val root = firstJson(result.stdout)
-                if (root.optString("status") != "ok") error(root.optString("message", "无法写入系统字体粗细"))
-                val data = root.optJSONObject("data")
-                val applied = snapSystemWeight(data?.optInt("weight", safe) ?: safe, state.min, state.max, state.step)
-                lastCommittedWeight = applied
-                systemWeight = systemWeight.copy(
-                    weight = applied,
-                    adjustment = data?.optInt("adjustment", applied - 400) ?: (applied - 400),
-                    applying = false,
-                    ownedByModule = true,
-                    message = data?.optString("message").orEmpty().ifBlank {
-                        "系统粗细已更新；未刷新的应用请重新打开"
-                    },
-                    error = "",
-                )
-            } catch (error: Throwable) {
-                systemWeight = systemWeight.copy(
-                    applying = false,
-                    message = "",
-                    error = error.message ?: "无法写入系统字体粗细",
-                )
-            }
-        }
-    }
-
-    fun resetSystemWeight() {
-        if (systemWeight.loading || systemWeight.applying) return
-        weightJob?.cancel()
-        weightJob = viewModelScope.launch {
-            systemWeight = systemWeight.copy(applying = true, message = "正在恢复系统原始粗细…", error = "")
-            val result = RootShell.exec(
-                "sh ${RootShell.quote(fontManager)} action font_weight_reset",
-                timeoutMs = 20_000L,
-            )
-            try {
-                if (result.code != 0) error(result.stderr.ifBlank { "无法恢复系统字体粗细" })
-                val root = firstJson(result.stdout)
-                if (root.optString("status") != "ok") error(root.optString("message", "无法恢复系统字体粗细"))
-                val data = root.optJSONObject("data")
-                systemWeight = systemWeight.copy(
-                    applying = false,
-                    ownedByModule = false,
-                    message = data?.optString("message").orEmpty().ifBlank { "已恢复系统原始字体粗细" },
-                )
-                lastCommittedWeight = null
-                refreshSystemWeight()
-            } catch (error: Throwable) {
-                systemWeight = systemWeight.copy(
-                    applying = false,
-                    message = "",
-                    error = error.message ?: "无法恢复系统字体粗细",
-                )
-            }
-        }
-    }
 
     fun inspectCoverage(fontId: String) {
         if (fontId.isBlank() || coverage.loading) return

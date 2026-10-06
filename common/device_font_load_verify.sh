@@ -38,6 +38,7 @@ _dfload_write_simple() {
         printf 'mode=%s\n' "$_dfload_mode"
         printf 'activeFont=%s\n' "$_dfload_active"
         printf 'reason=%s\n' "$_dfload_reason"
+        printf 'bootId=%s\n' "$(_dfload_boot_id)"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "${_dfload_conf}.tmp.$$" 2>/dev/null || return 1
     mv -f "${_dfload_conf}.tmp.$$" "$_dfload_conf" 2>/dev/null || return 1
@@ -56,6 +57,101 @@ _dfload_state_value() {
     _dfload_file="$1"
     _dfload_key="$2"
     sed -n "s/^${_dfload_key}=//p" "$_dfload_file" 2>/dev/null | head -n1 | tr -d '\r\n'
+}
+
+_dfload_boot_id() {
+    if [ -n "${LUOSHU_BACKEND_TEST_BOOT_ID:-}" ]; then
+        printf '%s\n' "$LUOSHU_BACKEND_TEST_BOOT_ID"
+    else
+        cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n'
+    fi
+}
+
+_dfload_backend_route_verify() {
+    _dfload_route_module="$(_dfload_module)"
+    _dfload_route_python="${LUOSHU_PYTHON:-$_dfload_route_module/common/python/bin/luoshu-python}"
+    _dfload_route_script="$_dfload_route_module/common/font_route_verify.py"
+    [ -f "$_dfload_route_script" ] || return 1
+    mkdir -p "$_dfload_route_module/logs" 2>/dev/null || return 1
+    if [ -n "${LUOSHU_PYTHON:-}" ]; then
+        "$_dfload_route_python" "$_dfload_route_script" \
+            --module-root "$_dfload_route_module" \
+            --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
+            --mountinfo "${LUOSHU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
+            --mode auto --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
+            >> "$_dfload_route_module/logs/device-font-load-verify.log" 2>&1
+    else
+        _dfload_route_pyroot="$_dfload_route_module/common/python"
+        PYTHONHOME="$_dfload_route_pyroot" \
+        PYTHONPATH="$_dfload_route_module/common:$_dfload_route_pyroot/lib/python3.14:$_dfload_route_pyroot/lib/python3.14/site-packages" \
+        LD_LIBRARY_PATH="$_dfload_route_pyroot/lib:$_dfload_route_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$_dfload_route_python" "$_dfload_route_script" \
+            --module-root "$_dfload_route_module" \
+            --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
+            --mountinfo "${LUOSHU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
+            --mode auto --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
+            >> "$_dfload_route_module/logs/device-font-load-verify.log" 2>&1
+    fi
+}
+
+# A new selector record is authoritative. A stale self-mount marker, a previous
+# boot's cached success, or files visible only in the su namespace cannot override
+# its failed/pending verdict. Return 3 only for packages with no selector record.
+_dfload_backend_authority() {
+    _dfload_authority_mode="${1:-status}"
+    _dfload_authority_file="$(_dfload_module)/config/mount-backend.conf"
+    [ -f "$_dfload_authority_file" ] || return 3
+    if [ "$(_dfload_state_value "$_dfload_authority_file" schema)" != ziyu-mount-backend-v1 ]; then
+        _dfload_write_simple failed backend-state-invalid-schema "$(_dfload_active_font)" backend
+        return 1
+    fi
+    _dfload_authority_boot=$(_dfload_state_value "$_dfload_authority_file" boot_id)
+    _dfload_authority_current=$(_dfload_boot_id)
+    if [ -z "$_dfload_authority_current" ] || [ "$_dfload_authority_boot" != "$_dfload_authority_current" ]; then
+        _dfload_write_simple pending backend-state-from-different-boot "$(_dfload_active_font)" backend
+        return 2
+    fi
+    _dfload_authority_backend=$(_dfload_state_value "$_dfload_authority_file" active_backend)
+    _dfload_authority_result=$(_dfload_state_value "$_dfload_authority_file" verification)
+    _dfload_authority_error=$(_dfload_state_value "$_dfload_authority_file" last_error)
+    if [ "$(_dfload_state_value "$_dfload_authority_file" backend_conflict)" = 1 ]; then
+        _dfload_write_simple failed backend-conflict "$(_dfload_active_font)" backend
+        return 1
+    fi
+    if [ "$_dfload_authority_result" = failed ]; then
+        _dfload_write_simple failed "backend-verification-failed:${_dfload_authority_error:-unknown}" "$(_dfload_active_font)" backend
+        _dfload_log "当前启动后端验证失败，拒绝旧挂载标记：backend=$_dfload_authority_backend error=$_dfload_authority_error"
+        return 1
+    fi
+    case "$_dfload_authority_backend:$_dfload_authority_result" in
+        meta:passed|self:passed) ;;
+        *)
+            _dfload_write_simple pending backend-verification-pending "$(_dfload_active_font)" backend
+            return 2
+            ;;
+    esac
+    if [ "$_dfload_authority_mode" = verify ]; then
+        if ! _dfload_backend_route_verify; then
+            _dfload_write_simple failed backend-pid1-route-verification-failed "$(_dfload_active_font)" backend
+            _dfload_log "后端记录通过，但 PID 1 字体路由复核失败；原始错误见本日志及 device-font-load-route-verification.json"
+            return 1
+        fi
+        _dfload_write_simple verified "backend-pid1-route-verified:$_dfload_authority_backend" "$(_dfload_active_font)" mount-verified
+    else
+        # An App status query is intentionally cheap. Reuse only the same boot
+        # and same font's deep readback, never promote backend metadata alone.
+        _dfload_authority_cached="$(_dfload_module)/config/device-font-load-verification.conf"
+        if [ "$(_dfload_state_value "$_dfload_authority_cached" bootId)" = "$_dfload_authority_current" ] && \
+           [ "$(_dfload_state_value "$_dfload_authority_cached" activeFont)" = "$(_dfload_active_font)" ]; then
+            case "$(_dfload_state_value "$_dfload_authority_cached" state):$(_dfload_state_value "$_dfload_authority_cached" reason)" in
+                "verified:backend-pid1-route-verified:$_dfload_authority_backend") return 0 ;;
+                failed:backend-pid1-route-verification-failed) return 1 ;;
+            esac
+        fi
+        _dfload_write_simple pending backend-awaiting-pid1-route-verification "$(_dfload_active_font)" backend
+        return 2
+    fi
+    return 0
 }
 
 _dfload_hash_stream() {
@@ -200,6 +296,10 @@ device_font_load_status() {
         return 0
     fi
 
+    _dfload_backend_authority status
+    _dfload_authority_rc=$?
+    [ "$_dfload_authority_rc" -eq 3 ] || return "$_dfload_authority_rc"
+
     _dfload_conf="$_dfload_module_dir/config/device-font-load-verification.conf"
     _dfload_verified_state=$(_dfload_state_value "$_dfload_conf" state)
     _dfload_verified_active=$(_dfload_state_value "$_dfload_conf" activeFont)
@@ -229,6 +329,10 @@ device_font_load_verify() {
         _dfload_write_simple not-applicable default-font "$_dfload_active" system
         return 2
     fi
+
+    _dfload_backend_authority verify
+    _dfload_authority_rc=$?
+    [ "$_dfload_authority_rc" -eq 3 ] || return "$_dfload_authority_rc"
 
     if _dfload_exact_visible_match; then
         _dfload_write_simple verified visible-font-files-match "$_dfload_active" mount-verified

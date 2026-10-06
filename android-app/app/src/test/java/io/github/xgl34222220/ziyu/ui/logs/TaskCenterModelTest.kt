@@ -6,6 +6,22 @@ import org.junit.Test
 
 class TaskCenterModelTest {
     @Test
+    fun cancelledTaskIsTerminalAndDoesNotBecomeFailure() {
+        assertEquals(TaskPhase.CANCELLED, taskPhaseFor("", "正在停止", "cancelled"))
+        val item = TaskCenterItem("t", TaskKind.APPLY, TaskPhase.CANCELLED, "已取消", "已取消", current = true)
+        assertTrue(!item.active)
+        assertTrue(!item.completed)
+        assertTrue(!item.cancellable)
+    }
+
+    @Test
+    fun onlyCurrentOwnedApplyAndMixTasksCanCancel() {
+        val item = TaskCenterItem("t", TaskKind.APPLY, TaskPhase.RUNNING, "应用", "准备", current = true)
+        assertTrue(item.cancellable)
+        assertTrue(!item.copy(current = false).cancellable)
+        assertTrue(!item.copy(kind = TaskKind.SCAN).cancellable)
+    }
+    @Test
     fun structuredLogsBecomeNewestFirstTaskTimeline() {
         val tasks = parseTaskLogItems(
             """
