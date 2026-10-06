@@ -11,6 +11,8 @@ on:
     paths:
       - module.prop
       - '更新日志/**'
+      - 'scripts/release_version_policy_test.py'
+      - 'scripts/sync_update_metadata_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:

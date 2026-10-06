@@ -45,10 +45,12 @@ module_props = dict(
 assert module_props.get("updateJson") == "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/update.json"
 app_update_source = (
     ROOT / "android-app" / "app" / "src" / "main" / "java" / "io" / "github"
-    / "xgl34222220" / "ziyu" / "ui" / "settings" / "SystemCenterViewModel.kt"
+    / "xgl34222220" / "ziyu" / "ui" / "settings" / "ModuleReleaseUpdater.kt"
 ).read_text(encoding="utf-8")
-assert 'https://raw.githubusercontent.com/shishui611-art/Ziyu/main/$file' in app_update_source
-assert 'https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/main/$file' not in app_update_source
+assert 'https://api.github.com/repos/shishui611-art/Ziyu/releases/latest' in app_update_source
+assert 'https://raw.githubusercontent.com/shishui611-art/Ziyu/$tag/module.prop' in app_update_source
+assert 'https://github.com/shishui611-art/Ziyu' in app_update_source
+assert 'xgl34222220-ops/LuoShu' not in app_update_source
 for metadata_file in ("update.json", "update-prerelease.json"):
     actual = json.loads((ROOT / metadata_file).read_text(encoding="utf-8"))
     # Feeds describe published assets. A candidate must not advertise itself
