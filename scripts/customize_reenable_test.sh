@@ -16,7 +16,8 @@ printf 'state=quarantined\n' > "$OLD/config/font-payload-quarantine.conf"
 printf 'preferred_backend=self\n' > "$OLD/config/mount-backend-preference.conf"
 
 # customize.sh intentionally tolerates unavailable Android commands during host-side tests. The
-# regression contract is that a flash immediately re-enables both the active and staged trees.
+# regression contract is that a flash immediately re-enables both trees and migrates old backend
+# preferences to the automatic boot policy.
 if ! MODPATH="$NEW" LUOSHU_OLD_MOD="$OLD" sh -x "$ROOT/customize.sh" >"$TMP/direct.log" 2>&1; then
     cat "$TMP/direct.log" >&2
     echo 'direct customize execution failed' >&2
@@ -27,7 +28,7 @@ test ! -e "$OLD/disable"
 test ! -e "$NEW/disable"
 test ! -e "$OLD/config/font-boot-failures"
 test ! -e "$OLD/config/font-payload-quarantine.conf"
-test "$(sed -n 's/^preferred_backend=//p' "$NEW/config/mount-backend-preference.conf")" = self
+test "$(sed -n 's/^preferred_backend=//p' "$NEW/config/mount-backend-preference.conf")" = auto
 
 # APatch sources customize.sh. The wrapper must return to the manager instead of
 # exiting its parent shell before the staged module is committed.
