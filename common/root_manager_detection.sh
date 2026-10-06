@@ -38,7 +38,10 @@ luoshu_current_boot_backend_state() {
     [ -r "$_lrd_state" ] || return 1
     _lrd_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
     [ -n "$_lrd_boot" ] || return 1
-    [ "$(sed -n 's/^schema=//p' "$_lrd_state" | head -n1)" = ziyu-mount-backend-v1 ] || return 1
+    case "$(sed -n 's/^schema=//p' "$_lrd_state" | head -n1)" in
+        ziyu-mount-backend-v1|ziyu-mount-backend-v2|ziyu-mount-backend-v3) ;;
+        *) return 1 ;;
+    esac
     [ "$(sed -n 's/^boot_id=//p' "$_lrd_state" | head -n1 | tr -d '\r\n')" = "$_lrd_boot" ] || return 1
     printf '%s\n' "$_lrd_state"
 }

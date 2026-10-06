@@ -182,7 +182,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         private set
     var preparedCombination by mutableStateOf<PreparedCombination?>(null)
         private set
-    var mountPreferences by mutableStateOf("尚未读取挂载设置")
+    var mountPreferences by mutableStateOf("尚未读取挂载状态")
         private set
     var logsViewed by mutableStateOf(false)
         private set
@@ -273,20 +273,28 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             mountPreferences = runCatching {
                 val data = firstJson(result.stdout)
                 if (!data.optBoolean("ok")) error(data.optString("message").ifBlank { data.optString("error", result.stderr) })
-                fun label(value: String) = when (value) { "meta" -> "元模块"; "self" -> "字域自挂载"; "auto" -> "自动选择"; else -> "未启用" }
-                buildString {
-                    append("设置：${label(data.optString("preferredBackend"))}\n实际生效：${label(data.optString("activeBackend"))}")
-                    append("\n检测到：${data.optString("metaEngine", "none")}")
-                    append("\n元模块可用：${if (data.optBoolean("metaUsable")) "是" else "否"}")
-                    val reason = data.optString("metaUsableReason")
-                    if (reason.isNotBlank()) append("\n诊断：$reason")
-                    val failure = data.optString("preferenceFailure")
-                    if (failure.isNotBlank() && failure != "none") append("\n选择未生效原因：$failure")
-                    val lastError = data.optString("lastError")
-                    if (lastError.isNotBlank() && lastError != "none") append("\n挂载验证错误：$lastError")
-                    if (data.optBoolean("pending")) append("\n设置已保存，下次完整重启后切换。元模块失败时先清理，确认安全后回退；不能确认则停止挂载。")
+                fun label(value: String) = when (value) {
+                    "external", "meta" -> "外部提供者"
+                    "self" -> "字域兼容挂载"
+                    "unresolved" -> "等待确认"
+                    else -> "未启用"
                 }
-            }.getOrElse { it.message ?: "挂载设置读取失败" }
+                buildString {
+                    append("挂载方式：自动选择")
+                    append("\nRoot：${data.optString("rootManager", "尚未确认")} ${data.optString("rootVersion")}")
+                    append("\n提供者：${data.optString("providerName", "尚未确认")} ${data.optString("providerVersion")}")
+                    append("\n实现方式：${data.optString("mountMethod", "尚未确认")}")
+                    append("\n判断依据：${data.optString("mountMethodEvidence")}")
+                    append("\n计划：${label(data.optString("plannedBackend"))}")
+                    append("\n实际生效：${label(data.optString("activeBackend"))}")
+                    append("\n验证结果：${data.optString("verification", "pending")}")
+                    val lastError = data.optString("lastError")
+                    if (lastError.isNotBlank() && lastError != "none" && lastError != "provider-scan-pending") {
+                        append("\n状态原因：$lastError")
+                    }
+                    if (data.optBoolean("pending")) append("\n等待完整重启后的挂载结果。")
+                }
+            }.getOrElse { it.message ?: "挂载状态读取失败" }
             if (action != "get") operationMessage = mountPreferences
             }
         }

@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from android_ui_smoke import center, crash_reason, page_ready, tab_target
 
 
-PACKAGE = "io.github.xgl34222220.ziyu.debug"
+PACKAGE = "io.github.shishui611_art.ziyu.debug"
 
 
 class UiSmokeHarnessTest(unittest.TestCase):

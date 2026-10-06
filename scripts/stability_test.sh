@@ -66,24 +66,27 @@ MODDIR="$MODULE" sh "$MODULE/common/module_status.sh" mix >/dev/null
 grep -q '当前字体：组合：中文甲 / Latin B / DIN C$' "$MODULE/module.prop"
 ! grep -q '待验证' "$MODULE/module.prop"
 
-# 私有字体负载更新不能依赖刷写进程拥有 bind-mount 权限。KernelSU/SukiSU 的
-# 安装命名空间禁止 mount 时，旧 .luoshu-payload 必须通过只读式临时符号链接
-# 投影给迁移器，结束后恢复为空目录。
+# 私有字体负载只保存在 .luoshu-payload 中，不再投影到模块常规目录；
+# 卸载时仍能清理旧版本遗留的临时符号链接记录。
 PRIVATE_MODULE="$TMP/private-module"
 PRIVATE_STATE="$TMP/private-state"
 mkdir -p "$PRIVATE_MODULE/.luoshu-payload/system/fonts" "$PRIVATE_MODULE/system"
 printf 'font-payload\n' > "$PRIVATE_MODULE/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+mkdir -p "$PRIVATE_STATE"
+rmdir "$PRIVATE_MODULE/system"
+ln -s "$PRIVATE_MODULE/.luoshu-payload/system" "$PRIVATE_MODULE/system"
+printf '%s|%s\n' "$PRIVATE_MODULE/system" "$PRIVATE_MODULE/.luoshu-payload/system" > "$PRIVATE_STATE/module-view.symlinks"
 MODULE_DIR="$PRIVATE_MODULE" \
 LUOSHU_PRIVATE_STATE_ROOT="$PRIVATE_STATE" \
 LUOSHU_PRIVATE_MOUNT_COMMAND=false \
     sh -c '
         . "$1/common/private_payload.sh"
-        luoshu_private_mount_module_view "$MODULE_DIR"
-        test -L "$MODULE_DIR/system"
-        test -s "$MODULE_DIR/system/fonts/Roboto-Regular.ttf"
+        test -f "$MODULE_DIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+        ! type luoshu_private_mount_module_view >/dev/null 2>&1
         luoshu_private_unmount_module_view "$MODULE_DIR"
         test -d "$MODULE_DIR/system"
         test ! -L "$MODULE_DIR/system"
+        test -f "$MODULE_DIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
     ' sh "$ROOT"
 
 # 原生 App 字体管理器必须使用原生索引，且不再携带 WebUI 预览、热刷新或回滚入口。
@@ -142,10 +145,10 @@ grep -q 'LEGACY_MODE=' "$ROOT/post-fs-data.sh"
 grep -q 'exec sh "$V4_POST_FS"' "$ROOT/post-fs-data.sh"
 ! grep -q 'font-payload-rebuild-pending.conf' "$ROOT/post-fs-data.sh"
 ! grep -q 'luoshu_rebuild_preserved_payload' "$ROOT/service.sh"
-grep -q 'LUOSHU_UPDATE_REBUILD_REQUIRED' "$ROOT/customize.sh"
+grep -q 'LUOSHU_UPDATE_REBUILD_REQUIRED' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
 ! grep -q 'luoshu_v4_update_rebuild_selected' "$ROOT/customize.sh"
-grep -q '本次刷写不会同步重建字体' "$ROOT/customize.sh"
-grep -q '已保留当前字体负载' "$ROOT/customize.sh"
+grep -q '重启后需在字域重新应用当前字体以升级引擎' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
+grep -q '已保留字体选择与组合偏好' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
 sh "$ROOT/scripts/module_update_state_test.sh"
 
 # 所有字体卡片必须使用同一套短双行样张，任何字体字宽都不得把第二行挤掉。

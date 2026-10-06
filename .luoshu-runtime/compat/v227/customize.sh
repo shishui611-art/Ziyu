@@ -171,10 +171,7 @@ if [ -f "$FONT_INVENTORY_SCRIPT" ] && [ -x "$FONT_INVENTORY_PYTHON" ]; then
         [ -n "$_inventory_dynamic" ] || _inventory_dynamic="0"
         [ -n "$_inventory_candidates" ] || _inventory_candidates="0"
         [ -n "$_inventory_rom" ] || _inventory_rom="generic"
-        ui_print "✓ 安装阶段已记录本机字体候选：$_inventory_candidates 个"
-        ui_print "✓ 原厂字体文件：$_inventory_files 个（ROM：$_inventory_rom）"
-        ui_print "✓ 可替换 UI 槽位：$_inventory_slots 个（不是本次刷写数量）"
-        [ "$_inventory_dynamic" -eq 0 ] 2>/dev/null || ui_print "✓ 自动发现额外 OEM 字体分区：$_inventory_dynamic 个"
+        ui_print '✓ 原厂字体扫描完成'
     else
         # The install must remain successful even when the current flash namespace
         # cannot expose a verified stock lower/mirror. Keep a retry marker so the
@@ -182,15 +179,11 @@ if [ -f "$FONT_INVENTORY_SCRIPT" ] && [ -x "$FONT_INVENTORY_PYTHON" ]; then
         : > "$MODPATH/config/stock_inventory_scan_pending" 2>/dev/null || true
         _inventory_candidates=$(sed -n 's/.*"candidateCount"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$FONT_INVENTORY_CANDIDATES" 2>/dev/null | head -n1)
         [ -n "$_inventory_candidates" ] || _inventory_candidates="0"
-        ui_print "✓ 安装阶段已记录本机字体候选：$_inventory_candidates 个"
-        _inventory_error=$(tail -n 3 "$FONT_INVENTORY_LOG" 2>/dev/null | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tail -n1)
-        [ -z "$_inventory_error" ] || ui_print "• 原厂视图校验失败：$_inventory_error"
-        ui_print "• 本次刷写环境没有拿到完整可信原厂视图；最终可替换槽位待重启前确认"
-        ui_print "• 已安排字域自挂载前自动补扫，不中止安装"
+        ui_print '• 原厂字体暂未完整读取，开机前会自动补扫'
     fi
 else
     : > "$MODPATH/config/stock_inventory_scan_pending" 2>/dev/null || true
-    ui_print "• 字体扫描组件暂不可用；已安排开机前自动重试，不中止安装"
+    ui_print '• 字体扫描组件暂不可用，开机前会自动重试'
 fi
 FONT_TOPOLOGY_SCRIPT="$MODPATH/common/font_topology_snapshot.sh"
 FONT_TOPOLOGY_OUTPUT="$MODPATH/config/device_font_topology.json"
@@ -207,10 +200,9 @@ if [ ! -f "$MODPATH/config/stock_inventory_scan_pending" ] && \
         [ -n "$_topology_families" ] || _topology_families=0
         [ -n "$_topology_confirmed" ] || _topology_confirmed=0
         [ -n "$_topology_data" ] || _topology_data=0
-        ui_print "✓ 已建立本机字体拓扑：$_topology_families 个 family，运行时确认 $_topology_confirmed 个槽位"
-        [ "$_topology_data" -eq 0 ] 2>/dev/null || ui_print "✓ 已记录 /data/fonts 动态字体：$_topology_data 个"
+        ui_print '✓ 字体映射分析完成'
     else
-        ui_print "• 字体拓扑暂未完成；开机前原厂补扫成功后会自动重建"
+        ui_print '• 字体映射将在开机前自动补全'
     fi
 fi
 type luoshu_install_step >/dev/null 2>&1 && luoshu_install_step 3 "安装模块与 App"
@@ -231,19 +223,14 @@ ui_print "✓ 模块文件已部署"
 if [ "$UPDATE_PRESERVED" = true ]; then
     _preserved_font=$(head -n1 "$MODPATH/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_preserved_font" ] || _preserved_font=default
-    ui_print "✓ 已继承当前字体配置：$_preserved_font"
+    ui_print "✓ 当前字体：$_preserved_font（已保留）"
     if [ "${LUOSHU_UPDATE_REBUILD_REQUIRED:-false}" = true ]; then
-        ui_print "✓ 本次重启继续使用当前字体，不会后台切回默认字体"
-        ui_print "• 重启后在字域中应用一次当前字体，即可升级到新版引擎"
-    else
-        ui_print "✓ 更新后只需重启一次，无需重新应用字体"
+        ui_print "• 重启后需在字域重新应用当前字体以升级引擎"
     fi
 else
     if [ "$RUNTIME_RECOVERY_RESET" = true ]; then
         ui_print "✓ 已清除 3.1–3.3 生成的旧字体负载"
-        ui_print "✓ 字体选择与组合偏好已保留，首次开机保持系统字体"
-    else
-        ui_print "✓ 当前保持系统默认字体"
+        ui_print "✓ 已保留字体选择与组合偏好"
     fi
 fi
 
@@ -262,13 +249,5 @@ if { [ -s "$MODPATH/bundled/Ziyu-App.apk" ] || [ -s "$MODPATH/bundled/LuoShu-App
 else
     ui_print "✗ 模块内置 App 或安装器缺失，请重新下载字域模块包"
 fi
-if [ "$UPDATE_PRESERVED" = true ] && [ "${LUOSHU_UPDATE_REBUILD_REQUIRED:-false}" = true ]; then
-    ui_print "请完整重启；当前字体会保留。之后只需明确应用一次并重启一次。"
-elif [ "$UPDATE_PRESERVED" = true ]; then
-    ui_print "请完整重启一次，新版字体会直接生效。"
-else
-    ui_print "请完整重启后进入字域 App 配置字体。"
-fi
-ui_print ""
 [ -f "$MODPATH/common/module_status.sh" ] && MODDIR="$MODPATH" sh "$MODPATH/common/module_status.sh" "$(head -n1 "$MODPATH/config/active_font.conf" 2>/dev/null)" >/dev/null 2>&1 || true
 exit 0

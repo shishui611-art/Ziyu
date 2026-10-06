@@ -153,13 +153,18 @@ rm -f "$MOD/skip_mount" "$MOD/config/self-mount-owned"
 # NoMount (kernel VFS injection metamodule): detected and reported, but never
 # selected as a backend until rule-based integration exists.
 NM="$ADB/modules/nomount_meta"
-mkdir -p "$NM"
+mkdir -p "$NM/bin"
 printf 'id=nomount\nname=NoMount Metamodule\nmetamodule=1\n' > "$NM/module.prop"
-cat > "$NM/nm" <<'SH'
+cat > "$NM/bin/nm" <<'SH'
 #!/usr/bin/env bash
-exit 0
+if [ "$1" = version ]; then
+  [ "${NM_VERSION_RC:-0}" -eq 0 ] || exit "$NM_VERSION_RC"
+  printf 'NoMount v2.0.0\n'
+  exit 0
+fi
+exit 2
 SH
-chmod +x "$NM/nm"
+chmod +x "$NM/bin/nm"
 detect_nm() {
   LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$NM" \
   LUOSHU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
@@ -174,13 +179,35 @@ check_nm() {
     FAILURES=$((FAILURES + 1))
   fi
 }
+detect_nm_capability() {
+  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$NM" \
+  LUOSHU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$NOMOUNT_KERNEL_USABLE" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
+}
 ASSUME_ACTIVE=0
 check_nm 'nomount without an active selector names it' '0|0|nomount-not-active'
 ASSUME_ACTIVE=1
-mv "$NM/nm" "$NM/nm.bak"
+mv "$NM/bin/nm" "$NM/bin/nm.bak"
 check_nm 'nomount without the nm CLI names it' '0|0|nomount-cli-unavailable'
-mv "$NM/nm.bak" "$NM/nm"
+mv "$NM/bin/nm.bak" "$NM/bin/nm"
 check_nm 'nomount is recognized but not yet integrated' '1|0|nomount-not-integrated'
+eq_line='1|1|0|nomount-not-integrated'
+actual_line=$(detect_nm_capability)
+[ "$actual_line" = "$eq_line" ] || {
+  printf 'FAIL: bin/nm version response proves the live NoMount interface (expected %s, got %s)\n' "$eq_line" "$actual_line" >&2
+  FAILURES=$((FAILURES + 1))
+}
+CHECKS=$((CHECKS + 1))
+NM_VERSION_RC=1
+export NM_VERSION_RC
+eq_line='0|0|0|nomount-not-active'
+actual_line=$(detect_nm_capability)
+[ "$actual_line" = "$eq_line" ] || {
+  printf 'FAIL: nm version failure means the NoMount driver is not live (expected %s, got %s)\n' "$eq_line" "$actual_line" >&2
+  FAILURES=$((FAILURES + 1))
+}
+CHECKS=$((CHECKS + 1))
+unset NM_VERSION_RC
 : > "$MOD/skip_mount"
 check_nm 'foreign skip marker excludes nomount by name' '0|0|nomount-module-excluded'
 rm -f "$MOD/skip_mount"

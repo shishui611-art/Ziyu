@@ -130,7 +130,7 @@ private enum class SettingsSection(
     SAFETY("安全与维护", "字体加载检查、冲突与安全清理", Icons.Rounded.Security, .96f),
     GOOGLE("Google 字体兼容", "谷歌英数回退处理、状态与中文说明", Icons.Rounded.Build, .96f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
-    UPDATE("软件更新", "稳定版、预发行版与下载说明", Icons.Rounded.SystemUpdate, 1.03f),
+    UPDATE("模块更新", "GitHub 正式版模块与更新说明", Icons.Rounded.SystemUpdate, 1.03f),
 }
 
 @Composable
@@ -464,16 +464,13 @@ private fun OverviewPage(model: SystemCenterViewModel) = pageList {
     }
     item {
         SettingCard("需要关注") {
-            val notices = buildList {
-                if (h.rebootRequired) add("存在等待重启后生效的字体变更")
-                if (h.lockState == "stale") add("检测到失效字体切换锁，可在安全页一键清理")
-                if (h.cachePending) add("设备字体缓存仍在等待完成")
-                if (h.selfMountState == "degraded") add("字域自挂载正在使用 OverlayFS + Bind 降级路径")
-                if (h.conflicts.isNotEmpty()) add("发现 ${h.conflicts.size} 个其它模块字体覆盖目标")
-                if (h.recentErrors > 0) add("最近日志中有 ${h.recentErrors} 条错误记录")
+            if (h.loading) {
+                Text("正在读取系统提醒…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            } else if (h.attentionNotices.isEmpty()) {
+                Text("暂未发现需要处理的提醒", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            } else {
+                h.attentionNotices.forEach { NoticeLine(it) }
             }
-            if (notices.isEmpty()) Text("暂未发现需要处理的提醒", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            else notices.forEach { NoticeLine(it) }
         }
     }
 }
@@ -671,31 +668,41 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle) {
 @Composable
 private fun UpdatePage(model: SystemCenterViewModel) {
     val info = model.updateInfo
+    val task = model.moduleUpdate
     val context = LocalContext.current
-    fun open(url: String) { if (url.startsWith("https://")) runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
     pageList {
         item {
-            SettingCard("更新通道") {
-                Text(if (model.updateChannel == UpdateChannel.STABLE) "只接收正式稳定版本。" else "接收 Alpha / Beta / RC，适合参与兼容性验证。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Spacer(Modifier.height(10.dp))
-                ChoiceRow(UpdateChannel.entries, model.updateChannel, { it.label }, model::selectUpdateChannel)
-            }
-        }
-        item {
-            StatusCard("在线版本", when { info.loading -> "正在检查更新…"; info.error.isNotBlank() -> "检查失败"; info.hasUpdate -> "发现新版本 ${info.version}"; info.available -> "当前已经是最新版本"; info.releasePending -> "此 fork 暂无已发布更新包"; else -> "尚未检查" }, if (info.error.isNotBlank()) HealthLevel.WARNING else HealthLevel.HEALTHY, info.loading) {
-                InfoLine("当前 App", BuildConfig.VERSION_NAME)
-                if (info.available) { InfoLine("在线版本", info.version); InfoLine("版本代码", info.versionCode.toString()); if (info.sha256.isNotBlank()) InfoLine("模块 SHA-256", info.sha256); if (info.appSha256.isNotBlank()) InfoLine("App SHA-256", info.appSha256) }
+            StatusCard("正式模块版本", when {
+                info.loading -> "正在检查 GitHub 正式 Release…"
+                info.error.isNotBlank() -> "检查失败"
+                info.pendingVersion.isNotBlank() -> "模块更新等待完整重启"
+                info.hasUpdate -> "发现新模块 ${info.version}"
+                info.available -> "没有更新的正式模块版本"
+                else -> "尚未检查"
+            }, if (info.error.isNotBlank()) HealthLevel.WARNING else HealthLevel.HEALTHY, info.loading) {
+                InfoLine("已安装模块", info.currentVersion.ifBlank { "尚未读取" })
+                if (info.available) InfoLine("GitHub 正式版", info.version)
+                if (info.pendingVersion.isNotBlank()) InfoLine("待重启模块", info.pendingVersion)
+                Text("更新完整模块 ZIP，内置 App 随模块更新；完整重启后生效。", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (info.error.isNotBlank()) Text(info.error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
-                OutlinedButton(model::checkUpdate, Modifier.fillMaxWidth(), enabled = !info.loading) { Icon(Icons.Rounded.Refresh, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("检查更新") }
+                OutlinedButton(model::checkUpdate, Modifier.fillMaxWidth(), enabled = !info.loading && !task.busy) { Text("检查模块更新") }
             }
         }
-        if (info.available) item {
-            SettingCard("下载与说明") {
-                DownloadButton("模块 ZIP", info.zipUrl, info.sha256) { open(info.zipUrl) }
-                if (info.appUrl.isNotBlank()) { Spacer(Modifier.height(8.dp)); DownloadButton("原生 App APK", info.appUrl, info.appSha256) { open(info.appUrl) } }
-                if (info.changelogUrl.isNotBlank()) { Spacer(Modifier.height(8.dp)); OutlinedButton({ open(info.changelogUrl) }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.OpenInNew, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("查看更新说明") } }
+        if (info.hasUpdate) item {
+            SettingCard("更新模块") {
+                Text("来源：shishui611-art/Ziyu 的正式 Release。下载后校验 SHA-256 与模块身份，再调用当前 Root 管理器安装。", fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                Button(model::installModuleUpdate, Modifier.fillMaxWidth(), enabled = !task.busy && !model.maintenance.busy) { Text("下载并更新模块 ${info.version}") }
             }
+        }
+        if (task.message.isNotBlank() || task.error.isNotBlank() || task.restartRequired) item {
+            SettingCard("模块安装状态") {
+                Text(task.error.ifBlank { task.message.ifBlank { "模块已更新，请完整重启" } }, color = if (task.error.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+        if (info.changelogUrl.isNotBlank()) item {
+            OutlinedButton({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.changelogUrl))) } }, Modifier.fillMaxWidth()) { Text("查看 GitHub 正式版说明") }
         }
     }
 }
@@ -820,6 +827,7 @@ private fun mountStateLabel(value: String): String = when (value) {
     "degraded" -> "降级"
     "failed" -> "失败"
     "idle" -> "待命"
+    "skipped" -> "已跳过"
     "unknown", "" -> ""
     else -> value
 }

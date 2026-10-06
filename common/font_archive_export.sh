@@ -29,10 +29,10 @@ dest="${2:-}"
 
 case "$dest" in
     *'/../'*|*/..|../*) fail "归档缓存路径无效" ;;
-    /data/user/0/io.github.xgl34222220.ziyu/cache/font_archive/*|\
-    /data/data/io.github.xgl34222220.ziyu/cache/font_archive/*|\
-    /data/user/0/io.github.xgl34222220.ziyu.debug/cache/font_archive/*|\
-    /data/data/io.github.xgl34222220.ziyu.debug/cache/font_archive/*) ;;
+    /data/user/0/io.github.shishui611_art.ziyu/cache/font_archive/*|\
+    /data/data/io.github.shishui611_art.ziyu/cache/font_archive/*|\
+    /data/user/0/io.github.shishui611_art.ziyu.debug/cache/font_archive/*|\
+    /data/data/io.github.shishui611_art.ziyu.debug/cache/font_archive/*) ;;
     *) fail "归档目标目录不受信任" ;;
 esac
 

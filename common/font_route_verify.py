@@ -293,7 +293,7 @@ def verify_physical_routes(
     }
 
 
-def verify_legacy(module: Path, root: Path, mountinfo: Path) -> dict[str, Any]:
+def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: bool = True) -> dict[str, Any]:
     config = module / "config"
     physical = physical_safe_contract(config)
     payload = module / ".luoshu-payload"
@@ -317,7 +317,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path) -> dict[str, Any]:
         raise RouteError("font-payload-manifest-has-no-fonts")
 
     failures: list[str] = []
-    points = mount_points(mountinfo)
+    points = mount_points(mountinfo) if require_mounts else set()
     checked_fonts = 0
     checked_xml = 0
     verified_fonts: set[str] = set()
@@ -345,11 +345,12 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path) -> dict[str, Any]:
         if source_hash != actual_hash:
             failures.append(f"pid1-visible-hash-mismatch:{rel}")
             continue
-        if not has_partition_mount(rel, points):
+        has_mount_route = not require_mounts or has_partition_mount(rel, points)
+        if not has_mount_route:
             failures.append(f"pid1-mountinfo-route-missing:{rel}")
         if rel in font_paths:
             checked_fonts += 1
-            if expected_hash == source_hash and is_world_readable(visible) and has_partition_mount(rel, points):
+            if expected_hash == source_hash and is_world_readable(visible) and has_mount_route:
                 verified_fonts.add(rel)
         if rel in xml_paths:
             checked_xml += 1
@@ -434,7 +435,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path) -> dict[str, Any]:
         failures.append("no-pid1-font-xml-verified")
 
     return {
-        "mode": "legacy",
+        "mode": "legacy" if require_mounts else "nomount",
         "state": "failed" if failures else "verified",
         "namespace": str(root),
         "checkedFonts": checked_fonts,
@@ -446,7 +447,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path) -> dict[str, Any]:
     }
 
 
-def verify_universal(module: Path, root: Path, mountinfo: Path) -> dict[str, Any]:
+def verify_universal(module: Path, root: Path, mountinfo: Path, require_mounts: bool = True) -> dict[str, Any]:
     deployment_path = module / ".luoshu-payload/.luoshu-runtime/deployment/deployment.json"
     plan_path = module / ".luoshu-payload/.luoshu-runtime/deployment/font-plan.json"
     artifacts_path = module / ".luoshu-payload/.luoshu-runtime/deployment/artifact-manifest.json"
@@ -463,7 +464,7 @@ def verify_universal(module: Path, root: Path, mountinfo: Path) -> dict[str, Any
     targets = plan.get("targets") if isinstance(plan.get("targets"), dict) else {}
     xml_refs: dict[str, set[str]] = {}
     failures: list[str] = []
-    points = mount_points(mountinfo)
+    points = mount_points(mountinfo) if require_mounts else set()
     checked_fonts = 0
     checked_xml = 0
     files = deployment.get("files") if isinstance(deployment.get("files"), list) else []
@@ -491,7 +492,7 @@ def verify_universal(module: Path, root: Path, mountinfo: Path) -> dict[str, Any
         if visible_hash != source_hash:
             failures.append(f"pid1-visible-hash-mismatch:{logical}")
             continue
-        if not has_partition_mount(rel, points):
+        if require_mounts and not has_partition_mount(rel, points):
             failures.append(f"pid1-mountinfo-route-missing:{logical}")
         if kind == "xml":
             checked_xml += 1
@@ -524,7 +525,7 @@ def verify_universal(module: Path, root: Path, mountinfo: Path) -> dict[str, Any
     if role_files["cjk"] and not role_files["cjk"].intersection(visible_refs):
         failures.append("cjk-route-not-proven")
     return {
-        "mode": "universal",
+        "mode": "universal" if require_mounts else "nomount-universal",
         "state": "failed" if failures else "verified",
         "namespace": str(root),
         "checkedFonts": checked_fonts,
@@ -540,7 +541,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--module-root", type=Path, required=True)
     parser.add_argument("--visible-root", type=Path, default=Path("/proc/1/root"))
-    parser.add_argument("--mode", choices=("auto", "legacy", "universal"), default="auto")
+    parser.add_argument("--mode", choices=("auto", "legacy", "universal", "nomount"), default="auto")
     parser.add_argument("--mountinfo", type=Path, default=Path("/proc/1/mountinfo"))
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
@@ -548,7 +549,10 @@ def main() -> int:
         mode = args.mode
         if mode == "auto":
             mode = "universal" if (args.module_root / "config/universal-font-runtime.conf").is_file() else "legacy"
-        result = verify_universal(args.module_root, args.visible_root, args.mountinfo) if mode == "universal" else verify_legacy(args.module_root, args.visible_root, args.mountinfo)
+        if mode == "universal" or (mode == "nomount" and (args.module_root / "config/universal-font-runtime.conf").is_file()):
+            result = verify_universal(args.module_root, args.visible_root, args.mountinfo, require_mounts=(mode != "nomount"))
+        else:
+            result = verify_legacy(args.module_root, args.visible_root, args.mountinfo, require_mounts=(mode != "nomount"))
     except (OSError, RouteError) as error:
         result = {"mode": args.mode, "state": "failed", "namespace": str(args.visible_root), "failures": [str(error)]}
     raw = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

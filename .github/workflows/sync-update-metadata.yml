@@ -58,7 +58,7 @@ jobs:
             exit 2
           }
 
-          notes_file="RELEASE_NOTES_${tag}.md"
+          notes_file="更新日志/RELEASE_NOTES_${tag}.md"
           git cat-file -e "$tag:$notes_file" 2>/dev/null || {
             echo "Missing release notes at tag: $notes_file" >&2
             exit 2
@@ -67,9 +67,8 @@ jobs:
           release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}")"
           prerelease="$(printf '%s' "$release_json" | jq -r '.prerelease')"
           module_name="Ziyu-${artifact_version}.zip"
-          app_name="Ziyu-App-${artifact_version}.apk"
           asset_names="$(printf '%s' "$release_json" | jq -r '.assets[].name')"
-          for required in "$module_name" "${module_name}.sha256" "$app_name" "${app_name}.sha256"; do
+          for required in "$module_name" "${module_name}.sha256"; do
             printf '%s\n' "$asset_names" | grep -qxF "$required" || {
               echo "Missing verified release asset: $required" >&2
               exit 3
@@ -85,6 +84,7 @@ jobs:
             echo "tag=$tag"
             echo "version=$version"
             echo "version_code=$version_code"
+            echo "version_series=$version_series"
             echo "notes_file=$notes_file"
             echo "output=$output"
           } >> "$GITHUB_OUTPUT"
@@ -95,8 +95,10 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
           VERSION_CODE: ${{ steps.release.outputs.version_code }}
+          VERSION_SERIES: ${{ steps.release.outputs.version_series }}
           NOTES_FILE: ${{ steps.release.outputs.notes_file }}
           OUTPUT: ${{ steps.release.outputs.output }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -118,7 +120,32 @@ jobs:
               --artifact-name Ziyu \
               --output "$OUTPUT" "${fallback[@]}"
 
+            if [[ "$OUTPUT" == 'update.json' && "$VERSION_SERIES" == 'ziyu' ]]; then
+              git show "$RELEASE_SHA:module.prop" > "$RUNNER_TEMP/release-module.prop"
+              next_stable="$(python3 scripts/release_version_policy.py --module "$RUNNER_TEMP/release-module.prop" --field nextStable --check)"
+              ZIYU_RELEASE_VERSION="$VERSION" ZIYU_NEXT_STABLE="$next_stable" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'scripts')
+          from release_version_policy import version_info
+
+          path = Path('config/stable_version_policy.json')
+          policy = json.loads(path.read_text(encoding='utf-8'))
+          released = version_info(os.environ['ZIYU_RELEASE_VERSION'], 'ziyu')
+          current = version_info(policy['currentStable'], 'ziyu')
+          if released['versionCode'] >= current['versionCode']:
+              policy['currentStable'] = released['version']
+              policy['nextStable'] = os.environ['ZIYU_NEXT_STABLE']
+              path.write_text(json.dumps(policy, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+            fi
+
             git add -- "$OUTPUT" update-prerelease.json
+            if [[ "$OUTPUT" == 'update.json' && "$VERSION_SERIES" == 'ziyu' ]]; then
+              git add -- config/stable_version_policy.json
+            fi
             if git diff --cached --quiet; then
               echo "$OUTPUT already matches $TAG"
               exit 0

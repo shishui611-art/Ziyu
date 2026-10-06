@@ -81,9 +81,11 @@ internal data class DeviceTrustState(
     val level: DeviceTrustLevel
         get() = when {
             error.isNotBlank() -> DeviceTrustLevel.ISSUE
-            activeFont in setOf("", "default") || alignment == "not-applicable" -> DeviceTrustLevel.SYSTEM
             mountState == "failed" -> DeviceTrustLevel.ISSUE
             alignment == "failed" || reason in failedTrustReasons -> DeviceTrustLevel.ISSUE
+            activeFont in setOf("", "default") -> DeviceTrustLevel.SYSTEM
+            alignment == "not-applicable" -> DeviceTrustLevel.PENDING
+            alignment == "skipped" -> DeviceTrustLevel.COMPATIBILITY
             reapplyPending -> DeviceTrustLevel.PENDING
             alignment == "verified" && mode in setOf("aligned", "mount-verified", "mount-confirmed") -> DeviceTrustLevel.VERIFIED
             alignment == "pending" || reason in pendingTrustReasons -> DeviceTrustLevel.PENDING
@@ -111,14 +113,81 @@ internal suspend fun loadDeviceTrustState(): DeviceTrustState {
         mode="${'$'}(read_value "${'$'}CFG/device-font-load-verification.conf" mode)"
         reason="${'$'}(read_value "${'$'}CFG/device-font-load-verification.conf" reason)"
         verifiedActive="${'$'}(read_value "${'$'}CFG/device-font-load-verification.conf" activeFont)"
+        verifiedBoot="${'$'}(read_value "${'$'}CFG/device-font-load-verification.conf" bootId)"
         mountState="${'$'}(read_value "${'$'}CFG/self-mount.conf" state)"
         mountFailure="${'$'}(read_value "${'$'}CFG/self-mount.conf" failed)"
+        [ ! -f "${'$'}MOD/common/root_manager_detection.sh" ] || . "${'$'}MOD/common/root_manager_detection.sh"
+        backendFile="${'$'}(MODDIR="${'$'}MOD" luoshu_current_boot_backend_state 2>/dev/null)"
+        currentBoot="${'$'}(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')"
+        backendPresent=no
+        if [ -n "${'$'}backendFile" ]; then
+            backendPresent=yes
+            backendVerify="${'$'}(read_value "${'$'}backendFile" verification)"
+            backendActive="${'$'}(read_value "${'$'}backendFile" active_backend)"
+            backendSelected="${'$'}(read_value "${'$'}backendFile" selected_backend)"
+            backendError="${'$'}(read_value "${'$'}backendFile" last_error)"
+            case "${'$'}backendVerify" in
+                failed)
+                    mountState=failed
+                    mountFailure="${'$'}backendError"
+                    alignment=failed
+                    mode=compatibility
+                    reason="${'$'}{backendError:-backend-verification-failed}"
+                    ;;
+                pending)
+                    mountState=pending
+                    alignment=pending
+                    mode=backend
+                    reason=backend-awaiting-verification
+                    mountFailure=
+                    ;;
+                passed|pass)
+                    case "${'$'}backendActive" in self|meta|external) mountState=mounted ;; *) mountState=pending ;; esac
+                    mountFailure=
+                    if [ "${'$'}verifiedBoot" != "${'$'}currentBoot" ] || [ "${'$'}verifiedActive" != "${'$'}active" ]; then
+                        alignment=pending
+                        mode=backend
+                        reason=backend-awaiting-pid1-route-verification
+                    fi
+                    ;;
+                not-applicable)
+                    mountFailure=
+                    if [ "${'$'}active" = default ]; then
+                        mountState=not-applicable
+                        alignment=not-applicable
+                        mode=system
+                        reason=default-font
+                    else
+                        mountState=skipped
+                        alignment=skipped
+                        mode=backend-skipped
+                        reason=mount-not-performed
+                    fi
+                    ;;
+                *)
+                    mountState=pending
+                    alignment=pending
+                    mode=backend
+                    reason=backend-awaiting-verification
+                    ;;
+            esac
+        elif [ -f "${'$'}CFG/mount-backend.conf" ]; then
+            mountState=pending
+            alignment=pending
+            mode=backend
+            reason=stale-boot-transaction
+            mountFailure=
+        elif [ "${'$'}active" != default ] && [ "${'$'}verifiedBoot" != "${'$'}currentBoot" ]; then
+            alignment=pending
+            mode=unknown
+            reason=stale-verification
+        fi
         if [ "${'$'}active" != default ]; then
-            if [ "${'$'}mountState" = failed ]; then
+            if [ "${'$'}backendPresent" = no ] && [ "${'$'}mountState" = failed ]; then
                 alignment=failed
                 mode=compatibility
                 reason=self-mount-failed
-            elif [ -n "${'$'}verifiedActive" ] && [ "${'$'}verifiedActive" != "${'$'}active" ]; then
+            elif [ "${'$'}backendPresent" = no ] && [ -n "${'$'}verifiedActive" ] && [ "${'$'}verifiedActive" != "${'$'}active" ]; then
                 alignment=pending
                 mode=unknown
                 reason=stale-verification
@@ -368,6 +437,7 @@ private fun friendlyTrustReason(value: String): String = when (value) {
     "dynamic-config-mount-failed" -> "系统动态字体配置挂载失败，已完整回滚"
     "stale-verification" -> "验证记录与当前选择的字体不一致"
     "self-mount-not-confirmed" -> "本次启动的自挂载事务尚未确认"
+    "mount-not-performed" -> "当前自定义字体未执行挂载"
     "current-boot-mount-confirmed" -> "本次启动的字体、配置与挂载事务均已确认"
     "physical-self-mount-active" -> "本次启动自挂载已确认，当前字体负载已生效"
     "dynamic-config-changed" -> "系统在启动后改写了动态字体配置"
@@ -392,6 +462,7 @@ private fun friendlyTrustValue(value: String): String = when (value) {
     "mount-confirmed" -> "挂载已确认"
     "compatibility" -> "兼容映射"
     "mounted" -> "完整挂载"
+    "skipped" -> "已跳过"
     "idle" -> "未启用"
     "unknown", "" -> "未知"
     else -> value

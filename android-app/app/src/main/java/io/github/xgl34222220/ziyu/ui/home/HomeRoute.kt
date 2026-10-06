@@ -96,7 +96,7 @@ fun HomeRoute(
         trustContent = {
             if (state.moduleInstalled) {
                 Column(Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { actions.mountSettings(); showMountSettings = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) { Text("挂载方式：选择元模块 / 自挂载") }
+                    OutlinedButton(onClick = { actions.mountSettings(); showMountSettings = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) { Text("挂载状态：自动选择") }
                     if (state.taskRunning) {
                         OutlinedButton(onClick = actions.cancelTask, modifier = Modifier.fillMaxWidth()) { Text("终止当前字体任务") }
                     }
@@ -150,13 +150,10 @@ fun HomeRoute(
     if (showMountSettings) {
         AlertDialog(
             onDismissRequest = { showMountSettings = false },
-            title = { Text("字体挂载方式") },
+            title = { Text("字体挂载状态") },
             text = { Column {
                 Text(state.mountPreferences)
-                TextButton(onClick = { actions.setMountBackend("meta") }) { Text("使用元模块挂载") }
-                TextButton(onClick = { actions.setMountBackend("self") }) { Text("使用字域自挂载") }
-                TextButton(onClick = actions.cancelMountChange) { Text("撤销本次挂载设置变更") }
-                Text("切换在完整重启后生效。只有验证和失败清理能力满足要求的元模块才能使用，否则安全回退自挂载。")
+                Text("优先使用可用的外部提供者；没有提供者时由字域接管。外部接管失败后保持当前选择，查看状态原因并重启处理。")
             } },
             confirmButton = { TextButton(onClick = { showMountSettings = false }) { Text("完成") } },
         )

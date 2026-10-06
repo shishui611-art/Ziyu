@@ -151,5 +151,5 @@ jobs:
           test -z "$(git ls-remote origin refs/tags/refactor-v2.0.0)"
           if gh release view refactor-v2.0.0 >/dev/null 2>&1; then echo 'Release already exists; will not overwrite.' >&2; exit 4; fi
           (cd candidate/dist && sha256sum -c LuoShu-v2.0.0.zip.sha256 && sha256sum -c LuoShu-App-v2.0.0.apk.sha256)
-          gh release create refactor-v2.0.0 candidate/dist/LuoShu-v2.0.0.zip candidate/dist/LuoShu-v2.0.0.zip.sha256 candidate/dist/LuoShu-App-v2.0.0.apk candidate/dist/LuoShu-App-v2.0.0.apk.sha256 --target "$GITHUB_SHA" --title '洛书 2.0.0 正式版' --notes-file RELEASE_NOTES_refactor-v2.0.0.md --latest
+          gh release create refactor-v2.0.0 candidate/dist/LuoShu-v2.0.0.zip candidate/dist/LuoShu-v2.0.0.zip.sha256 candidate/dist/LuoShu-App-v2.0.0.apk candidate/dist/LuoShu-App-v2.0.0.apk.sha256 --target "$GITHUB_SHA" --title '洛书 2.0.0 正式版' --notes-file 更新日志/RELEASE_NOTES_refactor-v2.0.0.md --latest
           gh api repos/${GITHUB_REPOSITORY}/releases/tags/refactor-v2.0.0 --jq '{tag_name,draft,prerelease,assets:[.assets[].name]}'

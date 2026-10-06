@@ -10,6 +10,7 @@ if [ -z "$MODDIR" ]; then
         MODDIR="/data/adb/modules/LuoShu"
     fi
 fi
+[ -f "$MODDIR/common/mount_backend_details.sh" ] && . "$MODDIR/common/mount_backend_details.sh"
 [ -f "$MODDIR/common/root_manager_detection.sh" ] && . "$MODDIR/common/root_manager_detection.sh"
 [ -f "$MODDIR/common/meta_mount_detection.sh" ] && . "$MODDIR/common/meta_mount_detection.sh"
 FONT_MANAGER="$MODDIR/common/font_manager.sh"
@@ -59,15 +60,17 @@ mount_engine() {
         _backend_selected=$(read_prop "$_backend_file" selected_backend)
         _backend_verify=$(read_prop "$_backend_file" verification)
         _backend_error=$(read_prop "$_backend_file" last_error)
-        case "$_backend_active" in
-            self) _backend_label='字域自挂载' ;;
-            meta) _backend_label="元模块挂载 · $(read_prop "$_backend_file" meta_engine)" ;;
-            *) case "$_backend_selected" in
-                self) _backend_label='字域自挂载' ;;
-                meta) _backend_label="元模块挂载 · $(read_prop "$_backend_file" meta_engine)" ;;
-                *) _backend_label='挂载后端' ;;
-            esac ;;
-        esac
+        if [ "$_backend_verify" = not-applicable ]; then
+            if [ "$(head -n1 "$MODDIR/config/active_font.conf" 2>/dev/null | tr -d '\r\n')" = default ] || \
+               [ ! -s "$MODDIR/config/active_font.conf" ]; then
+                printf '系统默认字体，无需挂载'
+            else
+                printf '自定义字体挂载已跳过'
+            fi
+            return
+        fi
+        luoshu_mount_backend_details
+        _backend_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD"
         if [ "$_backend_verify" = failed ]; then
             case "$_backend_selected" in self) _backend_label='自挂载' ;; esac
             case "$_backend_error" in
@@ -184,9 +187,19 @@ status_json() {
                 case "$_mount_failed" in *rollback-failed*|*rollback-verification-failed*|*cleanup*|*backend-conflict*) _backend_rollback_uncertain=true ;; esac
                 ;;
             passed|pass)
-                case "$_backend_active" in self|meta) _mount_state=mounted ;; *) _mount_state=pending ;; esac
+                case "$_backend_active" in self|meta|external) _mount_state=mounted ;; *) _mount_state=pending ;; esac
                 ;;
-            not-applicable) _mount_state=not-applicable ;;
+            not-applicable)
+                _mount_state=not-applicable
+                if [ "$_active" = default ]; then
+                    _verification_state=not-applicable; _verification_grade=PASS
+                    _verification_mode=system; _verification_reason=default-font
+                else
+                    _mount_state=skipped
+                    _verification_state=pending; _verification_grade=PENDING
+                    _verification_mode=backend-skipped; _verification_reason=mount-not-performed
+                fi
+                ;;
             pending)
                 _mount_state=pending; _verification_state=pending; _verification_grade=PENDING
                 _verification_reason=backend-awaiting-verification
@@ -387,8 +400,8 @@ preview_export() {
     _dest="$2"
     _weight="${3:-400}"
     case "$_dest" in
-        /data/user/0/io.github.xgl34222220.ziyu/cache/*|/data/data/io.github.xgl34222220.ziyu/cache/*|\
-        /data/user/0/io.github.xgl34222220.ziyu.debug/cache/*|/data/data/io.github.xgl34222220.ziyu.debug/cache/*) ;;
+        /data/user/0/io.github.shishui611_art.ziyu/cache/*|/data/data/io.github.shishui611_art.ziyu/cache/*|\
+        /data/user/0/io.github.shishui611_art.ziyu.debug/cache/*|/data/data/io.github.shishui611_art.ziyu.debug/cache/*) ;;
         *) printf '{"status":"error","message":"预览目标目录不受信任"}\n'; return 1 ;;
     esac
     _src="$(find_preview_source "$_family" "$_weight")"
@@ -435,24 +448,7 @@ case "${1:-status}" in
     mount_preferences)
         _mp=$(MODDIR="$MODDIR" sh "$MODDIR/common/mount_backend_preferences.sh" "${2:-get}" "${3:-}")
         _mp_rc=$?
-        _mp_ensure=none
-        if [ "$_mp_rc" -eq 0 ] && type luoshu_meta_mount_detect >/dev/null 2>&1; then
-            luoshu_detect_root_manager >/dev/null 2>&1
-            luoshu_meta_mount_detect >/dev/null 2>&1
-            # When the user explicitly picks Meta, close the only fixable gap
-            # ourselves instead of asking them to edit Hybrid Mount TOML.
-            if [ "${2:-get}" = set ] && [ "${3:-}" = meta ] && [ "${META_USABLE:-0}" != 1 ] && \
-               type luoshu_meta_hybrid_ensure_vfs_rule >/dev/null 2>&1; then
-                if luoshu_meta_hybrid_ensure_vfs_rule; then
-                    _mp_ensure="${LUOSHU_META_ENSURE_RESULT:-applied}"
-                    luoshu_meta_mount_detect >/dev/null 2>&1
-                else
-                    _mp_ensure="${LUOSHU_META_ENSURE_RESULT:-failed}"
-                fi
-            fi
-            printf '%s' "$_mp" | sed 's/}[[:space:]]*$//'
-            printf ',"metaEngine":"%s","metaUsable":%s,"metaEnabled":%s,"metaUsableReason":"%s","metaEnsureResult":"%s"}\n' "$(json_escape "${META_ENGINE:-none}")" "$( [ "${META_USABLE:-0}" = 1 ] && echo true || echo false )" "$( [ "${META_ENABLED:-0}" = 1 ] && echo true || echo false )" "$(json_escape "${META_USABLE_REASON:-}")" "$(json_escape "$_mp_ensure")"
-        else printf '%s\n' "$_mp"; fi
+        printf '%s\n' "$_mp"
         exit "$_mp_rc"
         ;;
     status) status_json ;;

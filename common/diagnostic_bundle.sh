@@ -70,7 +70,9 @@ _diag_dump_once() {
         fi
 
         printf '\n[health]\n'
-        sh "$MODDIR/system/bin/luoshu-health" 2>/dev/null || echo '(health unavailable)'
+        _ldb_health="$MODDIR/.luoshu-payload/system/bin/luoshu-health"
+        [ -f "$_ldb_health" ] || _ldb_health="$MODDIR/system/bin/luoshu-health"
+        sh "$_ldb_health" 2>/dev/null || echo '(health unavailable)'
 
         printf '\n[mount snapshot of this namespace]\n'
         grep -E 'fonts|font' /proc/self/mountinfo 2>/dev/null || echo '(no font mounts visible here)'

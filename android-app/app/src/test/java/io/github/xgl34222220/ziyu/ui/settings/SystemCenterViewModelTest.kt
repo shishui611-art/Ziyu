@@ -80,9 +80,13 @@ class SystemCenterViewModelTest {
 
     @Test
     fun updateChannelWithoutPublishedZipDoesNotOfferAnUpstreamPackage() {
-        val info = OnlineUpdateInfo(version = "v2.0.0", versionCode = 70000, releasePending = true)
+        val info = OnlineUpdateInfo(
+            version = "v2.0.0",
+            versionCode = 70000,
+            currentVersion = "v1.2.0",
+            currentVersionCode = 12000,
+        )
         assertFalse(info.available)
         assertFalse(info.hasUpdate)
-        assertTrue(info.releasePending)
     }
 }

@@ -36,10 +36,10 @@ fail_json() {
 
 trusted_source() {
     case "$1" in
-        /data/user/0/io.github.xgl34222220.ziyu/cache/native_import/*|\
-        /data/data/io.github.xgl34222220.ziyu/cache/native_import/*|\
-        /data/user/0/io.github.xgl34222220.ziyu.debug/cache/native_import/*|\
-        /data/data/io.github.xgl34222220.ziyu.debug/cache/native_import/*) return 0 ;;
+        /data/user/0/io.github.shishui611_art.ziyu/cache/native_import/*|\
+        /data/data/io.github.shishui611_art.ziyu/cache/native_import/*|\
+        /data/user/0/io.github.shishui611_art.ziyu.debug/cache/native_import/*|\
+        /data/data/io.github.shishui611_art.ziyu.debug/cache/native_import/*) return 0 ;;
     esac
     return 1
 }

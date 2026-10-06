@@ -69,7 +69,15 @@ _luoshu_meta_find_installed() {
 
 _luoshu_meta_is_owned_skip() {
     _lmis_root="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
-    [ -f "$_lmis_root/config/self-mount-owned" ]
+    case "${1:-skip_mount}" in
+        skip_mount)
+            [ -f "$_lmis_root/.ziyu_skip_mount_owned" ] || [ -f "$_lmis_root/config/self-mount-owned" ]
+            ;;
+        skip_mountify)
+            [ -f "$_lmis_root/.ziyu_skip_mountify_owned" ] || [ -f "$_lmis_root/config/self-mount-owned" ]
+            ;;
+        *) return 1 ;;
+    esac
 }
 
 _luoshu_meta_mountify_selected() {
@@ -103,10 +111,10 @@ _luoshu_meta_mountify_selected() {
         *) return 1 ;;
     esac
     _lmms_module="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
-    if [ -e "$_lmms_module/skip_mountify" ] && ! _luoshu_meta_is_owned_skip; then
+    if [ -e "$_lmms_module/skip_mountify" ] && ! _luoshu_meta_is_owned_skip skip_mountify; then
         return 1
     fi
-    if [ -e "$_lmms_module/skip_mount" ] && ! _luoshu_meta_is_owned_skip; then
+    if [ -e "$_lmms_module/skip_mount" ] && ! _luoshu_meta_is_owned_skip skip_mount; then
         return 1
     fi
     return 0
@@ -395,6 +403,9 @@ luoshu_meta_mount_detect() {
     META_ACTIVE_DIR=''
     META_USABLE_REASON='not-installed'
     META_CLEANUP_CAPABILITY='none'
+    NOMOUNT_KERNEL_USABLE=0
+    META_NOMOUNT_CLI=''
+    META_NOMOUNT_VERSION=''
     META_DETECTION_SOURCE=filesystem
     META_HYBRID_CONFIG_PATH=''
     META_HYBRID_DEFAULT_MODE=''
@@ -476,10 +487,10 @@ luoshu_meta_mount_detect() {
         _lmd_module_dir="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
         _lmd_skip_mount_ok=1
         _lmd_skip_mountify_ok=1
-        if [ -e "$_lmd_module_dir/skip_mount" ] && ! _luoshu_meta_is_owned_skip; then
+        if [ -e "$_lmd_module_dir/skip_mount" ] && ! _luoshu_meta_is_owned_skip skip_mount; then
             _lmd_skip_mount_ok=0
         fi
-        if [ -e "$_lmd_module_dir/skip_mountify" ] && ! _luoshu_meta_is_owned_skip; then
+        if [ -e "$_lmd_module_dir/skip_mountify" ] && ! _luoshu_meta_is_owned_skip skip_mountify; then
             _lmd_skip_mountify_ok=0
         fi
         case "$META_ENGINE" in
@@ -548,6 +559,14 @@ luoshu_meta_mount_detect() {
                 _lmd_runner=0
                 [ -x "$META_MODULE_DIR/post-fs-data.sh" ] && _lmd_runner=1
                 [ -x "$META_MODULE_DIR/service.sh" ] && _lmd_runner=1
+                # KernelSU/SukiSU executes an active Mountify metamodule through
+                # metamount.sh; this script is sourced by the manager and does
+                # not need the executable bit used by standalone boot hooks.
+                if [ "$_lmd_is_active" -eq 1 ] && \
+                   { [ "$_lmd_flag" = 1 ] || [ "$_lmd_flag" = true ]; } && \
+                   [ -f "$META_MODULE_DIR/metamount.sh" ]; then
+                    _lmd_runner=1
+                fi
                 if [ "$_lmd_is_active" -eq 1 ] || \
                    { [ "${ROOT_MANAGER:-unknown}" = Magisk ] && [ "$_lmd_runner" -eq 1 ]; }; then
                     if [ "$_lmd_runner" -ne 1 ]; then
@@ -566,22 +585,44 @@ luoshu_meta_mount_detect() {
                 ;;
             nomount)
                 _lmd_runner=0
-                [ -x "$META_MODULE_DIR/nm" ] && _lmd_runner=1
-                [ -x "$META_MODULE_DIR/nomount" ] && _lmd_runner=1
+                for _lmd_nm_candidate in \
+                    "$META_MODULE_DIR/bin/nm" \
+                    "$META_MODULE_DIR/nm" \
+                    "$META_MODULE_DIR/nomount"; do
+                    [ -x "$_lmd_nm_candidate" ] || continue
+                    META_NOMOUNT_CLI="$_lmd_nm_candidate"
+                    _lmd_runner=1
+                    break
+                done
                 if [ "$_lmd_is_active" -ne 1 ]; then
                     META_USABLE_REASON=nomount-not-active
                 elif [ "$_lmd_runner" -ne 1 ]; then
                     META_USABLE_REASON=nomount-cli-unavailable
                 elif [ "$_lmd_skip_mount_ok" -ne 1 ]; then
                     META_USABLE_REASON=nomount-module-excluded
+                elif [ "${LUOSHU_META_PROVIDER_SCAN:-0}" = 1 ]; then
+                    # NoMount's metamount hook may load the VFS driver after this
+                    # module's post-fs-data hook. Provider detection must not use
+                    # an early `nm version` result as a capability verdict.
+                    if [ -f "$META_MODULE_DIR/metamount.sh" ]; then
+                        META_READY=1
+                        META_USABLE_REASON=nomount-provider-ready
+                    else
+                        META_USABLE_REASON=nomount-provider-hook-unavailable
+                    fi
                 else
-                    # NoMount serves standard module system dirs via kernel VFS
-                    # injection, but Ziyu's font payload lives outside the
-                    # module system dir, so automatic injection covers nothing
-                    # for fonts yet. Report the engine honestly; selecting meta
-                    # would mount nothing until rule-based integration lands.
-                    META_READY=1
-                    META_USABLE_REASON=nomount-not-integrated
+                    META_NOMOUNT_VERSION=$("$META_NOMOUNT_CLI" version 2>/dev/null)
+                    _lmd_nm_version_rc=$?
+                    if [ "$_lmd_nm_version_rc" -eq 0 ] && [ -n "$META_NOMOUNT_VERSION" ]; then
+                        NOMOUNT_KERNEL_USABLE=1
+                        META_READY=1
+                        # The VFS interface is live, but this private-payload
+                        # backend is intentionally separate from Meta selection.
+                        META_USABLE_REASON=nomount-not-integrated
+                    else
+                        META_NOMOUNT_VERSION=''
+                        META_USABLE_REASON=nomount-not-active
+                    fi
                 fi
                 ;;
             magic-mount)

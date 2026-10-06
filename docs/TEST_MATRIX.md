@@ -39,7 +39,7 @@
 - Shell、Python 语法检查通过；
 - 原生 App Kotlin 编译、Lint 与单元测试通过；
 - 唯一模块 ZIP 可构建，ZIP 完整性与 SHA-256 校验通过；
-- 模块内 APK 与独立 APK 字节一致；
+- 模块内 APK 与云端固定证书签名构建产物字节一致；
 - 模块不得包含 `webroot/`，`module.prop` 不得声明 `webroot=`；
 - 不得生成 Lite、App-less 或其他无内置 App 的模块变体；
 - 全局字体必须通过中文、英文、数字和标点覆盖率门禁；

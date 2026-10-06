@@ -71,6 +71,13 @@ _dfload_backend_route_verify() {
     _dfload_route_module="$(_dfload_module)"
     _dfload_route_python="${LUOSHU_PYTHON:-$_dfload_route_module/common/python/bin/luoshu-python}"
     _dfload_route_script="$_dfload_route_module/common/font_route_verify.py"
+    _dfload_route_mode=auto
+    _dfload_route_state="$_dfload_route_module/config/mount-backend.conf"
+    if [ "$(_dfload_state_value "$_dfload_route_state" boot_id)" = "$(_dfload_boot_id)" ] && \
+       [ "$(_dfload_state_value "$_dfload_route_state" selected_backend)" = external ] && \
+       [ "$(_dfload_state_value "$_dfload_route_state" provider_id)" = nomount ]; then
+        _dfload_route_mode=nomount
+    fi
     [ -f "$_dfload_route_script" ] || return 1
     mkdir -p "$_dfload_route_module/logs" 2>/dev/null || return 1
     if [ -n "${LUOSHU_PYTHON:-}" ]; then
@@ -78,7 +85,7 @@ _dfload_backend_route_verify() {
             --module-root "$_dfload_route_module" \
             --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
             --mountinfo "${LUOSHU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
-            --mode auto --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
+            --mode "$_dfload_route_mode" --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
             >> "$_dfload_route_module/logs/device-font-load-verify.log" 2>&1
     else
         _dfload_route_pyroot="$_dfload_route_module/common/python"
@@ -89,7 +96,7 @@ _dfload_backend_route_verify() {
             --module-root "$_dfload_route_module" \
             --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
             --mountinfo "${LUOSHU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
-            --mode auto --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
+            --mode "$_dfload_route_mode" --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
             >> "$_dfload_route_module/logs/device-font-load-verify.log" 2>&1
     fi
 }
@@ -101,10 +108,13 @@ _dfload_backend_authority() {
     _dfload_authority_mode="${1:-status}"
     _dfload_authority_file="$(_dfload_module)/config/mount-backend.conf"
     [ -f "$_dfload_authority_file" ] || return 3
-    if [ "$(_dfload_state_value "$_dfload_authority_file" schema)" != ziyu-mount-backend-v1 ]; then
+    case "$(_dfload_state_value "$_dfload_authority_file" schema)" in
+        ziyu-mount-backend-v1|ziyu-mount-backend-v2|ziyu-mount-backend-v3) ;;
+        *)
         _dfload_write_simple failed backend-state-invalid-schema "$(_dfload_active_font)" backend
         return 1
-    fi
+        ;;
+    esac
     _dfload_authority_boot=$(_dfload_state_value "$_dfload_authority_file" boot_id)
     _dfload_authority_current=$(_dfload_boot_id)
     if [ -z "$_dfload_authority_current" ] || [ "$_dfload_authority_boot" != "$_dfload_authority_current" ]; then
@@ -124,7 +134,7 @@ _dfload_backend_authority() {
         return 1
     fi
     case "$_dfload_authority_backend:$_dfload_authority_result" in
-        meta:passed|self:passed) ;;
+        meta:passed|self:passed|external:passed) ;;
         *)
             _dfload_write_simple pending backend-verification-pending "$(_dfload_active_font)" backend
             return 2

@@ -24,6 +24,8 @@ printf 'new-font\n' > "$MODULE/system/fonts/Roboto-Regular.ttf"
 printf 'stock-font\n' > "$VISIBLE/system/fonts/Roboto-Regular.ttf"
 printf 'stock-emoji\n' > "$VISIBLE/system/fonts/NotoColorEmoji.ttf"
 printf 'Demo\n' > "$MODULE/config/active_font.conf"
+printf 'selected_backend=self\nprovider_state=absent\nfallback_used=0\nboot_id=test-system\n' \
+    > "$MODULE/config/mount-backend.conf"
 printf 'id=LuoShu\nfont=Demo\nengine=self-mount\npartition=system\nnonce=test-system\n' \
     > "$MODULE/system/etc/luoshu/mount-probe.conf"
 printf 'system|test-system|/system/etc/luoshu/mount-probe.conf\n' \
@@ -82,6 +84,7 @@ chmod 0755 "$FAKE_MOUNT" "$FAKE_UMOUNT"
 MODDIR="$MODULE" MODULE_DIR="$MODULE" \
 LUOSHU_PRIVATE_STATE_ROOT="$PRIVATE_STATE" \
 LUOSHU_PRIVATE_MOUNTINFO="$MOUNTINFO" \
+LUOSHU_BACKEND_TEST_BOOT_ID=test-system \
 LUOSHU_PRIVATE_MOUNT_COMMAND="$FAKE_MOUNT" \
 LUOSHU_PRIVATE_UMOUNT_COMMAND="$FAKE_UMOUNT" \
 LUOSHU_TEST_MOUNTINFO="$MOUNTINFO" \
@@ -94,16 +97,17 @@ sh -c '
     [ -z "$(find "$MODDIR/system" -mindepth 1 -print -quit)" ]
     [ -e "$MODDIR/skip_mount" ]
     [ -e "$MODDIR/skip_mountify" ]
-    [ -e "$MODDIR/config/self-mount-owned" ]
-
-    luoshu_private_mount_module_view "$MODDIR"
-    [ "$(cat "$MODDIR/system/fonts/Roboto-Regular.ttf")" = new-font ]
-    luoshu_private_unmount_module_view "$MODDIR"
+    [ -e "$MODDIR/.ziyu_skip_mount_owned" ]
+    [ -e "$MODDIR/.ziyu_skip_mountify_owned" ]
+    [ ! -e "$MODDIR/config/self-mount-owned" ]
+    [ "$(cat "$MODDIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf")" = new-font ]
+    ! type luoshu_private_mount_module_view >/dev/null 2>&1
     [ -z "$(find "$MODDIR/system" -mindepth 1 -print -quit)" ]
+    [ -f "$MODDIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf" ]
 ' sh "$ROOT"
 
-# After all metamodules finish, LuoShu restores its private module view and mounts
-# the payload itself. Skip markers remain, ROM Emoji survives, and a repeated
+# After all metamodules finish, LuoShu reads its canonical private payload and
+# mounts it itself when selected. Skip markers remain, ROM Emoji survives, and a repeated
 # call verifies and reuses the same atomic transaction without stacking mounts.
 MODDIR="$MODULE" MODULE_DIR="$MODULE" LUOSHU_MOUNT_MODDIR="$MODULE" \
 LUOSHU_SELF_MOUNT_VISIBLE_ROOT="$VISIBLE" \
@@ -113,6 +117,7 @@ LUOSHU_SELF_MOUNT_COMMAND="$FAKE_MOUNT" \
 LUOSHU_SELF_UMOUNT_COMMAND="$FAKE_UMOUNT" \
 LUOSHU_PRIVATE_STATE_ROOT="$PRIVATE_STATE" \
 LUOSHU_PRIVATE_MOUNTINFO="$MOUNTINFO" \
+LUOSHU_BACKEND_TEST_BOOT_ID=test-system \
 LUOSHU_PRIVATE_MOUNT_COMMAND="$FAKE_MOUNT" \
 LUOSHU_PRIVATE_UMOUNT_COMMAND="$FAKE_UMOUNT" \
 LUOSHU_TEST_MOUNTINFO="$MOUNTINFO" \
@@ -123,7 +128,6 @@ sh -c '
     _luoshu_now() { printf "1\n"; }
     luoshu_mount_record() { :; }
     . "$1/common/private_payload.sh"
-    luoshu_private_mount_module_view "$MODDIR"
     . "$MODDIR/common/mount_compat.sh"
     . "$MODDIR/common/mount_self_backend.sh"
     set -eu
@@ -171,15 +175,21 @@ grep -q 'mount_backend_runtime.sh' "$ROOT/post-fs-data.sh"
 # APatch waits for post-mount, while Magisk still mounts in post-fs-data.
 STAGE_MODULE="$TMP/stage-module"
 STAGE_LOG="$TMP/stage.log"
-mkdir -p "$STAGE_MODULE/common" "$STAGE_MODULE/.luoshu-runtime/core" "$STAGE_MODULE/.luoshu-runtime/compat/v227"
+mkdir -p "$STAGE_MODULE/common" "$STAGE_MODULE/config" "$STAGE_MODULE/.luoshu-runtime/core" "$STAGE_MODULE/.luoshu-runtime/compat/v227"
+printf 'Demo\n' > "$STAGE_MODULE/config/active_font.conf"
 cp "$ROOT/post-fs-data.sh" "$STAGE_MODULE/post-fs-data.sh"
 cp "$ROOT/.luoshu-runtime/core/post-fs-data.sh" "$STAGE_MODULE/.luoshu-runtime/core/post-fs-data.sh"
 cp "$ROOT/common/mount_self_backend.sh" "$STAGE_MODULE/common/mount_self_backend.sh"
 cp "$ROOT/common/mount_backend_runtime.sh" "$STAGE_MODULE/common/mount_backend_runtime.sh"
-cat >"$STAGE_MODULE/common/private_payload.sh" <<'EOF_PRIVATE_STAGE'
-luoshu_private_mount_module_view() { printf 'view\n' >>"$LUOSHU_STAGE_LOG"; }
-luoshu_private_unmount_module_view() { printf 'unmount\n' >>"$LUOSHU_STAGE_LOG"; }
-EOF_PRIVATE_STAGE
+cp "$ROOT/common/private_payload.sh" "$STAGE_MODULE/common/private_payload.sh"
+cp "$ROOT/common/skip_mount_ownership.sh" "$STAGE_MODULE/common/skip_mount_ownership.sh"
+cp "$ROOT/common/mount_nomount_backend.sh" "$STAGE_MODULE/common/mount_nomount_backend.sh"
+cp "$ROOT/common/mount_backend_preferences.sh" "$STAGE_MODULE/common/mount_backend_preferences.sh"
+cp "$ROOT/common/mount_backend_policy.sh" "$STAGE_MODULE/common/mount_backend_policy.sh"
+cp "$ROOT/common/mount_provider_detection.sh" "$STAGE_MODULE/common/mount_provider_detection.sh"
+cp "$ROOT/common/mount_provider_payload.sh" "$STAGE_MODULE/common/mount_provider_payload.sh"
+cp "$ROOT/common/root_manager_detection.sh" "$STAGE_MODULE/common/root_manager_detection.sh"
+cp "$ROOT/common/nomount_rule_json.py" "$STAGE_MODULE/common/nomount_rule_json.py"
 cat >"$STAGE_MODULE/.luoshu-runtime/compat/v227/post-fs-data.sh" <<'EOF_BOOT_STAGE'
 luoshu_detect_root_manager() { printf '%s\n' "$LUOSHU_TEST_ROOT_MANAGER"; }
 luoshu_private_self_mount_ensure() { printf 'ensure\n' >>"$LUOSHU_STAGE_LOG"; }
@@ -188,19 +198,19 @@ EOF_BOOT_STAGE
 
 : >"$STAGE_LOG"
 LUOSHU_STAGE_LOG="$STAGE_LOG" LUOSHU_TEST_ROOT_MANAGER=APatch \
+LUOSHU_BACKEND_TEST_BOOT_ID=test-system \
 LUOSHU_BACKEND_TEST_MODE=1 LUOSHU_BACKEND_TEST_MANAGER=APatch \
 sh "$STAGE_MODULE/post-fs-data.sh"
-grep -qx view "$STAGE_LOG"
-grep -qx unmount "$STAGE_LOG"
+test ! -s "$STAGE_LOG"
 ! grep -qx ensure "$STAGE_LOG"
 
 : >"$STAGE_LOG"
 LUOSHU_STAGE_LOG="$STAGE_LOG" LUOSHU_TEST_ROOT_MANAGER=Magisk \
+LUOSHU_BACKEND_TEST_BOOT_ID=magisk-test \
 LUOSHU_BACKEND_TEST_MODE=1 LUOSHU_BACKEND_TEST_MANAGER=Magisk \
 sh "$STAGE_MODULE/post-fs-data.sh"
-grep -qx view "$STAGE_LOG"
+test ! -s "$STAGE_LOG"
 test -f "$STAGE_MODULE/config/test-self-mounted"
-! grep -qx unmount "$STAGE_LOG"
 
 # Production policy uses the real Meta detector; the test override exercises its
 # selector without requiring a rooted host.

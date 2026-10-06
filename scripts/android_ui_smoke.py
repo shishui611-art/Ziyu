@@ -259,7 +259,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--package", default="io.github.xgl34222220.ziyu.debug")
+    parser.add_argument("--package", default="io.github.shishui611_art.ziyu.debug")
     parser.add_argument("--serial")
     args = parser.parse_args()
     if not args.apk.is_file():

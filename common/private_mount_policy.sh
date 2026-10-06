@@ -1,30 +1,27 @@
 #!/system/bin/sh
-# Enforce the selected backend before entering the existing mount transaction.
+# All system injection is routed through this one guarded entry.
 set +e
-
 luoshu_private_self_mount_ensure() {
-    type luoshu_self_mount_ensure >/dev/null 2>&1 || return 1
     _lpmp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
-    _lpmp_state="$_lpmp_module/config/mount-backend.conf"
-    _lpmp_selected=$(sed -n 's/^selected_backend=//p' "$_lpmp_state" 2>/dev/null | head -n1)
-    _lpmp_active=$(sed -n 's/^active_backend=//p' "$_lpmp_state" 2>/dev/null | head -n1)
-    if [ "$_lpmp_selected" = meta ] && [ "$_lpmp_active" != self ]; then
-        [ -f "$_lpmp_module/logs/mount-backend.log" ] && \
-            printf '[%s] SELF-MOUNT denied: meta backend is selected and not released\n' \
-                "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" \
-                >> "$_lpmp_module/logs/mount-backend.log" 2>/dev/null || true
+    [ ! -f "$_lpmp_module/common/skip_mount_ownership.sh" ] || . "$_lpmp_module/common/skip_mount_ownership.sh"
+    if type ziyu_foreign_skip_mount_present >/dev/null 2>&1 && ziyu_foreign_skip_mount_present "$_lpmp_module"; then
         return 90
     fi
-    luoshu_self_mount_ensure "$@"
-    _lpmp_rc=$?
-    if [ "$_lpmp_rc" -eq 0 ]; then
-        # A self mount must not be picked up again by a second module engine on
-        # the next boot. The mount runtime owns these markers and removes them
-        # only when selecting Meta.
-        : > "$_lpmp_module/skip_mount" 2>/dev/null || true
-        : > "$_lpmp_module/skip_mountify" 2>/dev/null || true
-        : > "$_lpmp_module/config/self-mount-owned" 2>/dev/null || true
-        rm -f "$_lpmp_module/mount_error" 2>/dev/null || true
+    _lpmp_state="$_lpmp_module/config/mount-backend.conf"
+    _lpmp_selected=$(sed -n 's/^selected_backend=//p' "$_lpmp_state" 2>/dev/null | head -n1)
+    _lpmp_provider=$(sed -n 's/^provider_state=//p' "$_lpmp_state" 2>/dev/null | head -n1)
+    _lpmp_fallback=$(sed -n 's/^fallback_used=//p' "$_lpmp_state" 2>/dev/null | head -n1)
+    _lpmp_boot="${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
+    [ -n "$_lpmp_boot" ] && [ "$_lpmp_selected" = self ] && \
+        [ "$(sed -n 's/^boot_id=//p' "$_lpmp_state" 2>/dev/null | head -n1)" = "$_lpmp_boot" ] || return 90
+    case "$_lpmp_provider:$_lpmp_fallback" in absent:*|*:1) ;; *) return 90 ;; esac
+    [ ! -e "$_lpmp_module/disable" ] && [ ! -e "$_lpmp_module/remove" ] || return 90
+    if type ziyu_skip_marker_claim >/dev/null 2>&1; then
+        ziyu_skip_marker_claim "$_lpmp_module" skip_mount || return 1
+        ziyu_skip_marker_claim "$_lpmp_module" skip_mountify
+        _lpmp_rc=$?
+        [ "$_lpmp_rc" -eq 0 ] || [ "$_lpmp_rc" -eq 2 ] || return 1
     fi
-    return "$_lpmp_rc"
+    luoshu_self_mount_ensure "$@" || return $?
+    rm -f "$_lpmp_module/mount_error"
 }

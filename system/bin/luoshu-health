@@ -116,11 +116,24 @@ EOF_TARGETS
 
 payload_font_count() {
     _pfc_total=0
+    _pfc_private="$MOD/.luoshu-payload"
+    if [ -d "$_pfc_private" ]; then
+        _pfc_count="$(find "$_pfc_private" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
+        _pfc_total="$(safe_count "$_pfc_count")"
+        [ "$_pfc_total" -gt 0 ] && { printf '%s\n' "$_pfc_total"; return; }
+    fi
     for _pfc_path in \
-        "$MOD/system/fonts" "$MOD/product/fonts" "$MOD/system_ext/fonts" "$MOD/vendor/fonts" \
+        "$MOD/product/fonts" "$MOD/system_ext/fonts" "$MOD/vendor/fonts" \
         "$MOD/odm/fonts" "$MOD/oem/fonts" "$MOD/my_product/fonts" "$MOD/oplus_product/fonts" "$MOD/mi_ext/fonts"; do
         [ -d "$_pfc_path" ] || continue
         _pfc_count="$(find "$_pfc_path" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
+        _pfc_count="$(safe_count "$_pfc_count")"
+        _pfc_total=$((_pfc_total + _pfc_count))
+    done
+    # Some providers scan a nested-system module layout.
+    for _pfc_path in "$MOD/system"; do
+        [ -d "$_pfc_path" ] || continue
+        _pfc_count="$(find "$_pfc_path" -type f -path '*/fonts/*' \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
         _pfc_count="$(safe_count "$_pfc_count")"
         _pfc_total=$((_pfc_total + _pfc_count))
     done
@@ -150,12 +163,21 @@ mount_engine() {
         _hme_active=$(read_value "$_hme_state" active_backend)
         _hme_selected=$(read_value "$_hme_state" selected_backend)
         _hme_verify=$(read_value "$_hme_state" verification)
+        if [ "$_hme_verify" = not-applicable ]; then
+            if [ "$(head -n1 "$MOD/config/active_font.conf" 2>/dev/null | tr -d '\r\n')" = default ] || \
+               [ ! -s "$MOD/config/active_font.conf" ]; then
+                printf '系统默认字体，无需挂载\n'
+            else
+                printf '自定义字体挂载已跳过\n'
+            fi
+            return
+        fi
         case "${_hme_active:-none}" in
             self) _hme_label='字域自挂载' ;;
-            meta) _hme_label="元模块挂载 · $(read_value "$_hme_state" meta_engine)" ;;
+            meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" luoshu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD" ;;
             *) case "$_hme_selected" in
                 self) _hme_label='字域自挂载' ;;
-                meta) _hme_label="元模块挂载 · $(read_value "$_hme_state" meta_engine)" ;;
+                meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" luoshu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD" ;;
                 *) _hme_label='挂载后端' ;;
             esac ;;
         esac
@@ -213,11 +235,29 @@ report() {
                 case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=pending ;; *) _r_self_state=not-active ;; esac
                 ;;
             passed|pass)
-                _r_alignment=verified; _r_alignment_mode=backend-verified
+                _r_current_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+                _r_verified_boot=$(read_value "$MOD/config/device-font-load-verification.conf" bootId)
+                _r_verified_font=$(read_value "$MOD/config/device-font-load-verification.conf" activeFont)
+                if [ -n "$_r_current_boot" ] && [ "$_r_verified_boot" = "$_r_current_boot" ] && \
+                   [ "$_r_verified_font" = "$_r_active" ]; then
+                    _r_alignment=$(read_value "$MOD/config/device-font-load-verification.conf" state)
+                    _r_alignment_mode=$(read_value "$MOD/config/device-font-load-verification.conf" mode)
+                    [ -n "$_r_alignment" ] || _r_alignment=pending
+                else
+                    _r_alignment=pending; _r_alignment_mode=backend-awaiting-pid1-route-verification
+                fi
                 case "$(read_value "$_r_backend_state" active_backend)" in
                     self) _r_self_state=mounted; _r_self_backend=self ;;
-                    meta) _r_self_state=not-active; _r_self_backend=none ;;
+                    meta|external) _r_self_state=not-active; _r_self_backend=none ;;
                 esac ;;
+            not-applicable)
+                if [ "$_r_active" = default ]; then
+                    _r_alignment=not-applicable; _r_alignment_mode=system-default
+                else
+                    _r_alignment=skipped; _r_alignment_mode=backend-skipped
+                fi
+                _r_self_state=not-active; _r_self_backend=none
+                ;;
         esac
     elif [ -f "$MOD/config/mount-backend.conf" ]; then
         _r_alignment=pending; _r_alignment_mode=backend-current-boot-unconfirmed; _r_self_state=pending

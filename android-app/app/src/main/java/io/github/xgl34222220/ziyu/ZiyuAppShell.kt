@@ -50,6 +50,13 @@ import androidx.compose.material3.NavigationBar as MaterialNavigationBar
 import androidx.compose.material3.NavigationBarItem as MaterialNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.xgl34222220.ziyu.ui.settings.SystemCenterViewModel
+import io.github.xgl34222220.ziyu.ui.settings.ModuleUpdateDialogRoute
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -151,6 +158,17 @@ internal fun ZiyuAppShell(
     features: Alpha15FeatureViewModel,
     appearanceViewModel: AppearanceViewModel,
 ) {
+    val systemCenter: SystemCenterViewModel = viewModel()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, systemCenter) {
+        val lifecycle = lifecycleOwner.lifecycle
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) systemCenter.enterApp()
+        }
+        lifecycle.addObserver(observer)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) systemCenter.enterApp()
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     val appearance by appearanceViewModel.settings.collectAsStateWithLifecycle()
     var page by rememberSaveable { mutableStateOf(AppPage.Home) }
     var previousPageForMotion by remember { mutableStateOf(AppPage.Home) }
@@ -470,6 +488,7 @@ internal fun ZiyuAppShell(
 
         }
 
+        ModuleUpdateDialogRoute(systemCenter, viewModel.operationBusy || viewModel.mixState.busy, viewModel::rebootDevice)
         CombinationResultDialogs(viewModel)
 
         pendingApply?.let { font ->

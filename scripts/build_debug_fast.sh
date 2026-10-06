@@ -1,12 +1,13 @@
 #!/bin/sh
-# Staging-only build used for fast debug deliverables: runs every gate of
-# scripts/build.sh EXCEPT the full check.sh suite (already passed for this
-# tree) and uses a Python zip helper so Unix exec modes are preserved.
+# Package an already assembled Debug APK with the module manifest and size gates.
+# This command does not run the full check.sh suite or claim device validation.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-export PATH="/tmp/zy-pybin:$PATH"
 . "$ROOT/scripts/version.sh"
-OUT="$ROOT/dist"
+OUT="${LUOSHU_BUILD_OUT:-$ROOT/dist}"
+mkdir -p "$OUT"
+OUT=$(CDPATH= cd -- "$OUT" && pwd)
+case "$OUT" in "$ROOT"/*) ;; *) echo 'Build output must be inside this worktree.' >&2; exit 64 ;; esac
 STAGE="$OUT/Ziyu"
 ZIP="$OUT/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
 ZIP_NAME=$(basename "$ZIP")
@@ -20,8 +21,8 @@ MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-11796480}"
 APP_PACKAGE="${LUOSHU_APP_PACKAGE:-}"
 APP_VERSION_CODE="${LUOSHU_APP_VERSION_CODE:-}"
 case "$APP_PACKAGE" in
-  io.github.xgl34222220.ziyu) ;;
-  io.github.xgl34222220.ziyu.debug)
+  io.github.shishui611_art.ziyu) ;;
+  io.github.shishui611_art.ziyu.debug)
     [ "$ALLOW_DEBUG_APP" = 1 ] || { echo 'Debug App packaging requires LUOSHU_ALLOW_DEBUG_APP=1.' >&2; exit 68; } ;;
   *) echo "Unexpected APK package: $APP_PACKAGE" >&2; exit 68 ;;
 esac
@@ -89,7 +90,7 @@ for forbidden in \
 done
 
 rm -f "$ZIP" "$ZIP.sha256" "$SIZE_REPORT"
-python3 "$ROOT/.runtime-work/make_zip.py" "$STAGE" "$ZIP"
+python3 "$ROOT/scripts/package_zip.py" "$STAGE" "$ZIP"
 (cd "$OUT" && sha256sum "$ZIP_NAME" > "$ZIP_NAME.sha256")
 python3 - "$ZIP" > "$SIZE_REPORT" <<'PY'
 import collections

@@ -36,7 +36,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.xgl34222220.ziyu"
+        applicationId = "io.github.shishui611_art.ziyu"
         minSdk = 28
         targetSdk = 36
         // module.prop is the only version source shared by the module, native App and CI artifacts.

@@ -1,35 +1,18 @@
 package io.github.xgl34222220.ziyu.ui.settings
 
 import android.app.Application
-import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.xgl34222220.ziyu.BuildConfig
 import io.github.xgl34222220.ziyu.RootShell
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-
-private val Context.systemCenterDataStore by preferencesDataStore(name = "system_center")
-
-internal enum class UpdateChannel(val label: String) {
-    STABLE("稳定版"),
-    PRERELEASE("预发行版"),
-}
 
 internal enum class HealthLevel {
     HEALTHY,
@@ -70,19 +53,59 @@ internal data class SystemHealthSnapshot(
     val recentErrors: Int = 0,
     val conflicts: List<ModuleConflict> = emptyList(),
 ) {
+    private val errorNotices: List<String>
+        get() {
+            if (loading) return emptyList()
+            return buildList {
+                if (error.isNotBlank()) add(error)
+                else if (!modulePresent) add("未检测到已安装的字域模块")
+                if (alignmentState == "failed" || selfMountState == "failed") {
+                    add("字体挂载运行时验证失败，请查看挂载详情中的后端和失败原因")
+                }
+                if (activeFont != "default" && payloadFonts <= 0) {
+                    add("当前字体已选中，但模块字体负载未检测到")
+                }
+            }
+        }
+
+    private val warningNotices: List<String>
+        get() {
+            if (loading) return emptyList()
+            return buildList {
+                if (lockState == "stale") add("检测到失效字体切换锁，可在安全页一键清理")
+                if (conflicts.isNotEmpty()) add("发现 ${conflicts.size} 个其它模块字体覆盖目标")
+                if (recentErrors > 0) add("最近日志中有 $recentErrors 条错误记录")
+                if (cachePending) add("设备字体缓存仍在等待完成")
+                when (alignmentState) {
+                    "", "verified", "ready", "ok", "passed", "failed" -> Unit
+                    "not-applicable" -> if (activeFont != "default") add("当前自定义字体没有执行挂载")
+                    "skipped" -> add("当前自定义字体的挂载已跳过，请检查排除设置")
+                    "pending" -> add("本次启动的字体挂载尚未完成运行时验证")
+                    else -> add("字体加载对齐状态需要确认：$alignmentState")
+                }
+            }
+        }
+
+    val attentionNotices: List<String>
+        get() {
+            if (loading) return emptyList()
+            return buildList {
+                addAll(errorNotices)
+                addAll(warningNotices)
+                if (rebootRequired) add("存在等待重启后生效的字体变更")
+                if (selfMountState == "degraded") add("字域自挂载正在使用 OverlayFS + Bind 降级路径")
+            }
+        }
+
     val level: HealthLevel
         get() = when {
-            error.isNotBlank() || !modulePresent -> HealthLevel.ERROR
-            alignmentState == "failed" || selfMountState == "failed" -> HealthLevel.ERROR
-            activeFont != "default" && payloadFonts <= 0 -> HealthLevel.ERROR
-            lockState == "stale" -> HealthLevel.WARNING
-            conflicts.isNotEmpty() || recentErrors > 0 || cachePending -> HealthLevel.WARNING
-            alignmentState.isNotBlank() && alignmentState !in setOf("verified", "ready", "ok", "passed") -> HealthLevel.WARNING
+            errorNotices.isNotEmpty() -> HealthLevel.ERROR
+            warningNotices.isNotEmpty() -> HealthLevel.WARNING
             else -> HealthLevel.HEALTHY
         }
 
     val summary: String
-        get() = when (level) {
+        get() = if (loading) "正在读取系统状态…" else when (level) {
             HealthLevel.HEALTHY -> "字体引擎状态正常"
             HealthLevel.WARNING -> "发现可处理的兼容性提醒"
             HealthLevel.ERROR -> "发现需要处理的问题"
@@ -103,13 +126,14 @@ internal data class OnlineUpdateInfo(
     val zipUrl: String = "",
     val changelogUrl: String = "",
     val sha256: String = "",
-    val appUrl: String = "",
-    val appSha256: String = "",
-    val releasePending: Boolean = false,
+    val currentVersion: String = "",
+    val currentVersionCode: Int = 0,
+    val pendingVersion: String = "",
+    val pendingVersionCode: Int = 0,
+    val zipBytes: Long = 0,
 ) {
-    val currentVersionCode: Int get() = BuildConfig.VERSION_CODE
-    val available: Boolean get() = versionCode > 0 && zipUrl.isNotBlank()
-    val hasUpdate: Boolean get() = available && isNewerZiyuVersion(version, versionCode, BuildConfig.VERSION_NAME, currentVersionCode)
+    val available: Boolean get() = !loading && error.isBlank() && versionCode > 0 && currentVersionCode > 0 && zipUrl.isNotBlank()
+    val hasUpdate: Boolean get() = available && pendingVersion.isBlank() && isNewerZiyuVersion(version, versionCode, currentVersion, currentVersionCode)
 }
 
 internal fun isNewerZiyuVersion(candidate: String, candidateCode: Int, current: String, currentCode: Int): Boolean {
@@ -125,8 +149,13 @@ internal fun isNewerZiyuVersion(candidate: String, candidateCode: Int, current: 
 
 internal class SystemCenterViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
-    private val channelKey = stringPreferencesKey("update_channel")
-    private val healthScript = "/data/adb/modules/LuoShu/system/bin/luoshu-health"
+    private val healthScript = "/data/adb/modules/LuoShu/.luoshu-payload/system/bin/luoshu-health"
+    private val updater = ModuleReleaseUpdater(context)
+    var moduleUpdate by mutableStateOf(ModuleUpdateState())
+        private set
+    var updatePromptVisible by mutableStateOf(false)
+        private set
+    private var startupPromptAllowed = false
 
     var health by mutableStateOf(SystemHealthSnapshot())
         private set
@@ -134,24 +163,45 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
     var maintenance by mutableStateOf(MaintenanceState())
         private set
 
-    var updateChannel by mutableStateOf(UpdateChannel.STABLE)
-        private set
-
     var updateInfo by mutableStateOf(OnlineUpdateInfo())
         private set
 
     private var updateJob: Job? = null
-    private var requestedUpdateChannel: UpdateChannel? = null
     private var healthJob: Job? = null
 
-    init {
+    fun enterApp() {
+        if (moduleUpdate.busy || moduleUpdate.restartRequired) return
+        startupPromptAllowed = true
+        checkUpdate()
+    }
+
+    fun skipUpdate() {
+        startupPromptAllowed = false
+        updatePromptVisible = false
+    }
+
+    fun dismissUpdateResult() {
+        if (!moduleUpdate.busy) moduleUpdate = moduleUpdate.copy(message = "", error = "")
+    }
+
+    fun installModuleUpdate() {
+        if (moduleUpdate.busy || maintenance.busy || !updateInfo.hasUpdate) return
+        val info = updateInfo
+        skipUpdate()
+        moduleUpdate = ModuleUpdateState(busy = true, message = "正在准备模块更新…")
         viewModelScope.launch {
-            val stored = runCatching {
-                context.systemCenterDataStore.data.first()[channelKey]
-            }.getOrNull()
-            updateChannel = runCatching { UpdateChannel.valueOf(stored.orEmpty()) }
-                .getOrDefault(UpdateChannel.STABLE)
-            checkUpdate()
+            try {
+                updater.install(info) { message ->
+                    withContext(Dispatchers.Main) { moduleUpdate = moduleUpdate.copy(message = message) }
+                }
+                moduleUpdate = ModuleUpdateState(message = "模块更新已安装，完整重启后生效。内置 App 将随模块更新。", restartRequired = true)
+                checkUpdate()
+            } catch (cancelled: CancellationException) {
+                moduleUpdate = ModuleUpdateState(error = "更新已中断，请检查模块管理器是否有待重启更新")
+                throw cancelled
+            } catch (error: Exception) {
+                moduleUpdate = ModuleUpdateState(error = error.message ?: "模块更新失败")
+            }
         }
     }
 
@@ -160,7 +210,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         health = health.copy(loading = true, error = "")
         healthJob = viewModelScope.launch {
             val result = RootShell.exec(
-                "sh ${RootShell.quote(healthScript)} report",
+                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/LuoShu/system/bin/luoshu-health; sh \"${'$'}script\" report",
                 timeoutMs = 25_000L,
             )
             health = if (result.code == 0) {
@@ -178,11 +228,11 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
     }
 
     fun clearStaleState() {
-        if (maintenance.busy) return
+        if (maintenance.busy || moduleUpdate.busy) return
         maintenance = MaintenanceState(busy = true, message = "正在清理失效锁与残留 PID…")
         viewModelScope.launch {
             val result = RootShell.exec(
-                "sh ${RootShell.quote(healthScript)} repair-stale",
+                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/LuoShu/system/bin/luoshu-health; sh \"${'$'}script\" repair-stale",
                 timeoutMs = 20_000L,
             )
             maintenance = if (result.code == 0 && result.stdout.lineSequence().any { it == "status=ok" }) {
@@ -200,11 +250,11 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
     }
 
     fun restoreDefault() {
-        if (maintenance.busy) return
+        if (maintenance.busy || moduleUpdate.busy) return
         maintenance = MaintenanceState(busy = true, message = "正在准备恢复系统默认字体…")
         viewModelScope.launch {
             val result = RootShell.exec(
-                "sh ${RootShell.quote(healthScript)} restore-default",
+                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/LuoShu/system/bin/luoshu-health; sh \"${'$'}script\" restore-default",
                 timeoutMs = 120_000L,
             )
             val restored = result.code == 0 && result.stdout.lineSequence().any { line ->
@@ -219,114 +269,23 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         }
     }
 
-    fun selectUpdateChannel(channel: UpdateChannel) {
-        if (channel == updateChannel) return
-        updateChannel = channel
-        updateInfo = OnlineUpdateInfo()
-        viewModelScope.launch {
-            runCatching {
-                context.systemCenterDataStore.edit { preferences ->
-                    preferences[channelKey] = channel.name
-                }
-            }
-            checkUpdate()
-        }
-    }
-
     fun checkUpdate() {
-        val requestedChannel = updateChannel
-        if (updateJob?.isActive == true && requestedUpdateChannel == requestedChannel) return
-        updateJob?.cancel()
-        requestedUpdateChannel = requestedChannel
+        if (updateJob?.isActive == true) return
+        updatePromptVisible = false
         updateInfo = updateInfo.copy(loading = true, error = "")
         updateJob = viewModelScope.launch {
-            val result = runCatching {
-                fetchUpdateInfo(requestedChannel)
+            try {
+                updateInfo = updater.check()
+                updatePromptVisible = startupPromptAllowed && updateInfo.hasUpdate
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                updateInfo = OnlineUpdateInfo(error = error.message ?: "检查模块更新失败")
+                updatePromptVisible = false
             }
-            (result.exceptionOrNull() as? CancellationException)?.let { throw it }
-            if (requestedChannel != updateChannel) return@launch
-            updateInfo = result.getOrElse { error ->
-                OnlineUpdateInfo(error = error.message ?: "检查更新失败")
-            }
         }
     }
 
-    private suspend fun fetchUpdateInfo(channel: UpdateChannel): OnlineUpdateInfo = withContext(Dispatchers.IO) {
-        val file = if (channel == UpdateChannel.PRERELEASE) "update-prerelease.json" else "update.json"
-        val metadataUrl = "https://raw.githubusercontent.com/shishui611-art/Ziyu/main/$file"
-        val root = JSONObject(fetchText(metadataUrl, "application/json"))
-        currentCoroutineContext().ensureActive()
-        val zipUrl = root.optString("zipUrl").trim()
-        val versionCode = root.optInt("versionCode", 0)
-        require(versionCode > 0 && (zipUrl.isBlank() || zipUrl.startsWith("https://"))) { "更新元数据不完整" }
-        val changelogUrl = root.optString("changelog").trim()
-        if (zipUrl.isBlank()) {
-            return@withContext OnlineUpdateInfo(
-                version = root.optString("version").trim(),
-                versionCode = versionCode,
-                changelogUrl = changelogUrl,
-                releasePending = true,
-            )
-        }
-
-        val appUrl = deriveAppUrl(zipUrl)
-        val moduleSha = runCatching { fetchPublishedSha256("$zipUrl.sha256") }.getOrDefault("")
-        currentCoroutineContext().ensureActive()
-        val appSha = if (appUrl.isNotBlank()) {
-            runCatching { fetchPublishedSha256("$appUrl.sha256") }.getOrDefault("")
-        } else {
-            ""
-        }
-        currentCoroutineContext().ensureActive()
-        OnlineUpdateInfo(
-            version = root.optString("version").trim(),
-            versionCode = versionCode,
-            zipUrl = zipUrl,
-            changelogUrl = changelogUrl,
-            sha256 = moduleSha,
-            appUrl = appUrl,
-            appSha256 = appSha,
-        )
-    }
-
-    private fun fetchText(url: String, accept: String = "text/plain"): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 8_000
-            readTimeout = 8_000
-            instanceFollowRedirects = true
-            requestMethod = "GET"
-            setRequestProperty("Accept", accept)
-            setRequestProperty("User-Agent", "Ziyu/${BuildConfig.VERSION_NAME}")
-            setRequestProperty("Cache-Control", "no-cache")
-        }
-        try {
-            val code = connection.responseCode
-            if (code !in 200..299) error("更新服务器返回 HTTP $code")
-            return connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun fetchPublishedSha256(url: String): String {
-        val value = fetchText(url).trim().split(Regex("\\s+"), limit = 2).firstOrNull().orEmpty().lowercase()
-        require(value.matches(Regex("[0-9a-f]{64}"))) { "SHA-256 校验文件无效" }
-        return value
-    }
-
-    private fun deriveAppUrl(zipUrl: String): String {
-        val slash = zipUrl.lastIndexOf('/')
-        if (slash <= 0) return ""
-        val file = zipUrl.substring(slash + 1)
-        val prefix = when {
-            file.startsWith("Ziyu-") -> "Ziyu"
-            file.startsWith("LuoShu-") -> "LuoShu"
-            else -> return ""
-        }
-        if (!file.endsWith(".zip")) return ""
-        val artifact = file.removePrefix("$prefix-").removeSuffix(".zip")
-        return zipUrl.substring(0, slash + 1) + "$prefix-App-$artifact.apk"
-    }
 }
 
 internal fun parseHealthReport(raw: String): SystemHealthSnapshot {

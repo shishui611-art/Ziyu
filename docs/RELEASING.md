@@ -10,7 +10,7 @@
 
 `release_version_policy.py` 统一校验编号和系列。每次交付先同步 `module.prop`、`config/version_notes.conf` 与当前发布说明，再重新编译 App。Gradle 从 `module.prop` 读取版本；测试打包脚本还会核对构建元数据中的实际 APK 版本与文件内容，拒绝将旧 APK 标为新版本。模块 ID、数据路径和同一 App 包名的签名不得随修订号改变。
 
-字域首发标签为 **ziyu-v1.0.0**，发布说明为 **RELEASE_NOTES_ziyu-v1.0.0.md**；附件统一命名为 **Ziyu-v1.0.0.zip / Ziyu-App-v1.0.0.apk**。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是比较不同项目的显示版本字符串。
+字域首发标签为 **ziyu-v1.0.0**，发布说明保存在 `更新日志/RELEASE_NOTES_ziyu-v1.0.0.md`；Release 只发布可刷入的模块 ZIP 与校验文件，App 随 ZIP 内置。GitHub 正式发布显式标为 Latest，在线更新依据递增 versionCode，而不是比较不同项目的显示版本字符串。
 
 `config/stable_version_policy.json` 的 `currentStable` 与线上更新清单只在正式发布完成后推进；本地 Debug 构建不宣称已发布。只有明确发布请求才创建 Release，不删除旧版本或标签。
 
@@ -29,20 +29,20 @@
 
 1. 基于最后一个干净候选基线建立独立分支，不从已废弃实验分支继续打补丁。
 2. 验证源码、角色覆盖、原生 App 编译和单元测试、单模块包构建及成品检查。
-3. 执行复合字体烟雾测试，生成可解压的模块 ZIP；内置 App 与独立 APK 字节一致，不包含 webroot。
+3. 执行复合字体烟雾测试，生成可解压的模块 ZIP；内置 App 与已签名构建产物字节一致，不包含 webroot。
 4. 按 `docs/TEST_MATRIX.md` 完成真机回归，将时间和证据写入 `docs/device_validation.json`；未验证项目保持待测。
 5. 出现黑屏、SystemUI 重启、批量闪退或乱码，停止发布并恢复可用模块包。
 
 ## 发布步骤
 
-1. 整理发布分支，使用上述正式编号，确认同名发布说明，例如 `RELEASE_NOTES_ziyu-v1.0.0.md`。
+1. 整理发布分支，使用上述正式编号，确认 `更新日志/` 内存在同名发布说明。
 2. 稳定版不含 Alpha、Beta、RC，不含 prerelease 标记；提高 versionCode，保持 module.prop 为唯一版本源。
 3. 默认要求最低真机矩阵有证据。维护者明确授权某一版本在矩阵仍待测时正式发布，可以使用既有 `config/stable_release_authorization.conf`，必须绑定该版本，不得写成长期通用豁免，也不得把待测记录改成通过。
 4. 合并 main 后，Publish signed release 重新运行源码检查、App lint / 单元测试、固定签名、证书、单模块成品和发布门禁，再创建 GitHub Release。
 5. 已有 Tag 或 Release 不覆盖；修订内容使用新版本。预发行必须有 prerelease 标记；正式版本更新正式和预览通道。
-6. 检查 Release 的模块 ZIP、独立 APK、两份 SHA-256 均已上传，核对在线更新元数据与真实下载地址，再交付安装包。
+6. 检查 Release 仅包含模块 ZIP 与 ZIP 的 SHA-256，ZIP 内置 APK 与签名构建产物一致；再核对在线更新元数据与真实下载地址。
 
-正式 Release 包含 `Ziyu-<版本>.zip`、`Ziyu-App-<版本>.apk` 及各自 SHA-256。Lite 变体已取消；模块必须内置相同签名 App，必要时手动覆盖安装独立 APK。
+正式版和 Debug 版 Release 均只发布 `Ziyu-<版本>.zip` 与对应 `.sha256` 文件；APK 只构建并嵌入模块，不作为单独的 Release 附件发布。模块必须内置相同签名 App。
 
 ## v4.4.4 一次性版本清理
 

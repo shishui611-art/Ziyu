@@ -164,6 +164,15 @@ def main() -> None:
         assert good["cjkRoutes"] == [Path(font_rel).name], good
         assert good["roleRoutes"] == {"cjk": [Path(font_rel).name], "latin": ["SysSans-En-Regular.ttf"], "digit": ["OSans-Solid-Digits-VF.ttf"]}, good
 
+        # NoMount verifies the same PID 1 file hashes and font routes while
+        # intentionally requiring no traditional mount-table entries.
+        empty_mountinfo = base / "empty-mountinfo"
+        empty_mountinfo.write_text("", encoding="utf-8")
+        nomount = MODULE.verify_legacy(module, pid1, empty_mountinfo, require_mounts=False)
+        assert nomount["state"] == "verified", nomount
+        assert nomount["mode"] == "nomount", nomount
+        assert not any(item.startswith("pid1-mountinfo-route-missing:") for item in nomount["failures"]), nomount
+
         # System-as-root reports `/` as the system mountpoint instead of `/system`.
         mountinfo.write_text("33 22 0:29 / / rw,relatime - ext4 /dev/block/system rw\n", encoding="utf-8")
         sar = MODULE.verify_legacy(module, pid1, mountinfo)

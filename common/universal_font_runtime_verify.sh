@@ -192,6 +192,7 @@ _uvr_run() {
             --deployment "$_uvr_deployment" \
             --runtime-conf "$RUNTIME_CONF" \
             --mount-state "$MOUNT_STATE" \
+            --backend-state "$CONFIG_DIR/mount-backend.conf" \
             --font-dump "$FONT_DUMP" \
             --mountinfo "$_uvr_mountinfo" \
             --visible-root "$_uvr_visible_root" \
@@ -206,6 +207,7 @@ _uvr_run() {
             --deployment "$_uvr_deployment" \
             --runtime-conf "$RUNTIME_CONF" \
             --mount-state "$MOUNT_STATE" \
+            --backend-state "$CONFIG_DIR/mount-backend.conf" \
             --font-dump "$FONT_DUMP" \
             --mountinfo "$_uvr_mountinfo" \
             --active-font "$_uvr_font" \

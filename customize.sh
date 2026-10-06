@@ -54,20 +54,11 @@ if [ "$_lc_rc" -ne 0 ]; then
     return "$_lc_rc" 2>/dev/null || exit "$_lc_rc"
 fi
 
-# Never rebuild fonts synchronously while a Root manager is flashing the module.
-if [ "${UPDATE_PRESERVED:-false}" = true ] && [ "${LUOSHU_UPDATE_REBUILD_REQUIRED:-false}" = true ]; then
-    _lc_font=$(head -n1 "$MODPATH/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
-    [ -n "$_lc_font" ] || _lc_font=default
-    ui_print "✓ 已保留当前字体负载：$_lc_font"
-    ui_print '• 本次刷写不会同步重建字体；重启后可在字域中重新应用以升级引擎'
-fi
-
-type luoshu_install_step >/dev/null 2>&1 && luoshu_install_step 4 "部署字体挂载"
+type luoshu_install_step >/dev/null 2>&1 && luoshu_install_step 4 "挂载状态"
 if ! luoshu_private_install_migrate "$MODPATH"; then
     abort '字域私有挂载树部署失败'
     return 1 2>/dev/null || exit 1
 fi
-ui_print '✓ 私有字体负载已部署'
 if [ -f "$MODPATH/common/mount_backend_preferences.sh" ]; then
     . "$MODPATH/common/mount_backend_preferences.sh"
     luoshu_mount_preference_restore "$_lc_real_old_mod" "$MODPATH" || {

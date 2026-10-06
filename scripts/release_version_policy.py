@@ -44,7 +44,7 @@ def version_info(version: str, series: str = '') -> dict:
         next_stable = f'v{major}.{major}.{major}' if (minor, patch) == (0, 0) else f'v{major+1}.0.0'
     return {'version': canonical, 'series': series or 'legacy', 'versionCode': code,
             'appVersionCode': app_code, 'tag': tag,
-            'notesFile': f'RELEASE_NOTES_{tag}.md',
+            'notesFile': f'更新日志/RELEASE_NOTES_{tag}.md',
             'title': ('字域 ' + canonical[1:] if ziyu else '洛书·重构版 ' + canonical[1:] if refactor else '洛书 ' + canonical),
             'nextStable': next_stable, 'prerelease': suffix is not None}
 

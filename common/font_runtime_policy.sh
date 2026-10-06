@@ -2,7 +2,7 @@
 # LuoShu final font runtime policy.
 #
 # The private payload is the canonical writable tree. The public module partition
-# directories are only compatibility views and must never be treated as the source
+# directories are only published copies and must never be treated as the source
 # of truth because Root implementations may place App shells in another mount
 # namespace. This layer also merges the device inventory with ROM critical slots
 # and preserves stock fallbacks for scripts the selected font does not contain.
@@ -39,51 +39,7 @@ _lfrp_private_helper="$(_lfrp_module)/common/private_payload.sh"
 [ -f "$_lfrp_private_helper" ] && . "$_lfrp_private_helper"
 unset _lfrp_private_helper
 
-# Re-declare the module-view helper with strict accounting. The old helper returned
-# success even when every bind failed, which let switch/boot validation operate on
-# empty placeholder directories and later reset the active font to default.
-if type _luoshu_private_root >/dev/null 2>&1; then
-    luoshu_private_mount_module_view() {
-        _lpp_module="${1:-$(_lfrp_module)}"
-        _lpp_root=$(_luoshu_private_root "$_lpp_module")
-        _lpp_state=$(_luoshu_private_state_root)
-        _lpp_list="$_lpp_state/module-view.mounts"
-        [ -d "$_lpp_root" ] || return 2
-        mkdir -p "$_lpp_state" 2>/dev/null || return 1
-        : > "$_lpp_list" 2>/dev/null || return 1
-        _lpp_seen=0
-        _lpp_failed=0
-
-        for _lpp_part in $(luoshu_private_partitions); do
-            _lpp_source="$_lpp_root/$_lpp_part"
-            _lpp_target="$_lpp_module/$_lpp_part"
-            [ -d "$_lpp_source" ] || continue
-            _lpp_seen=$((_lpp_seen + 1))
-            mkdir -p "$_lpp_target" 2>/dev/null || {
-                _lpp_failed=$((_lpp_failed + 1))
-                continue
-            }
-            if _luoshu_private_is_mountpoint "$_lpp_target"; then
-                printf '%s\n' "$_lpp_target" >> "$_lpp_list" 2>/dev/null || true
-                continue
-            fi
-            if _luoshu_private_mount_cmd -o bind "$_lpp_source" "$_lpp_target" >/dev/null 2>&1; then
-                printf '%s\n' "$_lpp_target" >> "$_lpp_list" 2>/dev/null || true
-            else
-                _lpp_failed=$((_lpp_failed + 1))
-            fi
-        done
-        [ "$_lpp_seen" -gt 0 ] && [ "$_lpp_failed" -eq 0 ]
-    }
-fi
-
-LUOSHU_PRIVATE_VIEW_READY=false
-if [ -d "$(_lfrp_module)/.luoshu-payload" ] && type luoshu_private_mount_module_view >/dev/null 2>&1; then
-    if luoshu_private_mount_module_view "$(_lfrp_module)" >/dev/null 2>&1; then
-        LUOSHU_PRIVATE_VIEW_READY=true
-    fi
-fi
-export LUOSHU_PRIVATE_VIEW_READY
+# Payload reads and writes use the private tree directly. Importing this file has no mount side effects.
 
 # font_manager.sh defines this before loading mount_compat.sh. Point it at the
 # canonical payload so a namespace-local bind failure cannot send writes into the
@@ -613,8 +569,6 @@ luoshu_payload_transaction_rollback() {
     done < "$LUOSHU_PAYLOAD_TXN/paths"
     rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
     LUOSHU_PAYLOAD_TXN=''
-    type luoshu_private_mount_module_view >/dev/null 2>&1 && \
-        luoshu_private_mount_module_view "$(_lfrp_module)" >/dev/null 2>&1 || true
 }
 
 luoshu_payload_transaction_abort() {
@@ -655,78 +609,4 @@ luoshu_payload_quarantine() {
     } > "$_lfrp_config/font-payload-quarantine.conf" 2>/dev/null || true
     _luoshu_safety_log WARN "字体启动证据不足，已保留当前字体选择与负载，等待下一次挂载验证（failure=$_lfrp_fail active=$_lfrp_active）"
     return 2
-}
-
-# Self-mount reads the private tree directly. It no longer depends on a bind view
-# created in another mount namespace, which is the main reason only some users
-# rebooted into the ROM default font.
-luoshu_self_mount_ensure() {
-    _lsme_module=$(_luoshu_self_module)
-    _lsme_payload=$(_lfrp_payload_root)
-    _lsme_active=$(head -n1 "$_lsme_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
-    [ -n "$_lsme_active" ] || _lsme_active=default
-
-    rm -f "$_lsme_module/skip_mount" "$_lsme_module/skip_mountify" \
-        "$_lsme_module/mount_error" 2>/dev/null || true
-    if [ "$_lsme_active" = default ]; then
-        _luoshu_self_state_write idle none '' ''
-        return 0
-    fi
-    if _luoshu_system_probe_visible; then
-        _luoshu_self_state_write mounted external-mount system ''
-        _luoshu_self_log 'Root 管理器已挂载字域负载，跳过重复自挂载'
-        return 0
-    fi
-
-    _lsme_mounted=''
-    _lsme_failed=''
-    _lsme_overlay_count=0
-    _lsme_bind_count=0
-    _lsme_system_fonts_ok=0
-    _lsme_state_root=$(_luoshu_self_state_root)
-    _lsme_bind_list="$_lsme_state_root/binds.$$"
-    _lsme_mount_list="$_lsme_state_root/mounts.list"
-    mkdir -p "$_lsme_state_root" 2>/dev/null || true
-    : > "$_lsme_mount_list" 2>/dev/null || true
-
-    for _lsme_partition in $(_lfrp_partitions); do
-        _lsme_root=$(_luoshu_partition_root "$_lsme_partition") || continue
-        for _lsme_subdir in fonts etc; do
-            _lsme_upper="$_lsme_payload/$_lsme_partition/$_lsme_subdir"
-            _lsme_target="$_lsme_root/$_lsme_subdir"
-            [ -d "$_lsme_upper" ] && find "$_lsme_upper" -type f -print -quit 2>/dev/null | grep -q . || continue
-            if _luoshu_overlay_mount_dir "$_lsme_upper" "$_lsme_target" \
-                "${_lsme_partition}-${_lsme_subdir}"; then
-                _lsme_overlay_count=$((_lsme_overlay_count + 1))
-                _lsme_mounted="${_lsme_mounted}${_lsme_mounted:+,}${_lsme_partition}/${_lsme_subdir}"
-                printf '%s\n' "$_lsme_target" >> "$_lsme_mount_list" 2>/dev/null || true
-                [ "$_lsme_partition/$_lsme_subdir" = system/fonts ] && _lsme_system_fonts_ok=1
-                continue
-            fi
-            if [ "$_lsme_subdir" = fonts ] && \
-               _luoshu_bind_existing_fonts "$_lsme_upper" "$_lsme_target" "$_lsme_bind_list"; then
-                _lsme_bind_count=$((_lsme_bind_count + 1))
-                cat "$_lsme_bind_list" >> "$_lsme_mount_list" 2>/dev/null || true
-                _lsme_mounted="${_lsme_mounted}${_lsme_mounted:+,}${_lsme_partition}/${_lsme_subdir}:bind"
-                [ "$_lsme_partition/$_lsme_subdir" = system/fonts ] && _lsme_system_fonts_ok=1
-            else
-                _lsme_failed="${_lsme_failed}${_lsme_failed:+,}${_lsme_partition}/${_lsme_subdir}"
-            fi
-        done
-    done
-    rm -f "$_lsme_bind_list" 2>/dev/null || true
-
-    if [ "$_lsme_system_fonts_ok" -ne 1 ]; then
-        _luoshu_self_state_write failed none "$_lsme_mounted" "${_lsme_failed:-system/fonts}"
-        _luoshu_self_log "自挂载失败：私有 system/fonts 未进入系统；failed=$_lsme_failed"
-        return 1
-    fi
-    if [ -z "$_lsme_failed" ] && [ "$_lsme_bind_count" -eq 0 ]; then
-        _luoshu_self_state_write mounted self-overlay "$_lsme_mounted" ''
-        _luoshu_self_log "私有字体负载 OverlayFS 自挂载成功：$_lsme_mounted"
-    else
-        _luoshu_self_state_write degraded self-overlay-bind "$_lsme_mounted" "$_lsme_failed"
-        _luoshu_self_log "私有字体负载降级接管：mounted=$_lsme_mounted failed=$_lsme_failed"
-    fi
-    return 0
 }

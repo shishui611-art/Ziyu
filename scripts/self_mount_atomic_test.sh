@@ -5,7 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "${0%/*}" 2>/dev/null && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." 2>/dev/null && pwd)
 ATOMIC_SCRIPT=${ATOMIC_SCRIPT:-$REPO_ROOT/common/mount_self_atomic.sh}
 BACKEND_SCRIPT=${BACKEND_SCRIPT:-$REPO_ROOT/common/mount_self_backend.sh}
-FINAL_SCRIPT=${FINAL_SCRIPT:-}
+FINAL_SCRIPT=${FINAL_SCRIPT:-$REPO_ROOT/common/font_runtime_mount.sh}
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' EXIT INT TERM
 

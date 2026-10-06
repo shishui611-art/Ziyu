@@ -19,6 +19,9 @@ hook() {
 printf 'preferred_backend=self\n' > "$MOD/config/mount-backend-preference.conf"
 hook post-fs-data
 eq "$(value "$MOD/config/mount-backend.conf" selected_backend)" self 'explicit self preference'
+grep -q '"bootNomountObserved":true' <(pref get) || fail 'status omitted current-boot NoMount observation'
+grep -q '"bootNomountKernelUsable":false' <(pref get) || fail 'status did not report current-boot NoMount capability'
+grep -q '"selectedSelfBackend":"legacy"' <(pref get) || fail 'status omitted selected self backend'
 [ ! -f "$MOD/config/test-self-mounted" ] || fail 'KSU self mounted before post-mount'
 hook post-mount
 eq "$(value "$MOD/config/mount-backend.conf" active_backend)" self 'active self'

@@ -64,9 +64,9 @@ APP_PACKAGE=$(read_prop package "$META")
 APP_VERSION_CODE=$(read_prop versionCode "$META")
 APK_SHA256=$(read_prop sha256 "$META")
 
-[ -n "$APP_PACKAGE" ] || APP_PACKAGE="io.github.xgl34222220.ziyu.debug"
+[ -n "$APP_PACKAGE" ] || APP_PACKAGE="io.github.shishui611_art.ziyu.debug"
 case "$APP_PACKAGE" in
-    io.github.xgl34222220.ziyu|io.github.xgl34222220.ziyu.debug) ;;
+    io.github.shishui611_art.ziyu|io.github.shishui611_art.ziyu.debug) ;;
     *)
         log_app ERROR "拒绝安装未知包名：$APP_PACKAGE"
         touch "$PENDING" 2>/dev/null || true
@@ -96,6 +96,16 @@ if command -v sha256sum >/dev/null 2>&1; then
     [ -n "$APK_SHA256" ] || APK_SHA256="$ACTUAL_SHA256"
 else
     [ -n "$APK_SHA256" ] || APK_SHA256="unknown"
+fi
+
+# In-app module updates must finish before replacing their running APK.
+# The module's first-boot service installs the bundled App after a complete reboot.
+if [ "$MODE" = flash ] && [ "${ZIYU_DEFER_APP_INSTALL:-0}" = 1 ]; then
+    touch "$PENDING" 2>/dev/null || exit 11
+    write_state deferred "App 内更新模块，内置 App 在完整重启后安装"
+    log_app INFO "模块更新进行中，已将内置 App 安排到首次开机安装"
+    printf 'deferred\n'
+    exit 10
 fi
 
 PM_BIN=$(resolve_tool "${APP_INSTALL_PM_BIN:-}" pm)

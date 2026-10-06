@@ -8,6 +8,10 @@ type _luoshu_atomic_manifest >/dev/null 2>&1 || return 0 2>/dev/null || exit 0
 
 luoshu_self_mount_ensure() {
     _lsme_module=$(_luoshu_self_module)
+    [ ! -f "$_lsme_module/common/skip_mount_ownership.sh" ] || . "$_lsme_module/common/skip_mount_ownership.sh"
+    if type ziyu_foreign_skip_mount_present >/dev/null 2>&1 && ziyu_foreign_skip_mount_present "$_lsme_module"; then
+        return 90
+    fi
     _lsme_payload=$(_lfrp_payload_root)
     _lsme_active=$(head -n1 "$_lsme_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_lsme_active" ] || _lsme_active=default
@@ -20,7 +24,9 @@ luoshu_self_mount_ensure() {
     _luoshu_atomic_prepare_boot_state "$_lsme_mount_list" && _lsme_same_boot=1
 
     if [ "$_lsme_active" = default ]; then
-        [ "$_lsme_same_boot" -eq 0 ] || _luoshu_atomic_rollback "$_lsme_mount_list"
+        if [ "$_lsme_same_boot" -eq 1 ]; then
+            _luoshu_atomic_rollback "$_lsme_mount_list" || return 1
+        fi
         : > "$_lsme_mount_list" 2>/dev/null || true
         rm -f "$_lsme_manifest" "$_lsme_manifest_temp" 2>/dev/null || true
         _luoshu_self_state_write idle none '' ''
@@ -34,7 +40,9 @@ luoshu_self_mount_ensure() {
         return 0
     fi
 
-    [ "$_lsme_same_boot" -eq 0 ] || _luoshu_atomic_rollback "$_lsme_mount_list"
+    if [ "$_lsme_same_boot" -eq 1 ]; then
+        _luoshu_atomic_rollback "$_lsme_mount_list" || return 1
+    fi
     : > "$_lsme_mount_list" 2>/dev/null || return 1
     : > "$_lsme_manifest_temp" 2>/dev/null || return 1
     _lsme_mounted=''
@@ -117,7 +125,10 @@ luoshu_self_mount_ensure() {
     fi
 
     if [ -n "$_lsme_failed" ]; then
-        _luoshu_atomic_rollback "$_lsme_mount_list"
+        if ! _luoshu_atomic_rollback "$_lsme_mount_list"; then
+            _luoshu_self_state_write failed rollback "$_lsme_mounted" "$_lsme_failed;rollback-failed"
+            return 1
+        fi
         rm -f "$_lsme_manifest" "$_lsme_manifest_temp" 2>/dev/null || true
         _luoshu_self_state_write failed rollback "$_lsme_mounted" "$_lsme_failed"
         _luoshu_self_log "私有字体自挂载事务失败并已完整回滚：failed=$_lsme_failed mounted=$_lsme_mounted"
@@ -125,7 +136,10 @@ luoshu_self_mount_ensure() {
     fi
 
     mv -f "$_lsme_manifest_temp" "$_lsme_manifest" 2>/dev/null || {
-        _luoshu_atomic_rollback "$_lsme_mount_list"
+        if ! _luoshu_atomic_rollback "$_lsme_mount_list"; then
+            _luoshu_self_state_write failed rollback "$_lsme_mounted" 'manifest-commit-failed;rollback-failed'
+            return 1
+        fi
         rm -f "$_lsme_manifest_temp" 2>/dev/null || true
         _luoshu_self_state_write failed rollback "$_lsme_mounted" manifest-commit-failed
         return 1

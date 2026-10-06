@@ -45,6 +45,7 @@ python3 -m py_compile \
   "$ROOT/common/universal_font_compiler.py" \
   "$ROOT/common/universal_font_deployment.py" \
   "$ROOT/common/font_route_verify.py" \
+  "$ROOT/common/nomount_rule_json.py" \
   "$ROOT/common/hybrid_mount_runtime.py" \
   "$ROOT/common/font_inventory.py" \
   "$ROOT/common/system_font_library.py"
@@ -52,7 +53,7 @@ python3 -m py_compile \
 # App-only 活跃源码清单。WebUI 前端及其准备脚本必须彻底不存在。
 for file in \
   module.prop customize.sh post-fs-data.sh post-mount.sh boot-completed.sh service.sh uninstall.sh action.sh \
-  README.md LICENSE NOTICE.md THIRD_PARTY_NOTICES.md CHANGELOG.md SECURITY.md CONTRIBUTING.md \
+  README.md LICENSE NOTICE.md THIRD_PARTY_NOTICES.md 更新日志/CHANGELOG.md SECURITY.md CONTRIBUTING.md \
   common/composite_font.py common/font_instance.py common/font_metrics_normalize.py common/font_coverage.py common/font_axis_info.py \
   common/font_role_check.py common/font_metadata.py common/font_extract_faces.py common/font_import_probe.py common/font_source_profile.py common/font_source_profile.sh common/font_web_convert.py common/universal_font_plan.py common/universal_font_plan.sh common/minimal_xml_router.py common/minimal_xml_router.sh common/universal_font_compiler.py common/universal_font_compiler.sh common/universal_font_deployment.py common/universal_font_deployment.sh common/universal_next_boot.sh common/universal_mount_runtime.sh common/font_inventory.py \
   common/font_role_check.sh common/native_import.sh common/font_details.sh common/luoshu_cli.sh \
@@ -60,8 +61,8 @@ for file in \
   common/multiweight_mix_task.sh common/mix_weight_mode.sh \
   common/app_bridge.sh common/font_manager.sh common/font_active_state.sh common/font_boot_state.sh common/font_library_cache.sh common/app_installer.sh \
   common/font_provider_cache.sh common/font_validation_cache.sh common/font_weight_runtime.sh \
-  common/mount_compat.sh common/meta_mount_detection.sh common/mount_backend_runtime.sh common/root_manager_detection.sh common/font_route_verify.py common/hybrid_mount_runtime.py common/rom_adapters.sh common/hyperos_global.sh common/util_functions.sh \
-  scripts/assert.sh scripts/module_layout_test.sh scripts/duplicate_function_test.sh scripts/device_font_cache_budget_test.sh scripts/provider_pid_scan_test.sh scripts/build.sh scripts/version.sh scripts/module_payload_manifest.txt scripts/prepare_composite_runtime.sh scripts/mount_compat_test.sh scripts/mount_backend_orchestration_test.sh scripts/font_route_verify_test.py scripts/hybrid_mount_runtime_test.py scripts/hybrid_mount_unload_test.sh scripts/self_mount_test.sh scripts/customize_reenable_test.sh \
+  common/mount_compat.sh common/meta_mount_detection.sh common/mount_backend_runtime.sh common/mount_nomount_backend.sh common/skip_mount_ownership.sh common/nomount_rule_json.py common/root_manager_detection.sh common/font_route_verify.py common/hybrid_mount_runtime.py common/rom_adapters.sh common/hyperos_global.sh common/util_functions.sh \
+  scripts/assert.sh scripts/module_layout_test.sh scripts/duplicate_function_test.sh scripts/device_font_cache_budget_test.sh scripts/provider_pid_scan_test.sh scripts/build.sh scripts/version.sh scripts/module_payload_manifest.txt scripts/prepare_composite_runtime.sh scripts/mount_compat_test.sh scripts/mount_backend_orchestration_test.sh scripts/mount_nomount_backend_test.sh scripts/font_route_verify_test.py scripts/hybrid_mount_runtime_test.py scripts/hybrid_mount_unload_test.sh scripts/self_mount_test.sh scripts/customize_reenable_test.sh \
   scripts/device_validation_gate.py scripts/device_validation_gate_test.py docs/device_validation.json \
   scripts/stability_test.sh scripts/legacy_switch_core_test.sh scripts/native_zip_import_test.sh scripts/native_preview_source_test.sh scripts/font_source_profile_test.py scripts/font_source_profile_bridge_test.sh scripts/font_weight_runtime_test.py scripts/universal_font_plan_test.py scripts/universal_font_plan_bridge_test.sh scripts/minimal_xml_router_test.py scripts/minimal_xml_router_bridge_test.sh scripts/universal_font_compiler_test.py scripts/universal_font_compiler_bridge_test.sh scripts/universal_font_deployment_test.py scripts/universal_font_deployment_bridge_test.sh scripts/universal_mount_runtime_test.sh scripts/app_bridge_status_test.sh scripts/font_boot_state_test.sh \
   scripts/font_library_cache_test.sh scripts/app_installer_test.sh scripts/hyperos_global_mapping_test.sh scripts/coloros_consistency_mapping_test.sh scripts/font_config_variable_weight_test.sh scripts/font_metrics_normalization_test.py scripts/font_config_monospace_test.py \
@@ -127,7 +128,7 @@ test ! -e "$ROOT/common/font_report.sh"
 # 单包构建必须显式传入 APK；Debug 包只能由测试工作流明确放行。
 grep -q "LUOSHU_APP_APK is required" "$ROOT/scripts/build.sh"
 grep -q 'LUOSHU_ALLOW_DEBUG_APP' "$ROOT/scripts/build.sh"
-grep -q 'io.github.xgl34222220.ziyu.debug' "$ROOT/scripts/build.sh"
+grep -q 'io.github.shishui611_art.ziyu.debug' "$ROOT/scripts/build.sh"
 grep -q 'Ziyu-${VERSION}.zip' "$ROOT/scripts/build.sh"
 grep -q 'bundled/Ziyu-App.apk' "$ROOT/scripts/build.sh"
 ! grep -RIn 'LUOSHU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
@@ -285,6 +286,7 @@ python3 "$ROOT/scripts/release_branch_cleanup_test.py"
 sh "$ROOT/scripts/mount_compat_test.sh"
 sh "$ROOT/scripts/self_mount_test.sh"
 bash "$ROOT/scripts/mount_backend_orchestration_test.sh"
+bash "$ROOT/scripts/mount_nomount_backend_test.sh"
 sh "$ROOT/scripts/installer_payload_preserve_test.sh"
 sh "$ROOT/scripts/mountinfo_procfs_test.sh"
 sh "$ROOT/scripts/hybrid_meta_detection_test.sh"

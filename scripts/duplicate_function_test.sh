@@ -26,7 +26,6 @@ _luoshu_config_weight_source
 _luoshu_font_config_specs
 _luoshu_magic_mount_present
 _luoshu_mountify_present
-_luoshu_overlay_mount_dir
 _luoshu_self_visible_root
 _luoshu_visible_path
 _verify_font_copy
@@ -93,7 +92,6 @@ luoshu_payload_validate_current
 luoshu_payload_validate_manifest_fast
 luoshu_payload_validate_manifest_full
 luoshu_process_starttime
-luoshu_self_mount_ensure
 luoshu_used_partitions
 luoshu_write_mount_probe
 luoshu_write_mount_probes

@@ -128,8 +128,8 @@ _ufmr_system_mount() {
 
 _ufmr_system_rollback() {
     if [ -n "${LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND:-}" ]; then
-        "$LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND" >/dev/null 2>&1 || true
-        return 0
+        "$LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND" >/dev/null 2>&1
+        return $?
     fi
     _ufmr_rollback_system
 }
@@ -152,11 +152,20 @@ _ufmr_is_readonly() {
 
 _ufmr_rollback_dynamic() {
     [ -s "$DYNAMIC_LIST" ] || return 0
-    awk '{item[NR]=$0} END {for(i=NR;i>=1;i--) print item[i]}' "$DYNAMIC_LIST" 2>/dev/null | while IFS= read -r _ufmr_target; do
+    _ufmr_reverse="$DYNAMIC_LIST.reverse.$$"
+    _ufmr_remaining="$DYNAMIC_LIST.remaining.$$"
+    awk '{item[NR]=$0} END {for(i=NR;i>=1;i--) print item[i]}' "$DYNAMIC_LIST" > "$_ufmr_reverse" || return 1
+    : > "$_ufmr_remaining" || return 1
+    while IFS= read -r _ufmr_target; do
         [ -n "$_ufmr_target" ] || continue
-        case "$_ufmr_target" in /data/fonts/*) _ufmr_umount "$_ufmr_target" >/dev/null 2>&1 || true ;; esac
-    done
-    : > "$DYNAMIC_LIST" 2>/dev/null || true
+        case "$_ufmr_target" in /data/fonts/*) ;; *) return 1 ;; esac
+        _ufmr_umount "$_ufmr_target" >/dev/null 2>&1 || \
+            printf '%s\n' "$_ufmr_target" >> "$_ufmr_remaining" || return 1
+    done < "$_ufmr_reverse"
+    awk '{item[NR]=$0} END {for(i=NR;i>=1;i--) print item[i]}' "$_ufmr_remaining" > "$_ufmr_reverse" || return 1
+    mv -f "$_ufmr_reverse" "$DYNAMIC_LIST" || return 1
+    rm -f "$_ufmr_remaining"
+    [ ! -s "$DYNAMIC_LIST" ]
 }
 
 _ufmr_apply_dynamic() {
@@ -202,8 +211,10 @@ _ufmr_apply_dynamic() {
 _ufmr_rollback_system() {
     if type _luoshu_atomic_rollback >/dev/null 2>&1 && type _luoshu_self_state_root >/dev/null 2>&1; then
         _ufmr_system_list="$(_luoshu_self_state_root)/mounts.list"
-        _luoshu_atomic_rollback "$_ufmr_system_list" >/dev/null 2>&1 || true
+        _luoshu_atomic_rollback "$_ufmr_system_list" >/dev/null 2>&1
+        return $?
     fi
+    return 0
 }
 
 _ufmr_write_state() {
@@ -242,7 +253,20 @@ universal_font_mount_hook() {
     else
         _ufmr_stage=$(_ufmr_stage_for_manager "$_ufmr_manager")
     fi
-    [ "$_ufmr_stage" = "$_ufmr_hook" ] || return 2
+    if [ "$_ufmr_stage" != "$_ufmr_hook" ]; then
+        # A late service-stage mount is only permitted after this boot's
+        # selector explicitly chose self-mount as an external-provider fallback.
+        [ "$_ufmr_hook" = service ] &&
+            [ "${LUOSHU_UNIVERSAL_ALLOW_SERVICE_FALLBACK:-0}" = 1 ] || return 2
+        [ -f "$MODDIR/common/root_manager_detection.sh" ] || return 2
+        . "$MODDIR/common/root_manager_detection.sh" || return 2
+        _ufmr_backend_file=$(MODDIR="$MODDIR" luoshu_current_boot_backend_state) || return 2
+        [ -n "$_ufmr_backend_file" ] || return 2
+        [ "$(_ufmr_value "$_ufmr_backend_file" selected_backend)" = self ] || return 2
+        [ "$(_ufmr_value "$_ufmr_backend_file" fallback_used)" = 1 ] || return 2
+        [ "$(_ufmr_value "$_ufmr_backend_file" verification)" = pending ] || return 2
+        _ufmr_stage=service
+    fi
 
     _ufmr_validate_payload || {
         _ufmr_write_state failed "$_ufmr_manager" "$_ufmr_stage" 0 payload-integrity-failed
@@ -261,11 +285,14 @@ universal_font_mount_hook() {
     fi
 
     if ! _ufmr_apply_dynamic; then
-        _ufmr_rollback_dynamic
-        [ "$_ufmr_system_mounted" -eq 0 ] || _ufmr_system_rollback
-        type _luoshu_self_state_write >/dev/null 2>&1 && _luoshu_self_state_write failed rollback '' dynamic-mount-failed
-        _ufmr_write_state failed "$_ufmr_manager" "$_ufmr_stage" 0 dynamic-mount-failed
-        _ufmr_log "dynamic mount failed; system payload rolled back"
+        _ufmr_failure=dynamic-mount-failed
+        _ufmr_rollback_dynamic || _ufmr_failure='dynamic-mount-failed;rollback-failed'
+        if [ "$_ufmr_system_mounted" -ne 0 ]; then
+            _ufmr_system_rollback || _ufmr_failure='dynamic-mount-failed;rollback-failed'
+        fi
+        type _luoshu_self_state_write >/dev/null 2>&1 && _luoshu_self_state_write failed rollback '' "$_ufmr_failure"
+        _ufmr_write_state failed "$_ufmr_manager" "$_ufmr_stage" 0 "$_ufmr_failure"
+        _ufmr_log "$_ufmr_failure"
         return 1
     fi
     _ufmr_dynamic_count=$(wc -l < "$DYNAMIC_LIST" 2>/dev/null | tr -d '[:space:]')
@@ -279,8 +306,13 @@ case "${1:-hook}" in
     hook) universal_font_mount_hook "${2:-post-fs-data}" ;;
     service) exit 0 ;;
     rollback)
-        _ufmr_rollback_dynamic
-        _ufmr_rollback_system
+        _ufmr_rollback_rc=0
+        _ufmr_rollback_dynamic || _ufmr_rollback_rc=1
+        _ufmr_rollback_system || _ufmr_rollback_rc=1
+        if [ "$_ufmr_rollback_rc" -ne 0 ]; then
+            _ufmr_write_state failed unknown manual 0 rollback-failed
+            exit 1
+        fi
         _ufmr_write_state rolled-back "$(type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager || echo unknown)" manual 0 manual
         ;;
     *) echo "Usage: $0 {hook <post-fs-data|post-mount>|service|rollback}" >&2; exit 2 ;;

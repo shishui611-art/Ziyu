@@ -33,16 +33,16 @@
 - **设备自适应字体清单**：扫描当前 ROM 的实际字体目录、配置、字体槽、字重、TTC face 与字体度量，不依赖固定机型列表。
 - **HyperOS / ColorOS 适配**：针对 OEM 字体路由、状态栏/系统 UI、英文数字槽和回退链提供额外处理。
 - **Google 字体兼容**：设置中提供中文的「Google 字体兼容」页面，可检测、开启和恢复 GMS FontsProvider 组件状态，用于处理部分 Google 应用英数重新使用下载字体的问题。
-- **私有 systemless 挂载**：字体负载保存在字域自己的私有目录，由字域完成挂载，不要求额外安装 Mountify 等元模块。
+- **自动 systemless 挂载**：可用的外部提供者优先；确认没有提供者时，字域通过 OverlayFS / bind 接管。字体负载仍保存在私有目录，具体流程见 [挂载说明](docs/MOUNT_FLOW.md)。
 - **事务与回滚**：新字体完整生成并验证成功后才提交；生成失败、超时或内存不足时保留上一套可用负载。
 - **字体缓存复用**：相同字体组合和设备契约可以复用已验证结果，减少重复生成。
-- **原生 Android App**：模块内置正式签名 App，同时提供独立 APK，不使用 WebUI。
+- **原生 Android App**：模块 ZIP 内置 App，不使用 WebUI；正式版和 Debug 版均只发布可刷入模块 ZIP。
 
 ## 首发与验证状态
 
-当前源码版本为 **字域 v1.1.0**。安装包和已发布版本请查看 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)，本地测试包不代表已正式发布。上游 LuoShu 的 Releases 用于查看上游历史。
+当前源码版本为 **字域 v1.2.0**。安装包和已发布版本请查看 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)，本地测试包不代表已正式发布。上游 LuoShu 的 Releases 用于查看上游历史。
 
-Release 发布流程验证模块 ZIP、独立 APK 和 SHA-256 后，会自动同步本 fork 的 `update.json`。App 的“检查更新”读取这份清单，显示 Release 版本并提供对应下载；没有已验证的 Release 资产时，不会显示可下载更新。
+Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更新清单。App 的“模块更新”会直接请求 GitHub Release API、Release 下载地址和 Raw 文件；国内网络可能无法检查或下载。接入国内可直连发布源并完成无代理实测前，不能承诺免代理更新。
 
 设备适配仍以 [真机验证矩阵](docs/TEST_MATRIX.md) 为准。自动化构建通过不代表已经在所有 ROM、Root 管理器和机型上完成验证；遇到未列出的设备时，请先保留可卸载/恢复路径，再反馈诊断信息。
 
@@ -52,11 +52,11 @@ Release 发布流程验证模块 ZIP、独立 APK 和 SHA-256 后，会自动同
 2. **关闭 Root 管理器中的「默认卸载模块」功能。**
 3. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入模块。
 4. 完整重启手机。
-5. 安装模块内置 App，或安装 Release 中的独立 APK。
+5. 安装模块内置 App。
 6. 在 App 中导入字体，选择中文、英文和数字字体。
 7. 应用字体，等待任务完成后按提示完整重启。
 
-**包名与签名说明：**1.1.0 起使用 `io.github.xgl34222220.ziyu`，Debug 包使用 `.ziyu.debug`，Android 会作为新 App 安装。首次打开需重新授予 Root，旧 App 的私有设置不会自动迁移，可先导出备份再导入新 App。相同包名的后续更新必须继续使用同一签名密钥；正式签名与本地 Debug 签名不能互相覆盖。
+**包名与签名说明：**1.2.0 起正式 App 使用 `io.github.shishui611_art.ziyu`，Debug 包使用 `io.github.shishui611_art.ziyu.debug`。从旧包 `io.github.xgl34222220.ziyu` 更新时，Android 会把它作为新 App 安装；首次打开需重新授予 Root，旧 App 的私有设置不会自动迁移，请先导出备份。后续正式更新必须继续使用同一正式签名；本地 Debug 包不能覆盖正式版。
 
 > 不需要安装额外挂载模块，也不需要手工修改 `fonts.xml`。
 
@@ -214,7 +214,7 @@ LUOSHU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
 LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 ```
 
-模块打包步骤需在配置好 Android SDK/NDK 的 Linux 环境运行。Debug App 使用独立测试包名，不能覆盖安装正式 App；正式 Release 使用固定证书构建，模块内置 App 与独立 APK 必须保持一致。
+模块打包步骤需在配置好 Android SDK/NDK 的 Linux 环境运行。Debug App 使用独立测试包名，不能覆盖安装正式 App；正式 Release 使用固定证书构建，模块内置 App 必须与已签名构建产物保持一致。
 
 ## 问题反馈
 

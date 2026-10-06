@@ -31,7 +31,7 @@ ziyu_meta = mod.build_metadata(
     version="v1.1.0",
     version_code=11000,
     tag="ziyu-v1.1.0",
-    notes_file="RELEASE_NOTES_ziyu-v1.1.0.md",
+    notes_file="更新日志/RELEASE_NOTES_ziyu-v1.1.0.md",
     artifact_name="Ziyu",
 )
 assert ziyu_meta["zipUrl"] == "https://github.com/shishui611-art/Ziyu/releases/download/ziyu-v1.1.0/Ziyu-v1.1.0.zip"

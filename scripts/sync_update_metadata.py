@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 
 def artifact_version(version: str) -> str:
@@ -39,7 +40,7 @@ def build_metadata(
         "version": version.strip(),
         "versionCode": version_code,
         "zipUrl": f"{release_root}/{artifact_name}-{artifact}.zip",
-        "changelog": f"https://raw.githubusercontent.com/{repository}/{tag}/{notes_file}",
+        "changelog": f"https://raw.githubusercontent.com/{repository}/{tag}/{quote(notes_file, safe='/._-')}",
     }
 
 

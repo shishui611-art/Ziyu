@@ -37,14 +37,17 @@ luoshu_active_payload_verified() {
         # Metadata reuse must not turn a failed/pending selector verdict green.
         # All heavy route checking stays in the boot verifier; the App consumes
         # only its same-boot, same-font proof for the currently active backend.
-        [ "$(_luoshu_active_state_value "$_las_backend_state" schema)" = ziyu-mount-backend-v1 ] || return 1
+        case "$(_luoshu_active_state_value "$_las_backend_state" schema)" in
+            ziyu-mount-backend-v1|ziyu-mount-backend-v2|ziyu-mount-backend-v3) ;;
+            *) return 1 ;;
+        esac
         _las_current_boot="${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
         [ -n "$_las_current_boot" ] || return 1
         [ "$(_luoshu_active_state_value "$_las_backend_state" boot_id)" = "$_las_current_boot" ] || return 1
         [ "$(_luoshu_active_state_value "$_las_backend_state" verification)" = passed ] || return 1
         [ "$(_luoshu_active_state_value "$_las_backend_state" backend_conflict)" != 1 ] || return 1
         _las_backend=$(_luoshu_active_state_value "$_las_backend_state" active_backend)
-        case "$_las_backend" in meta|self) ;; *) return 1 ;; esac
+        case "$_las_backend" in meta|self|external) ;; *) return 1 ;; esac
         [ "$(_luoshu_active_state_value "$_las_verify" bootId)" = "$_las_current_boot" ] || return 1
         [ "$_las_verify_mode" = mount-verified ] || return 1
         [ "$(_luoshu_active_state_value "$_las_verify" reason)" = "backend-pid1-route-verified:$_las_backend" ] || return 1

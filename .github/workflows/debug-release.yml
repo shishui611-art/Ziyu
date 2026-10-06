@@ -78,19 +78,15 @@ jobs:
 
           short_sha="${GITHUB_SHA:0:7}"
           module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
-          app="android-app/app/build/outputs/apk/debug/app-debug.apk"
           debug_module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}-Debug-${short_sha}.zip"
-          debug_app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug-${short_sha}.apk"
           mv "$module" "$debug_module"
-          cp "$app" "$debug_app"
-          (cd dist && sha256sum "$(basename "$debug_module")" "$(basename "$debug_app")" > "SHA256SUMS.txt")
+          (cd dist && sha256sum "$(basename "$debug_module")" > "$(basename "$debug_module").sha256")
 
           unzip -t "$debug_module" >/dev/null
-          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.xgl34222220.ziyu.debug'
-          test "$(unzip -p "$debug_module" bundled/Ziyu-App.apk | sha256sum | awk '{print $1}')" = "$(sha256sum "$debug_app" | awk '{print $1}')"
+          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.shishui611_art.ziyu.debug'
+          test "$(unzip -p "$debug_module" bundled/Ziyu-App.apk | sha256sum | awk '{print $1}')" = "$(sha256sum "$apk" | awk '{print $1}')"
 
           echo "DEBUG_MODULE=$debug_module" >> "$GITHUB_ENV"
-          echo "DEBUG_APP=$debug_app" >> "$GITHUB_ENV"
           echo "DEBUG_TAG=ziyu-debug-${LUOSHU_ARTIFACT_VERSION}-${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_ENV"
           echo "DEBUG_VERSION=$LUOSHU_ARTIFACT_VERSION" >> "$GITHUB_ENV"
 
@@ -100,7 +96,7 @@ jobs:
           GH_PROMPT_DISABLED: '1'
         run: |
           gh release create "$DEBUG_TAG" \
-            "$DEBUG_MODULE" "$DEBUG_APP" dist/SHA256SUMS.txt \
+            "$DEBUG_MODULE" "${DEBUG_MODULE}.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "字域 ${DEBUG_VERSION} Debug 测试版 (${GITHUB_RUN_NUMBER})" \

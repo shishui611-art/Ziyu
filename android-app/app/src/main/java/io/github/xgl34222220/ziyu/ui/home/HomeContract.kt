@@ -57,6 +57,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
             rollbackPending || fontEffectState == "rollback-pending" -> "正在等待安全回退"
             effectFailed -> "字体未生效"
             mountState == "failed" -> "挂载验证未通过"
+            mountState == "skipped" -> "当前自定义字体未挂载"
             installed && rootGranted -> "字体引擎已就绪"
             installed -> "模块已连接"
             else -> "正在等待模块连接"
@@ -67,6 +68,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
                 mountFailure.contains("backend-conflict")) -> "挂载失败且安全回滚尚未确认，请查看日志：$mountFailure"
             effectFailed -> effectFailureMessage
             mountState == "failed" -> "本次启动的挂载验证未通过，请查看日志：${mountFailure.ifBlank { verificationReason }}"
+            mountState == "skipped" -> "当前字体没有执行挂载，请检查挂载排除设置"
             else -> taskMessage
         },
         taskProgress = taskProgress,

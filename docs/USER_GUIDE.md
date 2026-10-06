@@ -1,26 +1,24 @@
 # 字域完整使用教程
 
-本文说明字域 v2.3.x 的下载、刷入、App 安装、字体导入、单字体应用、组合字体、恢复、卸载和故障排查。
+本文说明字域 v1.2.x 的下载、刷入、App 安装、字体导入、单字体应用、组合字体、恢复、卸载和故障排查。
 
 ## 1. 下载正确文件
 
 只从本 fork 的 [Releases](https://github.com/shishui611-art/Ziyu/releases) 下载正式版；如果尚无发布包，请等待 fork 发布或自行从源码构建。不要用上游仓库的包覆盖本 fork 的更新通道。
 
-正式 Release 包含：
+正式版和 Debug 版 Release 都只提供可刷入的模块 ZIP 与校验文件，App 已内置在模块 ZIP 中：
 
 ```text
-LuoShu-<版本>.zip              模块包，内置正式 App
-LuoShu-<版本>.zip.sha256       模块校验文件
-LuoShu-App-<版本>.apk          独立正式 App
-LuoShu-App-<版本>.apk.sha256   App 校验文件
+Ziyu-<版本>.zip              可刷入模块包，内置 App
+Ziyu-<版本>.zip.sha256       模块校验文件
 ```
 
-模块包和独立 APK 使用同一把固定签名。旧 Debug App 与正式 App 签名不同，Android 拒绝覆盖时，请先卸载旧 Debug App。
+模块内正式 App 使用固定签名。Debug App 与正式 App 签名不同，Android 拒绝覆盖时，请先卸载旧 Debug App。
 
 ## 2. 刷入模块
 
 1. 打开当前使用的 Magisk、KernelSU、SukiSU Ultra 或 APatch 管理器。
-2. 选择 `LuoShu-<版本>.zip`。
+2. 选择 `Ziyu-<版本>.zip`。
 3. 等待刷写完成。
 4. 完整重启设备。
 

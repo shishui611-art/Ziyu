@@ -82,70 +82,17 @@ luoshu_hybrid_backend() {
 }
 
 luoshu_mount_preflight() {
-    _lmcp_active="${1:-unknown}"
-    _lmcp_engine="${2:-$(luoshu_detect_mount_engine)}"
     LUOSHU_MOUNT_PREFLIGHT_ERROR=''
-
-    [ ! -e "$LUOSHU_MOUNT_MODDIR/remove" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='模块存在 remove 标记'
-        return 1
-    }
-
-    if _luoshu_direct_source_engine "$_lmcp_engine"; then
-        # A font transaction is an explicit request to activate LuoShu. Recover only
-        # LuoShu-local markers left by older failed transactions; never edit another
-        # metamodule's configuration, whitelist, package directory or marker files.
-        if [ "$_lmcp_active" != default ]; then
-            if [ -e "$LUOSHU_MOUNT_MODDIR/disable" ]; then
-                rm -f "$LUOSHU_MOUNT_MODDIR/disable" 2>/dev/null || true
-                [ ! -e "$LUOSHU_MOUNT_MODDIR/disable" ] || {
-                    LUOSHU_MOUNT_PREFLIGHT_ERROR='无法解除字域旧 disable 标记'
-                    return 1
-                }
-                rm -f \
-                    "$LUOSHU_MOUNT_MODDIR/config/font-boot-failures" \
-                    "$LUOSHU_MOUNT_MODDIR/config/font-payload-quarantine.conf" 2>/dev/null || true
-            fi
-            rm -f \
-                "$LUOSHU_MOUNT_MODDIR/skip_mount" \
-                "$LUOSHU_MOUNT_MODDIR/skip_mountify" \
-                "$LUOSHU_MOUNT_MODDIR/mount_error" 2>/dev/null || true
-        fi
-        return 0
-    fi
-
-    [ ! -e "$LUOSHU_MOUNT_MODDIR/disable" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='字域模块已被禁用'
-        return 1
-    }
-    [ ! -e "$LUOSHU_MOUNT_MODDIR/skip_mount" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='检测到 skip_mount，双目录元模块不会挂载字域'
-        return 1
-    }
-    [ ! -e "$LUOSHU_MOUNT_MODDIR/mount_error" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR='检测到 mount_error，双目录元模块未准备完成'
-        return 1
-    }
-
-    _lmcp_base=$(luoshu_dual_content_base)
-    luoshu_mountpoint_ready "$_lmcp_base" || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR="元模块内容镜像未挂载：$_lmcp_base"
-        return 1
-    }
-    [ -w "$_lmcp_base" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR="元模块内容镜像不可写：$_lmcp_base"
-        return 1
-    }
-
-    _lmcp_unsupported=''
-    for _lmcp_partition in $(luoshu_used_partitions); do
-        if ! luoshu_meta_partition_supported "$_lmcp_partition"; then
-            _lmcp_unsupported="${_lmcp_unsupported}${_lmcp_unsupported:+,}$_lmcp_partition"
+    for _lmcp_marker in disable remove; do
+        if [ -e "$LUOSHU_MOUNT_MODDIR/$_lmcp_marker" ]; then
+            LUOSHU_MOUNT_PREFLIGHT_ERROR="字域存在 $_lmcp_marker 标记"
+            return 1
         fi
     done
-    [ -z "$_lmcp_unsupported" ] || {
-        LUOSHU_MOUNT_PREFLIGHT_ERROR="双目录元模块未声明字体负载分区：$_lmcp_unsupported"
+    [ ! -f "$LUOSHU_MOUNT_MODDIR/common/skip_mount_ownership.sh" ] || . "$LUOSHU_MOUNT_MODDIR/common/skip_mount_ownership.sh"
+    if type ziyu_foreign_skip_mount_present >/dev/null 2>&1 && ziyu_foreign_skip_mount_present "$LUOSHU_MOUNT_MODDIR"; then
+        LUOSHU_MOUNT_PREFLIGHT_ERROR='字域被手动排除挂载'
         return 1
-    }
+    fi
     return 0
 }

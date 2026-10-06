@@ -8,8 +8,6 @@ MODDIR="${MODDIR:-$(CDPATH= cd -- "${0%/*}/../.." 2>/dev/null && pwd)}"
 MODULE_DIR="$MODDIR"
 _lpf_base="$MODDIR/.luoshu-runtime/compat/v227/post-fs-data.sh"
 _lpf_temp="$MODDIR/.post-fs-data-v227.$$.sh"
-[ -f "$MODDIR/common/private_payload.sh" ] && . "$MODDIR/common/private_payload.sh"
-luoshu_private_mount_module_view "$MODDIR" >/dev/null 2>&1 || true
 
 sed '$d' "$_lpf_base" > "$_lpf_temp" 2>/dev/null || exit 0
 _lpf_selector_previous="${LUOSHU_BACKEND_SELECTOR_ACTIVE:-}"

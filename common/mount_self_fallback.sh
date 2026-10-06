@@ -329,34 +329,6 @@ _luoshu_partition_root() {
     esac
 }
 
-_luoshu_overlay_mount_dir() {
-    _lsom_upper="$1"
-    _lsom_target="$2"
-    _lsom_key="$3"
-    _lsom_state=$(_luoshu_self_state_root)
-    _lsom_lower="$_lsom_state/lower/$_lsom_key"
-    _lsom_work="$_lsom_state/work/$_lsom_key"
-
-    [ -d "$_lsom_upper" ] && [ -d "$_lsom_target" ] || return 1
-    _luoshu_umount_cmd "$_lsom_lower" >/dev/null 2>&1 || true
-    rm -rf "$_lsom_lower" "$_lsom_work" 2>/dev/null || true
-    mkdir -p "$_lsom_lower" "$_lsom_work" 2>/dev/null || return 1
-    _luoshu_mount_cmd -o bind "$_lsom_target" "$_lsom_lower" >/dev/null 2>&1 || return 1
-    if _luoshu_mount_cmd -t overlay overlay \
-        -o "lowerdir=$_lsom_lower,upperdir=$_lsom_upper,workdir=$_lsom_work,index=off" \
-        "$_lsom_target" >/dev/null 2>&1; then
-        return 0
-    fi
-    rm -rf "$_lsom_work" 2>/dev/null || true
-    mkdir -p "$_lsom_work" 2>/dev/null || true
-    if _luoshu_mount_cmd -t overlay overlay \
-        -o "lowerdir=$_lsom_lower,upperdir=$_lsom_upper,workdir=$_lsom_work" \
-        "$_lsom_target" >/dev/null 2>&1; then
-        return 0
-    fi
-    _luoshu_umount_cmd "$_lsom_lower" >/dev/null 2>&1 || true
-    return 1
-}
 
 _luoshu_bind_existing_fonts() {
     _lsbef_upper="$1"
@@ -398,75 +370,8 @@ _luoshu_self_state_write() {
 
 # Called from post-mount.sh, after KernelSU's selected metamodule has already run.
 # Existing successful mounts win. Self-mount is only the fail-open fallback.
-luoshu_self_mount_ensure() {
-    _lsme_module=$(_luoshu_self_module)
-    _lsme_active=$(head -n1 "$_lsme_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
-    [ -n "$_lsme_active" ] || _lsme_active=default
 
-    rm -f "$_lsme_module/skip_mount" "$_lsme_module/skip_mountify" \
-        "$_lsme_module/mount_error" 2>/dev/null || true
-
-    if [ "$_lsme_active" = default ]; then
-        _luoshu_self_state_write idle none '' ''
-        return 0
-    fi
-
-    if _luoshu_system_probe_visible; then
-        _luoshu_self_state_write mounted external-mount system ''
-        _luoshu_self_log '元模块或 Root 管理器已成功挂载，字域不重复接管'
-        return 0
-    fi
-
-    _lsme_mounted=''
-    _lsme_failed=''
-    _lsme_overlay_count=0
-    _lsme_bind_count=0
-    _lsme_system_fonts_ok=0
-    _lsme_state_root=$(_luoshu_self_state_root)
-    _lsme_bind_list="$_lsme_state_root/binds.$$"
-    _lsme_mount_list="$_lsme_state_root/mounts.list"
-    mkdir -p "$_lsme_state_root" 2>/dev/null || true
-    : > "$_lsme_mount_list" 2>/dev/null || true
-
-    for _lsme_partition in $(luoshu_payload_partitions); do
-        _lsme_root=$(_luoshu_partition_root "$_lsme_partition") || continue
-        for _lsme_subdir in fonts etc; do
-            _lsme_upper="$_lsme_module/$_lsme_partition/$_lsme_subdir"
-            _lsme_target="$_lsme_root/$_lsme_subdir"
-            [ -d "$_lsme_upper" ] && find "$_lsme_upper" -type f -print -quit 2>/dev/null | grep -q . || continue
-            if _luoshu_overlay_mount_dir "$_lsme_upper" "$_lsme_target" \
-                "${_lsme_partition}-${_lsme_subdir}"; then
-                _lsme_overlay_count=$((_lsme_overlay_count + 1))
-                _lsme_mounted="${_lsme_mounted}${_lsme_mounted:+,}${_lsme_partition}/${_lsme_subdir}"
-                printf '%s\n' "$_lsme_target" >> "$_lsme_mount_list" 2>/dev/null || true
-                [ "$_lsme_partition/$_lsme_subdir" = system/fonts ] && _lsme_system_fonts_ok=1
-                continue
-            fi
-            if [ "$_lsme_subdir" = fonts ] && \
-               _luoshu_bind_existing_fonts "$_lsme_upper" "$_lsme_target" "$_lsme_bind_list"; then
-                _lsme_bind_count=$((_lsme_bind_count + 1))
-                cat "$_lsme_bind_list" >> "$_lsme_mount_list" 2>/dev/null || true
-                _lsme_mounted="${_lsme_mounted}${_lsme_mounted:+,}${_lsme_partition}/${_lsme_subdir}:bind"
-                [ "$_lsme_partition/$_lsme_subdir" = system/fonts ] && _lsme_system_fonts_ok=1
-            else
-                _lsme_failed="${_lsme_failed}${_lsme_failed:+,}${_lsme_partition}/${_lsme_subdir}"
-            fi
-        done
-    done
-    rm -f "$_lsme_bind_list" 2>/dev/null || true
-
-    if [ "$_lsme_system_fonts_ok" -ne 1 ]; then
-        _luoshu_self_state_write failed none "$_lsme_mounted" "${_lsme_failed:-system/fonts}"
-        _luoshu_self_log "自挂载失败：system/fonts 未接管；failed=$_lsme_failed"
-        return 1
-    fi
-
-    if [ -z "$_lsme_failed" ] && [ "$_lsme_bind_count" -eq 0 ]; then
-        _luoshu_self_state_write mounted self-overlay "$_lsme_mounted" ''
-        _luoshu_self_log "OverlayFS 自挂载成功：$_lsme_mounted"
-    else
-        _luoshu_self_state_write degraded self-overlay-bind "$_lsme_mounted" "$_lsme_failed"
-        _luoshu_self_log "自挂载已降级接管：mounted=$_lsme_mounted failed=$_lsme_failed"
-    fi
-    return 0
-}
+# The read-only OverlayFS helper is defined once for all callers.
+_lsf_backend="$(_luoshu_self_module)/common/mount_self_backend.sh"
+[ ! -f "$_lsf_backend" ] || . "$_lsf_backend"
+unset _lsf_backend

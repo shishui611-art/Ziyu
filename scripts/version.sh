@@ -20,7 +20,7 @@ case "$(version_prop_get versionSeries)" in
 esac
 
 LUOSHU_RELEASE_TAG=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field tag --check) || return 1
-LUOSHU_RELEASE_NOTES="RELEASE_NOTES_${LUOSHU_RELEASE_TAG}.md"
+LUOSHU_RELEASE_NOTES="更新日志/RELEASE_NOTES_${LUOSHU_RELEASE_TAG}.md"
 LUOSHU_RELEASE_TITLE=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field title) || return 1
 
 export LUOSHU_VERSION LUOSHU_VERSION_CODE LUOSHU_ARTIFACT_VERSION LUOSHU_APP_VERSION_CODE

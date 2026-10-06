@@ -79,8 +79,13 @@ class RefactorVersionTest(unittest.TestCase):
         self.assertEqual(int(props['versionCode']),info['versionCode'])
         policy=json.loads((ROOT/'config/stable_version_policy.json').read_text())
         stable = version_info(policy['currentStable'], props.get('versionSeries', ''))
+        policy_next = version_info(policy['nextStable'], props.get('versionSeries', ''))
         self.assertGreaterEqual(info['versionCode'], stable['versionCode'])
-        self.assertEqual(policy['nextStable'], stable['nextStable'])
+        self.assertGreater(policy_next['versionCode'], stable['versionCode'])
+        if info['versionCode'] == stable['versionCode']:
+            self.assertEqual(policy_next['versionCode'], version_info(stable['nextStable'], props.get('versionSeries', ''))['versionCode'])
+        else:
+            self.assertLessEqual(policy_next['versionCode'], info['versionCode'])
         result=subprocess.run([SH,'-c','. ./scripts/version.sh; printf "%s|%s|%s|%s" "$LUOSHU_VERSION" "$LUOSHU_RELEASE_TAG" "$LUOSHU_RELEASE_NOTES" "$LUOSHU_APP_VERSION_CODE"'],cwd=ROOT,capture_output=True,text=True,encoding='utf-8',errors='replace',check=True)
         self.assertEqual(result.stdout,f"{info['version']}|{info['tag']}|{info['notesFile']}|{info['appVersionCode']}")
         self.assertTrue((ROOT/info['notesFile']).is_file())
@@ -90,7 +95,7 @@ class RefactorVersionTest(unittest.TestCase):
         info=version_info('v1.0.0','refactor')
         metadata=build_metadata(repository='xgl34222220-ops/LuoShu',version=info['version'],version_code=info['versionCode'],tag=info['tag'],notes_file=info['notesFile'],artifact_name='LuoShu')
         self.assertIn('/refactor-v1.0.0/LuoShu-v1.0.0.zip',metadata['zipUrl'])
-        self.assertIn('/refactor-v1.0.0/RELEASE_NOTES_refactor-v1.0.0.md',metadata['changelog'])
+        self.assertIn('/refactor-v1.0.0/%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97/RELEASE_NOTES_refactor-v1.0.0.md',metadata['changelog'])
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'update.json'
             for old in (40404,50000):

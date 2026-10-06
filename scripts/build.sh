@@ -46,9 +46,9 @@ esac
   exit 67
 }
 case "$APP_PACKAGE" in
-  io.github.xgl34222220.ziyu)
+  io.github.shishui611_art.ziyu)
     ;;
-  io.github.xgl34222220.ziyu.debug)
+  io.github.shishui611_art.ziyu.debug)
     [ "$ALLOW_DEBUG_APP" = "1" ] || {
       echo 'Debug App packaging requires LUOSHU_ALLOW_DEBUG_APP=1.' >&2
       exit 68

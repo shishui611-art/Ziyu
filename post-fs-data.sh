@@ -4,6 +4,14 @@ set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
 
+# Manual exclusions are checked before even activating the pending generation.
+[ ! -f "$MODDIR/common/skip_mount_ownership.sh" ] || . "$MODDIR/common/skip_mount_ownership.sh"
+if [ -e "$MODDIR/disable" ] || [ -e "$MODDIR/remove" ] || \
+   { type ziyu_foreign_skip_mount_present >/dev/null 2>&1 && ziyu_foreign_skip_mount_present "$MODDIR"; }; then
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/mount_backend_runtime.sh" hook post-fs-data
+    exit $?
+fi
+
 # Activate a previously prepared payload before exposing any module files.
 UNIVERSAL_NEXT_STATE="$MODDIR/config/universal-font-next.conf"
 if [ -s "$UNIVERSAL_NEXT_STATE" ]; then

@@ -22,7 +22,7 @@ module = dict(line.split("=", 1) for line in (ROOT / "module.prop").read_text(en
 metadata = json.loads(args.apk_metadata.read_text(encoding="utf-8"))
 elements = metadata.get("elements", [])
 expected_name = module["version"].removeprefix("v") + "-debug"
-if (metadata.get("applicationId") != "io.github.xgl34222220.ziyu.debug" or len(elements) != 1 or
+if (metadata.get("applicationId") != "io.github.shishui611_art.ziyu.debug" or len(elements) != 1 or
         str(elements[0].get("versionCode")) != module["versionCode"] or
         elements[0].get("versionName") != expected_name):
     raise SystemExit("APK 版本或包名与 module.prop 不一致，请先重新编译 Debug App")
@@ -42,7 +42,7 @@ with zipfile.ZipFile(args.base) as base:
     if base.testzip() is not None:
         raise SystemExit("Base package CRC check failed")
     prop = dict(line.split("=", 1) for line in base.read("bundled/app.prop").decode("utf-8").splitlines() if "=" in line)
-    prop.update(package="io.github.xgl34222220.ziyu.debug", versionCode=module["versionCode"],
+    prop.update(package="io.github.shishui611_art.ziyu.debug", versionCode=module["versionCode"],
                 versionName=module["version"].removeprefix("v") + "-debug", sha256=hashlib.sha256(apk).hexdigest())
     replacements["bundled/app.prop"] = ("\n".join(f"{key}={value}" for key, value in prop.items()) + "\n").encode("utf-8")
     missing = replacements.keys() - set(base.namelist())

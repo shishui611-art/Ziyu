@@ -388,6 +388,7 @@ def verify(
     active_font: str,
     visible_root: Path | None = None,
     boot_id: str = "",
+    backend_state: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if plan.get("schema") != PLAN_SCHEMA:
         raise VerificationError("FontPlan schema mismatch")
@@ -419,7 +420,18 @@ def verify(
     else:
         failures.append("runtime-state-missing")
 
-    if mount_state:
+    external = bool(backend_state and backend_state.get("selected_backend") == "external")
+    vfs_provider = False
+    if external:
+        # External providers do not create our self-mount transaction record.
+        # File hashes and font contracts below remain mandatory in PID 1.
+        assert backend_state is not None
+        if (backend_state.get("schema") not in {"ziyu-mount-backend-v2", "ziyu-mount-backend-v3"}
+                or not boot_id or backend_state.get("boot_id") != boot_id
+                or backend_state.get("provider_state") != "available"):
+            failures.append("external-backend-record-invalid")
+        vfs_provider = backend_state.get("provider_id") == "nomount"
+    elif mount_state:
         if mount_state.get("state") != "mounted":
             failures.append("mount-transaction-not-mounted")
         if mount_state.get("deploymentId") and mount_state.get("deploymentId") != deployment_id:
@@ -511,10 +523,10 @@ def verify(
             "readOnly": bool(mount and mount.get("readOnly")),
             "status": "ok",
         }
-        if mount is None:
+        if mount is None and not vfs_provider:
             failures.append(f"dynamic-mount-missing:{target_path}")
             dynamic_report["status"] = "mount-missing"
-        elif not mount.get("readOnly"):
+        elif mount is not None and not mount.get("readOnly"):
             failures.append(f"dynamic-mount-not-readonly:{target_path}")
             dynamic_report["status"] = "mount-not-readonly"
 
@@ -543,6 +555,8 @@ def verify(
         mounted_dynamic = int(mount_state.get("dynamicMounted") or 0)
     except ValueError:
         mounted_dynamic = 0
+    if external:
+        mounted_dynamic = sum(report.get("status") == "ok" and report.get("font", {}).get("status") == "ok" for report in dynamic_reports)
     if expected_dynamic and mounted_dynamic < expected_dynamic:
         failures.append("dynamic-mount-count-incomplete")
 
@@ -671,6 +685,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--deployment", required=True, type=Path)
     parser.add_argument("--runtime-conf", type=Path)
     parser.add_argument("--mount-state", type=Path)
+    parser.add_argument("--backend-state", type=Path)
     parser.add_argument("--font-dump", type=Path)
     parser.add_argument("--mountinfo", type=Path)
     parser.add_argument("--visible-root", type=Path)
@@ -708,6 +723,7 @@ def main() -> int:
             deployment,
             runtime_conf=_read_conf(args.runtime_conf),
             mount_state=_read_conf(args.mount_state),
+            backend_state=_read_conf(args.backend_state),
             font_dump=font_dump,
             mountinfo=_mounts(args.mountinfo),
             active_font=args.active_font,

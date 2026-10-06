@@ -745,92 +745,10 @@ luoshu_mount_record() {
 }
 
 luoshu_sync_mount_payload() {
-    _lsmp_active="${1:-$(head -n1 "$LUOSHU_MOUNT_MODDIR/config/active_font.conf" 2>/dev/null)}"
-    [ -n "$_lsmp_active" ] || _lsmp_active=default
-    _lsmp_engine=$(luoshu_detect_mount_engine)
-    _lsmp_synced=0
-    _lsmp_failed=0
-    _lsmp_root=''
-    _lsmp_partitions=''
-    _lsmp_failed_partitions=''
-
-    luoshu_mount_budget_begin
-    luoshu_mount_lock_acquire || return 1
-    trap 'luoshu_mount_lock_release' EXIT HUP INT TERM
-
-    if ! luoshu_mount_preflight "$_lsmp_active"; then
-        luoshu_mount_record failed "$LUOSHU_MOUNT_PREFLIGHT_ERROR" '' 0 1
-        luoshu_mount_lock_release
-        trap - EXIT HUP INT TERM
-        return 1
-    fi
-    if ! luoshu_write_mount_probes "$_lsmp_active"; then
-        luoshu_mount_record failed '无法生成分区挂载探针' '' 0 1
-        luoshu_mount_lock_release
-        trap - EXIT HUP INT TERM
-        return 1
-    fi
-
-    case "$_lsmp_engine" in
-        meta-overlayfs|dual-dir-metamodule)
-            _lsmp_root=$(luoshu_meta_content_roots | head -n1)
-            [ -n "$_lsmp_root" ] && mkdir -p "$_lsmp_root" 2>/dev/null || _lsmp_failed=1
-            if [ "$_lsmp_failed" -eq 0 ]; then
-                for _lsmp_partition in $(luoshu_used_partitions "$_lsmp_root"); do
-                    _lsmp_partitions="${_lsmp_partitions}${_lsmp_partitions:+,}$_lsmp_partition"
-                    _lsmp_source="$LUOSHU_MOUNT_MODDIR/$_lsmp_partition"
-                    _lsmp_destination="$_lsmp_root/$_lsmp_partition"
-                    if [ -d "$_lsmp_source" ]; then
-                        if luoshu_copy_partition_atomic "$_lsmp_source" "$_lsmp_destination"; then
-                            _lsmp_synced=$((_lsmp_synced + 1))
-                        else
-                            _lsmp_result=$?
-                            _lsmp_failed=$((_lsmp_failed + 1))
-                            _lsmp_failed_partitions="${_lsmp_failed_partitions}${_lsmp_failed_partitions:+,}$_lsmp_partition"
-                            if [ "$_lsmp_result" -eq 124 ]; then
-                                LUOSHU_MOUNT_PREFLIGHT_ERROR="元模块同步超过 ${LUOSHU_MOUNT_TIMEOUT} 秒总时限"
-                            fi
-                            break
-                        fi
-                    elif ! rm -rf "$_lsmp_destination" 2>/dev/null; then
-                        _lsmp_failed=$((_lsmp_failed + 1))
-                        _lsmp_failed_partitions="${_lsmp_failed_partitions}${_lsmp_failed_partitions:+,}$_lsmp_partition"
-                        break
-                    fi
-                done
-            fi
-            ;;
-        *)
-            for _lsmp_partition in $(luoshu_used_partitions); do
-                _lsmp_partitions="${_lsmp_partitions}${_lsmp_partitions:+,}$_lsmp_partition"
-            done
-            ;;
-    esac
-
-    luoshu_mount_lock_release
-    trap - EXIT HUP INT TERM
-    if [ "$_lsmp_failed" -gt 0 ]; then
-        luoshu_mount_record failed \
-            "${LUOSHU_MOUNT_PREFLIGHT_ERROR:-元模块内容更新失败，已保留旧分区目录}" \
-            "$_lsmp_root" "$_lsmp_synced" "$_lsmp_failed" \
-            "$_lsmp_partitions" '' "$_lsmp_failed_partitions"
-        return 1
-    fi
-
-    case "$_lsmp_engine" in
-        meta-overlayfs|dual-dir-metamodule)
-            luoshu_mount_record prepared \
-                '已原子写入元模块真实内容镜像，等待重启逐分区验证' \
-                "$_lsmp_root" "$_lsmp_synced" 0 "$_lsmp_partitions"
-            ;;
-        *)
-            luoshu_mount_record prepared \
-                '当前引擎直接读取标准模块目录，等待重启逐分区验证' \
-                '' 0 0 "$_lsmp_partitions"
-            ;;
-    esac
-    luoshu_mount_log \
-        "engine=$_lsmp_engine backend=$(luoshu_mount_backend "$_lsmp_engine") synced=$_lsmp_synced partitions=$_lsmp_partitions"
+    # Font preparation never modifies a provider's active tree. The one early
+    # boot publisher installs the next generation after activation and detection.
+    luoshu_mount_record prepared '字体负载已准备，完整重启后发布并验证' '' 0 0
+    return 0
 }
 
 luoshu_restore_mount_payload() {

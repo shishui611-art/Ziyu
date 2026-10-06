@@ -10,7 +10,7 @@ on:
       - 'ziyu-v*'
     paths:
       - module.prop
-      - 'RELEASE_NOTES_*.md'
+      - '更新日志/**'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
@@ -92,7 +92,7 @@ jobs:
                 echo "Existing tag is not an ancestor of main: $tag -> $tag_sha" >&2
                 exit 2
               }
-              disallowed_changes="$(git diff --name-only "$tag_sha" "$GITHUB_SHA" -- | grep -Ev '^(RELEASE_NOTES_.*\.md|\.github/workflows/release\.yml)$' || true)"
+              disallowed_changes="$(git diff --name-only "$tag_sha" "$GITHUB_SHA" -- | grep -Ev '^(更新日志/RELEASE_NOTES_.*\.md|\.github/workflows/release\.yml)$' || true)"
               [[ -z "$disallowed_changes" ]] || {
                 echo "Existing tag differs from main by non-release files:" >&2
                 printf '%s\n' "$disallowed_changes" >&2
@@ -117,6 +117,7 @@ jobs:
           notes_file="$LUOSHU_RELEASE_NOTES"
           [[ -s "$notes_file" ]] || { echo "Missing release notes: $notes_file" >&2; exit 2; }
           notes_temp="$RUNNER_TEMP/$notes_file"
+          mkdir -p "$(dirname "$notes_temp")"
           cp -f "$notes_file" "$notes_temp"
           prerelease="${INPUT_PRERELEASE:-false}"
           if grep -q '<!-- prerelease -->' "$notes_file"; then
@@ -268,8 +269,6 @@ jobs:
           path: |
             dist/Ziyu-${{ steps.version.outputs.artifact_version }}.zip
             dist/Ziyu-${{ steps.version.outputs.artifact_version }}.zip.sha256
-            dist/Ziyu-App-${{ steps.version.outputs.artifact_version }}.apk
-            dist/Ziyu-App-${{ steps.version.outputs.artifact_version }}.apk.sha256
             dist/pre-release-readiness/
           if-no-files-found: error
           retention-days: 14
@@ -307,9 +306,7 @@ jobs:
 
           module="dist/Ziyu-${ARTIFACT_VERSION}.zip"
           module_sha="${module}.sha256"
-          app="dist/Ziyu-App-${ARTIFACT_VERSION}.apk"
-          app_sha="${app}.sha256"
-          for file in "$module" "$module_sha" "$app" "$app_sha"; do test -s "$file"; done
+          for file in "$module" "$module_sha"; do test -s "$file"; done
 
           prerelease=()
           case "$VERSION" in *Alpha*|*Beta*|*RC*) prerelease=(--prerelease) ;; esac
@@ -322,7 +319,7 @@ jobs:
           fi
           latest=(--latest)
           if [[ "${#prerelease[@]}" -gt 0 ]]; then latest=(--latest=false); fi
-          gh release create "$TAG" "$module" "$module_sha" "$app" "$app_sha" \
+          gh release create "$TAG" "$module" "$module_sha" \
             "${tag_mode[@]}" \
             --title "$RELEASE_TITLE" \
             --notes-file "$NOTES_FILE" \
