@@ -1,133 +1,105 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-eq() { [ "$1" = "$2" ] || fail "$3: expected $2, got $1"; }
-value() { sed -n "s/^$2=//p" "$1" | head -n1; }
-MOD="$TMP/module"
-mkdir -p "$MOD/config" "$MOD/logs"
-printf 'Demo\n' > "$MOD/config/active_font.conf"
-pref() { MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID=pref-boot sh "$ROOT/common/mount_backend_preferences.sh" "$@"; }
+value() { sed -n "s/^$2=//p" "$1/config/mount-backend.conf" | head -n1; }
+assert_json() { grep -q "$1" "$2" || fail "$3"; }
+
+BOOT=provider-first-test-boot
+MOD=''
+make_module() {
+  MOD="$1"
+  mkdir -p "$MOD/config" "$MOD/logs" "$MOD/common" "$MOD/.luoshu-payload/system/fonts"
+  cp "$ROOT/common/mount_backend_details.sh" "$MOD/common/"
+  printf 'id=LuoShu\nversion=test\nversionCode=1\n' > "$MOD/module.prop"
+  printf 'DemoFont\n' > "$MOD/config/active_font.conf"
+  printf 'fixture-font\n' > "$MOD/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+}
+
 hook() {
-  MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID=pref-boot LUOSHU_BACKEND_TEST_MODE=1 \
-  LUOSHU_BACKEND_TEST_MANAGER=KernelSU LUOSHU_BACKEND_TEST_META_ENGINE=hybrid-mount \
-  LUOSHU_BACKEND_TEST_META_USABLE=1 bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook "$2"' _ "$ROOT" "$1"
+  local stage="$1" provider_state="$2" provider_id="$3" verify="$4" engine=none
+  [[ "$provider_id" == hybrid-mount ]] && engine=hybrid-mount
+  MODDIR="$MOD" MODULE_DIR="$MOD" \
+  LUOSHU_BACKEND_TEST_MODE=1 \
+  LUOSHU_BACKEND_TEST_BOOT_ID="$BOOT" \
+  LUOSHU_BACKEND_TEST_MANAGER=KernelSU \
+  LUOSHU_BACKEND_TEST_META_ENGINE="$engine" \
+  LUOSHU_BACKEND_TEST_PROVIDER_STATE="$provider_state" \
+  LUOSHU_BACKEND_TEST_PROVIDER_ID="$provider_id" \
+  LUOSHU_BACKEND_TEST_PROVIDER_LAYOUT=nested-system \
+  LUOSHU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
+  LUOSHU_BACKEND_TEST_SELF_VERIFY_RESULT=pass \
+  bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
 }
-# Regression: an explicit self preference must override usable Meta at boot.
+
+pref() {
+  MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID="$BOOT" \
+    sh "$ROOT/common/mount_backend_preferences.sh" "$@"
+}
+
+# Old saved or App-requested selections are accepted for compatibility, but
+# always migrate to automatic so provider-first boot policy remains in control.
+make_module "$TMP/provider"
 printf 'preferred_backend=self\n' > "$MOD/config/mount-backend-preference.conf"
-hook post-fs-data
-eq "$(value "$MOD/config/mount-backend.conf" selected_backend)" self 'explicit self preference'
-grep -q '"bootNomountObserved":true' <(pref get) || fail 'status omitted current-boot NoMount observation'
-grep -q '"bootNomountKernelUsable":false' <(pref get) || fail 'status did not report current-boot NoMount capability'
-grep -q '"selectedSelfBackend":"legacy"' <(pref get) || fail 'status omitted selected self backend'
-[ ! -f "$MOD/config/test-self-mounted" ] || fail 'KSU self mounted before post-mount'
-hook post-mount
-eq "$(value "$MOD/config/mount-backend.conf" active_backend)" self 'active self'
-# Preference changes stage next boot; a later service hook retains this boot.
+hook post-fs-data available hybrid-mount pass
+[[ "$(value "$MOD" selected_backend)" == external ]] || fail 'legacy self preference overrode an available provider'
+[[ "$(value "$MOD" active_backend)" == none ]] || fail 'provider should remain pending until its mount stage'
+hook post-mount available hybrid-mount pass
+[[ "$(value "$MOD" active_backend)" == external ]] || fail 'verified Hybrid provider was not activated'
+[[ "$(value "$MOD" verification)" == passed ]] || fail 'external route was not recorded as verified'
+
+pref get > "$TMP/status"
+assert_json '"preferredBackend":"auto"' "$TMP/status" 'legacy preference was not reported as automatic'
+assert_json '"bootNomountObserved":true' "$TMP/status" 'current-boot capability observation was not reported'
+assert_json '"bootNomountKernelUsable":false' "$TMP/status" 'current-boot NoMount capability was not reported'
+assert_json '"selectedBackend":"external"' "$TMP/status" 'status did not expose the active provider choice'
+
 cp "$MOD/config/mount-backend.conf" "$TMP/active-before"
-pref set meta > "$TMP/response"
-grep -q '"preferredBackend":"meta"' "$TMP/response" || fail 'missing selected preference JSON'
-grep -q '"rebootRequired":true' "$TMP/response" || fail 'missing reboot requirement'
-cmp "$TMP/active-before" "$MOD/config/mount-backend.conf" || fail 'preference set changed active state'
-hook service
-eq "$(value "$MOD/config/mount-backend.conf" selected_backend)" self 'same boot freeze'
-eq "$(value "$MOD/config/mount-backend.conf" preferred_backend)" self 'applied boot preference'
+pref set self > "$TMP/legacy-self"
+assert_json '"preferredBackend":"auto"' "$TMP/legacy-self" 'legacy self request was not migrated to auto'
+assert_json '"rebootRequired":false' "$TMP/legacy-self" 'legacy self request falsely reported a pending switch'
+grep -qx 'preferred_backend=auto' "$MOD/config/mount-backend-preference.conf" || fail 'legacy self request was persisted instead of auto'
+cmp "$TMP/active-before" "$MOD/config/mount-backend.conf" || fail 'legacy preference command changed live mount state'
+
+pref set meta > "$TMP/legacy-meta"
+assert_json '"preferredBackend":"auto"' "$TMP/legacy-meta" 'legacy Meta request was not migrated to auto'
+assert_json '"rebootRequired":false' "$TMP/legacy-meta" 'legacy Meta request falsely reported a pending switch'
 pref cancel > "$TMP/cancel"
-eq "$(value "$MOD/config/mount-backend-preference.conf" preferred_backend)" self 'cancel restores boot preference'
-grep -q '"rebootRequired":false' "$TMP/cancel" || fail 'cancel left reboot pending'
-if pref set unsafe > "$TMP/invalid"; then fail 'invalid preference accepted'; fi
-eq "$(value "$MOD/config/mount-backend-preference.conf" preferred_backend)" self 'invalid input preserved config'
-# Explicit Meta still fails safely if capability is absent, and reports why.
-MOD="$TMP/unusable"; mkdir -p "$MOD/config"; printf 'Demo\n' > "$MOD/config/active_font.conf"
-pref set meta >/dev/null
-MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID=pref-boot LUOSHU_BACKEND_TEST_MODE=1 \
-LUOSHU_BACKEND_TEST_MANAGER=Magisk LUOSHU_BACKEND_TEST_META_ENGINE=mountify \
-LUOSHU_BACKEND_TEST_META_USABLE=0 LUOSHU_BACKEND_TEST_META_REASON=mountify-has-no-module-scoped-unload \
-bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook post-fs-data' _ "$ROOT"
-eq "$(value "$MOD/config/mount-backend.conf" active_backend)" self 'unusable Meta chooses self'
-eq "$(value "$MOD/config/mount-backend.conf" preferred_backend)" meta 'keeps requested preference'
-eq "$(value "$MOD/config/mount-backend.conf" preference_failure)" mountify-has-no-module-scoped-unload 'honest preference failure'
-# Installation key choice and update migration use the real helper functions.
-. "$ROOT/common/install_ui.sh"
-. "$ROOT/common/mount_backend_preferences.sh"
-ui_print() { printf '%s\n' "$*" >> "$TMP/install-ui"; }
-mkdir -p "$TMP/bin"
-cat > "$TMP/bin/getevent" <<'SH'
-#!/usr/bin/env bash
-printf '/dev/input/event1: EV_KEY %s DOWN\n' "$TEST_EVENT_KEY"
-SH
-chmod +x "$TMP/bin/getevent"
-eq "$(PATH="$TMP/bin:$PATH" TEST_EVENT_KEY=KEY_VOLUMEUP luoshu_install_read_volume_key)" up 'real reader volume UP event'
-eq "$(PATH="$TMP/bin:$PATH" TEST_EVENT_KEY=KEY_VOLUMEDOWN luoshu_install_read_volume_key)" down 'real reader volume DOWN event'
-eq "$(BOOTMODE=false luoshu_install_read_volume_key)" unavailable 'recovery skips hardware wait'
-luoshu_install_read_volume_key() { printf '%s\n' "$TEST_KEY"; }
-META_ENGINE=mountify META_INSTALLED=1 META_ENABLED=1 META_USABLE=0 META_USABLE_REASON=mountify-has-no-module-scoped-unload
-TEST_KEY=up
-luoshu_install_choose_mount_backend self
-eq "$LUOSHU_INSTALL_BACKEND_PREFERENCE" meta 'volume UP selects Meta'
-TEST_KEY=down
-luoshu_install_choose_mount_backend meta
-eq "$LUOSHU_INSTALL_BACKEND_PREFERENCE" self 'volume DOWN selects self'
-TEST_KEY=timeout
-luoshu_install_choose_mount_backend meta
-eq "$LUOSHU_INSTALL_BACKEND_PREFERENCE" meta 'key timeout preserves update preference'
-luoshu_mount_preference_restore "$TMP/module" "$TMP/updated"
-eq "$(value "$TMP/updated/config/mount-backend-preference.conf" preferred_backend)" self 'update preserves preference'
-# New boot consumes the staged choice and completes Meta alone.
-MOD="$TMP/new-boot"; mkdir -p "$MOD/config"; printf 'Demo\n' > "$MOD/config/active_font.conf"
-pref set meta >/dev/null
-hook post-fs-data
-hook post-mount
-eq "$(value "$MOD/config/mount-backend.conf" active_backend)" meta 'new boot applies Meta preference'
-[ ! -f "$MOD/config/test-self-mounted" ] || fail 'Meta preference ran self in parallel'
-# Reboot destroys previous kernel mounts; its last report is historical and
-# cannot count as a live Meta layer when changing to self on the next boot.
-pref set self >/dev/null
-MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID=second-boot LUOSHU_BACKEND_TEST_MODE=1 \
-LUOSHU_BACKEND_TEST_MANAGER=Magisk LUOSHU_BACKEND_TEST_META_USABLE=0 \
-bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook post-fs-data' _ "$ROOT" || fail 'new boot rejected historical Meta state as live conflict'
-eq "$(value "$MOD/config/mount-backend.conf" active_backend)" self 'next boot switches Meta to self'
-pref set meta >/dev/null
-# Test-only mount markers model kernel mounts, which vanish at a full reboot.
-rm -f "$MOD/config/test-self-mounted" "$MOD/config/test-self-rollback"
-MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID=third-boot LUOSHU_BACKEND_TEST_MODE=1 \
-LUOSHU_BACKEND_TEST_MANAGER=KernelSU LUOSHU_BACKEND_TEST_META_ENGINE=hybrid-mount LUOSHU_BACKEND_TEST_META_USABLE=1 \
-bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook post-fs-data' _ "$ROOT" || fail 'new boot rejected historical self state as live conflict'
-MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID=third-boot LUOSHU_BACKEND_TEST_MODE=1 \
-LUOSHU_BACKEND_TEST_MANAGER=KernelSU LUOSHU_BACKEND_TEST_META_ENGINE=hybrid-mount LUOSHU_BACKEND_TEST_META_USABLE=1 \
-LUOSHU_BACKEND_TEST_META_VERIFY_RESULT=fail \
-bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook post-mount' _ "$ROOT"
-eq "$(value "$MOD/config/mount-backend.conf" active_backend)" self 'failed Meta safely falls back'
-eq "$(value "$MOD/config/mount-backend.conf" preference_failure)" font-route-verification-failed 'preserved failure after successful fallback'
-# OverlayFS mounts the payload; degraded Meta keeps usable=1 and only the
-# cleanup capability (module-scoped unload) stays absent.
-META="$TMP/adb/modules/meta-overlay"
-mkdir -p "$META/mnt" "$TMP/adb/modules"
-printf 'id=meta-overlayfs\nname=Meta OverlayFS\nmetamodule=1\n' > "$META/module.prop"
-: > "$META/metamount.sh"
-ln -s "$META" "$TMP/adb/metamodule"
-status=$(MODDIR="$MOD" LUOSHU_META_DETECT_ROOT="$TMP/adb" LUOSHU_META_TEST_ACTIVE_DIR="$META" LUOSHU_META_TEST_ASSUME_ACTIVE=1 bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT")
-eq "$status" '1|1|overlayfs-has-no-module-scoped-unload' 'overlayfs meta is usable with degraded cleanup'
-HYBRID="$TMP/adb/modules/hybrid_mount"
-mkdir -p "$HYBRID"
-printf 'id=hybrid_mount\nname=Hybrid Mount\nmetamodule=1\n' > "$HYBRID/module.prop"
-printf '[rules.LuoShu]\ndefault_mode="vfs"\n' > "$HYBRID/config.toml"
-printf '#!/usr/bin/env bash\nexit 0\n' > "$HYBRID/hybrid-mount"
-chmod +x "$HYBRID/hybrid-mount"
-hybrid_status() {
- MODDIR="$MOD" LUOSHU_META_DETECT_ROOT="$TMP/adb" LUOSHU_META_TEST_ACTIVE_DIR="$HYBRID" LUOSHU_META_TEST_ASSUME_ACTIVE=1 \
- bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
-}
-eq "$(hybrid_status)" '1|hybrid-runtime-api-unavailable' 'old Hybrid binary degrades to Meta without scoped unload'
-cat > "$HYBRID/hybrid-mount" <<'SH'
-#!/usr/bin/env bash
-if [ "$*" = 'runtime status' ]; then
- printf '{"supported":false,"reason":"boot ledger not ready","modules":[]}\n'
-else
- exit 2
-fi
-SH
-eq "$(hybrid_status)" '1|hybrid-pure-vfs-scoped-unload' 'runtime API capability before provider boot readiness'
-printf 'Mount backend preference staging, boot freeze, fallback, key choice and migration checks passed\n'
+assert_json '"rebootRequired":false' "$TMP/cancel" 'cancel left a preference migration pending'
+if pref set unsafe > "$TMP/invalid"; then fail 'invalid preference was accepted'; fi
+grep -qx 'preferred_backend=auto' "$MOD/config/mount-backend-preference.conf" || fail 'invalid preference changed the normalized policy'
+
+# Without an external provider, automatic policy waits for the KernelSU mount
+# hook, then verifies the private self-mount before reporting it active.
+make_module "$TMP/self"
+hook post-fs-data absent none pass
+[[ "$(value "$MOD" selected_backend)" == self ]] || fail 'missing provider did not select self mount'
+[[ "$(value "$MOD" active_backend)" == none ]] || fail 'KernelSU self mount ran before post-mount'
+hook post-mount absent none pass
+[[ "$(value "$MOD" active_backend)" == self ]] || fail 'private self-mount fallback did not activate'
+[[ "$(value "$MOD" verification)" == passed ]] || fail 'self-mount was reported before verification'
+
+# A provider route failure activates the same verified self recovery path.
+make_module "$TMP/provider-fallback"
+hook post-fs-data available hybrid-mount pass
+hook post-mount available hybrid-mount fail
+[[ "$(value "$MOD" selected_backend)" == self ]] || fail 'failed provider route did not select self recovery'
+[[ "$(value "$MOD" active_backend)" == self ]] || fail 'self recovery did not become active'
+[[ "$(value "$MOD" fallback_used)" == 1 ]] || fail 'provider failure fallback was not recorded'
+[[ "$(value "$MOD" verification)" == passed ]] || fail 'fallback success was recorded without route verification'
+
+# Previous-boot observations are historical and must not be exposed as live.
+make_module "$TMP/stale"
+printf 'boot_id=old-boot\nselected_backend=external\nactive_backend=external\nprovider_state=available\nprovider_id=hybrid-mount\nverification=passed\n' \
+  > "$MOD/config/mount-backend.conf"
+BOOT=current-boot
+pref get > "$TMP/stale-status"
+assert_json '"bootNomountObserved":false' "$TMP/stale-status" 'stale state was marked as current-boot observed'
+assert_json '"providerState":"unknown"' "$TMP/stale-status" 'stale provider state was exposed as live'
+assert_json '"verification":"pending"' "$TMP/stale-status" 'stale verification was exposed as live'
+
+printf 'Mount preference migration, provider-first selection, current-boot status and verified self-fallback checks passed\n'

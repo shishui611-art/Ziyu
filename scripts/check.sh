@@ -22,7 +22,11 @@ fi
 
 # 所有 Shell 与 Python 后端必须先通过基础语法检查。
 find "$ROOT" -type f -name '*.sh' -print | while IFS= read -r file; do
-  sh -n "$file"
+  _syntax_shebang=$(sed -n '1p' "$file" | tr -d '\r')
+  case "$_syntax_shebang" in
+    *bash*) bash -n "$file" ;;
+    *) sh -n "$file" ;;
+  esac
 done
 [ ! -f "$ROOT/common/play_font_bridge" ] || sh -n "$ROOT/common/play_font_bridge"
 [ ! -f "$ROOT/common/wechat_xweb_bridge" ] || sh -n "$ROOT/common/wechat_xweb_bridge"

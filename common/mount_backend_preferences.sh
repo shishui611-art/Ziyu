@@ -47,7 +47,8 @@ luoshu_mount_preference_status() {
         _lmp_valid "$_lmp_boot_preference" || _lmp_boot_preference=auto
         _lmp_active=$(_lmp_value "$_lmp_status_file" active_backend)
         _lmp_selected=$(_lmp_value "$_lmp_status_file" selected_backend)
-        _lmp_nomount_observed=false
+        # A matching boot record means detection ran, even when NoMount is unusable.
+        _lmp_nomount_observed=true
         [ "$(_lmp_value "$_lmp_status_file" nomount_kernel_usable)" = 1 ] && _lmp_nomount_usable=true
         _lmp_selected_self=$(_lmp_value "$_lmp_status_file" selected_self_backend)
         case "$_lmp_selected_self" in nomount|legacy) ;; *) _lmp_selected_self=none ;; esac

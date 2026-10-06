@@ -17,6 +17,9 @@ on:
       - 'scripts/mount_compat_test.sh'
       - 'scripts/mountinfo_procfs_test.sh'
       - 'scripts/hybrid_mount_unload_test.sh'
+      - 'scripts/check.sh'
+      - 'scripts/mount_backend_preferences_test.sh'
+      - 'common/mount_backend_preferences.sh'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
