@@ -7,6 +7,7 @@ NEXT_BOOT="$ROOT/common/next_boot_payload.sh"
 LEGACY_BACKEND="$ROOT/common/legacy_v14_4_switch.sh"
 ROM="$ROOT/common/legacy_v14_4/rom_adapters.sh"
 HYPEROS_COMPAT="$ROOT/common/legacy_v14_4/hyperos_full_coverage.sh"
+HYPEROS_STAGE_COMPLETE="$ROOT/common/hyperos_stage_complete.sh"
 MIX_ROUTER="$ROOT/common/font_mix_controller.sh"
 LEGACY_MIX_ROUTER="$ROOT/common/legacy_v14_4/mix_router.sh"
 LEGACY_MIX_BRIDGE="$ROOT/common/legacy_v14_4/v14_mix.sh"
@@ -17,6 +18,7 @@ SERVICE="$ROOT/service.sh"
 POSTFS="$ROOT/post-fs-data.sh"
 POSTMOUNT="$ROOT/post-mount.sh"
 MOUNT_COMPAT="$ROOT/common/mount_compat.sh"
+BACKEND_RUNTIME="$ROOT/common/mount_backend_runtime.sh"
 
 grep -q 'font_manager_v4.sh' "$ROUTER"
 grep -q 'font_switch_safe.sh' "$ROUTER"
@@ -100,10 +102,14 @@ grep -q 'XiaomiSans\*\.ttf' "$HYPEROS_COMPAT"
 grep -q 'MiLanPro\*\.ttf' "$HYPEROS_COMPAT"
 grep -q 'Mitype\*\.ttf' "$HYPEROS_COMPAT"
 ! grep -q 'MiSans\*\.ttc' "$HYPEROS_COMPAT"
-grep -q 'hyperos_full_coverage.sh' "$POSTFS"
-grep -q 'luoshu_hyperos_full_payload_ensure' "$POSTFS"
-grep -q 'hyperos_full_coverage.sh' "$POSTMOUNT"
-grep -q 'luoshu_hyperos_full_payload_ensure' "$POSTMOUNT"
+test -f "$HYPEROS_STAGE_COMPLETE"
+grep -q 'hyperos_full_coverage.sh' "$HYPEROS_STAGE_COMPLETE"
+grep -q 'hyperos_metrics_batch.py' "$HYPEROS_STAGE_COMPLETE"
+grep -q 'stage_hyperos_complete()' "$SAFE_BACKEND"
+grep -q 'hyperos_stage_complete.sh' "$SAFE_BACKEND"
+grep -q 'complete_hyperos_stage()' "$LEGACY_MIX_ROUTER"
+grep -q 'hyperos_stage_complete.sh' "$LEGACY_MIX_ROUTER"
+! grep -qE 'hyperos_full_coverage.sh|luoshu_hyperos_full_payload_ensure' "$POSTFS" "$POSTMOUNT"
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|font_config_batch|device_font_payload_build' "$HYPEROS_COMPAT"
 
 TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-safe-switch)
@@ -174,13 +180,15 @@ grep -q '\.luoshu-retired/\*' "$LEGACY_MIX_ROUTER"
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|font_config_batch|device_font_payload_build' \
     "$LEGACY_MIX_ROUTER" "$LEGACY_MIX_BRIDGE" "$LEGACY_WEIGHTED" "$LEGACY_AUTO" "$LEGACY_MIX_ENGINE"
 
-# The production self-mount entry point is defined by mount_compat.sh, not by
-# mount_self_backend.sh. Legacy/physical boot routers MUST load the full runtime
-# before they attempt to mount; otherwise the old `type ... || true` pattern can
-# silently skip every real font mount while still reporting boot completion.
+# Boot hooks enter the centralized mount runtime. It loads the compatibility and
+# self-mount helpers before selecting an external provider or the local fallback.
+# This keeps mount selection and its verified fallback in one place.
 test -f "$MOUNT_COMPAT"
-grep -q 'common/mount_compat.sh' "$POSTFS"
-grep -q 'common/mount_compat.sh' "$POSTMOUNT"
+test -f "$BACKEND_RUNTIME"
+grep -q 'mount_backend_runtime.sh' "$POSTFS"
+grep -q 'mount_backend_runtime.sh' "$POSTMOUNT"
+grep -q 'font_config_partitions mount_compat mount_self_backend' "$BACKEND_RUNTIME"
+grep -q 'luoshu_private_self_mount_ensure' "$BACKEND_RUNTIME"
 grep -q 'runtime-loader-missing' "$POSTFS"
 grep -q 'runtime-loader-missing' "$POSTMOUNT"
 MODDIR="$ROOT" MODULE_DIR="$ROOT" sh -c '. "$1"; type luoshu_private_self_mount_ensure >/dev/null 2>&1' sh "$MOUNT_COMPAT"
