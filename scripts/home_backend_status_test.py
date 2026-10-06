@@ -18,7 +18,7 @@ class HomeBackendStatusTest(unittest.TestCase):
         self.module = self.base / 'module'
         (self.module / 'common').mkdir(parents=True)
         (self.module / 'config').mkdir()
-        for name in ('app_bridge.sh', 'root_manager_detection.sh'):
+        for name in ('app_bridge.sh', 'root_manager_detection.sh', 'mount_backend_details.sh'):
             shutil.copy2(ROOT / 'common' / name, self.module / 'common' / name)
         (self.module / 'module.prop').write_text('id=LuoShu\nversion=test\nversionCode=1\n')
         for directory in ('ksu', 'magisk'):
@@ -103,9 +103,9 @@ class HomeBackendStatusTest(unittest.TestCase):
 
     def test_success_names_actual_backend_and_pending_is_not_disabled(self):
         self.backend(active='self', verification='passed', error='none')
-        self.assertEqual('字域自挂载', self.status()['mountEngine'])
+        self.assertEqual('字域自挂载 · 未观察到可识别的挂载方式', self.status()['mountEngine'])
         self.backend(active='none', verification='pending', error='none')
-        self.assertEqual('字域自挂载 · 待验证', self.status()['mountEngine'])
+        self.assertEqual('字域自挂载 · 未观察到可识别的挂载方式 · 待验证', self.status()['mountEngine'])
 
 
 if __name__ == '__main__':
