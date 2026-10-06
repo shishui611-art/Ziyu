@@ -21,6 +21,7 @@ on:
       - 'scripts/mount_backend_preferences_test.sh'
       - 'common/mount_backend_preferences.sh'
       - 'scripts/status_provider_hotfix_test.py'
+      - 'scripts/stock_inventory_scan_wrapper_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:

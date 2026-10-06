@@ -24,13 +24,13 @@ def main() -> int:
     manager = (ROOT / "common/font_manager.sh").read_text(encoding="utf-8")
     assert "stock_inventory_scan_pending" in installer
     assert "LUOSHU_FRESH_STOCK_SCAN=1" in installer
-    assert "LUOSHU_FRESH_STOCK_SCAN=1" in post_mount
+    assert 'LUOSHU_FRESH_STOCK_SCAN=1 MODDIR="$MODDIR" sh "$MODDIR/common/font_manager.sh" action stock_scan' in service
+    assert "LUOSHU_FRESH_STOCK_SCAN=1" not in post_mount
     assert "已中止本次更新" not in installer
     assert "旧字体负载" in installer and "继续安装并重新扫描本机字体槽位" in installer
     assert "兼容迁移视图" in wrapper
     assert "abort '无法读取旧版洛书私有字体负载'" not in wrapper
     assert "action stock_scan" in service
-    assert "LUOSHU_STOCK_VIEW_VERIFIED=1" in post_mount
     assert 'rm -f "$MODDIR/config/stock_inventory_scan_pending"' in manager
     with tempfile.TemporaryDirectory() as temp_dir:
         temp = Path(temp_dir)
