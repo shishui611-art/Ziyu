@@ -20,6 +20,7 @@ on:
       - 'scripts/check.sh'
       - 'scripts/mount_backend_preferences_test.sh'
       - 'common/mount_backend_preferences.sh'
+      - 'scripts/status_provider_hotfix_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
