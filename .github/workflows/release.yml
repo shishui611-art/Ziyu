@@ -185,6 +185,8 @@ jobs:
           log="$RUNNER_TEMP/ziyu-release-source-check.log"
           if ! sh -x ./scripts/check.sh >"$log" 2>&1; then
             tail -n 160 "$log" >&2
+            diagnostic="$(tail -n 12 "$log" | tr '\r\n' '  ' | cut -c1-1800 | sed 's/%/%25/g')"
+            echo "::error title=Source regression checks failed::$diagnostic"
             {
               echo '## Source regression checks failed'
               echo
