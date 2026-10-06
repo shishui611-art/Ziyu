@@ -27,6 +27,7 @@ on:
       - 'scripts/home_backend_status_test.py'
       - 'scripts/duplicate_function_test.sh'
       - 'scripts/legacy_switch_core_test.sh'
+      - 'scripts/font_library_ui_layout_test.sh'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
