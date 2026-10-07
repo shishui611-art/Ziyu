@@ -11,6 +11,7 @@ on:
     paths:
       - module.prop
       - '更新日志/**'
+      - 'docs/MOUNT_PROVIDER_FIRST_DESIGN.md'
       - 'android-app/app/src/test/**'
       - 'scripts/release_version_policy_test.py'
       - 'scripts/sync_update_metadata_test.py'
@@ -24,6 +25,8 @@ on:
       - 'scripts/mountinfo_procfs_test.sh'
       - 'scripts/hybrid_mount_unload_test.sh'
       - 'scripts/check.sh'
+      - 'scripts/build.sh'
+      - 'scripts/build_debug_fast.sh'
       - 'scripts/mount_backend_preferences_test.sh'
       - 'common/mount_backend_preferences.sh'
       - 'scripts/status_provider_hotfix_test.py'

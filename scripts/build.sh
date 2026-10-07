@@ -11,9 +11,10 @@ SIZE_REPORT="$OUT/Ziyu-${VERSION}-size.txt"
 APP_APK="${LUOSHU_APP_APK:-}"
 ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
-# The App-only release also carries the offline ARM64 WOFF2 decoder. Keep a
-# tight 11.25 MiB ceiling while retaining the full Python/FontTools runtime.
-MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-11796480}"
+# v1.2.20 measured 11,805,683 bytes with the full Python/FontTools runtime and offline ARM64
+# WOFF2 decoder. Keep the package bounded at 11.5 MiB; the App updater independently caps downloads
+# at 128 MiB.
+MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-12058624}"
 
 sh "$ROOT/scripts/check.sh"
 [ -n "$APP_APK" ] || {
