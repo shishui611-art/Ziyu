@@ -32,6 +32,7 @@ done
 [ ! -f "$ROOT/common/wechat_xweb_bridge" ] || sh -n "$ROOT/common/wechat_xweb_bridge"
 python3 -m py_compile \
   "$ROOT/common/composite_font.py" \
+  "$ROOT/common/font_space_compat.py" \
   "$ROOT/common/font_instance.py" \
   "$ROOT/common/font_prepare_cache.py" \
   "$ROOT/common/mix_library.py" "$ROOT/common/font_structure.py" "$ROOT/scripts/small_digit_font_test.py" \

@@ -10,10 +10,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from fontTools.pens.t2CharStringPen import T2CharStringPen
-from fontTools.pens.ttGlyphPen import TTGlyphPen
-from fontTools.ttLib import TTFont, TTLibError
-
 SPACE_CODEPOINTS = (0x0020, 0x2005)
 
 
@@ -49,6 +45,8 @@ def _new_glyph_name(font: TTFont, codepoint: int, occupied: set[str]) -> str:
 
 
 def _append_cff_glyph(font: TTFont, glyph_name: str, advance: int, tag: str) -> None:
+    from fontTools.pens.t2CharStringPen import T2CharStringPen
+
     cff = font[tag].cff
     top = cff.topDictIndex[0]
     char_strings = top.CharStrings
@@ -87,6 +85,8 @@ def _append_cff_glyph(font: TTFont, glyph_name: str, advance: int, tag: str) -> 
 
 def _append_blank_glyph(font: TTFont, glyph_name: str, advance: int) -> None:
     if "glyf" in font:
+        from fontTools.pens.ttGlyphPen import TTGlyphPen
+
         old_order = list(font.getGlyphOrder())
         font.setGlyphOrder(old_order + [glyph_name])
         glyph = TTGlyphPen(None).glyph()
@@ -249,6 +249,8 @@ def main() -> int:
             raise ValueError(f"字体源文件不可用：{args.input}")
         if args.input.resolve() == args.output.resolve():
             raise ValueError("输入和输出必须是不同文件")
+        from fontTools.ttLib import TTFont
+
         font = TTFont(args.input, lazy=False, recalcTimestamp=False)
         try:
             report = ensure_space_glyphs(font)
