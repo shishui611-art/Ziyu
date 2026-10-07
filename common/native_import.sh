@@ -16,7 +16,6 @@ USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
 USER_IMPORT_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/import"
 PYROOT="$MODDIR/common/python"
 PYBIN="$PYROOT/bin/luoshu-python"
-FACE_EXTRACTOR="$MODDIR/common/font_extract_faces.py"
 WEB_CONVERTER="$MODDIR/common/font_web_convert.py"
 MAX_BYTES=268435456
 
@@ -101,31 +100,21 @@ find_duplicate() {
     return 1
 }
 
-extract_collection_faces() {
-    _src="$1"
-    _display="$2"
-    [ -x "$PYBIN" ] && [ -f "$FACE_EXTRACTOR" ] || {
-        fail_json "TTC 字体面拆分组件不可用"
-        return
-    }
-    mkdir -p "$USER_FONTS_DIR" 2>/dev/null || { fail_json "无法创建字体目录"; return; }
-    _result=$(
-        PYTHONHOME="$PYROOT" \
-        PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages" \
-        LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$PYBIN" "$FACE_EXTRACTOR" \
-            --input "$_src" \
-            --output-dir "$USER_FONTS_DIR" \
-            --label "$(safe_stem "$_display")" 2>/dev/null
-    )
-    _rc=$?
-    _json=$(printf '%s\n' "$_result" | sed -n '/^[[:space:]]*{/p' | tail -n1)
-    if [ "$_rc" -eq 0 ] && [ -n "$_json" ]; then
-        invalidate_font_cache
-        printf '%s\n' "$_json"
-    else
-        fail_json "TTC 字体面拆分失败"
-    fi
+remove_stale_ttc_faces() {
+    _rst_prefix="$1"
+    _rst_removed=false
+    [ -n "$_rst_prefix" ] || return 0
+    for _rst_file in "$USER_FONTS_DIR"/*-TTCFace*-"$_rst_prefix".ttf \
+                     "$USER_FONTS_DIR"/*-TTCFace*-"$_rst_prefix".otf; do
+        [ -f "$_rst_file" ] || continue
+        case "$(basename "$_rst_file")" in
+            *-TTCFace[0-9]*-"$_rst_prefix".ttf|*-TTCFace[0-9]*-"$_rst_prefix".otf)
+                rm -f "$_rst_file" 2>/dev/null && _rst_removed=true
+                ;;
+        esac
+    done
+    if [ "${_rst_removed:-false}" = true ]; then invalidate_font_cache; fi
+    return 0
 }
 
 import_font_file() {
@@ -147,17 +136,13 @@ import_font_file() {
         return
     fi
 
-    if [ "$_format" = TTC ]; then
-        extract_collection_faces "$_src" "$_display"
-        return
-    fi
-
     _hash=$(file_hash "$_src")
     [ -n "$_hash" ] || { fail_json "无法计算字体 SHA-256"; return; }
     mkdir -p "$USER_FONTS_DIR" 2>/dev/null || { fail_json "无法创建字体目录"; return; }
 
     _duplicate=$(find_duplicate "$_src" "$_hash")
     if [ -f "$_duplicate" ]; then
+        [ "$_format" = TTC ] && remove_stale_ttc_faces "$(printf '%s' "$_hash" | cut -c1-10)"
         _family=$(detect_font_family "$(basename "$_duplicate")")
         schedule_font_prewarm "$_family"
         printf '{"status":"ok","data":{"kind":"font","id":"%s","name":"%s","format":"%s","duplicate":true,"message":"字体已存在，未重复导入"}}\n' \
@@ -172,6 +157,7 @@ import_font_file() {
     fi
     cp -f "$_src" "$_target" 2>/dev/null || { fail_json "无法复制字体到 /sdcard/LuoShu/fonts"; return; }
     chmod 0644 "$_target" 2>/dev/null || true
+    [ "$_format" = TTC ] && remove_stale_ttc_faces "$(printf '%s' "$_hash" | cut -c1-10)"
     invalidate_font_cache
     _family=$(detect_font_family "$(basename "$_target")")
     _supports_cjk=false
@@ -273,6 +259,10 @@ import_zip_file() {
 
 source_path="${1:-}"
 display_name="${2:-}"
+# The source regression harness loads these functions to exercise direct font imports.
+if [ "${NATIVE_IMPORT_LIBRARY_ONLY:-false}" = true ]; then
+    return 0 2>/dev/null || exit 0
+fi
 [ -n "$source_path" ] || { fail_json "未指定待导入文件"; exit 0; }
 trusted_source "$source_path" || { fail_json "导入来源目录不受信任"; exit 0; }
 [ -f "$source_path" ] || { fail_json "待导入文件不存在"; exit 0; }

@@ -31,6 +31,63 @@ test "$(PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S
 test "$(PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S "$ROOT/common/font_import_probe.py" "$TMP/pkg/Mystery-B.ttf" | cut -d'|' -f3)" = 800
 test "$(PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S "$ROOT/common/font_import_probe.py" "$TMP/pkg/Mystery-B.ttf" | cut -d'|' -f6)" = false
 
+# Import a TTC collection as its original file. It must not fan out into one
+# library TTF per face, and importing the same collection twice is a no-op.
+PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S - \
+  "$TMP/pkg/Mystery-A.ttf" "$TMP/pkg/Mystery-B.ttf" "$TMP/collection.ttc" <<'PY'
+import sys
+from fontTools.ttLib import TTCollection, TTFont
+
+first, second, output = sys.argv[1:]
+fonts = [TTFont(first), TTFont(second)]
+try:
+    collection = TTCollection()
+    collection.fonts = fonts
+    collection.save(output)
+finally:
+    for font in fonts:
+        font.close()
+PY
+mkdir -p "$TMP/module/config"
+ln -s "$ROOT/common" "$TMP/module/common"
+mkdir -p "$TMP/ttc-public/fonts"
+TTC_HASH_PREFIX=$(sha256sum "$TMP/collection.ttc" | awk '{print substr($1, 1, 10)}')
+printf 'old extracted face\n' > "$TMP/ttc-public/fonts/Legacy-TTCFace01-${TTC_HASH_PREFIX}.ttf"
+TTC_OUTPUT=$(sh -c '
+    set -eu
+    MODDIR="$1/module"; MODULE_DIR="$1/module"
+    LUOSHU_PUBLIC_DIR="$1/ttc-public"
+    LUOSHU_IMPORT_PYTHON=python3
+    PYTHONPATH="$2/common/python/lib/python3.14/site-packages"
+    export MODDIR MODULE_DIR LUOSHU_PUBLIC_DIR LUOSHU_IMPORT_PYTHON PYTHONPATH
+    mkdir -p "$LUOSHU_PUBLIC_DIR/fonts" "$MODDIR/config"
+    NATIVE_IMPORT_LIBRARY_ONLY=true
+    export NATIVE_IMPORT_LIBRARY_ONLY
+    . "$MODDIR/common/native_import.sh"
+    schedule_font_prewarm() { return 0; }
+    import_font_file "$1/collection.ttc" "Collection Fixture.ttc"
+' sh "$TMP" "$ROOT")
+printf '%s\n' "$TTC_OUTPUT" | grep -q '"status":"ok"'
+printf '%s\n' "$TTC_OUTPUT" | grep -q '"format":"TTC"'
+test -s "$TMP/ttc-public/fonts/Collection Fixture.ttc"
+cmp -s "$TMP/collection.ttc" "$TMP/ttc-public/fonts/Collection Fixture.ttc"
+test ! -e "$TMP/ttc-public/fonts/Legacy-TTCFace01-${TTC_HASH_PREFIX}.ttf"
+test "$(find "$TMP/ttc-public/fonts" -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" = 2
+test "$(find "$TMP/ttc-public/fonts" -maxdepth 1 -type f -iname '*.ttf' | wc -l | tr -d '[:space:]')" = 0
+TTC_DUPLICATE=$(sh -c '
+    MODDIR="$1/module"; MODULE_DIR="$1/module"
+    LUOSHU_PUBLIC_DIR="$1/ttc-public"
+    LUOSHU_IMPORT_PYTHON=python3
+    PYTHONPATH="$2/common/python/lib/python3.14/site-packages"
+    export MODDIR MODULE_DIR LUOSHU_PUBLIC_DIR LUOSHU_IMPORT_PYTHON PYTHONPATH
+    NATIVE_IMPORT_LIBRARY_ONLY=true
+    export NATIVE_IMPORT_LIBRARY_ONLY
+    . "$MODDIR/common/native_import.sh"
+    schedule_font_prewarm() { return 0; }
+    import_font_file "$1/collection.ttc" "Collection Fixture.ttc"
+' sh "$TMP" "$ROOT")
+printf '%s\n' "$TTC_DUPLICATE" | grep -q '"duplicate":true'
+
 cat > "$TMP/pkg/module.prop" <<'PROP'
 id=luoshu_zip_regression
 name=洛书 ZIP 回归字体
