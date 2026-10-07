@@ -310,6 +310,10 @@ class Round2(unittest.TestCase):
         donor=self.fonts/'400.ttf'; make_font(donor, tuple(range(32,127)))
         script = '. "$1/common/font_config_weights.sh"; . "$1/common/font_finalize_hotfix.sh"; '
         script += '_luoshu_config_weight_source() { printf "%s\\n" "$DONOR"; }; '
+        # This regression covers the legacy XML backend's weight/mono policy only. The production
+        # fast-link helper also needs the App-provided font-space runtime, so model that transform
+        # with a copy in this isolated shell fixture.
+        script += '_luoshu_fast_link_font() { cp -f "$1" "$2"; }; '
         script += 'is_variable_font() { return 1; }; font_config_prepare_payload_weights'
         env={**os.environ,'DONOR':str(donor),'MODULE_DIR':str(self.module),'MODDIR':str(self.module)}
         # The preserved XML backend uses module/system/fonts, separate from the
