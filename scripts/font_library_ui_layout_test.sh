@@ -137,7 +137,7 @@ grep -q 'ZiyuHeaderAction' "$LOGS_COMPACT"
 ! grep -q 'Modifier.size(50.dp)' "$LOGS_COMPACT"
 
 # Studio uses one in-flow final action. Both title actions share one Row. The
-# shell now also owns the directional page motion and Quick Return dock clearance
+# shell uses HorizontalPager for page swipes and owns Quick Return dock clearance
 # so long lists regain viewport space while the frosted dock keeps its overlap behavior.
 grep -q 'MiuixFinalAction(state, actions)' "$STUDIO_MIUIX"
 grep -q 'MaterialFinalAction(state, actions)' "$STUDIO_MATERIAL"
@@ -198,9 +198,9 @@ printf '%s\n' "$MIUIX_DOCK" | grep -q 'NavigationBarItem('
 grep -q 'fun FloatingBottomBar(' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/navigation/kernelsu/FloatingBottomBar.kt"
 grep -q 'isBlurEnabled = appearance.glassEnabled && appearance.blurEnabled' "$SHELL"
 grep -q 'AnimatedVisibility(' "$SHELL"
-grep -q 'key(page)' "$SHELL"
-grep -q 'translationX = (1f - pageEnter.value) \* 14.dp.toPx() \* pageDirection' "$SHELL"
-grep -q 'page.motionIndex() - previousPageForMotion.motionIndex()' "$SHELL"
+grep -Fq 'HorizontalPager(' "$SHELL"
+grep -Fq 'pagerState.isScrollInProgress -> dockPages[pagerState.targetPage]' "$SHELL"
+grep -Fq 'key = { dockPages[it] }' "$SHELL"
 ! grep -q 'AnimatedContent' "$SHELL"
 
 # Settings follows a grouped home -> detail hierarchy instead of a clipped horizontal tab strip.
