@@ -157,12 +157,17 @@ def ensure_space_glyphs(font: TTFont) -> dict[str, Any]:
     reused: list[dict[str, Any]] = []
     unresolved: list[dict[str, str]] = []
     for codepoint in missing:
-        if len(font.getGlyphOrder()) >= 0xFFFF:
+        # Variable fonts have glyph-indexed variation data. Reuse an existing
+        # space mapping instead of changing the glyph order or gvar table.
+        if "fvar" in font or len(font.getGlyphOrder()) >= 0xFFFF:
             fallback = _existing_space_glyph(font, codepoint)
             if fallback is None:
                 unresolved.append({
                     "codepoint": f"U+{codepoint:04X}",
-                    "reason": "OpenType glyph limit",
+                    "reason": (
+                        "variable font has no reusable space glyph"
+                        if "fvar" in font else "OpenType glyph limit"
+                    ),
                 })
                 continue
             source_codepoint, glyph_name = fallback
