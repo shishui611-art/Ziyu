@@ -17,6 +17,7 @@ on:
       - 'common/universal_font_compiler.py'
       - 'scripts/font_instance_gvar_recovery_test.py'
       - 'scripts/font_library_ui_layout_test.sh'
+      - 'scripts/stability_test.sh'
       - 'scripts/customize_reenable_test.sh'
       - 'scripts/mount_compat_test.sh'
       - 'scripts/mountinfo_procfs_test.sh'
@@ -31,7 +32,6 @@ on:
       - 'scripts/home_backend_status_test.py'
       - 'scripts/duplicate_function_test.sh'
       - 'scripts/legacy_switch_core_test.sh'
-      - 'scripts/font_library_ui_layout_test.sh'
       - 'scripts/release_v2_retirement_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
