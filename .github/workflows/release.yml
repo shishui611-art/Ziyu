@@ -30,6 +30,8 @@ on:
       - 'scripts/legacy_multiweight_worker_test.py'
       - 'scripts/app_controls_bridge_test.py'
       - 'scripts/home_backend_status_test.py'
+      - 'scripts/stable111_repair_test.py'
+      - 'scripts/stable111_round2_test.py'
       - 'scripts/duplicate_function_test.sh'
       - 'scripts/legacy_switch_core_test.sh'
       - 'scripts/release_v2_retirement_test.py'
