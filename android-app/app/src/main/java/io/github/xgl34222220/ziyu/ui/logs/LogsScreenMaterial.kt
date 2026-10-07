@@ -126,7 +126,7 @@ private fun MaterialTaskOverview(state: LogsUiState) {
                         fontWeight = FontWeight.Black,
                     )
                     Text(
-                        if (state.rebootRequired) "字体已准备完成，等待完整重启" else "任务状态会在进入页面时自动同步",
+                        if (state.rebootRequired) (if (state.temporaryRootMode) "字体已准备完成，等待 KernelSU 软重启" else "字体已准备完成，等待完整重启") else "任务状态会在进入页面时自动同步",
                         color = if (state.rebootRequired) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                     )

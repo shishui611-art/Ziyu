@@ -27,6 +27,7 @@ from fontTools.misc.lazyTools import LazyDict
 from fontTools.varLib.instancer import instantiateVariableFont
 
 from font_metrics_normalize import normalize_font_metrics
+from font_space_compat import ensure_space_glyphs
 
 CJK_PROBES = tuple(map(ord, "中文字体系统默认洛书汉字国一的。"))
 LATIN_PROBES = tuple(map(ord, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
@@ -244,6 +245,7 @@ def materialize(
         for tag in ("DSIG", "LTSH", "hdmx", "VDMX"):
             if tag in font:
                 del font[tag]
+        space_compatibility = ensure_space_glyphs(font)
         metrics = {"mode": "preserved"} if preserve_metrics else normalize_font_metrics(font)
 
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -270,6 +272,7 @@ def materialize(
             "ignoredAxes": ignored_axes,
             "variationFallbacks": variation_fallbacks,
             "warning": warning,
+            "spaceCompatibility": space_compatibility,
             "metrics": metrics,
             "size": output.stat().st_size,
         }

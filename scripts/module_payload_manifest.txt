@@ -2,6 +2,7 @@
 # Standard partition payloads are migrated into .luoshu-payload during installation.
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .luoshu-runtime.
 common/app_bridge.sh
+common/temporary_root_mode.sh
 common/app_installer.sh
 common/background_task.sh
 common/task_scope.sh
@@ -61,6 +62,7 @@ common/system_font_library.sh
 common/font_inventory_scan.py
 common/font_layout_diagnostic.py
 common/font_layout_diagnostic.sh
+common/font_partition_compat_report.sh
 common/font_slot_coverage.py
 common/stock_inventory_scan.py
 common/font_library_cache.sh
@@ -71,6 +73,7 @@ common/font_metrics_normalize.py
 common/font_mix.sh
 common/font_mix_controller.sh
 common/font_name_normalize.py
+common/font_space_compat.py
 common/font_provider_cache.sh
 common/font_switch_lock.sh
 common/font_validate_fast_v4.sh
@@ -162,6 +165,8 @@ customize.sh
 module.prop
 icon/icon.png
 post-fs-data.sh
+late-load.sh
+emulated-soft-reboot.sh
 post-mount.sh
 service.sh
 uninstall.sh

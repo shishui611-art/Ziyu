@@ -2,7 +2,6 @@ package io.github.xgl34222220.ziyu
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -15,7 +14,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -76,10 +77,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -123,6 +122,7 @@ import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.roundToInt
 
 internal enum class AppPage(
@@ -144,14 +144,6 @@ private val dockPages = listOf(
     AppPage.Settings,
 )
 
-private fun AppPage.motionIndex(): Int = when (this) {
-    AppPage.Home -> 0
-    AppPage.Library -> 1
-    AppPage.Studio -> 2
-    AppPage.Settings -> 3
-    AppPage.Logs -> 4
-}
-
 @Composable
 internal fun ZiyuAppShell(
     viewModel: ZiyuViewModel,
@@ -171,7 +163,6 @@ internal fun ZiyuAppShell(
     }
     val appearance by appearanceViewModel.settings.collectAsStateWithLifecycle()
     var page by rememberSaveable { mutableStateOf(AppPage.Home) }
-    var previousPageForMotion by remember { mutableStateOf(AppPage.Home) }
     var settingsDetailVisible by rememberSaveable { mutableStateOf(false) }
     var logsReturnPage by rememberSaveable { mutableStateOf(AppPage.Home) }
     var pendingApply by remember { mutableStateOf<FontItem?>(null) }
@@ -273,6 +264,36 @@ internal fun ZiyuAppShell(
         var dockHiddenByScroll by remember(page) { mutableStateOf(false) }
         var dockScrollAccumulator by remember(page) { mutableFloatStateOf(0f) }
         val density = LocalDensity.current
+        val pagerState = rememberPagerState(
+            initialPage = dockPages.indexOf(if (page == AppPage.Logs) logsReturnPage else page).coerceAtLeast(0),
+            pageCount = { dockPages.size },
+        )
+        var programmaticPageTarget by remember { mutableStateOf<Int?>(null) }
+        LaunchedEffect(page, pagerState) {
+            val target = dockPages.indexOf(page)
+            if (target >= 0 && pagerState.settledPage != target) {
+                programmaticPageTarget = target
+                try {
+                    if (kotlin.math.abs(pagerState.settledPage - target) == 1) {
+                        pagerState.animateScrollToPage(target)
+                    } else {
+                        pagerState.scrollToPage(target)
+                    }
+                } finally {
+                    programmaticPageTarget = null
+                }
+            }
+        }
+        LaunchedEffect(pagerState) {
+            snapshotFlow { pagerState.settledPage to programmaticPageTarget }
+                .distinctUntilChanged()
+                .collect { (index, target) ->
+                    if (target == null && page != AppPage.Logs) {
+                        val selected = dockPages[index]
+                        if (page != selected) page = selected
+                    }
+                }
+        }
         val dockHideThresholdPx = with(density) { 34.dp.toPx() }
         val dockShowThresholdPx = with(density) { 20.dp.toPx() }
         val dockScrollConnection = remember(page, quickReturnEnabled, dockHideThresholdPx, dockShowThresholdPx) {
@@ -346,35 +367,8 @@ internal fun ZiyuAppShell(
         ) {
             Box(modifier = contentModifier) {
                 AppBackdrop(appearance, dark)
-                // Only the destination page participates in the transition. AnimatedContent kept
-                // the outgoing page alive for 210–360 ms; the backdrop shader then refracted that
-                // stale layer through the dock, producing the one-frame/old-page flash in recordings.
-                key(page) {
-                    val pageDirection = remember(page) {
-                        val delta = page.motionIndex() - previousPageForMotion.motionIndex()
-                        when {
-                            delta > 0 -> 1f
-                            delta < 0 -> -1f
-                            else -> 0f
-                        }
-                    }
-                    val pageEnter = remember { Animatable(0f) }
-                    LaunchedEffect(Unit) {
-                        pageEnter.animateTo(
-                            targetValue = 1f,
-                            animationSpec = tween(210, easing = FastOutSlowInEasing),
-                        )
-                        previousPageForMotion = page
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                alpha = .94f + (.06f * pageEnter.value)
-                                translationX = (1f - pageEnter.value) * 14.dp.toPx() * pageDirection
-                            },
-                    ) {
-                    when (page) {
+                val pageContent: @Composable (AppPage) -> Unit = { visiblePage ->
+                    when (visiblePage) {
                         AppPage.Home -> Box(
                             modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
                         ) {
@@ -452,15 +446,33 @@ internal fun ZiyuAppShell(
                                         page = AppPage.Logs
                                     },
                                     onDetailChanged = { settingsDetailVisible = it },
+                                    onTemporaryRootChanged = viewModel::refresh,
                                 )
                             }
                         }
                     }
+                }
+                if (page == AppPage.Logs) {
+                    pageContent(AppPage.Logs)
+                } else {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = !settingsDetailVisible,
+                        key = { dockPages[it] },
+                    ) { index ->
+                        pageContent(dockPages[index])
                     }
                 }
             }
 
-            val dockPage = if (page in dockPages) page else logsReturnPage
+            // The settled route is committed after the swipe. targetPage changes while the
+            // finger is still moving, so the dock can follow the pager immediately.
+            val dockPage = when {
+                page == AppPage.Logs -> logsReturnPage
+                pagerState.isScrollInProgress -> dockPages[pagerState.targetPage]
+                else -> page
+            }
             AnimatedVisibility(
                 visible = dockActuallyVisible,
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -496,7 +508,8 @@ internal fun ZiyuAppShell(
                 style = appearance.uiStyle,
                 kind = FontActionKind.APPLY,
                 message = if (font.supportsCjk) {
-                    "直接应用「${font.name}」。准备完成后需要完整重启手机。"
+                    if (viewModel.snapshot.temporaryRootMode) "直接应用「${font.name}」。准备完成后请在 KernelSU 管理器中软重启。"
+                    else "直接应用「${font.name}」。准备完成后需要完整重启手机。"
                 } else {
                     "「${font.name}」不包含完整中文字形。直接应用后中文会继续使用系统默认字体，看起来可能没有变化；建议在组合页把它作为英文字体使用。"
                 },
@@ -525,7 +538,7 @@ internal fun ZiyuAppShell(
             FontActionDialogRoute(
                 style = appearance.uiStyle,
                 kind = FontActionKind.RESTORE,
-                message = "恢复 ROM 自带字体映射。完成后需要完整重启手机。",
+                message = if (viewModel.snapshot.temporaryRootMode) "恢复 ROM 自带字体映射。完成后请在 KernelSU 管理器中软重启。" else "恢复 ROM 自带字体映射。完成后需要完整重启手机。",
                 onDismiss = { restoreDefault = false },
                 onConfirm = {
                     restoreDefault = false
@@ -651,7 +664,6 @@ private fun MiuixAppDock(
         val bottomPadding = if (bottomInset != 0.dp) 8.dp + bottomInset else 28.dp
         FloatingBottomBar(
             modifier = modifier
-                .pointerInput(Unit) { detectTapGestures { } }
                 .padding(start = 28.dp, end = 28.dp, bottom = bottomPadding),
             selectedIndex = dockPages.indexOf(current).coerceIn(dockPages.indices),
             onSelected = { index -> dockPages.getOrNull(index)?.let(onSelect) },

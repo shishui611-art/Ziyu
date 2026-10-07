@@ -47,6 +47,12 @@ internal fun fontCapabilityLabel(font: FontItem): String {
     return if (font.supportsCjk) capability else "拉丁 · $capability"
 }
 
+internal fun fontCombinationSourceSummary(font: FontItem): String {
+    if (!font.combination) return ""
+    fun source(name: String) = name.ifBlank { "来源未记录" }
+    return "由中文「${source(font.cjkSourceName)}」、英文「${source(font.latinSourceName)}」、数字「${source(font.digitSourceName)}」组成"
+}
+
 private const val FONT_PREVIEW_COMPACT = "字域字体 Aa 123"
 private const val FONT_PREVIEW_DETAILED = "字域字体 Aa\n中文 ABC 123"
 

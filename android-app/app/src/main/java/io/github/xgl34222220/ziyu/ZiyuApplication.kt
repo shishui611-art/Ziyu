@@ -26,9 +26,17 @@ internal class ZiyuApplication : Application(), ViewModelStoreOwner {
         )[NativeImportViewModel::class.java]
     }
 
+    val ziyuViewModel: ZiyuViewModel by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        ViewModelProvider(
+            this,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(this),
+        )[ZiyuViewModel::class.java]
+    }
+
     override fun onCreate() {
         super.onCreate()
         NativeImportNotificationController.ensureChannel(this)
+        FontTaskNotificationController.ensureChannel(this)
         superviseNativeImport()
     }
 

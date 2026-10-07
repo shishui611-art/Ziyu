@@ -71,6 +71,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -91,6 +92,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.xgl34222220.ziyu.BuildConfig
+import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.appearance.AccentOptions
 import io.github.xgl34222220.ziyu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.ziyu.ui.appearance.KolorStyle
@@ -105,6 +107,8 @@ import io.github.xgl34222220.ziyu.ui.theme.ZiyuGlyph
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuIconTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuTopBar
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuSectionHeading
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 data class AppearanceActions(
     val setUiStyle: (UiStyle) -> Unit,
@@ -139,8 +143,9 @@ fun AppearanceSettingsRoute(
     actions: AppearanceActions,
     onOpenTasks: () -> Unit = {},
     onDetailChanged: (Boolean) -> Unit = {},
+    onTemporaryRootChanged: () -> Unit = {},
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged)
 }
 
 @Composable
@@ -149,6 +154,7 @@ internal fun SettingsHubRoute(
     actions: AppearanceActions,
     onOpenTasks: () -> Unit,
     onDetailChanged: (Boolean) -> Unit,
+    onTemporaryRootChanged: () -> Unit,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -207,7 +213,7 @@ internal fun SettingsHubRoute(
                     when (target) {
                         SettingsSection.OVERVIEW -> OverviewPage(model)
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
-                        SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle)
+                        SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
                         SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()
                         SettingsSection.BACKUP -> pageList { item { FullBackupCard(settings, actions) } }
                         SettingsSection.UPDATE -> UpdatePage(model)
@@ -611,11 +617,50 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
 }
 
 @Composable
-private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle) {
+private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporaryRootChanged: () -> Unit) {
     val h = model.health
     val m = model.maintenance
     var confirmRestore by remember { mutableStateOf(false) }
+    var temporaryRootEnabled by remember { mutableStateOf(false) }
+    var temporaryRootBusy by remember { mutableStateOf(false) }
+    var temporaryRootMessage by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val ksuAvailable = h.rootManager == "KernelSU" || h.rootManager == "SukiSU Ultra"
+    LaunchedEffect(ksuAvailable) {
+        if (ksuAvailable) {
+            val result = RootShell.exec("sh /data/adb/modules/LuoShu/common/app_bridge.sh temporary_root status", 8_000L)
+            runCatching { JSONObject(result.stdout.trim()).optJSONObject("data")?.optBoolean("enabled") }
+                .getOrNull()?.let { temporaryRootEnabled = it }
+        }
+    }
     pageList {
+        if (ksuAvailable) item {
+            SettingCard("KernelSU 软重启") {
+                ToggleLine(
+                    title = "使用临时 Root 流程",
+                    description = "完整重启会掉 Root 时开启。字体准备后请在 KernelSU 管理器中软重启；late-load 会自动识别，无需手动开启。",
+                    checked = temporaryRootEnabled,
+                    enabled = !temporaryRootBusy,
+                    onChange = { enabled ->
+                        scope.launch {
+                            temporaryRootBusy = true
+                            val action = if (enabled) "enable" else "disable"
+                            val result = RootShell.exec("sh /data/adb/modules/LuoShu/common/app_bridge.sh temporary_root $action", 8_000L)
+                            val response = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
+                            if (result.code == 0 && response?.optString("status") == "ok") {
+                                temporaryRootEnabled = response.optJSONObject("data")?.optBoolean("enabled") == true
+                                temporaryRootMessage = if (temporaryRootEnabled) "已切换为 KernelSU 软重启流程" else "已恢复常规重启流程"
+                                onTemporaryRootChanged()
+                            } else {
+                                temporaryRootMessage = response?.optString("message").orEmpty().ifBlank { result.stderr.ifBlank { "设置失败" } }
+                            }
+                            temporaryRootBusy = false
+                        }
+                    },
+                )
+                if (temporaryRootMessage.isNotBlank()) Text(temporaryRootMessage, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+            }
+        }
         item {
             StatusCard("字域安全体检", h.summary, h.level, h.loading) {
                 if (h.error.isNotBlank()) Text(h.error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)

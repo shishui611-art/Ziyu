@@ -50,6 +50,7 @@ import font_inventory
 import font_web_convert
 import minimal_xml_router
 import universal_font_plan
+from font_space_compat import ensure_space_glyphs
 from legacy_v14_4.composite_layout import (
     clear_imported_metric_variations,
     enclose_imported_bounds,
@@ -867,6 +868,7 @@ def _save_font(font: TTFont, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     temp = output.with_name(f".{output.name}.{os.getpid()}.tmp")
     try:
+        ensure_space_glyphs(font)
         font.save(str(temp), reorderTables=False)
         _validate_compiled_file(temp, expected_collection=False)
         os.chmod(temp, 0o644)

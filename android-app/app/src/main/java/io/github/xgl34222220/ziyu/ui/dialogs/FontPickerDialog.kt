@@ -57,6 +57,7 @@ internal fun FontPickerDialogRoute(
     onChoose: (FontItem) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val sourceFonts = remember(fonts) { fonts.filterNot { it.combination } }
     var resolvingId by remember(slot) { mutableStateOf<String?>(null) }
     val choose: (FontItem) -> Unit = { font ->
         if (resolvingId == null) {
@@ -69,9 +70,9 @@ internal fun FontPickerDialogRoute(
         }
     }
     when (style) {
-        UiStyle.MATERIAL -> MaterialFontPickerDialog(slot, fonts, selected, onDismiss, choose)
-        UiStyle.MIUIX -> MiuixFontPickerDialog(slot, fonts, selected, onDismiss, choose)
-        UiStyle.COUI -> MiuixFontPickerDialog(slot, fonts, selected, onDismiss, choose)
+        UiStyle.MATERIAL -> MaterialFontPickerDialog(slot, sourceFonts, selected, onDismiss, choose)
+        UiStyle.MIUIX -> MiuixFontPickerDialog(slot, sourceFonts, selected, onDismiss, choose)
+        UiStyle.COUI -> MiuixFontPickerDialog(slot, sourceFonts, selected, onDismiss, choose)
     }
 }
 

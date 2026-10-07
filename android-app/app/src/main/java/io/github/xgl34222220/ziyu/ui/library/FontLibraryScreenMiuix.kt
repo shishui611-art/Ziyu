@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.NativeFontPreview
 import io.github.xgl34222220.ziyu.ui.font.fontCapabilityLabel
+import io.github.xgl34222220.ziyu.ui.font.fontCombinationSourceSummary
 import io.github.xgl34222220.ziyu.ui.font.fontPreviewText
 import io.github.xgl34222220.ziyu.ui.theme.LocalMiuixTokens
 import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
@@ -495,6 +496,17 @@ private fun MiuixFontCard(
                 }
             }
 
+            if (font.combination) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    fontCombinationSourceSummary(font),
+                    color = tokens.textSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(14.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onDetails),

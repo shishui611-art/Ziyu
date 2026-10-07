@@ -210,6 +210,11 @@ internal fun FontDetailsDialogRoute(
             ) {
                 Column(Modifier.padding(horizontal = 15.dp, vertical = 6.dp)) {
                     FontDetailLine("能力", fontCapabilityLabel(font), primaryText, secondaryText)
+                    if (font.combination) {
+                        FontDetailLine("中文源", font.cjkSourceName.ifBlank { "来源未记录" }, primaryText, secondaryText)
+                        FontDetailLine("英文源", font.latinSourceName.ifBlank { "来源未记录" }, primaryText, secondaryText)
+                        FontDetailLine("数字源", font.digitSourceName.ifBlank { "来源未记录" }, primaryText, secondaryText)
+                    }
                     FontDetailLine("字重", font.weightLabel, primaryText, secondaryText)
                     FontDetailLine("覆盖", if (font.supportsCjk) "中日韩 · 拉丁 · 数字" else "拉丁 · 数字", primaryText, secondaryText)
                     FontDetailLine("格式", font.format.ifBlank { "未知" }, primaryText, secondaryText)

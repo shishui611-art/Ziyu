@@ -148,7 +148,7 @@ fun HomeScreenMaterial(
                 ) {
                     Icon(Icons.Rounded.RestartAlt, contentDescription = null)
                     Spacer(Modifier.width(7.dp))
-                    Text("立即重启", fontWeight = FontWeight.Bold)
+                    Text(if (state.temporaryRootMode) "软重启说明" else "立即重启", fontWeight = FontWeight.Bold)
                 }
             }
         }

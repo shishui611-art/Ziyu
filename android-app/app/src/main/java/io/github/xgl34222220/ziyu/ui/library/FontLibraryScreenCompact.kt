@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.NativeFontPreview
+import io.github.xgl34222220.ziyu.ui.font.fontCombinationSourceSummary
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuLayoutTokens
@@ -394,6 +395,16 @@ private fun CompactFontRow(
                         )
                     }
                 }
+            }
+            if (font.combination) {
+                Text(
+                    fontCombinationSourceSummary(font),
+                    color = textSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             if (font.valid) {
                 Surface(

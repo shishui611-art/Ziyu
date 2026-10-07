@@ -42,7 +42,12 @@ def persist_task(task_file, result_file):
     return fields
 
 
-def publish(source, library, name, request):
+def source_label(value):
+    return " ".join((value or "").replace("\r", " ").replace("\n", " ").replace("\t", " ").split())[:100]
+
+
+def publish(source, library, name, request, cjk_name="", latin_name="", digit_name="",
+            cjk_id="", latin_id="", digit_id=""):
     check_cancelled()
     name = validate_name(name)
 
@@ -50,7 +55,8 @@ def publish(source, library, name, request):
     library = Path(library)
     library.mkdir(parents=True, exist_ok=True)
     manifest = library / f"{family}.conf"
-    return _publish(Path(source), library, name, request, family, manifest)
+    return _publish(Path(source), library, name, request, family, manifest,
+                    cjk_name, latin_name, digit_name, cjk_id, latin_id, digit_id)
 
 
 def validate_name(name):
@@ -60,11 +66,25 @@ def validate_name(name):
     return name
 
 
-def _publish(source, library, name, request, family, manifest):
+def _publish(source, library, name, request, family, manifest,
+             cjk_name, latin_name, digit_name, cjk_id, latin_id, digit_id):
     if manifest.is_file():
         saved = dict(line.split("=", 1) for line in manifest.read_text(encoding="utf-8").splitlines() if "=" in line)
         expected = [library / filename for filename in json.loads(saved.get("files", "[]"))]
         if expected and all(p.is_file() for p in expected):
+            for key, value in (
+                ("cjk_source_name", cjk_name), ("latin_source_name", latin_name),
+                ("digit_source_name", digit_name), ("cjk_source_id", cjk_id),
+                ("latin_source_id", latin_id), ("digit_source_id", digit_id),
+            ):
+                if value:
+                    saved[key] = source_label(value)
+            temp = manifest.with_name(manifest.name + f".tmp.{os.getpid()}")
+            try:
+                temp.write_text("".join(f"{key}={value}\n" for key, value in saved.items()), encoding="utf-8")
+                os.replace(temp, manifest)
+            finally:
+                temp.unlink(missing_ok=True)
             return {"id": family, "name": saved.get("name", name), "reused": True,
                     "previewSource": str(expected[0]), "result": "prepared"}
         raise ValueError("之前保存的组合文件不完整，请先删除该条目再重新生成")
@@ -91,6 +111,9 @@ def _publish(source, library, name, request, family, manifest):
             names.append(filename)
         (stage / manifest.name).write_text(
             f"name={name}\nsupports_cjk=true\ncombination=true\nrequest={request}\n"
+            f"cjk_source_name={source_label(cjk_name)}\nlatin_source_name={source_label(latin_name)}\n"
+            f"digit_source_name={source_label(digit_name)}\ncjk_source_id={source_label(cjk_id)}\n"
+            f"latin_source_id={source_label(latin_id)}\ndigit_source_id={source_label(digit_id)}\n"
             f"files={json.dumps(names)}\n", encoding="utf-8")
         # Publish the manifest last; failures remove only files created by this call.
         for filename in names:
@@ -117,13 +140,16 @@ if __name__ == "__main__":
     parser.add_argument("--validate-name", action="store_true")
     parser.add_argument("--persist-task")
     parser.add_argument("--result-file")
-    for argument in ("source", "library", "name", "request"):
+    for argument in ("source", "library", "name", "request", "cjk-name", "latin-name", "digit-name",
+                     "cjk-id", "latin-id", "digit-id"):
         parser.add_argument("--" + argument)
     args = parser.parse_args()
     try:
         result = (persist_task(args.persist_task, args.result_file) if args.persist_task else
                   {"name": validate_name(args.name)} if args.validate_name else
-                  publish(args.source, args.library, args.name, args.request))
+                  publish(args.source, args.library, args.name, args.request,
+                          getattr(args, "cjk_name"), getattr(args, "latin_name"), getattr(args, "digit_name"),
+                          getattr(args, "cjk_id"), getattr(args, "latin_id"), getattr(args, "digit_id")))
         print(json.dumps({"status": "ok", "data": result}, ensure_ascii=False, separators=(",", ":")))
     except Exception as error:
         print(json.dumps({"status": "error", "message": str(error)}, ensure_ascii=False, separators=(",", ":")))

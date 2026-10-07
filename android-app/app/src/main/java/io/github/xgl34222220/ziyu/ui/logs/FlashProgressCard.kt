@@ -44,8 +44,8 @@ internal fun FlashProgressCard(state: LogsUiState) {
     val task = primaryFlashTask(state.tasks)
     val running = task?.active == true
     val failed = task?.phase == TaskPhase.FAILED
-    val reboot = !failed && !running && (state.rebootRequired || task?.phase == TaskPhase.WAITING_REBOOT)
-    val complete = !failed && !running && task?.phase == TaskPhase.SUCCESS
+    val reboot = !failed && !running && state.rebootRequired
+    val complete = !failed && !running && !reboot && task?.completed == true
     val accent = when {
         failed -> MaterialTheme.colorScheme.error
         reboot -> tokens.warning
@@ -55,7 +55,7 @@ internal fun FlashProgressCard(state: LogsUiState) {
     val title = when {
         running -> if (task?.phase == TaskPhase.QUEUED) "正在等待执行" else "正在处理字体"
         failed -> "这次应用未完成"
-        reboot -> "准备就绪，等待重启"
+        reboot -> if (state.temporaryRootMode) "准备就绪，等待软重启" else "准备就绪，等待重启"
         complete -> "本次任务已完成"
         else -> "等待新的字体任务"
     }
@@ -64,13 +64,15 @@ internal fun FlashProgressCard(state: LogsUiState) {
         animationSpec = tween(280), label = "flashProgress",
     )
     Surface(
-        modifier = Modifier.fillMaxWidth().animateContentSize(tween(220)),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
         color = tokens.cardBackground,
         shadowElevation = ZiyuLayoutTokens.CardElevation,
     ) {
         Column(
-            modifier = Modifier.background(Brush.verticalGradient(listOf(accent.copy(alpha = .075f), tokens.cardBackground)))
+            modifier = Modifier.animateContentSize(tween(220))
+                .clip(RoundedCornerShape(26.dp))
+                .background(Brush.verticalGradient(listOf(accent.copy(alpha = .075f), tokens.cardBackground)))
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {

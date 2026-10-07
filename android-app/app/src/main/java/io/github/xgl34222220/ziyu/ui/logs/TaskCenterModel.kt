@@ -75,9 +75,11 @@ internal fun taskPhaseFor(level: String, message: String, state: String = ""): T
         "queued" -> TaskPhase.QUEUED
         "running", "cancelling" -> TaskPhase.RUNNING
         "prepared", "pending-reboot" -> TaskPhase.WAITING_REBOOT
-        "success" -> if ("重启后" in normalized || "等待重启" in normalized || "reboot required" in normalized)
-            TaskPhase.WAITING_REBOOT else TaskPhase.SUCCESS
+        // A successful task stays successful. Reboot state belongs to the live
+        // module snapshot, not to the wording saved with an old task.
+        "success" -> TaskPhase.SUCCESS
         else -> when {
+            "warn" in normalized || "警告" in normalized -> TaskPhase.INFO
             "已取消" in normalized || "cancelled" in normalized -> TaskPhase.CANCELLED
             "failed" in normalized || "error" in normalized || "失败" in normalized || "错误" in normalized -> TaskPhase.FAILED
             "重启后" in normalized || "等待重启" in normalized || "reboot required" in normalized -> TaskPhase.WAITING_REBOOT
@@ -117,14 +119,21 @@ internal fun parseTaskLogItems(content: String, limit: Int = 18): List<TaskCente
         val observedPhase = taskPhaseFor(level, rawMessage)
         // Log lines record the past; only a persisted/live task snapshot may
         // claim an active process. Stage messages otherwise survive forever.
-        val phase = if (observedPhase == TaskPhase.RUNNING || observedPhase == TaskPhase.QUEUED) TaskPhase.INFO else observedPhase
+        val phase = when (observedPhase) {
+            TaskPhase.RUNNING, TaskPhase.QUEUED -> TaskPhase.INFO
+            TaskPhase.WAITING_REBOOT -> TaskPhase.SUCCESS
+            else -> observedPhase
+        }
+        val summary = if (observedPhase == TaskPhase.WAITING_REBOOT) {
+            "当时字体文件已准备完成；当前生效情况请以首页验证结果为准"
+        } else message
         val progress = percentPattern.find(message)?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 100) ?: -1
         TaskCenterItem(
             id = "log-$index-${message.hashCode()}",
             kind = kind,
             phase = phase,
             title = taskTitle(kind, phase),
-            message = message,
+            message = summary,
             progress = progress,
             timeLabel = time,
         )

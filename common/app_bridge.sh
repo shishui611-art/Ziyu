@@ -12,6 +12,7 @@ if [ -z "$MODDIR" ]; then
 fi
 [ -f "$MODDIR/common/mount_backend_details.sh" ] && . "$MODDIR/common/mount_backend_details.sh"
 [ -f "$MODDIR/common/root_manager_detection.sh" ] && . "$MODDIR/common/root_manager_detection.sh"
+[ -f "$MODDIR/common/temporary_root_mode.sh" ] && . "$MODDIR/common/temporary_root_mode.sh"
 [ -f "$MODDIR/common/meta_mount_detection.sh" ] && . "$MODDIR/common/meta_mount_detection.sh"
 FONT_MANAGER="$MODDIR/common/font_manager.sh"
 FONT_SWITCH_TASK="$MODDIR/common/font_switch_task.sh"
@@ -51,6 +52,11 @@ root_manager() {
     # Keep the App label aligned with boot-hook identity. An unknown `su`
     # provider is shown generically instead of being guessed from /data/adb/ksu.
     printf 'Root'
+}
+
+temporary_root_mode() {
+    case "$(root_manager)" in KernelSU|SukiSU\ Ultra) ;; *) return 1 ;; esac
+    ziyu_temporary_root_mode "$MODDIR"
 }
 
 mount_engine() {
@@ -249,6 +255,8 @@ EOF_TASK_SELECTION
 
     _reboot_required=false
     [ -f "$TEXT_REBOOT_REQUIRED" ] && _reboot_required=true
+    _temporary_root=false
+    temporary_root_mode && _temporary_root=true
 
     _effective_active='unknown'
     _font_effect_state='pending'
@@ -297,7 +305,7 @@ EOF_TASK_SELECTION
         _font_effect_state=unverified
     fi
 
-    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s"}}\n' \
+    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"temporaryRootMode":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s"}}\n' \
         "$_installed" "$(json_escape "$_version")" "${_version_code:-0}" "$(json_escape "$_active")" \
         "$(json_escape "$_effective_active")" "$(json_escape "$_font_effect_state")" \
         "$(json_escape "$_verification_state")" "$(json_escape "$_verification_grade")" "$(json_escape "$_verification_mode")" \
@@ -305,7 +313,7 @@ EOF_TASK_SELECTION
         "$(json_escape "$_cutover_state")" "$(json_escape "$_cutover_decision")" "$(json_escape "$_rollback_state")" "$_rollback_pending" \
         "$(json_escape "$_rollback_target_font")" "$(json_escape "$_rollback_target_mode")" \
         "$(json_escape "$_task_type")" "$(json_escape "$_task_id")" "$(json_escape "$_task_state")" \
-        "$(json_escape "$_task_message")" "$_task_progress" "$_reboot_required" \
+        "$(json_escape "$_task_message")" "$_task_progress" "$_reboot_required" "$_temporary_root" \
         "$(json_escape "$(root_manager)")" "$(json_escape "$(mount_engine)")" "$(json_escape "$MODDIR")"
 }
 
@@ -521,9 +529,36 @@ case "${1:-status}" in
     switch_status) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" status "${2:-}" ;;
     delete) manager_ready || exit 1; sh "$FONT_MANAGER" action delete "${2:-}" ;;
     mix_config) mix_ready || exit 1; sh "$MIX_ENGINE" config ;;
-    mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" ;;
+    mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" ;;
     mix_status) mix_ready || exit 1; sh "$MIX_ENGINE" status "${2:-}" ;;
-    reboot) manager_ready || exit 1; sh "$FONT_MANAGER" action reboot_device ;;
+    temporary_root)
+        case "${2:-status}" in
+            status)
+                _tr_enabled=false
+                temporary_root_mode && _tr_enabled=true
+                printf '{"status":"ok","data":{"enabled":%s,"rootManager":"%s"}}\n' "$_tr_enabled" "$(json_escape "$(root_manager)")"
+                ;;
+            enable|disable)
+                case "$(root_manager)" in KernelSU|SukiSU\ Ultra) ;; *) printf '{"status":"error","message":"仅支持 KernelSU 系列管理器"}\n'; exit 1 ;; esac
+                _tr_enabled=false
+                [ "$2" != enable ] || _tr_enabled=true
+                _tr_file="$MODDIR/config/temporary-root-mode.conf"
+                printf 'enabled=%s\n' "$_tr_enabled" > "${_tr_file}.tmp.$$" &&
+                    chmod 0600 "${_tr_file}.tmp.$$" && mv -f "${_tr_file}.tmp.$$" "$_tr_file" || exit 1
+                temporary_root_mode && _tr_enabled=true
+                printf '{"status":"ok","data":{"enabled":%s}}\n' "$_tr_enabled"
+                ;;
+            *) printf '{"status":"error","message":"未知临时 Root 设置"}\n'; exit 1 ;;
+        esac
+        ;;
+    reboot)
+        if temporary_root_mode; then
+            printf '{"status":"error","message":"当前使用 KernelSU 临时 Root 流程。请在 KernelSU 管理器中执行软重启，完成后返回字域查看挂载验证。"}\n'
+            exit 1
+        fi
+        manager_ready || exit 1
+        sh "$FONT_MANAGER" action reboot_device
+        ;;
     logs)
         _lines="${2:-160}"
         case "$_lines" in ''|*[!0-9]*) _lines=160 ;; esac

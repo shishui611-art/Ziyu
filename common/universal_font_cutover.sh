@@ -86,7 +86,14 @@ _uc_cleanup_universal_next() {
 
 _uc_legacy() {
     _ucl_font="$1"; _ucl_reason="$2"
-    _uc_log "legacy fallback font=$_ucl_font reason=$_ucl_reason"
+    case "$_ucl_reason" in
+        default-font|composite-runtime|composite-family)
+            _uc_log "INFO compatibility path selected font=$_ucl_font reason=$_ucl_reason"
+            ;;
+        *)
+            _uc_log "WARN universal path not ready; continuing with compatibility path font=$_ucl_font reason=$_ucl_reason"
+            ;;
+    esac
     _uc_write_state fallback "$_ucl_font" legacy "$_ucl_reason"
     _uc_progress 25 "通用引擎未接管，正在使用兼容切换路径"
 
@@ -105,11 +112,23 @@ _uc_legacy() {
 
     _uc_cleanup_universal_next
     [ -f "$LEGACY_SWITCH" ] || {
+        _uc_write_state failed "$_ucl_font" legacy compatibility-core-missing
+        _uc_log "ERROR compatibility path unavailable font=$_ucl_font missing=legacy-switcher"
         printf '{"status":"error","message":"缺少兼容字体切换核心"}\n'
         return 1
     }
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
-        sh "$LEGACY_SWITCH" action switch "$_ucl_font"
+    _ucl_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
+        sh "$LEGACY_SWITCH" action switch "$_ucl_font" 2>&1)
+    _ucl_rc=$?
+    [ -n "$_ucl_output" ] && printf '%s\n' "$_ucl_output"
+    if [ "$_ucl_rc" -eq 0 ]; then
+        _uc_write_state fallback "$_ucl_font" legacy compatibility-path-prepared
+        _uc_log "INFO compatibility path prepared font=$_ucl_font reboot-required=true"
+        return 0
+    fi
+    _uc_write_state failed "$_ucl_font" legacy "compatibility-path-failed-rc-$_ucl_rc"
+    _uc_log "ERROR compatibility path failed font=$_ucl_font rc=$_ucl_rc output=$(printf '%s' "$_ucl_output" | tail -c 600)"
+    return "$_ucl_rc"
 }
 
 _uc_precondition() {
@@ -165,8 +184,10 @@ _uc_switch() {
         LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" sh "$DEPLOYMENT" prepare "$_uc_font" 2>&1)
     _uc_prepare_rc=$?
     if [ "$_uc_prepare_rc" -ne 0 ]; then
-        _uc_log "universal prepare failed font=$_uc_font rc=$_uc_prepare_rc output=$(printf '%s' "$_uc_prepare_output" | tail -c 600)"
-        _uc_legacy "$_uc_font" universal-prepare-failed
+        _uc_prepare_message=$(printf '%s\n' "$_uc_prepare_output" | sed -n 's/.*"message":"\(.*\)"}$/\1/p' | head -n1 | cut -c1-900)
+        [ -n "$_uc_prepare_message" ] || _uc_prepare_message='未返回详细原因，请查看 Artifact 日志'
+        _uc_log "WARN universal prepare not ready font=$_uc_font rc=$_uc_prepare_rc detail=$_uc_prepare_message"
+        _uc_legacy "$_uc_font" universal-prepare-not-ready
         return $?
     fi
 
@@ -183,7 +204,7 @@ _uc_switch() {
         --deployment "$UC_DEPLOYMENT" \
         --payload-root "$UC_PAYLOAD" 2>&1)
     _uc_gate_rc=$?
-    _uc_log "gate font=$_uc_font rc=$_uc_gate_rc result=$_uc_gate_output"
+    _uc_log "WARN universal readiness decision font=$_uc_font rc=$_uc_gate_rc result=$_uc_gate_output"
     if [ "$_uc_gate_rc" -ne 0 ] || ! printf '%s' "$_uc_gate_output" | grep -q '"eligible":true'; then
         _uc_legacy "$_uc_font" universal-readiness-gate-rejected
         return $?
@@ -194,12 +215,15 @@ _uc_switch() {
         LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" sh "$DEPLOYMENT" stage-prepared "$_uc_font" 2>&1)
     _uc_stage_rc=$?
     if [ "$_uc_stage_rc" -ne 0 ] || ! printf '%s' "$_uc_stage_output" | grep -q '"status":"ok"'; then
-        _uc_log "universal stage failed font=$_uc_font rc=$_uc_stage_rc output=$_uc_stage_output"
-        _uc_legacy "$_uc_font" universal-stage-failed
+        _uc_stage_message=$(printf '%s\n' "$_uc_stage_output" | sed -n 's/.*"message":"\(.*\)"}$/\1/p' | head -n1 | cut -c1-900)
+        [ -n "$_uc_stage_message" ] || _uc_stage_message='未返回详细原因，请查看字体切换日志'
+        _uc_log "WARN universal stage not ready font=$_uc_font rc=$_uc_stage_rc detail=$_uc_stage_message"
+        _uc_legacy "$_uc_font" universal-stage-not-ready
         return $?
     fi
 
     _uc_write_state staged "$_uc_font" universal ready-next-boot
+    _uc_log "INFO universal path prepared font=$_uc_font reboot-required=true"
     _uc_progress 96 "通用字体负载已准备，完整重启后自动验收"
     printf '%s\n' "$_uc_stage_output"
     return 0

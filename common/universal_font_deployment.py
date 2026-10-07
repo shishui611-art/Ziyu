@@ -213,6 +213,25 @@ def _payload_digest(files: list[dict[str, Any]], dynamics: list[dict[str, Any]])
     return f"sha256:{_canonical_hash(material)}"
 
 
+def _blocked_artifact_message(artifact_manifest: dict[str, Any]) -> str:
+    raw = artifact_manifest.get("artifacts")
+    blocked = [
+        item for item in raw
+        if isinstance(item, dict) and item.get("status") == "blocked"
+    ] if isinstance(raw, list) else []
+    details: list[str] = []
+    for item in blocked[:8]:
+        target = str(item.get("targetPath") or item.get("artifactId") or "未知目标")
+        reason = " ".join(str(item.get("reason") or "未提供原因").split())
+        details.append(f"{target}：{reason}")
+    remaining = len(blocked) - len(details)
+    if remaining > 0:
+        details.append(f"另有 {remaining} 个目标，详见字体切换日志")
+    count = int((artifact_manifest.get("summary") or {}).get("blockedCount") or len(blocked))
+    suffix = "；".join(details) if details else "请查看字体切换日志中的 Artifact 清单"
+    return f"通用编译暂未完成：{count} 个系统字体目标没有生成；{suffix}。已交由兼容切换路径继续处理"
+
+
 def build_deployment(
     font_plan: dict[str, Any],
     route_plan: dict[str, Any],
@@ -225,7 +244,7 @@ def build_deployment(
 
     summary = artifact_manifest.get("summary") if isinstance(artifact_manifest.get("summary"), dict) else {}
     if int(summary.get("blockedCount") or 0) != 0:
-        raise DeploymentError("存在 blocked artifact，拒绝生成部署 payload")
+        raise DeploymentError(_blocked_artifact_message(artifact_manifest))
     if route_plan.get("summary", {}).get("routingComplete") is not True:
         raise DeploymentError("XML RoutePlan 不完整，拒绝生成部署 payload")
 

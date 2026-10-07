@@ -554,6 +554,9 @@ EOF_RECORD
   _display_name="$_family"
   _supports_cjk=true
   _combination=false
+  _cjk_source_name=''
+  _latin_source_name=''
+  _digit_source_name=''
   _cfg="$USER_FONTS_DIR/${_family}.conf"
   if [ -f "$_cfg" ]; then
       _configured_name=$(sed -n 's/^name=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '
@@ -565,13 +568,17 @@ EOF_RECORD
       _configured_combination=$(sed -n 's/^combination=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '
 ')
       case "$_configured_combination" in true) _combination=true ;; esac
+      _cjk_source_name=$(sed -n 's/^cjk_source_name=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '\r\n')
+      _latin_source_name=$(sed -n 's/^latin_source_name=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '\r\n')
+      _digit_source_name=$(sed -n 's/^digit_source_name=//p' "$_cfg" 2>/dev/null | head -n1 | tr -d '\r\n')
   fi
 
   [ "$_first" = true ] || printf ','
-  printf '{"id":"%s","name":"%s","weights":[%s],"variants":{%s},"familyType":"%s","file":"%s","size":"%s","bytes":%s,"format":"%s","valid":%s,"warning":"","error":"%s","variable":%s,"supportsCjk":%s,"combination":%s,"date":"%s"}' \
+  printf '{"id":"%s","name":"%s","weights":[%s],"variants":{%s},"familyType":"%s","file":"%s","size":"%s","bytes":%s,"format":"%s","valid":%s,"warning":"","error":"%s","variable":%s,"supportsCjk":%s,"combination":%s,"cjkSourceName":"%s","latinSourceName":"%s","digitSourceName":"%s","date":"%s"}' \
       "$(json_escape "$_family")" "$(json_escape "$_display_name")" "$_weights_json" "$_variants_json" "$(json_escape "$_family_type")" \
       "$(json_escape "$_record_name")" "$(format_filesize "$_bytes")" "$_bytes" "$(json_escape "$_format")" "$_valid" \
-      "$(json_escape "$_error")" "$_variable" "$_supports_cjk" "$_combination" "$(json_escape "$_date")"
+      "$(json_escape "$_error")" "$_variable" "$_supports_cjk" "$_combination" \
+      "$(json_escape "$_cjk_source_name")" "$(json_escape "$_latin_source_name")" "$(json_escape "$_digit_source_name")" "$(json_escape "$_date")"
   _first=false
         done < "$_families"
         printf ']}}

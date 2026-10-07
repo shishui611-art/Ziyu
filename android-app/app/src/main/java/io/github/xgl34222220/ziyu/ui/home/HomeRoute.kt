@@ -60,11 +60,13 @@ fun HomeRoute(
     var showMountSettings by remember { mutableStateOf(false) }
     var showUndo by remember { mutableStateOf(false) }
     var showAcceptanceGuide by remember { mutableStateOf(false) }
+    var showTemporaryRootGuide by remember { mutableStateOf(false) }
     var trustRefreshGeneration by remember { mutableIntStateOf(0) }
     var stockScanBusy by remember { mutableStateOf(false) }
     var stockScanMessage by remember { mutableStateOf("") }
     var stockScanError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val visibleActions = if (state.temporaryRootMode) actions.copy(reboot = { showTemporaryRootGuide = true }) else actions
 
     LaunchedEffect(
         state.moduleInstalled,
@@ -92,7 +94,7 @@ fun HomeRoute(
     HomeScreenCompact(
         style = style,
         state = state,
-        actions = actions,
+        actions = visibleActions,
         trustContent = {
             if (state.moduleInstalled) {
                 Column(Modifier.fillMaxWidth()) {
@@ -182,8 +184,16 @@ fun HomeRoute(
                 actions.refresh()
                 trustRefreshGeneration += 1
             },
-            onReboot = actions.reboot,
+            onReboot = visibleActions.reboot,
             onDismiss = { showAcceptanceGuide = false },
+        )
+    }
+    if (showTemporaryRootGuide) {
+        AlertDialog(
+            onDismissRequest = { showTemporaryRootGuide = false },
+            title = { Text("KernelSU 软重启") },
+            text = { Text("请在 KernelSU 管理器中执行软重启。完成后回到字域，查看本次挂载和字体加载验证结果。字域不会发起完整重启。") },
+            confirmButton = { TextButton(onClick = { showTemporaryRootGuide = false; actions.refresh() }) { Text("知道了") } },
         )
     }
 }

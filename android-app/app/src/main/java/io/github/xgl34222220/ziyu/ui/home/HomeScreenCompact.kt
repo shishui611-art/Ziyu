@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -75,6 +76,9 @@ import io.github.xgl34222220.ziyu.ui.theme.ZiyuSectionHeading
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuTopBar
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuShapeTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuTypographyTokens
+
+private const val COOLAPK_PROFILE_URL = "https://www.coolapk.com/u/28601616"
+private const val QQ_GROUP_URL = "https://qm.qq.com/q/XgWlqIOI8Q"
 
 @Composable
 internal fun HomeScreenCompact(
@@ -98,7 +102,7 @@ internal fun HomeScreenCompact(
         contentPadding = PaddingValues(
             start = ZiyuLayoutTokens.PageHorizontal,
             end = ZiyuLayoutTokens.PageHorizontal,
-            bottom = maxOf(LocalDockContentPadding.current, ZiyuLayoutTokens.FloatingDockSafeBottom),
+            bottom = maxOf(LocalDockContentPadding.current, ZiyuLayoutTokens.FloatingDockSafeBottom) + 40.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(ZiyuLayoutTokens.ItemGap),
     ) {
@@ -286,6 +290,49 @@ internal fun HomeScreenCompact(
                 Text("恢复系统字体")
             }
         }
+        item(key = "community-links") {
+            val uriHandler = LocalUriHandler.current
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                HomeCommunityShortcut(
+                    title = "酷安主页",
+                    onClick = { uriHandler.openUri(COOLAPK_PROFILE_URL) },
+                    modifier = Modifier.weight(1f),
+                )
+                HomeCommunityShortcut(
+                    title = "QQ群",
+                    onClick = { uriHandler.openUri(QQ_GROUP_URL) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCommunityShortcut(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = LocalMiuixTokens.current
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(64.dp),
+        shape = MaterialTheme.shapes.large,
+        color = tokens.cardBackground,
+        shadowElevation = ZiyuLayoutTokens.CardElevation,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = title,
+                color = tokens.textPrimary,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -339,8 +386,8 @@ private fun nextStepFor(state: HomeUiState, actions: HomeActions): HomeNextStep 
     )
     state.rebootRequired -> HomeNextStep(
         title = "字体已经准备完成",
-        description = "执行一次完整重启后应用全局字体并自动验证",
-        actionLabel = "立即重启",
+        description = if (state.temporaryRootMode) "请在 KernelSU 管理器中软重启，完成后返回查看挂载验证" else "执行一次完整重启后应用全局字体并自动验证",
+        actionLabel = if (state.temporaryRootMode) "软重启说明" else "立即重启",
         icon = Icons.Rounded.RestartAlt,
         onClick = actions.reboot,
     )

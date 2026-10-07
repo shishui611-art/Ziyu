@@ -4,6 +4,15 @@ set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
 
+_soft_stage="$MODDIR/config/temporary-root-soft-reboot.conf"
+_soft_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+if [ -n "$_soft_boot" ] &&
+   [ "$(sed -n 's/^boot_id=//p' "$_soft_stage" 2>/dev/null | head -n1)" = "$_soft_boot" ] &&
+   [ "$(sed -n 's/^state=//p' "$_soft_stage" 2>/dev/null | head -n1)" = failed ]; then
+    printf '[TEMP-ROOT] refusing payload activation after failed soft reboot cleanup\n' >> "$MODDIR/logs/mount-backend.log"
+    exit 1
+fi
+
 # Manual exclusions are checked before even activating the pending generation.
 [ ! -f "$MODDIR/common/skip_mount_ownership.sh" ] || . "$MODDIR/common/skip_mount_ownership.sh"
 if [ -e "$MODDIR/disable" ] || [ -e "$MODDIR/remove" ] || \

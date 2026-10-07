@@ -77,14 +77,48 @@ _luoshu_config_weight_source() {
 _luoshu_fast_link_font() {
     _lfl_source="$1"
     _lfl_target="$2"
+    _lfl_module="$(_luoshu_config_weight_module)"
+    _lfl_tool="$_lfl_module/common/font_space_compat.py"
+    _lfl_cache_dir="$_lcw_stage/.space-compat"
+    _lfl_manifest="$_lfl_cache_dir/sources.tsv"
+    _lfl_report="$_lfl_cache_dir/last-report.json"
+    [ -f "$_lfl_tool" ] && type _luoshu_font_config_exec >/dev/null 2>&1 || return 1
+    mkdir -p "$_lfl_cache_dir" 2>/dev/null || return 1
+    [ -f "$_lfl_manifest" ] || : > "$_lfl_manifest"
+
+    _lfl_tab="$(printf '\t')"
+    _lfl_fixed=''
+    while IFS="$_lfl_tab" read -r _lfl_cached_source _lfl_cached_output; do
+        [ "$_lfl_cached_source" = "$_lfl_source" ] || continue
+        _lfl_fixed="$_lfl_cached_output"
+        break
+    done < "$_lfl_manifest"
+    if [ -z "$_lfl_fixed" ]; then
+        _lfl_cache_index=$(wc -l < "$_lfl_manifest" 2>/dev/null | tr -d '[:space:]')
+        case "$_lfl_cache_index" in ''|*[!0-9]*) _lfl_cache_index=0 ;; esac
+        _lfl_cache_index=$((_lfl_cache_index + 1))
+        _lfl_fixed="$_lfl_cache_dir/source-${_lfl_cache_index}.font"
+        _luoshu_font_config_exec "$_lfl_tool" --input "$_lfl_source" --output "$_lfl_fixed" \
+            > "$_lfl_report" 2>/dev/null || {
+            rm -f "$_lfl_fixed" "$_lfl_report" 2>/dev/null || true
+            return 1
+        }
+        printf '%s\t%s\n' "$_lfl_source" "$_lfl_fixed" >> "$_lfl_manifest"
+        if grep -Fq '"codepoint":"U+2005"' "$_lfl_report" 2>/dev/null && \
+           type _log_step >/dev/null 2>&1; then
+            _log_step '  字体缺少 U+2005，已补入四分之一全角空白字形'
+        fi
+        rm -f "$_lfl_report" 2>/dev/null || true
+    fi
+
     rm -f "$_lfl_target" 2>/dev/null || true
-    ln "$_lfl_source" "$_lfl_target" 2>/dev/null || cp -f "$_lfl_source" "$_lfl_target" 2>/dev/null || return 1
+    ln "$_lfl_fixed" "$_lfl_target" 2>/dev/null || cp -f "$_lfl_fixed" "$_lfl_target" 2>/dev/null || return 1
     chmod 0644 "$_lfl_target" 2>/dev/null || true
     _luoshu_fast_font_ok "$_lfl_target"
 }
 
-# 组合引擎产出的静态字体已经完成轮廓与度量归一化，无需再把同一大字体序列化 18 次。
-# UI 九档引用对应来源；代码等宽字体保持原厂，不再合成/映射 Mono 字库。
+# 静态字体每个唯一来源只检查/修复一次缺失空格字形，再为 UI 九档建立硬链接。
+# 代码等宽字体保持原厂，不再合成/映射 Mono 字库。
 font_config_prepare_payload_weights() {
     _lcw_module="$(_luoshu_config_weight_module)"
     _lcw_fonts="$(_luoshu_config_weight_fonts)"
@@ -118,6 +152,7 @@ font_config_prepare_payload_weights() {
         rm -f "$_lcw_dest" 2>/dev/null || true
         mv -f "$_lcw_ready" "$_lcw_dest" 2>/dev/null || { rm -rf "$_lcw_stage"; return 1; }
     done
+    rm -rf "$_lcw_stage/.space-compat" 2>/dev/null || true
     rmdir "$_lcw_stage" 2>/dev/null || true
     return 0
 }

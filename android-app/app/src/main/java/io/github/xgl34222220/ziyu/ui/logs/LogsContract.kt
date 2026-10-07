@@ -16,6 +16,7 @@ internal data class LogsUiState(
     val completedTaskCount: Int = 0,
     val failedTaskCount: Int = 0,
     val rebootRequired: Boolean = false,
+    val temporaryRootMode: Boolean = false,
     val logsViewed: Boolean = false,
     val undoAvailable: Boolean = false,
     val undoRebootRequired: Boolean = false,
@@ -30,9 +31,25 @@ internal data class LogsActions(
     val clearLogs: () -> Unit = {},
 )
 
+internal fun isWarningLogRecord(line: String): Boolean =
+    line.contains("warn", ignoreCase = true) || line.contains("警告")
+
+internal fun isErrorLogRecord(line: String): Boolean =
+    !isWarningLogRecord(line) && (
+        line.contains("error", ignoreCase = true) ||
+            line.contains("failed", ignoreCase = true) ||
+            line.contains("失败") ||
+            line.contains("错误")
+        )
+
 internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
     val normalized = logs.ifBlank { "尚未读取日志" }
     val lines = normalized.lineSequence().toList()
+    // The backend marker can outlive a failed boot verification. A completed
+    // task's old wording never proves that another reboot is still required.
+    val currentRebootRequired = (rebootRequired || snapshot.rebootRequired) &&
+        !snapshot.effectFailed && !snapshot.rollbackPending &&
+        snapshot.verificationState != "failed" && snapshot.mountState != "failed"
     val current = buildList {
         if (fontLoading || fontRefreshing) {
             add(
@@ -77,7 +94,11 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
             )
         }
 
-        val snapshotPhase = taskPhaseFor("", snapshot.taskMessage, snapshot.taskState)
+        val snapshotPhase = if (snapshot.taskType == "switch" &&
+            snapshot.taskState in setOf("success", "prepared", "pending-reboot")
+        ) {
+            if (currentRebootRequired) TaskPhase.WAITING_REBOOT else TaskPhase.SUCCESS
+        } else taskPhaseFor("", snapshot.taskMessage, snapshot.taskState)
         if (!snapshot.effectFailed && snapshot.taskState != "idle" && snapshot.taskType != "none") {
             val kind = taskKindFor(snapshot.taskMessage, snapshot.taskType)
             add(
@@ -86,7 +107,14 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
                     kind = kind,
                     phase = snapshotPhase,
                     title = taskTitle(kind, snapshotPhase),
-                    message = taskDisplayMessage(snapshot.taskMessage),
+                    message = if (snapshot.taskType == "switch" && snapshotPhase == TaskPhase.SUCCESS) {
+                        when {
+                            snapshot.fontEffectState == "verified" && snapshot.effectiveFont == snapshot.activeFont ->
+                                "字体应用已完成，本次开机验证通过"
+                            snapshot.fontEffectState == "system" -> "已恢复系统默认字体"
+                            else -> "字体应用任务已完成；当前效果请查看首页挂载与验证状态"
+                        }
+                    } else taskDisplayMessage(snapshot.taskMessage),
                     progress = snapshot.taskProgress,
                     timeLabel = "当前",
                     current = true,
@@ -126,14 +154,21 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
         } else if (!operationBusy && operationMessage.isNotBlank()) {
             val kind = taskKindFor(operationMessage)
             val observedPhase = taskPhaseFor("", operationMessage)
-            val phase = if (observedPhase == TaskPhase.RUNNING || observedPhase == TaskPhase.QUEUED) TaskPhase.INFO else observedPhase
+            val phase = when {
+                observedPhase == TaskPhase.WAITING_REBOOT && kind in setOf(TaskKind.APPLY, TaskKind.RESTORE) ->
+                    if (currentRebootRequired) TaskPhase.WAITING_REBOOT else TaskPhase.SUCCESS
+                observedPhase == TaskPhase.RUNNING || observedPhase == TaskPhase.QUEUED -> TaskPhase.INFO
+                else -> observedPhase
+            }
             add(
                 TaskCenterItem(
                     id = "latest-operation-${operationMessage.hashCode()}",
                     kind = kind,
                     phase = phase,
                     title = taskTitle(kind, phase),
-                    message = taskDisplayMessage(operationMessage),
+                    message = if (observedPhase == TaskPhase.WAITING_REBOOT && !currentRebootRequired) {
+                        "字体任务已完成；当前效果请查看首页挂载与验证状态"
+                    } else taskDisplayMessage(operationMessage),
                     progress = if (phase == TaskPhase.INFO) -1 else 100,
                     timeLabel = "最近",
                     current = true,
@@ -141,7 +176,7 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
             )
         }
 
-        if (rebootRequired || snapshot.rebootRequired) {
+        if (currentRebootRequired) {
             add(
                 TaskCenterItem(
                     id = "waiting-reboot",
@@ -168,20 +203,14 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
     return LogsUiState(
         content = normalized,
         lineCount = lines.count { it.isNotBlank() },
-        errorCount = lines.count { line ->
-            line.contains("error", ignoreCase = true) ||
-                line.contains("failed", ignoreCase = true) ||
-                line.contains("失败") ||
-                line.contains("错误")
-        },
-        warningCount = lines.count { line ->
-            line.contains("warn", ignoreCase = true) || line.contains("警告")
-        },
+        errorCount = lines.count(::isErrorLogRecord),
+        warningCount = lines.count(::isWarningLogRecord),
         tasks = tasks,
         activeTaskCount = tasks.count { it.active },
         completedTaskCount = tasks.count { it.completed },
         failedTaskCount = tasks.count { it.phase == TaskPhase.FAILED },
-        rebootRequired = rebootRequired || snapshot.rebootRequired,
+        rebootRequired = currentRebootRequired,
+        temporaryRootMode = snapshot.temporaryRootMode,
         logsViewed = logsViewed,
         undoAvailable = undoAvailable,
         undoRebootRequired = undoRebootRequired,

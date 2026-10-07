@@ -18,6 +18,7 @@ data class HomeUiState(
     val taskMessage: String = "暂无后台字体任务",
     val taskProgress: Int = 0,
     val rebootRequired: Boolean = false,
+    val temporaryRootMode: Boolean = false,
     val error: String = "",
     val mountPreferences: String = "",
     val undoAvailable: Boolean = false,
@@ -73,6 +74,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
         },
         taskProgress = taskProgress,
         rebootRequired = rebootRequired,
+        temporaryRootMode = temporaryRootMode,
         error = error,
     )
 }

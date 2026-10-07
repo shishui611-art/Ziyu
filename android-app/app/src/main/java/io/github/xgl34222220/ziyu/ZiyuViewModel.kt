@@ -11,8 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -50,6 +48,7 @@ internal data class ModuleSnapshot(
     val taskMessage: String = "暂无后台任务",
     val taskProgress: Int = 0,
     val rebootRequired: Boolean = false,
+    val temporaryRootMode: Boolean = false,
     val rootManager: String = "未知",
     val mountEngine: String = "未知",
     val error: String = "",
@@ -121,6 +120,9 @@ internal data class FontItem(
     val weights: List<String>,
     val supportsCjk: Boolean = true,
     val combination: Boolean = false,
+    val cjkSourceName: String = "",
+    val latinSourceName: String = "",
+    val digitSourceName: String = "",
 ) {
     val weightLabel: String
         get() = when {
@@ -322,7 +324,6 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     private var refreshJob: Job? = null
     private var logsJob: Job? = null
     private var mixConfigJob: Job? = null
-    private val foreground = MutableStateFlow(true)
     private var pendingForceRefresh = false
     private var prewarmRequested = false
 
@@ -354,6 +355,9 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         private set
 
     var operationMessage by mutableStateOf("")
+        private set
+
+    var fontTaskNotification by mutableStateOf<FontTaskNotificationSpec?>(null)
         private set
 
     var rebootRequired by mutableStateOf(false)
@@ -388,8 +392,14 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         _searchQuery = value
     }
 
-    fun setForeground(visible: Boolean) {
-        foreground.value = visible
+    private fun updateFontTaskNotification(kind: String, state: String, message: String, progress: Int? = null) {
+        val wasOngoing = fontTaskNotification?.ongoing == true
+        val spec = FontTaskNotificationSpec(kind, state, message, progress)
+        fontTaskNotification = spec
+        if (spec.ongoing && !wasOngoing) {
+            runCatching { FontTaskNotificationController.start(getApplication()) }
+                .onFailure { android.util.Log.w("ZiyuFontTask", "Unable to start progress service", it) }
+        }
     }
 
     fun refresh() {
@@ -624,6 +634,15 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun updateMixFont(slot: MixSlot, fontId: String) {
+        val font = fonts.firstOrNull { it.id == fontId }
+        if (font == null || !font.valid) {
+            mixState = mixState.copy(error = "所选字体不可用，请重新选择字体")
+            return
+        }
+        if (font.combination) {
+            mixState = mixState.copy(error = "组合字体不能作为新的组合源字体，请选择普通字体")
+            return
+        }
         mixState = when (slot) {
             MixSlot.Cjk -> mixState.copy(cjk = fontId, cjkAxes = mapOf("wght" to mixState.cjkWeight.toFloat()))
             MixSlot.Latin -> mixState.copy(latin = fontId, latinAxes = mapOf("wght" to mixState.latinWeight.toFloat()))
@@ -670,6 +689,15 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             mixState = mixState.copy(error = "请先选择中文、英文和数字字体")
             return
         }
+        val selectedFonts = listOf(cjk, latin, digit).map { id -> fonts.firstOrNull { it.id == id } }
+        if (selectedFonts.any { it?.combination == true }) {
+            mixState = mixState.copy(error = "组合字体不能再次参与组合，请选择普通字体")
+            return
+        }
+        if (selectedFonts.any { it == null || !it.valid }) {
+            mixState = mixState.copy(error = "所选字体不可用，请重新选择中文、英文和数字字体")
+            return
+        }
 
         val cjkAxes = serializeAxes(mixState.cjkAxes, mixState.cjkWeight)
         val latinAxes = serializeAxes(mixState.latinAxes, mixState.latinWeight)
@@ -682,6 +710,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             progress = 1,
             error = "",
         )
+        updateFontTaskNotification("mix", "queued", "正在提交组合字体任务")
         viewModelScope.launch {
             try {
                 val command = buildString {
@@ -692,7 +721,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     append(RootShell.quote(cjkAxes)).append(' ')
                     append(RootShell.quote(latinAxes)).append(' ')
                     append(RootShell.quote(digitAxes)).append(' ')
-                    append(RootShell.quote(combinationName))
+                    append(RootShell.quote(combinationName)).append(' ')
+                    selectedFonts[0]!!.sourceLabel().let { append(RootShell.quote(it)).append(' ') }
+                    selectedFonts[1]!!.sourceLabel().let { append(RootShell.quote(it)).append(' ') }
+                    append(RootShell.quote(selectedFonts[2]!!.sourceLabel()))
                 }
                 val start = RootShell.exec(command, timeoutMs = 20_000L)
                 if (start.code != 0) error(start.stderr.ifBlank { "无法启动复合字体任务" })
@@ -727,6 +759,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         if (operationBusy || mixState.busy) return
         operationBusy = true
         operationMessage = if (fontId == "default") "正在准备恢复系统字体…" else "正在验证并应用字体…"
+        updateFontTaskNotification("switch", "queued", operationMessage)
         viewModelScope.launch {
             try {
                 if (fontId != "default") {
@@ -764,6 +797,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             } catch (error: Throwable) {
                 operationMessage = error.message ?: "字体应用失败"
                 snapshot = snapshot.copy(taskState = "failed", taskMessage = operationMessage)
+                updateFontTaskNotification("switch", "failed", operationMessage)
                 operationBusy = false
             }
         }
@@ -797,6 +831,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun rebootDevice() {
+        if (snapshot.temporaryRootMode) {
+            operationMessage = "当前使用 KernelSU 临时 Root 流程。请在 KernelSU 管理器中执行软重启；完成后返回字域查看挂载验证。"
+            return
+        }
         // Complete reboot is deliberately independent from font-task busy state. A stale worker
         // flag used to make the button look dead for tens of seconds even though reboot itself is
         // immediate. The shell bridge backgrounds the reboot command, so use a short request timeout.
@@ -832,6 +870,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         if (state.taskId.isBlank() || state.taskId == watchedTaskId) return
         when {
             state.taskType == "mix" && state.taskState in setOf("queued", "running") -> {
+                updateFontTaskNotification("mix", state.taskState, state.taskMessage, state.taskProgress)
                 mixState = mixState.copy(
                     busy = true,
                     taskId = state.taskId,
@@ -843,6 +882,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 viewModelScope.launch { watchMixTask(state.taskId) }
             }
             state.taskType == "switch" && state.taskState in setOf("queued", "running") -> {
+                updateFontTaskNotification("switch", state.taskState, state.taskMessage, state.taskProgress)
                 operationBusy = true
                 operationMessage = state.taskMessage
                 viewModelScope.launch { watchSwitchTask(state.taskId, state.activeFont) }
@@ -890,6 +930,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         try {
             val result = waitForTask("switch_status", taskId, timeoutSeconds = 390) { data ->
                 operationMessage = data.optString("message", "正在处理字体…")
+                updateFontTaskNotification("switch", data.optString("state", "running"), operationMessage,
+                    data.optInt("percent", snapshot.taskProgress).coerceIn(0, 100))
                 snapshot = snapshot.copy(
                     taskType = "switch",
                     taskId = taskId,
@@ -901,6 +943,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             if (result.optString("state") == "cancelled") {
                 operationMessage = result.optString("message", "字体应用已终止")
                 snapshot = snapshot.copy(taskState = "cancelled", taskMessage = operationMessage)
+                updateFontTaskNotification("switch", "cancelled", operationMessage)
                 return
             }
             if (result.optString("state") != "success") error(result.optString("message", "字体应用失败"))
@@ -908,6 +951,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val reused = result.optBoolean("reused", false)
             operationMessage = when {
                 reused -> "当前字体已验证，无需重新生成或重启"
+                snapshot.temporaryRootMode -> "字体已准备完成；请在 KernelSU 管理器中软重启后查看挂载结果"
                 applied == "default" -> "已准备恢复系统字体，重启后生效"
                 else -> "字体已准备完成，重启后全局生效"
             }
@@ -923,14 +967,16 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 taskProgress = 100,
                 rebootRequired = nextRebootRequired,
             )
+            updateFontTaskNotification("switch", "success", operationMessage, 100)
             persistFontIndex(currentFont = applied)
             refreshActionStatus()
-            if (CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
+            if (!snapshot.temporaryRootMode && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
             operationMessage = error.message ?: "字体应用失败"
             snapshot = snapshot.copy(taskState = "failed", taskMessage = operationMessage, taskProgress = 100)
+            updateFontTaskNotification("switch", "failed", operationMessage)
         } finally {
             operationBusy = false
             watchedTaskId = ""
@@ -947,6 +993,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             message = "复合字体正在后台生成",
             error = "",
         )
+        updateFontTaskNotification("mix", "running", "组合字体正在后台生成", mixState.progress)
         try {
             val result = waitForTask("mix_status", taskId, timeoutSeconds = 720) { data ->
                 val state = data.optString("state", "running")
@@ -954,6 +1001,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     ?.optInt("percent", data.optInt("percent", 0))
                     ?: data.optInt("percent", 0)
                 val message = data.optString("message", "复合字体正在后台生成")
+                updateFontTaskNotification("mix", state, message, progress.coerceIn(0, 100))
                 mixState = mixState.copy(
                     taskId = taskId,
                     taskState = state,
@@ -970,6 +1018,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             }
             if (result.optString("state") == "cancelled") {
                 mixState = mixState.copy(busy = false, taskState = "cancelled", message = result.optString("message", "组合生成已终止"), error = "")
+                updateFontTaskNotification("mix", "cancelled", mixState.message)
                 return
             }
             if (result.optString("state") != "success") error(result.optString("message", "复合字体生成失败"))
@@ -990,6 +1039,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 taskMessage = message,
                 taskProgress = 100,
             )
+            updateFontTaskNotification("mix", "success", message, 100)
             acceptPreparedResult(taskId, result)
             refreshFonts(force = true)
         } catch (cancelled: CancellationException) {
@@ -1010,10 +1060,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         var failures = 0
         val budget = TaskPollBudget(timeoutSeconds.toLong() * 1_000L)
         while (budget.remainingMs > 0L) {
-            awaitForeground(budget)
             val intervalMs = if (budget.elapsedMs < 30_000L) 1_000L else 2_000L
             delay(minOf(intervalMs, budget.remainingMs))
-            awaitForeground(budget)
             val remainingMs = budget.remainingMs
             if (remainingMs <= 0L) break
             val status = RootShell.exec(
@@ -1043,14 +1091,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         error("字体任务超时，请查看日志")
     }
 
-    private suspend fun awaitForeground(budget: TaskPollBudget) {
-        if (foreground.value) return
-        val pausedAt = System.nanoTime()
-        foreground.first { it }
-        budget.excludePause((System.nanoTime() - pausedAt) / 1_000_000L)
-    }
-
     private fun finishMixFailure(message: String) {
+        updateFontTaskNotification("mix", "failed", message)
         mixState = mixState.copy(
             busy = false,
             taskState = "failed",
@@ -1062,8 +1104,11 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun normalizeMixSelections() {
-        val available = fonts.filter { it.valid }
-        if (available.isEmpty()) return
+        val available = fonts.filter { it.valid && !it.combination }
+        if (available.isEmpty()) {
+            mixState = mixState.copy(cjk = "", latin = "", digit = "")
+            return
+        }
         val ids = available.map { it.id }.toSet()
         val first = available.first().id
         mixState = mixState.copy(
@@ -1112,6 +1157,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 taskMessage = data.optString("taskMessage", "暂无后台任务"),
                 taskProgress = data.optInt("taskProgress", 0).coerceIn(0, 100),
                 rebootRequired = data.optBoolean("rebootRequired", false),
+                temporaryRootMode = data.optBoolean("temporaryRootMode", false),
                 rootManager = data.optString("rootManager", "Root"),
                 mountEngine = data.optString("mountEngine", "原生模块挂载"),
             )
@@ -1150,6 +1196,9 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     weights = weights,
                     supportsCjk = item.optBoolean("supportsCjk", true),
                     combination = item.optBoolean("combination", false),
+                    cjkSourceName = item.optString("cjkSourceName", ""),
+                    latinSourceName = item.optString("latinSourceName", ""),
+                    digitSourceName = item.optString("digitSourceName", ""),
                 ),
             )
         }
@@ -1159,6 +1208,14 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         fonts.firstOrNull { it.id == id }?.name
             ?.takeIf { name -> name.isNotBlank() && name != id }
             .orEmpty()
+
+    private fun FontItem.sourceLabel(): String = name
+        .replace('\n', ' ')
+        .replace('\r', ' ')
+        .replace('\t', ' ')
+        .trim()
+        .take(100)
+        .ifBlank { id }
 
     private fun parseAxes(raw: String, fallbackWeight: Int): Map<String, Float> {
         val axes = linkedMapOf<String, Float>()

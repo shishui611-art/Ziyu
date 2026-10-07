@@ -52,7 +52,13 @@ publish_named_mix() (
     _pnm_source="$MIX_STAGE/mix-composite.ttf"
     [ -s "$_pnm_source" ] || return 1
     _pnm_result=$(mix_python "$REALMOD/common/mix_library.py" --source "$_pnm_source" \
-        --library "$_pnm_public/fonts" --name "$_pnm_name" --request "$_pnm_request" 2>&1)
+        --library "$_pnm_public/fonts" --name "$_pnm_name" --request "$_pnm_request" \
+        --cjk-name "$(read_value "$MIX_STAGE_STATE" cjkName)" \
+        --latin-name "$(read_value "$MIX_STAGE_STATE" latinName)" \
+        --digit-name "$(read_value "$MIX_STAGE_STATE" digitName)" \
+        --cjk-id "$(read_value "$MIX_STAGE_STATE" cjk)" \
+        --latin-id "$(read_value "$MIX_STAGE_STATE" latin)" \
+        --digit-id "$(read_value "$MIX_STAGE_STATE" digit)" 2>&1)
     _pnm_rc=$?
     printf '[MIX_LIBRARY] request=%s exit_code=%s result=%s\n' "$_pnm_request" "$_pnm_rc" "$_pnm_result" >>"$LOG_FILE"
     [ "$_pnm_rc" -eq 0 ] || return 1
@@ -307,6 +313,7 @@ prepare_mix_stage() {
         printf 'cjk=%s\nlatin=%s\ndigit=%s\n' "$1" "$2" "$3"
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$4" "$5" "$6"
         printf 'mixName=%s\npublicRoot=%s\n' "${7:-}" "${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+        printf 'cjkName=%s\nlatinName=%s\ndigitName=%s\n' "${8:-}" "${9:-}" "${10:-}"
         printf 'previousFont=%s\n' "$_previous"
         printf 'previousLegacy=%s\n' "$_previous_legacy"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
@@ -604,11 +611,24 @@ case "$_cmd" in
                 printf '{"status":"error","message":"已有字体组合任务正在运行或取消"}\n'
                 exit 1 ;;
         esac
+        _mix_public_fonts="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+        for _mix_source_id in "$2" "$3" "$4"; do
+            case "$_mix_source_id" in
+                ''|/*|*/*|*\\*)
+                    printf '{"status":"error","message":"组合源字体 ID 无效，请重新选择字体"}\n'
+                    exit 2 ;;
+            esac
+            _mix_source_config="$_mix_public_fonts/$_mix_source_id.conf"
+            if [ -f "$_mix_source_config" ] && [ "$(read_value "$_mix_source_config" combination)" = true ]; then
+                printf '{"status":"error","message":"已保存的组合字体不能再次参与组合，请选择普通字体"}\n'
+                exit 2
+            fi
+        done
         if [ -n "${8:-}" ] && ! mix_python "$REALMOD/common/mix_library.py" --validate-name --name "$8" >>"$LOG_FILE" 2>&1; then
             printf '{"status":"error","message":"组合名称无效，或保存字体库组件不可用"}\n'
             exit 2
         fi
-        prepare_mix_stage "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" || {
+        prepare_mix_stage "$2" "$3" "$4" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" || {
             printf '{"status":"error","message":"无法创建复合字体生成暂存目录"}\n'
             exit 1
         }

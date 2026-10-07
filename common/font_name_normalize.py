@@ -17,6 +17,7 @@ from pathlib import Path
 from fontTools.ttLib import TTFont, TTLibError
 
 from font_metrics_normalize import normalize_font_metrics
+from font_space_compat import ensure_space_glyphs
 
 WEIGHT_NAMES = {
     100: "Thin",
@@ -98,6 +99,7 @@ def normalize_font(font: TTFont, weight: int, family: str, source_digest: str, m
         top.Weight = role
         cff.fontNames = [values["postscript"]]
 
+    ensure_space_glyphs(font)
     normalize_font_metrics(font, monospaced=monospaced)
 
 

@@ -1,6 +1,6 @@
 package io.github.xgl34222220.ziyu
 
-/** Counts status-query time as well as delays; background UI observation is suspended. */
+/** Counts status-query time as well as delays while a font task runs in the background. */
 internal class TaskPollBudget(
     timeoutMs: Long,
     private val nowMs: () -> Long = { System.nanoTime() / 1_000_000L },

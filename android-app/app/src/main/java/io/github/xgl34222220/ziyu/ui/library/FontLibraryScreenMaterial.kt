@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.NativeFontPreview
 import io.github.xgl34222220.ziyu.ui.font.fontCapabilityLabel
+import io.github.xgl34222220.ziyu.ui.font.fontCombinationSourceSummary
 import io.github.xgl34222220.ziyu.ui.font.fontPreviewText
 
 @Composable
@@ -521,6 +522,17 @@ private fun MaterialFontCard(
                 }
             }
 
+            if (font.combination) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    fontCombinationSourceSummary(font),
+                    color = scheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(14.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onDetails),

@@ -143,8 +143,16 @@ private fun MaterialCompositionOverview(state: FontStudioUiState, actions: FontS
     ) {
         Column(Modifier.padding(20.dp)) {
             Text("组合你的专属字体", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text("中文、英文、数字，分别挑选喜欢的样子。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            Spacer(Modifier.height(15.dp))
+            Text("本次选择预览", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = .62f),
+            ) {
+                StudioSelectionPreview(state.slots)
+            }
+            Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 state.slots.forEach { slot ->
                     MaterialSlotSummary(slot, Modifier.weight(1f), !state.busy && !state.operationBusy) { actions.pickSlot(slot.slot) }
@@ -156,6 +164,11 @@ private fun MaterialCompositionOverview(state: FontStudioUiState, actions: FontS
 
 @Composable
 private fun MaterialSlotSummary(slot: StudioSlotUiState, modifier: Modifier, enabled: Boolean, onSelect: () -> Unit) {
+    val sample = when (slot.slot) {
+        MixSlot.Cjk -> "中"
+        MixSlot.Latin -> "Aa"
+        MixSlot.Digit -> "123"
+    }
     Surface(
         onClick = onSelect,
         enabled = enabled,
@@ -165,16 +178,24 @@ private fun MaterialSlotSummary(slot: StudioSlotUiState, modifier: Modifier, ena
         else MaterialTheme.colorScheme.primaryContainer,
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-            Text(
-                when (slot.slot) {
-                    MixSlot.Cjk -> "中"
-                    MixSlot.Latin -> "Aa"
-                    MixSlot.Digit -> "123"
-                },
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            if (slot.font != null) {
+                NativeFontPreview(
+                    font = slot.font,
+                    text = sample,
+                    axes = slot.axes,
+                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    textSizeSp = 24f,
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL,
+                    maxLines = 1,
+                )
+            } else {
+                Text(
+                    sample,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
             Spacer(Modifier.height(6.dp))
             Text(slot.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(

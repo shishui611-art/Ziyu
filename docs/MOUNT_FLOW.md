@@ -21,6 +21,8 @@
 | service / boot-completed | 复核已有选择；发现回退挂载被后续层覆盖时，允许一次自挂载重试 |
 | App 准备字体 | 写待应用负载，不更新正在使用的提供者目录 |
 
+KernelSU 开机后加载时由 `late-load.sh` 代替 `post-fs-data.sh` 完成早期选择。启用临时 Root 软重启流程时，`emulated-soft-reboot.sh` 先回收字域自己的旧挂载并撤销本次内核启动的旧后端记录，随后 KernelSU 重新执行 `post-fs-data.sh`、元模块挂载、`post-mount.sh` 和验证。具体识别与限制见 `docs/TEMP_ROOT.md`。
+
 Magisk、APatch 的原生模块挂载作为外部提供者处理。其他已识别的提供者包括 Hybrid Mount、Mountify、Magic Mount、meta-overlayfs 和 NoMount。KernelSU / SukiSU 当前选中的 Mountify 以有效的 `metamount.sh` 作为元模块入口，不要求该脚本具有可执行位；Magisk 独立 Mountify 仍需可执行 boot / service hook。未经确认的提供者保持未知状态。
 
 ## 目录与验证
