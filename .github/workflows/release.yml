@@ -11,6 +11,7 @@ on:
     paths:
       - module.prop
       - '更新日志/**'
+      - 'android-app/app/src/test/**'
       - 'scripts/release_version_policy_test.py'
       - 'scripts/sync_update_metadata_test.py'
       - 'common/font_space_compat.py'

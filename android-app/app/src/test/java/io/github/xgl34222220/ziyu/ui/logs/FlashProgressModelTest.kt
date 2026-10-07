@@ -18,9 +18,9 @@ class FlashProgressModelTest {
         assertEquals(TaskPhase.FAILED, taskPhaseFor("", "字体已完成", "failed"))
         assertEquals(TaskPhase.RUNNING, taskPhaseFor("", "检查上次错误", "running"))
     }
-    @Test fun preparedStillNeedsReboot() {
+    @Test fun preparedNeedsRebootButSuccessWinsOverStaleText() {
         assertEquals(TaskPhase.WAITING_REBOOT, taskPhaseFor("", "文件准备完成", "prepared"))
-        assertEquals(TaskPhase.WAITING_REBOOT, taskPhaseFor("", "重启后生效", "success"))
+        assertEquals(TaskPhase.SUCCESS, taskPhaseFor("", "重启后生效", "success"))
     }
     @Test fun oldTelemetryDoesNotClaimLiveProcesses() {
         assertTrue(parseTaskLogItems("[now] [SAFE-SWITCH] stage=76 message=正在切换字体").none { it.active })
