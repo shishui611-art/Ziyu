@@ -401,7 +401,7 @@ echo 'Ziyu App-only source checks passed.'
 # Font refresh/import/mix performance contracts.
 grep -q 'native-v3' common/font_manager.sh
 grep -q 'manifest-fast' common/font_manager.sh
-grep -q 'font-index-v3.json' android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt
+grep -q 'font-index-v4.json' android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt
 grep -q 'LUOSHU_PREPARE_CACHE' common/legacy_v14_4/v142_weighted_mix.sh
 
 # Stable 1.1.1 one-shot regressions plus v2 legacy migration and weight lifecycle.
