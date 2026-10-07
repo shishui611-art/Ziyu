@@ -115,6 +115,19 @@ def _append_blank_glyph(font: TTFont, glyph_name: str, advance: int) -> None:
             del font[tag]
 
 
+def _existing_space_glyph(font: TTFont, codepoint: int) -> tuple[int, str] | None:
+    """Reuse another supported space mapping when the glyph table is full."""
+    cmap = font.getBestCmap() or {}
+    glyph_names = set(font.getGlyphOrder())
+    for source_codepoint in SPACE_CODEPOINTS:
+        if source_codepoint == codepoint:
+            continue
+        glyph_name = cmap.get(source_codepoint)
+        if glyph_name and glyph_name != ".notdef" and glyph_name in glyph_names:
+            return source_codepoint, glyph_name
+    return None
+
+
 def ensure_space_glyphs(font: TTFont) -> dict[str, Any]:
     """Map absent U+0020/U+2005 to dedicated blank glyphs with correct advances."""
     cmap = font.getBestCmap() or {}
@@ -141,9 +154,26 @@ def ensure_space_glyphs(font: TTFont) -> dict[str, Any]:
         raise ValueError("字体 unitsPerEm 无效")
     occupied = set(font.getGlyphOrder())
     added: list[dict[str, Any]] = []
+    reused: list[dict[str, Any]] = []
+    unresolved: list[dict[str, str]] = []
     for codepoint in missing:
         if len(font.getGlyphOrder()) >= 0xFFFF:
-            raise ValueError("字体字形数量已达到 OpenType 上限，无法添加空格字形")
+            fallback = _existing_space_glyph(font, codepoint)
+            if fallback is None:
+                unresolved.append({
+                    "codepoint": f"U+{codepoint:04X}",
+                    "reason": "OpenType glyph limit",
+                })
+                continue
+            source_codepoint, glyph_name = fallback
+            for table in unicode_tables:
+                table.cmap[codepoint] = glyph_name
+            reused.append({
+                "codepoint": f"U+{codepoint:04X}",
+                "glyph": glyph_name,
+                "source": f"U+{source_codepoint:04X}",
+            })
+            continue
         glyph_name = _new_glyph_name(font, codepoint, occupied)
         advance = max(1, int(round(upem / 4)))
         _append_blank_glyph(font, glyph_name, advance)
@@ -153,11 +183,20 @@ def ensure_space_glyphs(font: TTFont) -> dict[str, Any]:
         added.append({"codepoint": f"U+{codepoint:04X}", "glyph": glyph_name, "advance": advance})
 
     repaired = font.getBestCmap() or {}
-    for item in added:
+    for item in [*added, *reused]:
         codepoint = int(item["codepoint"][2:], 16)
         if repaired.get(codepoint) != item["glyph"]:
             raise ValueError(f"空格字形 U+{codepoint:04X} 映射校验失败")
-    return {"status": "repaired", "added": added, "unitsPerEm": upem}
+    status = "repaired" if added or reused else "unchanged"
+    if unresolved:
+        status = "partial" if added or reused else "skipped"
+    return {
+        "status": status,
+        "added": added,
+        "reused": reused,
+        "unresolved": unresolved,
+        "unitsPerEm": upem,
+    }
 
 
 def _save_repaired(font: TTFont, output: Path) -> None:
@@ -213,7 +252,7 @@ def main() -> int:
         font = TTFont(args.input, lazy=False, recalcTimestamp=False)
         try:
             report = ensure_space_glyphs(font)
-            if report["status"] == "repaired":
+            if report.get("added") or report.get("reused"):
                 _save_repaired(font, args.output)
             else:
                 _copy_unchanged(args.input, args.output)

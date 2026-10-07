@@ -66,7 +66,7 @@ for metadata_file in ("update.json", "update-prerelease.json"):
     expected = mod.build_metadata(
         repository="shishui611-art/Ziyu", version=version,
         version_code=expected_code, tag="ziyu-" + version,
-        notes_file="RELEASE_NOTES_ziyu-" + version + ".md", artifact_name="Ziyu",
+        notes_file="更新日志/RELEASE_NOTES_ziyu-" + version + ".md", artifact_name="Ziyu",
     )
     assert actual == expected, (metadata_file, actual)
 
