@@ -137,7 +137,13 @@ class GvarRecoveryTest(unittest.TestCase):
                 self.assertIn("中在 900 字重无法处理，已保留原始轮廓", report["warning"])
                 self.assertIn("invalid packed delta count", report["variationFallbacks"][0]["traceback"])
                 with TTFont(source) as original, TTFont(output) as instance:
-                    self.assertEqual(set(original.getBestCmap()), set(instance.getBestCmap()))
+                    original_cmap = set(original.getBestCmap())
+                    instance_cmap = set(instance.getBestCmap())
+                    self.assertTrue(original_cmap.issubset(instance_cmap))
+                    if relative == "common/font_instance.py":
+                        self.assertTrue({0x0020, 0x2005}.issubset(instance_cmap))
+                    else:
+                        self.assertEqual(original_cmap, instance_cmap)
                     self.assertNotIn("fvar", instance)
                     self.assertEqual(bounds(instance, "中"), bounds(original, "中"))
                     self.assertEqual(bounds(instance, "永"), bounds(original, "永", location={"wght": 900}))
