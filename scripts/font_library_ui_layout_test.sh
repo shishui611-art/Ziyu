@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -eux
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 MIUIX="$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/library/FontLibraryScreenMiuix.kt"
 MATERIAL="$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/library/FontLibraryScreenMaterial.kt"

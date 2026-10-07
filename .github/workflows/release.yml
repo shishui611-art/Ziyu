@@ -16,6 +16,7 @@ on:
       - 'common/font_space_compat.py'
       - 'common/universal_font_compiler.py'
       - 'scripts/font_instance_gvar_recovery_test.py'
+      - 'scripts/font_library_ui_layout_test.sh'
       - 'scripts/customize_reenable_test.sh'
       - 'scripts/mount_compat_test.sh'
       - 'scripts/mountinfo_procfs_test.sh'
