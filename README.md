@@ -32,15 +32,16 @@
 - **复合字体生成**：以中文字体为完整基底，将英文和数字目标字形合入同一字体，减少缺字回退和字体抢占。
 - **设备自适应字体清单**：扫描当前 ROM 的实际字体目录、配置、字体槽、字重、TTC face 与字体度量，不依赖固定机型列表。
 - **HyperOS / ColorOS 适配**：针对 OEM 字体路由、状态栏/系统 UI、英文数字槽和回退链提供额外处理。
-- **Google 字体兼容**：设置中提供中文的「Google 字体兼容」页面，可检测、开启和恢复 GMS FontsProvider 组件状态，用于处理部分 Google 应用英数重新使用下载字体的问题。
-- **自动 systemless 挂载**：可用的外部提供者优先；确认没有提供者时，字域通过 OverlayFS / bind 接管。字体负载仍保存在私有目录，具体流程见 [挂载说明](docs/MOUNT_FLOW.md)。
+- **Google 字体兼容**：设置中提供中文的「Google 字体兼容」页面，可检测、开启和恢复当前 Android 用户的 GMS FontsProvider 状态，用于处理部分 Google 应用英数重新使用下载字体的问题。
+- **自动 systemless 挂载**：启动时识别可用的外部挂载提供者；提供者不可用、状态不明确或字体路由验证失败时，字域再回退到自己的 OverlayFS / bind 挂载。字体负载始终保存在私有目录；常规使用不要求额外安装挂载模块。KernelSU + NoMount 是当前建议优先尝试的组合，具体以本机的「挂载详情」验证为准。详见 [挂载说明](docs/MOUNT_FLOW.md)。
+- **KernelSU 临时 Root 流程**：KernelSU `late-load` 会自动识别；需要软重启的 KernelSU 用户可在设置中启用。是否支持软重启取决于 KernelSU 版本与设备，应用后仍需在 App 中确认挂载验证。详见 [临时 Root 说明](docs/TEMP_ROOT.md)。
 - **事务与回滚**：新字体完整生成并验证成功后才提交；生成失败、超时或内存不足时保留上一套可用负载。
 - **字体缓存复用**：相同字体组合和设备契约可以复用已验证结果，减少重复生成。
 - **原生 Android App**：模块 ZIP 内置 App，不使用 WebUI；正式版和 Debug 版均只发布可刷入模块 ZIP。
 
 ## 首发与验证状态
 
-当前源码版本为 **字域 v1.2.0**。安装包和已发布版本请查看 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)，本地测试包不代表已正式发布。上游 LuoShu 的 Releases 用于查看上游历史。
+当前源码中的 `module.prop` 标记为 **字域 v1.2.21（versionCode 12021）**；当前最新正式 Release 和更新器清单 `update.json` 仍为 **v1.2.20**。v1.2.21 源码修复了 TTC 集合导入：保留原 TTC 文件，并按文件哈希识别重复导入。源码版本或更新说明不代表该版本已经发布；可刷入包请以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 为准。上游 LuoShu 的 Releases 用于查看上游历史。
 
 Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更新清单。App 的“模块更新”会直接请求 GitHub Release API、Release 下载地址和 Raw 文件；国内网络可能无法检查或下载。接入国内可直连发布源并完成无代理实测前，不能承诺免代理更新。
 
@@ -52,9 +53,9 @@ Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更�
 2. **关闭 Root 管理器中的「默认卸载模块」功能。**
 3. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入模块。
 4. 完整重启手机。
-5. 安装模块内置 App。
+5. 使用模块 ZIP 内置的 App；如果刷写环境没有自动安装，可在 Root 管理器的模块「操作」入口补装。
 6. 在 App 中导入字体，选择中文、英文和数字字体。
-7. 应用字体，等待任务完成后按提示完整重启。
+7. 应用字体并等待任务完成；按 App 提示重启。KernelSU 临时 Root 流程会提示使用受支持的软重启，其他情况请完整重启。
 
 **包名与签名说明：**1.2.0 起正式 App 使用 `io.github.shishui611_art.ziyu`，Debug 包使用 `io.github.shishui611_art.ziyu.debug`。从旧包 `io.github.xgl34222220.ziyu` 更新时，Android 会把它作为新 App 安装；首次打开需重新授予 Root，旧 App 的私有设置不会自动迁移，请先导出备份。后续正式更新必须继续使用同一正式签名；本地 Debug 包不能覆盖正式版。
 
@@ -126,6 +127,8 @@ Google 字体兼容会影响当前用户所有依赖 GMS 下载字体的应用�
 
 可变字体会读取实际 `wght`、`wdth`、`opsz`、`slnt` 等设计轴；不存在的字重不会仅靠文件名伪装为可用。
 
+App 也可以导入字体模块 ZIP，字域只提取其中的字体文件，不执行包内脚本。TTC 会作为集合保留，不会拆成多个独立字体；重复导入按文件哈希识别。
+
 ## 用户目录
 
 ```text
@@ -175,6 +178,7 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 /system_ext/fonts
 /product/fonts
 /my_product/fonts
+/my_region/fonts
 /vendor/fonts
 /odm/fonts
 /oem/fonts
@@ -210,7 +214,10 @@ gradle --no-daemon :app:assembleDebug
 cd ..
 sh ./scripts/prepare_composite_runtime.sh
 sh ./scripts/check.sh
+APP_VERSION_CODE="$(sed -n 's/^versionCode=//p' module.prop | head -n 1)"
 LUOSHU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
+LUOSHU_APP_PACKAGE=io.github.shishui611_art.ziyu.debug \
+LUOSHU_APP_VERSION_CODE="$APP_VERSION_CODE" \
 LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 ```
 
@@ -234,6 +241,7 @@ LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 
 - [完整使用教程](docs/USER_GUIDE.md)
 - [Google 字体兼容中文说明](docs/GOOGLE_FONT_COMPATIBILITY_ZH.md)
+- [KernelSU 临时 Root 与软重启](docs/TEMP_ROOT.md)
 - [真机验证矩阵](docs/TEST_MATRIX.md)
 - [设备字体模板引擎](docs/DEVICE_FONT_TEMPLATE_ENGINE.md)
 - [发布流程](docs/RELEASING.md)
