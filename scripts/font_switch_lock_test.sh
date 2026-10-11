@@ -28,6 +28,17 @@ cp "$ROOT/common/font_live_state.sh" "$MODDIR/common/font_live_state.sh"
 cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/font_live_switch.sh"
 cp "$ROOT/common/font_live_payload.py" "$MODDIR/common/font_live_payload.py"
 ln -s "$ROOT/common/legacy_v14_4" "$MODDIR/common/legacy_v14_4"
+TEST_BIN="$TMP/test-bin"
+REAL_READLINK="$(command -v readlink)"
+mkdir -p "$TEST_BIN"
+cat > "$TEST_BIN/readlink" <<EOF
+#!/bin/sh
+case "\${1:-}" in
+    /proc/self/ns/mnt|/proc/1/ns/mnt) printf '%s\\n' 'mnt:[font-switch-lock-test]' ;;
+    *) exec "$REAL_READLINK" "\$@" ;;
+esac
+EOF
+chmod 0755 "$TEST_BIN/readlink"
 printf 'live-payload-must-not-change\n' > "$MODDIR/.luoshu-payload/live-marker"
 printf 'BeforeSwitch\n' > "$MODDIR/config/active_font.conf"
 
@@ -110,7 +121,7 @@ test ! -e "$RACE_LOCK"
 PHASE='active lock rejection'
 luoshu_font_lock_acquire "$LOCK" "$$"
 set +e
-MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
+PATH="$TEST_BIN:$PATH" MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
     sh "$MODDIR/common/font_manager.sh" action switch default > "$TMP/busy.out" 2>&1
 busy_rc=$?
 set -e
@@ -129,7 +140,7 @@ PHASE='stale lock recovery'
 mkdir "$LOCK"
 DEAD_PID="$(($(cat /proc/sys/kernel/pid_max) + 100))"
 printf '%s\n' "$DEAD_PID" > "$LOCK/pid"
-MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_PYTHON=python3 \
+PATH="$TEST_BIN:$PATH" MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_PYTHON=python3 \
     sh "$MODDIR/common/font_manager.sh" action switch default > "$TMP/stale.out" 2>&1
 grep -q '"status":"ok"' "$TMP/stale.out"
 grep -q '"core":"physical-safe-v1"' "$TMP/stale.out"
