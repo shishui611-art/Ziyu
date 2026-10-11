@@ -212,6 +212,13 @@ apply_font_by_rom() {
         before = old.read_bytes()
         command = ['sh', str(legacy / 'font_switch_safe.sh'), 'action', 'switch', 'Selected']
         prewarm_command = ['sh', str(legacy / 'font_switch_safe.sh'), 'action', 'prewarm', 'Selected']
+        real_readlink = shutil.which('readlink')
+        self.executable('readlink', f'''
+case "${{1:-}}" in
+    /proc/self/ns/mnt|/proc/1/ns/mnt) printf '%s\\n' 'mnt:[switch-provider-test]' ;;
+    *) exec {shlex.quote(real_readlink)} "$@" ;;
+esac
+''')
         env = {**self.env, 'LUOSHU_PUBLIC_DIR': str(public)}
         # Prewarming must never commit a pending payload or alter the live tree.
         (self.module / 'config/device_font_inventory.json').write_text('{}')

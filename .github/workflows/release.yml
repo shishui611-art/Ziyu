@@ -29,6 +29,7 @@ on:
       - 'scripts/build_debug_fast.sh'
       - 'scripts/module_payload_manifest.txt'
       - 'scripts/font_switch_lock_test.sh'
+      - 'scripts/switch_provider_regression_test.py'
       - 'scripts/self_mount_atomic_test.sh'
       - 'scripts/mount_backend_preferences_test.sh'
       - 'common/mount_backend_preferences.sh'
