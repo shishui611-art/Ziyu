@@ -3,7 +3,17 @@ set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+PHASE='initialization'
+on_exit() {
+    result=$?
+    if [ "$result" -ne 0 ]; then
+        printf 'font_switch_lock_test failed during: %s (exit %s)\n' "$PHASE" "$result" >&2
+        [ -s "$TMP/stale.out" ] && cat "$TMP/stale.out" >&2 || true
+    fi
+    rm -rf "$TMP"
+}
+trap on_exit EXIT
+trap 'exit 1' HUP INT TERM
 
 MODDIR="$TMP/module"
 PUBLIC_DIR="$TMP/public"
@@ -68,6 +78,7 @@ test ! -e "$IDENTITY_LOCK"
 
 # Atomic mkdir must produce exactly one winner while all contenders hold the lock
 # until every attempt has been recorded.
+PHASE='concurrent lock acquisition'
 RACE_LOCK="$TMP/race.lock"
 RACE_ATTEMPTS="$TMP/race-attempts"
 RACE_WINNERS="$TMP/race-winners"
@@ -96,6 +107,7 @@ test ! -e "$RACE_LOCK"
 
 # Integration: a live lock must stop the actual App-facing switch router before it
 # touches either the current-boot payload or the next-boot payload.
+PHASE='active lock rejection'
 luoshu_font_lock_acquire "$LOCK" "$$"
 set +e
 MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
@@ -113,8 +125,10 @@ test ! -e "$LOCK"
 # Dead locks are reaped by the same real entrypoint. A default switch now completes
 # through the safe next-boot staging backend: current-boot payload stays byte-for-byte
 # available while the replacement is queued for post-fs-data activation.
+PHASE='stale lock recovery'
 mkdir "$LOCK"
-printf '%s\n' 999999 > "$LOCK/pid"
+DEAD_PID="$(($(cat /proc/sys/kernel/pid_max) + 100))"
+printf '%s\n' "$DEAD_PID" > "$LOCK/pid"
 MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_PYTHON=python3 \
     sh "$MODDIR/common/font_manager.sh" action switch default > "$TMP/stale.out" 2>&1
 grep -q '"status":"ok"' "$TMP/stale.out"
@@ -131,6 +145,7 @@ grep -q '^previousFont=BeforeSwitch$' "$MODDIR/config/font-payload-next.conf"
 # Keep the safety layer independent from the generation engine. The active backend
 # may import the lock helper, but it must never pull the v4 94% pipeline back in or
 # mutate the live payload from the foreground switch path.
+PHASE='release-source assertions'
 SAFE_BACKEND="$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -q 'font_switch_lock.sh' "$SAFE_BACKEND"
 grep -q 'lock_acquire' "$SAFE_BACKEND"
