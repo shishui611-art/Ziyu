@@ -18,7 +18,7 @@ _luoshu_atomic_manifest() {
 
 _luoshu_atomic_file_optional() {
     case "$1" in
-        luoshu/mount-probe.conf) return 0 ;;
+        luoshu/mount-probe.conf|.luoshu-data-fonts-config.xml) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -398,9 +398,10 @@ _luoshu_atomic_bind_tree() {
 
 _luoshu_atomic_mountinfo_target_present() {
     _lsamtp_target="$1"
-    [ -r /proc/1/mountinfo ] || return 1
+    _lsamtp_mountinfo="${LUOSHU_PID1_MOUNTINFO:-/proc/1/mountinfo}"
+    [ -r "$_lsamtp_mountinfo" ] || return 1
     awk -v target="$_lsamtp_target" '$5 == target { found=1 } END { exit !found }' \
-        /proc/1/mountinfo 2>/dev/null
+        "$_lsamtp_mountinfo" 2>/dev/null
 }
 
 _luoshu_atomic_mountinfo_owned_target() {
@@ -408,11 +409,12 @@ _luoshu_atomic_mountinfo_owned_target() {
     _lsamot_module=$(_luoshu_self_module)
     _lsamot_state=$(_luoshu_self_state_root)
     _lsamot_payload_relative="${_lsamot_module#/data}"
-    [ -r /proc/1/mountinfo ] || return 1
+    _lsamot_mountinfo="${LUOSHU_PID1_MOUNTINFO:-/proc/1/mountinfo}"
+    [ -r "$_lsamot_mountinfo" ] || return 1
     case "$_lsamot_target" in
         "$_lsamot_state"/lower/*|"$_lsamot_state"/work/overlay-*)
             awk -v target="$_lsamot_target" '$5 == target { found=1 } END { exit !found }' \
-                /proc/1/mountinfo 2>/dev/null
+                "$_lsamot_mountinfo" 2>/dev/null
             ;;
         *)
             awk -v target="$_lsamot_target" \
@@ -423,7 +425,7 @@ _luoshu_atomic_mountinfo_owned_target() {
                 -v mirror="$_lsamot_state/work/" \
                 -v mirror_relative="${_lsamot_state#/data}/work/" \
                 '$5 == target { if (index($0, payload) || index($0, payload_relative) || index($0, live_payload) || index($0, live_relative) || index($0, mirror) || index($0, mirror_relative)) found=1; else foreign=1 } END { exit !(found && !foreign) }' \
-                /proc/1/mountinfo 2>/dev/null
+                "$_lsamot_mountinfo" 2>/dev/null
             ;;
     esac
 }
@@ -432,7 +434,8 @@ _luoshu_atomic_rollback() {
     _lsar_list="$1"
     _lsar_keep="${3:-0}"
     case "$_lsar_keep" in ''|*[!0-9]*) return 1 ;; esac
-    [ -r /proc/1/mountinfo ] || return 1
+    _lsar_mountinfo="${LUOSHU_PID1_MOUNTINFO:-/proc/1/mountinfo}"
+    [ -r "$_lsar_mountinfo" ] || return 1
     _lsar_state=$(_luoshu_self_state_root)
     if [ ! -e "$_lsar_list" ]; then
         _luoshu_self_state_mounts_remain && return 1
@@ -450,7 +453,7 @@ _luoshu_atomic_rollback() {
             # An interrupted rollback can leave already detached targets in the
             # journal. Never unmount a replacement owned by another module.
             if ! _luoshu_atomic_mountinfo_owned_target "$_lsar_target"; then
-                [ -r /proc/1/mountinfo ] || return 1
+                [ -r "$_lsar_mountinfo" ] || return 1
                 if _luoshu_atomic_mountinfo_target_present "$_lsar_target"; then
                     _luoshu_self_log "回滚保留未确认归属的目标，不卸载其他模块：$_lsar_target"
                     printf '%s\n' "$_lsar_target" >> "$_lsar_remaining" || return 1

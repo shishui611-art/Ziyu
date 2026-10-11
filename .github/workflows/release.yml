@@ -27,6 +27,8 @@ on:
       - 'scripts/check.sh'
       - 'scripts/build.sh'
       - 'scripts/build_debug_fast.sh'
+      - 'scripts/module_payload_manifest.txt'
+      - 'scripts/self_mount_atomic_test.sh'
       - 'scripts/mount_backend_preferences_test.sh'
       - 'common/mount_backend_preferences.sh'
       - 'scripts/status_provider_hotfix_test.py'

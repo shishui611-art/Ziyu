@@ -39,7 +39,7 @@ _luoshu_font_component_mount() {
     _lsme_bind_rc=$?
     case "$_lsme_bind_rc" in
         0) ;;
-        2) _lsme_failed="$_lsme_partition/$_lsme_subdir-no-existing-bind-target"; return 1 ;;
+        2) _lsme_failed="$_lsme_partition/$_lsme_subdir-no-existing-bind-target"; return 2 ;;
         3)
             if _luoshu_mirror_mount_dir "$_lsme_source" "$_lsme_target" "${_lsme_partition}-${_lsme_subdir}"; then
                 _lsme_mode=mirror
@@ -142,7 +142,17 @@ luoshu_self_mount_ensure() {
             }
             if _lsme_root=$(_luoshu_partition_root "$_lsme_partition"); then
                 _lsme_target="$_lsme_root/$_lsme_subdir"
-                _luoshu_font_component_mount || :
+                _luoshu_font_component_mount
+                _lsme_component_rc=$?
+                if [ "$_lsme_component_rc" -eq 2 ] && [ "$_lsme_subdir" = etc ]; then
+                    if _luoshu_atomic_rollback "$_lsme_mount_list" component "$_lsme_component_start"; then
+                        rm -rf "$_lsme_state_root/lower/${_lsme_partition}-${_lsme_subdir}" 2>/dev/null || true
+                        _luoshu_self_log "跳过没有现存 ROM 文件目标的附加 system/etc 负载：$_lsme_partition/$_lsme_subdir"
+                        _lsme_failed=''
+                        continue
+                    fi
+                    _lsme_failed="$_lsme_partition/$_lsme_subdir-skip-rollback-failed"
+                fi
             else
                 _lsme_failed="$_lsme_partition/root-unavailable"
             fi

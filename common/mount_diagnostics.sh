@@ -82,7 +82,7 @@ _luoshu_mount_diag_environment() {
             ls -ldZ "$_lmde_path" 2>&1
             stat -f -c 'filesystem=%T' "$_lmde_path" 2>&1
             df -k "$_lmde_path" 2>&1 | tail -n 2
-            for _lmde_mi in /proc/self/mountinfo /proc/1/mountinfo; do
+            for _lmde_mi in "${LUOSHU_SELF_MOUNTINFO:-/proc/self/mountinfo}" "${LUOSHU_PID1_MOUNTINFO:-/proc/1/mountinfo}"; do
                 printf '[backing mount %s]\n' "$_lmde_mi"
                 if [ -r "$_lmde_mi" ]; then
                     awk -v path="$_lmde_path" '($5=="/" || path==$5 || index(path,$5"/")==1) && length($5)>=longest {longest=length($5); row=$0} END {print row}' "$_lmde_mi"
@@ -97,8 +97,9 @@ _luoshu_mount_diag_environment() {
 
 # 0 = mounted, 1 = absent, 2 = cannot inspect. Never treat unknown as absent.
 _luoshu_self_target_mounted() {
-    [ -r /proc/self/mountinfo ] || return 2
-    awk -v target="$1" '$5==target {found=1} END {exit !found}' /proc/self/mountinfo
+    _lstm_mountinfo="${LUOSHU_SELF_MOUNTINFO:-/proc/self/mountinfo}"
+    [ -r "$_lstm_mountinfo" ] || return 2
+    awk -v target="$1" '$5==target {found=1} END {exit !found}' "$_lstm_mountinfo"
 }
 
 # Includes overlays using a captured lower and binds from a directory mirror.
@@ -107,7 +108,7 @@ _luoshu_self_state_mounts_remain() {
     _lsmr_state=$(_luoshu_self_state_root)
     _lsmr_payload=''
     [ "${1:-}" != payload ] || _lsmr_payload="$(_luoshu_self_module)/.luoshu-payload/"
-    for _lsmr_mi in /proc/self/mountinfo /proc/1/mountinfo; do
+    for _lsmr_mi in "${LUOSHU_SELF_MOUNTINFO:-/proc/self/mountinfo}" "${LUOSHU_PID1_MOUNTINFO:-/proc/1/mountinfo}"; do
         [ -r "$_lsmr_mi" ] || return 0
         awk -v root="$_lsmr_state/" -v relative="${_lsmr_state#/data}/" \
             -v payload="$_lsmr_payload" -v payload_relative="${_lsmr_payload#/data}" \

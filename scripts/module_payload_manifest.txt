@@ -171,7 +171,7 @@ README.md
 docs/MOUNT_FLOW.md
 docs/MODULE_UPDATE.md
 更新日志/CHANGELOG.md
-更新日志/RELEASE_NOTES_ziyu-v1.2.30.md
+更新日志/RELEASE_NOTES_ziyu-v1.3.0.md
 customize.sh
 module.prop
 icon/icon.png

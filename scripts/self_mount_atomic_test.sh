@@ -21,10 +21,14 @@ setup_case() {
     LUOSHU_SELF_MOUNT_STATE_ROOT="$CASE_ROOT/state"
     LUOSHU_SELF_MOUNT_VISIBLE_ROOT="$CASE_ROOT/root"
     LUOSHU_SELF_PID1_ROOT=/
+    LUOSHU_SELF_MOUNTINFO="$CASE_ROOT/mountinfo"
+    LUOSHU_PID1_MOUNTINFO="$CASE_ROOT/mountinfo"
     export MODULE_DIR LUOSHU_MOUNT_MODDIR LUOSHU_SELF_MOUNT_STATE_ROOT \
-        LUOSHU_SELF_MOUNT_VISIBLE_ROOT LUOSHU_SELF_PID1_ROOT
+        LUOSHU_SELF_MOUNT_VISIBLE_ROOT LUOSHU_SELF_PID1_ROOT \
+        LUOSHU_SELF_MOUNTINFO LUOSHU_PID1_MOUNTINFO
     mkdir -p "$MODULE_DIR/config" "$MODULE_DIR/logs" "$CASE_ROOT/root/system/fonts" \
         "$CASE_ROOT/root/system/etc" "$CASE_ROOT/state"
+    : > "$LUOSHU_SELF_MOUNTINFO"
     printf 'custom\n' > "$MODULE_DIR/config/active_font.conf"
     : > "$CASE_ROOT/unmount.log"
     FAIL_OVERLAY=''
@@ -67,31 +71,79 @@ _luoshu_partition_root() {
 _luoshu_overlay_mount_dir() {
     test "${FAIL_OVERLAY:-}" != all && test "${FAIL_OVERLAY:-}" != "$3" || return 1
     cp -R "$1/." "$2/"
+    printf '100 1 0:1 / %s rw - ext4 %s rw\n' "$2" "$1" >> "$LUOSHU_SELF_MOUNTINFO"
+}
+_luoshu_test_mountinfo_add() {
+    printf '100 1 0:1 / %s rw - ext4 %s rw\n' "$2" "$1" >> "$LUOSHU_SELF_MOUNTINFO"
+}
+_luoshu_test_mountinfo_remove() {
+    _test_mountinfo_tmp="${LUOSHU_SELF_MOUNTINFO}.tmp"
+    awk -v target="$1" '$5 != target { print }' "$LUOSHU_SELF_MOUNTINFO" > "$_test_mountinfo_tmp" && \
+        mv -f "$_test_mountinfo_tmp" "$LUOSHU_SELF_MOUNTINFO"
 }
 _luoshu_mount_cmd() {
     if test "$1" = --make-private; then
         return 0
     fi
+    if test "$1" = -o && test "$2" = remount,bind,ro; then
+        _test_mountinfo_tmp="${LUOSHU_SELF_MOUNTINFO}.tmp"
+        awk -v target="$3" 'BEGIN { OFS=" " } $5 == target { $6="ro" } { print }' \
+            "$LUOSHU_SELF_MOUNTINFO" > "$_test_mountinfo_tmp" && \
+            mv -f "$_test_mountinfo_tmp" "$LUOSHU_SELF_MOUNTINFO"
+        return 0
+    fi
     test "$1" = -o && test "$2" = bind || return 1
     test "${FAIL_BIND:-}" != "$4" || return 1
     if test -d "$3"; then
+        _test_stock="${4}.luoshu-test-stock"
+        rm -rf "$_test_stock"
+        if test -d "$4"; then mv "$4" "$_test_stock"; else mkdir -p "$_test_stock"; fi
         mkdir -p "$4"
-        cp -R "$3/." "$4/"
+        cp -a "$3/." "$4/"
     else
+        _test_stock="${4}.luoshu-test-stock"
+        rm -f "$_test_stock"
+        if test -e "$4"; then cp -p "$4" "$_test_stock"; fi
         cp -f "$3" "$4"
     fi
+    _luoshu_test_mountinfo_add "$3" "$4"
 }
 _luoshu_umount_cmd() {
-    printf '%s\n' "$1" >> "$CASE_ROOT/unmount.log"
+    _test_target="$1"
+    _test_stock="${_test_target}.luoshu-test-stock"
+    if test -d "$_test_stock"; then
+        rm -rf "$_test_target"
+        mv "$_test_stock" "$_test_target"
+    elif test -f "$_test_stock"; then
+        mv -f "$_test_stock" "$_test_target"
+    fi
+    _luoshu_test_mountinfo_remove "$_test_target"
+    printf '%s\n' "$_test_target" >> "$CASE_ROOT/unmount.log"
     return 0
 }
 luoshu_mount_record() {
     printf '%s|%s\n' "$1" "$2" > "$MODULE_DIR/config/mount-record.txt"
 }
 
+# The backend resolves sibling helpers through MODULE_DIR while it is sourced.
+# Point it at the repository here; setup_case replaces it with the fixture for
+# each test transaction below.
+MODULE_DIR="$REPO_ROOT"
 . "$BACKEND_SCRIPT"
 . "$ATOMIC_SCRIPT"
 [ -z "$FINAL_SCRIPT" ] || . "$FINAL_SCRIPT"
+_luoshu_mirror_context() { return 0; }
+# Model the lower bind as a stock-tree snapshot. The transaction test does not
+# create real mounts or mutate the host mount namespace.
+_luoshu_capture_lower_dir() {
+    _test_lower_target="$1"
+    _test_lower_key="$2"
+    _test_lower_state=$(_luoshu_self_state_root)
+    _test_lower="$_test_lower_state/lower/$_test_lower_key"
+    mkdir -p "$_test_lower" || return 1
+    cp -R "$_test_lower_target/." "$_test_lower/" || return 1
+    printf '%s\n' "$_test_lower" >> "$_lsme_mount_list"
+}
 # The production backend owns the OverlayFS helper. Keep tests deterministic.
 _luoshu_overlay_mount_dir() {
     test "${FAIL_OVERLAY:-}" != all && test "${FAIL_OVERLAY:-}" != "$3" || return 1
@@ -99,6 +151,15 @@ _luoshu_overlay_mount_dir() {
 }
 CURRENT_BOOT_ID=test-boot
 _luoshu_atomic_boot_id() { printf '%s\n' "$CURRENT_BOOT_ID"; }
+
+# The test transaction journal stands in for /proc/1/mountinfo ownership. A
+# journaled target belongs to this fixture until the fake unmount removes it.
+_luoshu_atomic_mountinfo_target_present() {
+    grep -Fxq "$1" "$LUOSHU_SELF_MOUNT_STATE_ROOT/mounts.list"
+}
+_luoshu_atomic_mountinfo_owned_target() {
+    grep -Fxq "$1" "$LUOSHU_SELF_MOUNT_STATE_ROOT/mounts.list"
+}
 
 setup_case success
 mkdir -p "$MODULE_DIR/system/fonts" "$MODULE_DIR/system/etc"
@@ -127,6 +188,8 @@ setup_case same-boot-journal
 printf 'default\n' > "$MODULE_DIR/config/active_font.conf"
 printf '%s\n' "$CURRENT_BOOT_ID" > "$CASE_ROOT/state/boot-id"
 printf '%s\n' "$CASE_ROOT/root/system/fonts" > "$CASE_ROOT/state/mounts.list"
+printf '100 1 0:1 / %s rw - ext4 %s/.luoshu-payload/system/fonts rw\n' \
+    "$CASE_ROOT/root/system/fonts" "$MODULE_DIR" >> "$LUOSHU_PID1_MOUNTINFO"
 luoshu_self_mount_ensure || fail 'same-boot journal cleanup failed'
 test -s "$CASE_ROOT/unmount.log" || fail 'same-boot LuoShu mount was not rolled back'
 
@@ -212,8 +275,11 @@ FAIL_OVERLAY=system-fonts
 luoshu_self_mount_ensure || fail 'bind fallback rejected aliases sharing one real ROM target'
 grep -q '^state=mounted$' "$MODULE_DIR/config/self-mount.conf" || fail 'symlink bind fallback was not committed'
 test "$(cat "$CASE_ROOT/root/system/fonts/Canonical.ttf")" = 'font-canonical' || fail 'canonical bind target was overwritten by its alias'
-test "$(cat "$CASE_ROOT/root/system/fonts/Alias.ttf")" = 'font-canonical' || fail 'ROM alias does not expose the canonical bound font'
-luoshu_mount_verify_active custom || fail 'strict verifier rejected a deduplicated symlink bind'
+test "$(cat "$CASE_ROOT/root/system/fonts/Alias.ttf")" = 'font-alias' || fail 'directory mirror did not preserve the alias font payload'
+test ! -L "$CASE_ROOT/root/system/fonts/Alias.ttf" || fail 'directory mirror did not materialize the conflicting ROM alias'
+test -L "$CASE_ROOT/state/lower/system-fonts/Alias.ttf" || fail 'stock lower did not preserve the ROM alias'
+test "$(cat "$CASE_ROOT/state/lower/system-fonts/Alias.ttf")" = 'stock-canonical' || fail 'ROM alias changed in the stock lower view'
+luoshu_mount_verify_active custom || fail 'strict verifier rejected a directory-mirrored alias'
 
 setup_case bind-additive-etc
 mkdir -p "$MODULE_DIR/system/fonts" "$MODULE_DIR/system/etc/luoshu"
@@ -238,7 +304,7 @@ if luoshu_self_mount_ensure; then
     fail 'bind fallback with no device-compatible target was accepted'
 fi
 if [ -n "$FINAL_SCRIPT" ]; then
-    grep -q 'payload-empty' "$MODULE_DIR/config/self-mount.conf" || fail 'final empty bind reason absent'
+    grep -q 'no-existing-bind-target' "$MODULE_DIR/config/self-mount.conf" || fail 'final empty bind reason absent'
 else
     grep -q 'system/fonts-bind-empty' "$MODULE_DIR/config/self-mount.conf" || fail 'empty bind reason absent'
 fi

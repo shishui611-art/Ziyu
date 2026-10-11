@@ -136,7 +136,7 @@ _luoshu_capture_lower_dir() {
     _luoshu_mount_observe lower-private _luoshu_mount_cmd -o private -t none none "$_lscld_lower" || \
         _luoshu_mount_observe lower-private-util-linux _luoshu_mount_cmd --make-private "$_lscld_lower" || return 1
     awk -v target="$_lscld_lower" '$5==target {found=1; for(i=7;i<=NF && $i!="-";i++) if ($i ~ /^(shared|master|propagate_from):/) bad=1} END {exit !(found && !bad)}' \
-        /proc/self/mountinfo || {
+        "${LUOSHU_SELF_MOUNTINFO:-/proc/self/mountinfo}" || {
             _luoshu_self_log "lower 挂载传播隔离未通过验证：$_lscld_lower"
             return 1
         }
@@ -235,6 +235,6 @@ _luoshu_mirror_mount_dir() {
         _luoshu_mount_observe mirror-readonly _luoshu_mount_cmd -o remount,bind,ro "$_lsmmd_target" || return 1
     fi
     awk -v target="$_lsmmd_target" '$5==target {ro=($6 ~ /(^|,)ro(,|$)/)} END {exit !ro}' \
-        /proc/self/mountinfo || return 1
+        "${LUOSHU_SELF_MOUNTINFO:-/proc/self/mountinfo}" || return 1
     _luoshu_self_log "目录镜像 bind 已完成：$_lsmmd_target；字体别名各自保留负载内容"
 }
