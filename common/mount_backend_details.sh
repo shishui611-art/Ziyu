@@ -43,8 +43,8 @@ luoshu_mount_backend_details() {
        [ "$(cat /data/adb/luoshu/self-mount/boot-id 2>/dev/null | tr -d '\r\n')" = "$_mbd_boot" ] &&
        [ "$(_mbd_value "$_mbd_module/config/self-mount.conf" state)" = mounted ]; then
         _mbd_self_method=$(awk -F'|' '
-            $3=="overlay" {overlay=1} $3=="bind" {bind=1}
-            END {if(overlay) printf "OverlayFS"; if(bind) printf "%s文件 bind 挂载",overlay?" + ":""}
+            $3=="overlay" {overlay=1} $3=="bind" {bind=1} $3=="mirror" {mirror=1}
+            END {if(overlay) printf "OverlayFS"; if(bind) printf "%s文件 bind 挂载",overlay?" + ":""; if(mirror) printf "%s目录镜像 bind 挂载（独立字体别名）",(overlay||bind)?" + ":""}
         ' "$_mbd_module/config/self-mount-required.conf" 2>/dev/null)
         if [ -n "$_mbd_self_method" ]; then
             MOUNT_METHOD="$_mbd_self_method"

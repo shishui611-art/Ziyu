@@ -40,7 +40,18 @@ luoshu_install_read_volume_key() {
 }
 
 luoshu_install_choose_mount_backend() {
-    LUOSHU_INSTALL_BACKEND_PREFERENCE=auto
+    # Installation reports the saved choice; only the App changes that choice.
+    case "${1:-auto}" in
+        magic|overlayfs|self_mount|auto) LUOSHU_INSTALL_BACKEND_PREFERENCE="${1:-auto}" ;;
+        *) LUOSHU_INSTALL_BACKEND_PREFERENCE=auto ;;
+    esac
+    case "$LUOSHU_INSTALL_BACKEND_PREFERENCE" in
+        magic) _lui_mode='Magic Mount（字域逐文件 bind 挂载）' ;;
+        overlayfs) _lui_mode='OverlayFS（仅使用 OverlayFS）' ;;
+        self_mount) _lui_mode='字域自挂载（OverlayFS / bind / 目录镜像）' ;;
+        *) _lui_mode='元模块自动挂载' ;;
+    esac
+    ui_print "• 已保存挂载选择：$_lui_mode"
     _lui_module="${MODPATH:-${MODDIR:-}}"
     _lui_active_font='default'
     [ -z "$_lui_module" ] || _lui_active_font=$(head -n1 "$_lui_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
@@ -71,6 +82,10 @@ luoshu_install_choose_mount_backend() {
         *) _lui_engine_name="未识别元模块（$_lui_engine）" ;;
     esac
     LUOSHU_INSTALL_MOUNT_STATE=pending
+    if [ "$LUOSHU_INSTALL_BACKEND_PREFERENCE" != auto ]; then
+        ui_print "• 挂载：待重启验证（使用已保存的 $_lui_mode）"
+        return 0
+    fi
     case "${META_ENABLED:-0}:${META_USABLE:-0}" in
         1:1)
             if [ -n "$_lui_engine" ] && [ "$_lui_engine" != none ]; then

@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from font_live_payload import work_root as live_work_root
 
 import font_inventory as inventory
 import font_inventory_scan as scanner
@@ -365,7 +366,7 @@ def _safe_pick_actual_root(logical: Path, explicit: Path | None, overlay_risk: b
 
     parts = logical.parts
     if len(parts) >= 3 and parts[0] == "/":
-        state_root = Path(os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT", "/data/adb/luoshu/self-mount"))
+        state_root = live_work_root()
         lower = state_root / "lower" / f"{parts[1]}-{parts[2]}"
         if lower.is_dir():
             return lower

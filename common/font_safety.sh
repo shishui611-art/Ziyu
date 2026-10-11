@@ -597,9 +597,30 @@ font_config_boot_guard() {
     fi
     _lbg_schema=$(luoshu_payload_schema_read)
     if [ "$_lbg_schema" != "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ]; then
-        _luoshu_safety_log ERROR "字体负载架构过期：${_lbg_schema:-missing} != $LUOSHU_PAYLOAD_SCHEMA_CURRENT"
-        luoshu_payload_quarantine
-        return 1
+        # A missing marker after a legacy font switch commit is a write-timing
+        # gap, not an expired architecture. Re-stamp the legacy schema for a
+        # still-valid payload instead of quarantining; genuine mismatches and
+        # empty markers without a legacy payload still quarantine below.
+        if [ -z "$_lbg_schema" ] && [ -f "$_lbg_config/font_runtime_legacy_v14_4.conf" ]; then
+            if type luoshu_payload_validate_manifest_fast >/dev/null 2>&1 && \
+               luoshu_payload_validate_manifest_fast 2>/dev/null; then
+                {
+                    printf 'schema=legacy-physical-safe-v1\n'
+                    printf 'font=%s\n' "$_lbg_active"
+                    printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
+                } > "$_lbg_config/font-payload-schema.conf.tmp.$$" 2>/dev/null && \
+                    mv -f "$_lbg_config/font-payload-schema.conf.tmp.$$" "$_lbg_config/font-payload-schema.conf" 2>/dev/null || true
+                chmod 0644 "$_lbg_config/font-payload-schema.conf" 2>/dev/null || true
+                _lbg_schema=$(luoshu_payload_schema_read)
+                _luoshu_safety_log INFO "负载架构标记缺失已自愈：$_lbg_schema"
+            fi
+        fi
+        if [ "$_lbg_schema" != "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ] && \
+           [ "$_lbg_schema" != "legacy-physical-safe-v1" ]; then
+            _luoshu_safety_log ERROR "字体负载架构过期：${_lbg_schema:-missing} != $LUOSHU_PAYLOAD_SCHEMA_CURRENT"
+            luoshu_payload_quarantine
+            return 1
+        fi
     fi
     case "$_lbg_state" in
         booting)

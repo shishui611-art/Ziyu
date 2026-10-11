@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "universal-font-plan-v1"
-PLAN_REVISION = 1
+PLAN_REVISION = 2
 TOPOLOGY_SCHEMA = "device-font-topology-v1"
 ROLES_SCHEMA = "device-font-roles-v1"
 SOURCE_SCHEMA = "source-font-profile-v1"
@@ -192,14 +192,16 @@ def _target_weight(slot: dict[str, Any]) -> int:
 
 
 def _target_italic(slot: dict[str, Any]) -> bool:
+    metrics = slot.get("metrics")
+    os2 = metrics.get("os2") if isinstance(metrics, dict) else None
+    if isinstance(os2, dict) and "fsSelection" in os2:
+        return bool((_int(os2.get("fsSelection"), 0) or 0) & ((1 << 0) | (1 << 9)))
     refs = slot.get("xmlRefs")
     if isinstance(refs, list):
-        for ref in refs:
-            if not isinstance(ref, dict):
-                continue
-            style = str(ref.get("style") or "").lower()
-            if style in {"italic", "oblique"}:
-                return True
+        styles = [str(ref.get("style") or "normal").lower()
+                  for ref in refs if isinstance(ref, dict)]
+        if styles:
+            return all(style in {"italic", "oblique"} for style in styles)
     name = str(slot.get("slotName") or "").lower()
     return "italic" in name or "oblique" in name
 
@@ -373,9 +375,10 @@ def _select_face(
     faces: list[dict[str, Any]],
     role: str,
     slot: dict[str, Any],
+    *, target_weight: int | None = None, target_italic: bool | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    target_weight = _target_weight(slot)
-    target_italic = _target_italic(slot)
+    target_weight = _target_weight(slot) if target_weight is None else target_weight
+    target_italic = _target_italic(slot) if target_italic is None else target_italic
     ranked: list[tuple[tuple[float, float, float, float, str, int], dict[str, Any], dict[str, Any]]] = []
     rejected: dict[str, int] = {}
 
@@ -528,6 +531,44 @@ def _compile_requirements(
     return compiler, requirements, risks
 
 
+def route_source_key(weight: Any, style: Any, axes: Any) -> str:
+    normalized: dict[str, float] = {}
+    for axis in axes if isinstance(axes, list) else []:
+        if not isinstance(axis, dict):
+            continue
+        value = axis.get("stylevalue", axis.get("styleValue", axis.get("value")))
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if math.isfinite(parsed):
+            normalized[str(axis.get("tag") or "")] = parsed
+    return _canonical_hash({"weight": _int(weight, 400) or 400,
+                            "style": str(style or "normal").lower(),
+                            "axes": normalized})
+
+
+def target_for_route(target: dict[str, Any], weight: Any, style: Any,
+                     axes: Any) -> dict[str, Any]:
+    variants = target.get("routeSources")
+    if not isinstance(variants, dict):
+        raise UniversalPlanError("FontPlan 缺少逐 XML 引用的源字体选择")
+    variant = variants.get(route_source_key(weight, style, axes))
+    if variant is None and isinstance(axes, list):
+        # Inventories captured before scanner revision 7 lost <axis> children.
+        # Keep their selected donor, but compile using the actual XML axes. The
+        # compiler still validates ranges/weights and cannot relabel a mismatch.
+        legacy = variants.get(route_source_key(weight, style, []))
+        if isinstance(legacy, dict) and legacy.get("axisEvidenceComplete") is False:
+            variant = legacy
+    if not isinstance(variant, dict) or not isinstance(variant.get("source"), dict):
+        raise UniversalPlanError("XML 引用没有对应的源字体契约")
+    fields = {key: variant[key] for key in (
+        "source", "selection", "compiler", "requirements", "risks", "status")
+        if key in variant}
+    return {**target, **fields}
+
+
 def _plan_slot(
     path: str,
     slot: dict[str, Any],
@@ -604,6 +645,34 @@ def _plan_slot(
     base["requirements"] = requirements
     base["risks"] = risks
     base["reasons"] = list(selection.get("roleReasons") or [])
+
+    # One physical VF/TTC may serve normal, italic and several XML weights.
+    # Select a real donor per reference; a physical default face cannot stand
+    # in for every XML contract, nor can one italic reference poison the file.
+    variants: dict[str, dict[str, Any]] = {}
+    for ref in base["xmlRefs"]:
+        ref_style = str(ref.get("style") or "normal").lower()
+        ref_weight = _int(ref.get("weight"), 400) or 400
+        for axis in ref.get("axes") or []:
+            if isinstance(axis, dict) and axis.get("tag") == "wght":
+                try:
+                    ref_weight = int(float(axis.get("stylevalue", axis.get("styleValue", axis.get("value")))))
+                except (TypeError, ValueError, OverflowError):
+                    pass
+        ref_face, ref_selection = _select_face(
+            faces, role, slot, target_weight=ref_weight,
+            target_italic=ref_style in {"italic", "oblique"})
+        if ref_face is None:
+            continue
+        ref_compiler, ref_requirements, ref_risks = _compile_requirements(
+            role, slot, ref_face, ref_selection)
+        variants[route_source_key(ref.get("weight"), ref_style, ref.get("axes"))] = {
+            "source": _source_ref(ref_face), "selection": ref_selection,
+            "compiler": ref_compiler, "requirements": ref_requirements,
+            "risks": ref_risks, "status": "conditional" if ref_risks else "ready",
+            "axisEvidenceComplete": isinstance(ref.get("axes"), list),
+        }
+    base["routeSources"] = variants
 
     if role in SPECIALIZED_ROLES:
         base["action"] = "compile-specialized"
@@ -846,6 +915,10 @@ def validate_plan(
                 raise UniversalPlanError(f"未知扩展角色不得自动替换：{path}")
         if action in {"replace", "compile", "compile-specialized"} and not isinstance(item.get("source"), dict):
             raise UniversalPlanError(f"替换目标缺少源 face：{path}")
+        if action in {"replace", "compile", "compile-specialized"}:
+            for ref in item.get("xmlRefs") or []:
+                if isinstance(ref, dict):
+                    target_for_route(item, ref.get("weight"), ref.get("style"), ref.get("axes"))
 
     missing_role_slots = plan.get("missingRoleSlots")
     if not isinstance(missing_role_slots, list):

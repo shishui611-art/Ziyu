@@ -694,38 +694,80 @@ switch_task_status_json() {
         "${_started:-0}" "${_finished:-0}"
 }
 
-delete_font_json() {
-    _font_id="$1"
-    _current="$(get_current_font_id)"
-    [ -n "$_font_id" ] && [ "$_font_id" != default ] || { printf '{"status":"error","message":"未指定可删除字体"}\n'; return 0; }
-    if [ "$_font_id" = "$_current" ] && [ -f "$TEXT_REBOOT_REQUIRED" ]; then
-        printf '{"status":"error","message":"当前字体已等待重启，请先重启后再删除"}\n'
+delete_font_files_only() {
+    _dff_id="$1"
+    DELETE_FONT_FILES_COUNT=0
+    for _dff_file in "$USER_FONTS_DIR"/*.ttf "$USER_FONTS_DIR"/*.otf "$USER_FONTS_DIR"/*.ttc \
+                     "$USER_FONTS_DIR"/*.TTF "$USER_FONTS_DIR"/*.OTF "$USER_FONTS_DIR"/*.TTC; do
+        [ -f "$_dff_file" ] || continue
+        [ "$(detect_font_family "$(basename "$_dff_file")")" = "$_dff_id" ] || continue
+        rm -f "$_dff_file" 2>/dev/null && DELETE_FONT_FILES_COUNT=$((DELETE_FONT_FILES_COUNT + 1))
+    done
+    [ "$DELETE_FONT_FILES_COUNT" -gt 0 ] || return 1
+    for _dff_conf in "$USER_FONTS_DIR"/*.conf; do
+        [ -f "$_dff_conf" ] || continue
+        [ "$(basename "$_dff_conf" .conf)" = "$_dff_id" ] && rm -f "$_dff_conf" 2>/dev/null || true
+    done
+    return 0
+}
+
+delete_fonts_json() {
+    [ "$#" -gt 0 ] || { printf '{"status":"error","message":"请先选择要删除的字体"}\n'; return 0; }
+    _dfj_count=0
+    _dfj_contains_current=false
+    _dfj_current="$(get_current_font_id)"
+    for _dfj_id in "$@"; do
+        [ -n "$_dfj_id" ] && [ "$_dfj_id" != default ] || {
+            printf '{"status":"error","message":"所选内容包含不可删除的系统默认字体"}\n'; return 0;
+        }
+        [ -f "$(find_text_font_file "$_dfj_id")" ] || {
+            printf '{"status":"error","message":"字体 %s 已不存在，请刷新字体库后重试"}\n' "$(json_escape "$_dfj_id")"; return 0;
+        }
+        [ "$_dfj_id" != "$_dfj_current" ] || _dfj_contains_current=true
+        _dfj_count=$((_dfj_count + 1))
+    done
+
+    if [ "$_dfj_contains_current" = true ] && [ -f "$TEXT_REBOOT_REQUIRED" ]; then
+        printf '{"status":"error","message":"当前字体正在等待重启，未删除任何所选字体；请先完成重启"}\n'
         return 0
     fi
-    if [ "$_font_id" = "$_current" ]; then
-        switch_font default >/dev/null 2>&1 || { printf '{"status":"error","message":"无法先恢复系统默认字体"}\n'; return 0; }
+    if [ "$_dfj_contains_current" = true ]; then
+        switch_font default >/dev/null 2>&1 || {
+            printf '{"status":"error","message":"无法先恢复系统默认字体，未删除任何所选字体"}\n'; return 0;
+        }
     fi
 
-    _deleted=0
-    for _file in "$USER_FONTS_DIR"/*.ttf "$USER_FONTS_DIR"/*.otf "$USER_FONTS_DIR"/*.ttc \
-                 "$USER_FONTS_DIR"/*.TTF "$USER_FONTS_DIR"/*.OTF "$USER_FONTS_DIR"/*.TTC; do
-        [ -f "$_file" ] || continue
-        [ "$(detect_font_family "$(basename "$_file")")" = "$_font_id" ] || continue
-        rm -f "$_file" 2>/dev/null && _deleted=$((_deleted + 1))
+    _dfj_deleted_ids=''
+    _dfj_deleted_files=0
+    _dfj_deleted_families=0
+    for _dfj_id in "$@"; do
+        if delete_font_files_only "$_dfj_id"; then
+            _dfj_deleted_ids="$_dfj_deleted_ids${_dfj_deleted_ids:+,}\"$(json_escape "$_dfj_id")\""
+            _dfj_deleted_files=$((_dfj_deleted_files + DELETE_FONT_FILES_COUNT))
+            _dfj_deleted_families=$((_dfj_deleted_families + 1))
+        else
+            invalidate_font_index_cache
+            rm -rf "$CONFIG_DIR/source-font-profiles" "$CONFIG_DIR/universal-font-plans" 2>/dev/null || true
+            printf '{"status":"error","message":"批量删除未完成；已删除 %s/%s 个字体 Family，请刷新字体库","deletedFamilies":%s,"deletedFiles":%s,"deletedIds":[%s]}\n' \
+                "$_dfj_deleted_families" "$_dfj_count" "$_dfj_deleted_families" "$_dfj_deleted_files" "$_dfj_deleted_ids"
+            return 0
+        fi
     done
-    if [ "$_deleted" -gt 0 ]; then
-        invalidate_font_index_cache
-        rm -rf "$CONFIG_DIR/source-font-profiles" 2>/dev/null || true
-        rm -rf "$CONFIG_DIR/universal-font-plans" 2>/dev/null || true
-        printf '{"status":"ok","data":{"deleted":%s,"message":"已删除 %s 个文件"}}\n' "$_deleted" "$_deleted"
-    else
-        printf '{"status":"error","message":"未找到字体文件"}\n'
-    fi
+
+    invalidate_font_index_cache
+    rm -rf "$CONFIG_DIR/source-font-profiles" "$CONFIG_DIR/universal-font-plans" 2>/dev/null || true
+    printf '{"status":"ok","data":{"deletedFamilies":%s,"deletedFiles":%s,"deletedIds":[%s],"message":"已删除 %s 个字体 Family，共 %s 个字体文件"}}\n' \
+        "$_dfj_deleted_families" "$_dfj_deleted_files" "$_dfj_deleted_ids" "$_dfj_deleted_families" "$_dfj_deleted_files"
+}
+
+delete_font_json() {
+    delete_fonts_json "$1"
 }
 
 handle_action() {
     _action="$1"
-    _param="$2"
+    shift
+    _param="${1:-}"
     case "$_action" in
         list) build_font_index_json "$_param" ;;
         current) printf '{"status":"ok","data":{"current":"%s"}}\n' "$(json_escape "$(get_current_font_id)")" ;;
@@ -744,6 +786,7 @@ handle_action() {
         switch_async) start_switch_task "$_param" ;;
         switch_status) switch_task_status_json "$_param" ;;
         delete) delete_font_json "$_param" ;;
+        delete_many) delete_fonts_json "$@" ;;
         font_weight_status)
             printf '%s\n' '{"status":"ok","data":{"supported":false,"message":"全局字重功能已移除，请在系统设置或组合页调整"}}'
             ;;
@@ -768,7 +811,7 @@ handle_action() {
 }
 
 case "${1:-}" in
-    action) handle_action "${2:-}" "${3:-}" ;;
+    action) shift; handle_action "$@" ;;
     list) handle_action list "${2:-}" ;;
     current) handle_action current '' ;;
     *) printf '{"status":"error","message":"请通过字域 App 或安全 CLI 使用字体管理器"}\n'; exit 1 ;;

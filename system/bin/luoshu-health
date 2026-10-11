@@ -182,6 +182,7 @@ mount_engine() {
             esac ;;
         esac
         case "$_hme_verify" in
+            partial) printf '%s · 部分应用（有警告）\n' "$_hme_label" ;;
             failed) printf '%s失败\n' "$_hme_label" ;;
             pending) printf '%s · 待验证\n' "$_hme_label" ;;
             *) printf '%s\n' "$_hme_label" ;;
@@ -205,10 +206,21 @@ report() {
     [ -n "$_r_active" ] || _r_active=default
     _r_payload="$(payload_font_count)"
     _r_conflicts="$(conflict_target_count)"
-    _r_errors="$(tail -n 500 "$MOD/logs/fontswitch.log" 2>/dev/null | grep -Eic 'error|failed|失败|错误' 2>/dev/null)"
-    _r_errors="$(safe_count "$_r_errors")"
-    _r_warnings="$(tail -n 500 "$MOD/logs/fontswitch.log" 2>/dev/null | grep -Eic 'warn|警告' 2>/dev/null)"
-    _r_warnings="$(safe_count "$_r_warnings")"
+    _r_log_counts=$(MODDIR="$MOD" sh "$MOD/common/action_control.sh" log-health 2>/dev/null)
+    _r_log_rc=$?
+    _r_ignored=0
+    if [ "$_r_log_rc" -eq 0 ]; then
+        _r_errors=$(printf '%s\n' "$_r_log_counts" | sed -n 's/^recentErrors=//p')
+        _r_warnings=$(printf '%s\n' "$_r_log_counts" | sed -n 's/^recentWarnings=//p')
+        _r_ignored=$(printf '%s\n' "$_r_log_counts" | sed -n 's/^ignoredWarnings=//p')
+    else
+        # Old/incomplete runtimes still must not count WARN retry details as errors.
+        _r_errors=$(tail -n 500 "$MOD/logs/fontswitch.log" 2>/dev/null | grep -Eiv '(^|[^[:alnum:]_])(warn|warning)([^[:alnum:]_]|$)|警告' | grep -Eic '(^|[^[:alnum:]_])(error|failed|failure|fatal)([^[:alnum:]_]|$)|失败|错误')
+        _r_warnings=$(tail -n 500 "$MOD/logs/fontswitch.log" 2>/dev/null | grep -Eic '(^|[^[:alnum:]_])(warn|warning)([^[:alnum:]_]|$)|警告')
+    fi
+    _r_errors=$(safe_count "$_r_errors")
+    _r_warnings=$(safe_count "$_r_warnings")
+    _r_ignored=$(safe_count "$_r_ignored")
     _r_reboot=false
     for _r_marker in "$MOD/config"/*reboot_required.conf; do
         [ -s "$_r_marker" ] || continue
@@ -226,6 +238,10 @@ report() {
     _r_backend_state=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && MODDIR="$MOD" luoshu_current_boot_backend_state)
     if [ -n "$_r_backend_state" ]; then
         case "$(read_value "$_r_backend_state" verification)" in
+            partial)
+                _r_alignment=partial; _r_alignment_mode=mount-partial
+                case "$(read_value "$_r_backend_state" active_backend)" in self) _r_self_state=partial ;; *) _r_self_state=not-active ;; esac
+                ;;
             failed)
                 _r_alignment=failed; _r_alignment_mode=backend-failed
                 case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=failed ;; *) _r_self_state=not-active ;; esac
@@ -277,6 +293,7 @@ report() {
     printf 'templateState=%s\n' "$(read_value "$MOD/config/device-font-template.state" state)"
     printf 'alignmentState=%s\n' "$_r_alignment"
     printf 'alignmentMode=%s\n' "$_r_alignment_mode"
+    printf 'mountWarning=%s\n' "$(read_value "$_r_backend_state" mount_warning)"
     printf 'selfMountState=%s\n' "$_r_self_state"
     printf 'selfMountBackend=%s\n' "$_r_self_backend"
     printf 'mountEngine=%s\n' "$(mount_engine)"
@@ -284,6 +301,7 @@ report() {
     printf 'rebootRequired=%s\n' "$_r_reboot"
     printf 'recentWarnings=%s\n' "$_r_warnings"
     printf 'recentErrors=%s\n' "$_r_errors"
+    printf 'ignoredWarnings=%s\n' "$_r_ignored"
     printf 'conflictCount=%s\n' "$_r_conflicts"
     print_conflicts
 }

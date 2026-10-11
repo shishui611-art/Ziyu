@@ -13,9 +13,11 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import time
 
 from font_inventory import FONT_EXTENSIONS, LOGICAL_FONT_ROOTS, _heuristic_candidate
 from font_inventory_scan import _is_ui_family
+from font_metrics_io import FontMetricsIO
 from hyperos_metrics_batch import (bitmap_bottom_slot, contract_for_slot, link_copy,
                                   read_inventory, write_metrics)
 
@@ -46,6 +48,7 @@ def write_report(stage: Path, slots: list[dict]) -> None:
 
 
 def build(module: Path, stage: Path) -> dict:
+    started = time.perf_counter()
     live = (module / '.luoshu-payload').resolve()
     resolved = stage.resolve()
     if resolved == module.resolve() or resolved == live or live in resolved.parents:
@@ -90,6 +93,7 @@ def build(module: Path, stage: Path) -> dict:
     cache = {}
     cached_reports = {}
     prepared = []
+    metrics_io = FontMetricsIO()
     try:
         # Pin every source/contract result before replacing any hard-linked alias.
         # Reading a later source after an earlier replacement can change its
@@ -100,8 +104,11 @@ def build(module: Path, stage: Path) -> dict:
             key = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, contract, align_bottom)
             if key not in cache:
                 output = outputs / f'{len(cache)}.font'
+                write_started = time.perf_counter()
                 cached_reports[key] = write_metrics(source, output, contract,
-                                                   align_bitmap_bottom=align_bottom)
+                                                   align_bitmap_bottom=align_bottom,
+                                                   metrics_io=metrics_io)
+                cached_reports[key]['metricsWriteSeconds'] = round(time.perf_counter() - write_started, 3)
                 cache[key] = output
             prepared.append((cache[key], source))
             report.update({'metricsSource': 'stock', 'referenceUpem': contract[0],
@@ -114,7 +121,9 @@ def build(module: Path, stage: Path) -> dict:
     finally:
         shutil.rmtree(outputs, ignore_errors=True)
     return {'mapped': len(jobs), 'generated': len(cache),
-            'preservedSlots': len(reports) - len(jobs)}
+            'preservedSlots': len(reports) - len(jobs),
+            'metricsBatchSeconds': round(time.perf_counter() - started, 3),
+            **metrics_io.stats()}
 
 
 def main() -> int:

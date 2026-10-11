@@ -20,7 +20,7 @@ import device_font_template as template
 from hyperos_physical_policy import (PARTITIONS as HYPEROS_PARTITIONS, stock_physical_font_name,
                                     DYNAMIC_OVERLAY_PATH, DYNAMIC_OVERLAY_TARGET)
 
-SCANNER_REVISION = 5
+SCANNER_REVISION = 8
 CANDIDATE_SCHEMA = "device-font-candidates-v1"
 XML_GRAPH_SCHEMA = "device-font-xml-graph-v1"
 METRICS_REVISION = 3
@@ -88,6 +88,9 @@ XML_PATTERNS = (
     "fonts_customization.xml",
     "fonts*.xml",
     "font_fallback*.xml",
+    # HyperOS places active definitions in hyper_*, miui_* and misans_* XML.
+    # Match OEM prefixes as well as the standard Android filenames.
+    "*[fF][oO][nN][tT]*.[xX][mM][lL]",
 )
 
 
@@ -175,7 +178,7 @@ def _parse_full_xml_graph(
     """Capture every XML font reference without changing legacy UI-slot semantics."""
     refs: list[dict[str, Any]] = []
     aliases: list[dict[str, str]] = []
-    seen_refs: set[tuple[str, str, str, int, str, str]] = set()
+    seen_refs: set[str] = set()
     seen_aliases: set[tuple[str, str, str]] = set()
 
     for partition, logical_xml, actual_xml in xml_sources:
@@ -187,20 +190,20 @@ def _parse_full_xml_graph(
             parsed_refs = []
 
         for ref in parsed_refs:
+            xml_weight = ref.xml_weight if ref.xml_weight is not None else ref.weight
             resolved_path = ""
             if ref.declared:
                 resolved = base._resolve_file(ref.declared, ordered_roots)
                 if resolved is not None:
                     resolved_root, resolved_actual = resolved
                     resolved_path = base._logical_path(resolved_root, resolved_actual)
-            key = (
-                str(logical_xml),
-                template.normalize(ref.family),
-                ref.declared or ref.postscript_name,
-                int(ref.index),
-                str(ref.style),
-                str(ref.axes),
-            )
+            key = json.dumps({
+                "sourceXml": str(logical_xml), "family": ref.family,
+                "familyAttributes": ref.family_attrs, "declared": ref.declared,
+                "postScriptName": ref.postscript_name, "index": int(ref.index),
+                "weight": int(xml_weight), "style": str(ref.style),
+                "axes": ref.axis_children,
+            }, sort_keys=True, ensure_ascii=False)
             if key in seen_refs:
                 continue
             seen_refs.add(key)
@@ -212,10 +215,11 @@ def _parse_full_xml_graph(
                 "familyAttributes": dict(ref.family_attrs),
                 "declared": ref.declared,
                 "postScriptName": ref.postscript_name,
-                "weight": int(ref.weight),
+                "weight": int(xml_weight),
                 "style": ref.style,
                 "index": int(ref.index),
-                "axes": ref.axes,
+                "axes": list(ref.axis_children),
+                "legacyAxisExpression": ref.axes,
                 "resolvedPath": resolved_path,
             })
 
@@ -645,7 +649,8 @@ def _has_current_hyperos_coverage(existing: dict[str, Any]) -> bool:
             or existing.get("hyperosCoverageRevision") == HYPEROS_COVERAGE_REVISION)
 
 
-def _add_hyperos_physical_slots(slots: dict[str, dict[str, Any]], roots: list[base.FontRoot]) -> dict:
+def _add_hyperos_physical_slots(slots: dict[str, dict[str, Any]], roots: list[base.FontRoot],
+                                metrics_cache: dict | None = None) -> dict:
     """Capture stock contracts for files the HyperOS mapper actually replaces.
 
     Named UI-family discovery intentionally omits lang=zh-Hans/zh-Hant fallback
@@ -691,7 +696,7 @@ def _add_hyperos_physical_slots(slots: dict[str, dict[str, Any]], roots: list[ba
                 "weight": base._infer_weight(actual.name), "style": "normal", "faceIndex": 0,
                 "validatedBy": "fontTools-stock-metrics", "validatedFormat": fmt,
             }
-    base._populate_metrics(additional)
+    base._populate_metrics(additional, metrics_cache)
     slots.update(additional)
     return dynamic_aliases
 
@@ -712,6 +717,7 @@ def _can_reuse(existing: dict[str, Any], build_key: str) -> bool:
         and isinstance(existing.get("discoveredPartitions"), list)
         and isinstance(existing.get("xmlGraph"), dict)
         and existing["xmlGraph"].get("schema") == XML_GRAPH_SCHEMA
+        and isinstance(existing.get("stockFontLinks"), dict)
     )
 
 
@@ -768,6 +774,39 @@ def _stock_logical_entry_exists(logical: str, roots: list[base.FontRoot]) -> boo
     return False
 
 
+def _stock_font_links(roots: list[base.FontRoot]) -> dict[str, str]:
+    """Record link text from selected stock views, without opening its target.
+
+    OEM aliases may end in a mutable /data theme directory. Such a target is
+    useful for identifying shared stock aliases, but is never stock font data.
+    Do not traverse directory symlinks into a live or external font view.
+    """
+    links: dict[str, str] = {}
+    for root in roots:
+        if not root.actual.is_dir():
+            continue
+        for directory, subdirs, files in os.walk(root.actual, followlinks=False):
+            subdirs[:] = [name for name in subdirs if not (Path(directory) / name).is_symlink()]
+            for name in files:
+                if Path(name).suffix.lower() not in base.FONT_EXTENSIONS:
+                    continue
+                actual = Path(directory) / name
+                try:
+                    if not actual.is_symlink():
+                        continue
+                    logical = root.logical / actual.relative_to(root.actual)
+                    target = os.readlink(actual)
+                    if not target or any(char in target for char in ("\x00", "\n", "\r")):
+                        continue
+                    # Keep a logical pathname; Path.resolve would open the live
+                    # target and lose the stock namespace's link relationship.
+                    absolute = target if target.startswith("/") else str(logical.parent / target)
+                    links[str(logical)] = os.path.normpath(absolute)
+                except (OSError, ValueError):
+                    continue
+    return dict(sorted(links.items()))
+
+
 def _retirable_absent_upgrade_slot(logical: str, *, coloros: bool) -> bool:
     """Retire only stale entries known to come from old LuoShu compatibility scope.
 
@@ -788,7 +827,7 @@ def _retirable_absent_upgrade_slot(logical: str, *, coloros: bool) -> bool:
 
 def _refresh_known_slots(slots: dict[str, dict[str, Any]], families: dict[str, list[str]],
                          existing: dict[str, Any], roots: list[base.FontRoot],
-                         preserved_paths: set[str]) -> None:
+                         preserved_paths: set[str], metrics_cache: dict | None = None) -> None:
     """Refresh previously discovered UI slots from the same verified stock path.
 
     A metrics upgrade must not depend on rediscovering every OEM family through
@@ -796,6 +835,8 @@ def _refresh_known_slots(slots: dict[str, dict[str, Any]], families: dict[str, l
     all metrics again through the selected stock views. Missing, corrupt, or
     theme-linked files still fail the preservation check below.
     """
+    if metrics_cache is None:
+        metrics_cache = {}
     for logical in sorted(set(existing["slots"]) - set(slots) - preserved_paths):
         resolved = base._resolve_file(logical, roots)
         if resolved is None:
@@ -806,7 +847,7 @@ def _refresh_known_slots(slots: dict[str, dict[str, Any]], families: dict[str, l
         old = existing["slots"][logical]
         try:
             stock_file = base._stock_font_path(root, actual, roots)
-            fmt, metrics = base._read_metrics(stock_file, int(old.get("faceIndex", 0)))
+            fmt, metrics = base._read_metrics_cached(stock_file, int(old.get("faceIndex", 0)), metrics_cache)
         except (base.InventoryError, OSError, ValueError):
             continue
         entry = {**old, "format": fmt, "metrics": metrics,
@@ -861,7 +902,8 @@ def scan(args: Any) -> int:
         else:
             valid_existing = existing_for_scan
     upgrade = valid_existing is not None and (
-        not _has_current_metrics(valid_existing) or not _has_current_hyperos_coverage(valid_existing)
+        int(valid_existing.get("scannerRevision", 0) or 0) != SCANNER_REVISION
+        or not _has_current_metrics(valid_existing) or not _has_current_hyperos_coverage(valid_existing)
     )
     try:
         return _scan_current_roots(args, build_key, fingerprint, display_id, valid_existing, upgrade, probe)
@@ -899,8 +941,9 @@ def _scan_current_roots(args: Any, build_key: str, fingerprint: str, display_id:
     base._add_heuristic_slots(slots, replaceable_roots, args.font_check)
     # Vendor-agnostic final pass: enumerate stock font files and classify real
     # text faces by cmap/metrics instead of waiting for a hard-coded OEM name.
-    base._add_verified_text_slots(slots, replaceable_roots)
-    base._populate_metrics(slots)
+    metrics_cache: dict = {}
+    base._add_verified_text_slots(slots, replaceable_roots, metrics_cache)
+    base._populate_metrics(slots, metrics_cache)
     path_total, unique_total, path_counts, unique_counts, names = _stock_file_counts(replaceable_roots)
     try:
         _initial_path, _initial_entry, initial_rom = base._pick_main_slot(slots, families)
@@ -921,7 +964,7 @@ def _scan_current_roots(args: Any, build_key: str, fingerprint: str, display_id:
         or initial_rom == "hyperos"
         or bool(_rom_markers(names).get("hyperos"))
     )
-    dynamic_aliases = _add_hyperos_physical_slots(slots, replaceable_roots) if hyperos else {}
+    dynamic_aliases = _add_hyperos_physical_slots(slots, replaceable_roots, metrics_cache) if hyperos else {}
     retired_physical_slots = {
         path for path, entry in (existing or {}).get("slots", {}).items()
         if hyperos and entry.get("source") == "hyperos-physical"
@@ -930,7 +973,7 @@ def _scan_current_roots(args: Any, build_key: str, fingerprint: str, display_id:
     preserved_paths = set(dynamic_aliases) | retired_physical_slots
     retired_absent_upgrade_slots: set[str] = set()
     if upgrade and existing is not None:
-        _refresh_known_slots(slots, families, existing, replaceable_roots, preserved_paths)
+        _refresh_known_slots(slots, families, existing, replaceable_roots, preserved_paths, metrics_cache)
         # Older LuoShu builds could pollute the saved inventory with aliases that
         # existed only in LuoShu's generated payload (ColorOS alias_core is the
         # common example). Once this scan is reading verified stock roots, an old
@@ -982,6 +1025,7 @@ def _scan_current_roots(args: Any, build_key: str, fingerprint: str, display_id:
         # ColorOS inventory "hyperos" because an unused MiSans file is present.
         "hyperosCoverageRevision": HYPEROS_COVERAGE_REVISION,
         "preservedDynamicAliases": dynamic_aliases,
+        "stockFontLinks": _stock_font_links(replaceable_roots),
         "retiredPhysicalSlots": sorted(retired_physical_slots),
         "retiredAbsentUpgradeSlots": sorted(retired_absent_upgrade_slots),
         "discoveredPartitions": sorted(

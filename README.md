@@ -33,14 +33,17 @@
 - **设备自适应字体清单**：扫描当前 ROM 的实际字体目录、配置、字体槽、字重、TTC face 与字体度量，不依赖固定机型列表。
 - **HyperOS / ColorOS 适配**：针对 OEM 字体路由、状态栏/系统 UI、英文数字槽和回退链提供额外处理。
 - **Google 字体兼容**：设置中提供中文的「Google 字体兼容」页面，可检测、开启和恢复 GMS FontsProvider 组件状态，用于处理部分 Google 应用英数重新使用下载字体的问题。
-- **自动 systemless 挂载**：可用的外部提供者优先；确认没有提供者时，字域通过 OverlayFS / bind 接管。字体负载仍保存在私有目录，具体流程见 [挂载说明](docs/MOUNT_FLOW.md)。
+- **挂载方式由用户选择**：可选择元模块自动挂载、OverlayFS、Magic Mount 或字域自挂载；明确选择会跨模块升级保留。各模式不会在失败时偷偷切换到其他模式，详情见[挂载说明](docs/MOUNT_FLOW.md)。
+- **当前启动直接热切换**：已验证的字域物理自挂载支持在本次开机内从一套自定义字体切到另一套；其他路径会如实要求重启。热挂载不保证已打开应用立刻刷新缓存。
+- **按证据报告应用结果**：区分已验证应用、部分槽位警告、待重启和失败；用户可忽略兼容警告，诊断信息仍保留。
+- **详细诊断导出**：包含挂载来源、实现方式、分区目标、字体路径验证与必要的进程缓存证据；另有供用户直接执行的分区兼容报告脚本。
 - **事务与回滚**：新字体完整生成并验证成功后才提交；生成失败、超时或内存不足时保留上一套可用负载。
 - **字体缓存复用**：相同字体组合和设备契约可以复用已验证结果，减少重复生成。
 - **原生 Android App**：模块 ZIP 内置 App，不使用 WebUI；正式版和 Debug 版均只发布可刷入模块 ZIP。
 
-## 首发与验证状态
+## 当前版本与验证状态
 
-当前源码版本为 **字域 v1.2.0**。安装包和已发布版本请查看 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases)，本地测试包不代表已正式发布。上游 LuoShu 的 Releases 用于查看上游历史。
+当前源码候选版本为 **字域 v1.3.0**；是否已经正式发布，以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 中的正式条目为准。上游 LuoShu 的 Releases 用于查看上游历史。真机验证状态见[测试矩阵](docs/TEST_MATRIX.md)，自动化通过不代表所有机型均完成验收。
 
 Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更新清单。App 的“模块更新”会直接请求 GitHub Release API、Release 下载地址和 Raw 文件；国内网络可能无法检查或下载。接入国内可直连发布源并完成无代理实测前，不能承诺免代理更新。
 
@@ -48,15 +51,13 @@ Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更�
 
 ## 快速开始
 
-1. 从 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载本 fork 的模块 ZIP；测试包请按对应更新说明验证。
-2. **关闭 Root 管理器中的「默认卸载模块」功能。**
-3. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入模块。
-4. 完整重启手机。
-5. 安装模块内置 App。
-6. 在 App 中导入字体，选择中文、英文和数字字体。
-7. 应用字体，等待任务完成后按提示完整重启。
+1. 从 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 下载正式模块 ZIP，并校验随附 SHA-256 文件。
+2. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入 ZIP，按管理器提示重启，再从模块的“操作”入口安装内置 App。
+3. 在 App 的“字体挂载方式”中明确选择模式。切换模式后，按弹窗选择立即重启验证或稍后重启。
+4. 导入字体，选择中文、英文、数字及字重，提交应用。
+5. 按任务结果处理：完成并等待重启时重启；若显示已热挂载，先查看挂载详情，界面仍旧时再考虑刷新缓存。
 
-**包名与签名说明：**1.2.0 起正式 App 使用 `io.github.shishui611_art.ziyu`，Debug 包使用 `io.github.shishui611_art.ziyu.debug`。从旧包 `io.github.xgl34222220.ziyu` 更新时，Android 会把它作为新 App 安装；首次打开需重新授予 Root，旧 App 的私有设置不会自动迁移，请先导出备份。后续正式更新必须继续使用同一正式签名；本地 Debug 包不能覆盖正式版。
+**包名与签名说明：**正式 App 包名为 `io.github.shishui611_art.ziyu`。签名配置齐全时，Debug 也会使用同一包名和正式证书，可覆盖正式 App 并保留数据；未配置正式签名的本地 Debug 使用 `.debug` 独立包，不能覆盖正式版。历史独立 Debug App 不会自动卸载。从旧包 `io.github.xgl34222220.ziyu` 更新时，Android 会把它作为新 App 安装；首次打开需重新授予 Root，旧 App 私有设置不会自动迁移。
 
 > 不需要安装额外挂载模块，也不需要手工修改 `fonts.xml`。
 
@@ -124,7 +125,7 @@ Google 字体兼容会影响当前用户所有依赖 GMS 下载字体的应用�
 - Variable Font
 - 多字重字体
 
-可变字体会读取实际 `wght`、`wdth`、`opsz`、`slnt` 等设计轴；不存在的字重不会仅靠文件名伪装为可用。
+可变字体会读取实际 `wght`、`wdth`、`opsz`、`slnt` 等设计轴；不存在的字重不会仅靠文件名伪装为可用。TTC 作为字体集合保留，不拆为多个字体文件；重复导入按内容哈希识别。
 
 ## 用户目录
 
@@ -175,6 +176,7 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 /system_ext/fonts
 /product/fonts
 /my_product/fonts
+/my_region/fonts
 /vendor/fonts
 /odm/fonts
 /oem/fonts
@@ -194,7 +196,7 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 1.1.0 → 1.1.1 → 1.2.0 → ...
 ```
 
-模块与 App 的 versionCode 均为 `major*10000 + minor*1000 + patch`，不再添加 70000 偏移，也不再乘以 100。次版本限制为 0–9，修订号为 0–999。
+模块与 App 的 versionCode 均为 `major*10000 + minor*1000 + patch`。v1.3.0 为 13000。次版本限制为 0–9，修订号为 0–999。
 
 当前版本号与是否已发布，以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 和模块信息为准；上游 LuoShu 版本号不会代替本 fork 的版本号。
 
@@ -202,7 +204,7 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 
 正式版由 GitHub Actions 完成固定证书签名、测试和 ZIP 打包。不要把本地 Debug APK 当作正式版上传。
 
-本地开发测试需先构建 Debug App，再把 APK 显式交给模块打包脚本：
+本地开发可构建 Debug App，再把本次 APK 显式交给模块打包脚本：
 
 ```sh
 cd android-app
@@ -214,7 +216,7 @@ LUOSHU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
 LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 ```
 
-模块打包步骤需在配置好 Android SDK/NDK 的 Linux 环境运行。Debug App 使用独立测试包名，不能覆盖安装正式 App；正式 Release 使用固定证书构建，模块内置 App 必须与已签名构建产物保持一致。
+模块打包步骤需在配置好 Android SDK/NDK 和 Python 运行时的环境运行。配置正式签名时 Debug 可覆盖正式 App；未提供签名时 Debug 使用独立 `.debug` 包名，不能覆盖正式 App。正式 Release 使用固定证书构建，模块内置 App 必须与已签名构建产物保持一致。
 
 ## 问题反馈
 
@@ -232,11 +234,18 @@ LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 
 ## 文档
 
+- [文档索引与适用范围](docs/README.md)
 - [完整使用教程](docs/USER_GUIDE.md)
 - [Google 字体兼容中文说明](docs/GOOGLE_FONT_COMPATIBILITY_ZH.md)
 - [真机验证矩阵](docs/TEST_MATRIX.md)
 - [设备字体模板引擎](docs/DEVICE_FONT_TEMPLATE_ENGINE.md)
 - [发布流程](docs/RELEASING.md)
+- [挂载方式与验证](docs/MOUNT_FLOW.md)
+- [热切换限制](docs/FONT_LIVE_SWITCH.md)
+- [临时 Root 与软重启](docs/TEMP_ROOT.md)
+- [字体问题与诊断日志](docs/FONT_DIAGNOSTICS.md)
+- [性能优化说明](docs/SWITCH_PERFORMANCE.md)
+- [模块更新说明](docs/MODULE_UPDATE.md)
 - [第三方许可证](THIRD_PARTY_NOTICES.md)
 
 ## 许可证

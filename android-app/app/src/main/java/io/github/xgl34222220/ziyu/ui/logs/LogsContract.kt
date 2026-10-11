@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import io.github.xgl34222220.ziyu.ZiyuViewModel
 import io.github.xgl34222220.ziyu.NativeImportPhase
 import io.github.xgl34222220.ziyu.NativeImportState
+import org.json.JSONObject
 
 @Immutable
 internal data class LogsUiState(
@@ -18,6 +19,7 @@ internal data class LogsUiState(
     val rebootRequired: Boolean = false,
     val temporaryRootMode: Boolean = false,
     val logsViewed: Boolean = false,
+    val warningsIgnored: Boolean = false,
     val undoAvailable: Boolean = false,
     val undoRebootRequired: Boolean = false,
     val actionMessage: String = "",
@@ -29,18 +31,39 @@ internal data class LogsActions(
     val undoApply: () -> Unit = {},
     val markViewed: () -> Unit = {},
     val clearLogs: () -> Unit = {},
+    val ignoreWarnings: () -> Unit = {},
 )
 
-internal fun isWarningLogRecord(line: String): Boolean =
-    line.contains("warn", ignoreCase = true) || line.contains("警告")
+private enum class LogSeverity { INFO, WARNING, ERROR }
+private val explicitErrorLevel = Regex("\\[(?:ERROR|FATAL)]|^(?:\\[[^]]+]\\s*)*(?:ERROR|FATAL)\\b", RegexOption.IGNORE_CASE)
+private val explicitWarningLevel = Regex("\\[WARN(?:ING)?]|^(?:\\[[^]]+]\\s*)*WARN(?:ING)?\\b", RegexOption.IGNORE_CASE)
+private val warningWord = Regex("\\bwarn(?:ing)?\\b|警告", RegexOption.IGNORE_CASE)
+private val errorWord = Regex("\\b(?:error|failed|failure|fatal)\\b|失败|错误", RegexOption.IGNORE_CASE)
 
-internal fun isErrorLogRecord(line: String): Boolean =
-    !isWarningLogRecord(line) && (
-        line.contains("error", ignoreCase = true) ||
-            line.contains("failed", ignoreCase = true) ||
-            line.contains("失败") ||
-            line.contains("错误")
-        )
+private fun logSeverity(line: String): LogSeverity {
+    // Explicit levels and the outer result describe this record. Nested retry
+    // diagnostics (or a JSON field named "warning") do not change its result.
+    if (explicitErrorLevel.containsMatchIn(line)) return LogSeverity.ERROR
+    if (explicitWarningLevel.containsMatchIn(line)) return LogSeverity.WARNING
+    val text = line.trim()
+    val jsonStart = text.indexOf('{')
+    val status = if (jsonStart >= 0 && text.endsWith('}')) {
+        runCatching { JSONObject(text.substring(jsonStart)).optString("status") }.getOrNull()
+    } else null
+    return when (status?.lowercase()) {
+        "error", "failed" -> LogSeverity.ERROR
+        "warning", "warn" -> LogSeverity.WARNING
+        "ok", "success" -> LogSeverity.INFO
+        else -> when {
+            warningWord.containsMatchIn(text) -> LogSeverity.WARNING
+            errorWord.containsMatchIn(text) -> LogSeverity.ERROR
+            else -> LogSeverity.INFO
+        }
+    }
+}
+
+internal fun isWarningLogRecord(line: String): Boolean = logSeverity(line) == LogSeverity.WARNING
+internal fun isErrorLogRecord(line: String): Boolean = logSeverity(line) == LogSeverity.ERROR
 
 internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
     val normalized = logs.ifBlank { "尚未读取日志" }
@@ -109,8 +132,13 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
                     title = taskTitle(kind, snapshotPhase),
                     message = if (snapshot.taskType == "switch" && snapshotPhase == TaskPhase.SUCCESS) {
                         when {
+                            snapshot.fontEffectState in setOf("live", "live-partial") && snapshot.effectiveFont == snapshot.activeFont ->
+                                "字体已热挂载并通过路由校验；部分界面可能需重新打开或手动软重启以刷新缓存" +
+                                    if (snapshot.fontEffectState == "live-partial") "；${snapshot.mountFailure}" else ""
+                            snapshot.fontEffectState == "partial" && snapshot.effectiveFont == snapshot.activeFont ->
+                                snapshot.mountFailure.ifBlank { "字体已应用；部分槽位的挂载或加载状态需要确认，详见提示日志" }
                             snapshot.fontEffectState == "verified" && snapshot.effectiveFont == snapshot.activeFont ->
-                                "字体应用已完成，本次开机验证通过"
+                                "字体应用成功，本次开机验证通过"
                             snapshot.fontEffectState == "system" -> "已恢复系统默认字体"
                             else -> "字体应用任务已完成；当前效果请查看首页挂载与验证状态"
                         }
@@ -212,6 +240,7 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
         rebootRequired = currentRebootRequired,
         temporaryRootMode = snapshot.temporaryRootMode,
         logsViewed = logsViewed,
+        warningsIgnored = warningsIgnored,
         undoAvailable = undoAvailable,
         undoRebootRequired = undoRebootRequired,
         actionMessage = operationMessage,

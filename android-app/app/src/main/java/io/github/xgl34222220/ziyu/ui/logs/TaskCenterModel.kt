@@ -79,9 +79,9 @@ internal fun taskPhaseFor(level: String, message: String, state: String = ""): T
         // module snapshot, not to the wording saved with an old task.
         "success" -> TaskPhase.SUCCESS
         else -> when {
-            "warn" in normalized || "警告" in normalized -> TaskPhase.INFO
+            isWarningLogRecord("$level $message") -> TaskPhase.INFO
             "已取消" in normalized || "cancelled" in normalized -> TaskPhase.CANCELLED
-            "failed" in normalized || "error" in normalized || "失败" in normalized || "错误" in normalized -> TaskPhase.FAILED
+            isErrorLogRecord("$level $message") -> TaskPhase.FAILED
             "重启后" in normalized || "等待重启" in normalized || "reboot required" in normalized -> TaskPhase.WAITING_REBOOT
             "queued" in normalized || "排队" in normalized || "等待执行" in normalized -> TaskPhase.QUEUED
             "running" in normalized || "正在" in normalized || "开始" in normalized || "处理中" in normalized -> TaskPhase.RUNNING
@@ -94,7 +94,7 @@ internal fun taskPhaseFor(level: String, message: String, state: String = ""): T
 internal fun taskTitle(kind: TaskKind, phase: TaskPhase): String = when (phase) {
     TaskPhase.QUEUED -> "${kind.label}等待执行"
     TaskPhase.RUNNING -> "${kind.label}进行中"
-    TaskPhase.SUCCESS -> "${kind.label}已完成"
+    TaskPhase.SUCCESS -> if (kind == TaskKind.APPLY) "字体应用成功" else "${kind.label}已完成"
     TaskPhase.FAILED -> "${kind.label}失败"
     TaskPhase.CANCELLED -> "${kind.label}已取消"
     TaskPhase.WAITING_REBOOT -> "${kind.label}等待重启"
@@ -114,6 +114,9 @@ internal fun parseTaskLogItems(content: String, limit: Int = 18): List<TaskCente
         val level = match?.groupValues?.getOrNull(2).orEmpty()
         val rawMessage = match?.groupValues?.getOrNull(3)?.trim().orEmpty().ifBlank { line }
         val message = taskDisplayMessage(rawMessage)
+        // A warning is diagnostic context for a task, not another failed or
+        // unfinished task. Keep the original record in the log page.
+        if (isWarningLogRecord(line)) return@mapIndexedNotNull null
         val kind = taskKindFor(message)
         if (kind == TaskKind.DIAGNOSTIC) return@mapIndexedNotNull null
         val observedPhase = taskPhaseFor(level, rawMessage)

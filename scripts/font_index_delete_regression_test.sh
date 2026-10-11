@@ -4,7 +4,11 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
-FONT=$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)
+FONT=${LUOSHU_TEST_FONT_TTF:-}
+if [ ! -s "$FONT" ]; then
+    FONT=$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)
+fi
+if [ ! -s "$FONT" ] && [ -s /c/Windows/Fonts/arial.ttf ]; then FONT=/c/Windows/Fonts/arial.ttf; fi
 if [ ! -s "$FONT" ]; then
     echo 'Font index deletion regression skipped: DejaVu Sans is unavailable.'
     exit 0
@@ -20,23 +24,40 @@ cp "$ROOT/common/util_functions_core.sh" "$MODULE/common/util_functions_core.sh"
 cp "$ROOT/common/font_check.sh" "$MODULE/common/font_check.sh"
 cp "$ROOT/common/font_library_cache.sh" "$MODULE/common/font_library_cache.sh"
 cp "$FONT" "$PUBLIC/fonts/Alpha-Regular.ttf"
+cp "$FONT" "$PUBLIC/fonts/Alpha-Bold.ttf"
 cp "$FONT" "$PUBLIC/fonts/Beta-Regular.ttf"
+cp "$FONT" "$PUBLIC/fonts/Gamma-Regular.ttf"
 
 BEFORE=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action list refresh)
-printf '%s\n' "$BEFORE" | grep -q '"count":2'
+printf '%s\n' "$BEFORE" | grep -q '"count":3'
 printf '%s\n' "$BEFORE" | grep -q '"id":"Alpha"'
 printf '%s\n' "$BEFORE" | grep -q '"id":"Beta"'
 
-DELETED=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete Alpha)
+DELETED=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete_many Alpha Beta)
 printf '%s\n' "$DELETED" | grep -q '"status":"ok"'
-printf '%s\n' "$DELETED" | grep -q '"deleted":1'
+printf '%s\n' "$DELETED" | grep -q '"deletedFamilies":2'
+printf '%s\n' "$DELETED" | grep -q '"deletedFiles":3'
 test ! -e "$PUBLIC/fonts/Alpha-Regular.ttf"
-test -s "$PUBLIC/fonts/Beta-Regular.ttf"
+test ! -e "$PUBLIC/fonts/Alpha-Bold.ttf"
+test ! -e "$PUBLIC/fonts/Beta-Regular.ttf"
+test -s "$PUBLIC/fonts/Gamma-Regular.ttf"
 
 AFTER=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action list refresh)
 printf '%s\n' "$AFTER" | grep -q '"count":1'
 ! printf '%s\n' "$AFTER" | grep -q '"id":"Alpha"'
-printf '%s\n' "$AFTER" | grep -q '"id":"Beta"'
+! printf '%s\n' "$AFTER" | grep -q '"id":"Beta"'
+printf '%s\n' "$AFTER" | grep -q '"id":"Gamma"'
+
+# A pending active-font transaction must reject the whole batch before deleting any member.
+cp "$FONT" "$PUBLIC/fonts/Alpha-Regular.ttf"
+cp "$FONT" "$PUBLIC/fonts/Alpha-Bold.ttf"
+printf 'Gamma\n' > "$MODULE/config/active_font.conf"
+touch "$MODULE/config/text_reboot_required.conf"
+BLOCKED=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete_many Alpha Gamma)
+printf '%s\n' "$BLOCKED" | grep -q '"status":"error"'
+test -s "$PUBLIC/fonts/Alpha-Regular.ttf"
+test -s "$PUBLIC/fonts/Alpha-Bold.ttf"
+test -s "$PUBLIC/fonts/Gamma-Regular.ttf"
 
 # Inventory/delete implementation remains in the preserved current manager; the
 # root manager is intentionally only a switch router.
@@ -44,4 +65,4 @@ printf '%s\n' "$AFTER" | grep -q '"id":"Beta"'
 grep -Fq 'case "$_name" in' "$ROOT/common/font_manager_v4.sh"
 grep -Fq 'case "$_family" in' "$ROOT/common/font_manager_v4.sh"
 grep -q 'exec sh "$CURRENT_MANAGER" "$@"' "$ROOT/common/font_manager.sh"
-echo 'Deleting one font through the router preserves every remaining font in the native index.'
+echo 'Batch deletion removes selected font families and all weights while preserving remaining fonts.'

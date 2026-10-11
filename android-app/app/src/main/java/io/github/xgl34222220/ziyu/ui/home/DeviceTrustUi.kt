@@ -34,6 +34,7 @@ import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 internal enum class DeviceTrustLevel {
     SYSTEM,
     VERIFIED,
+    PARTIAL,
     COMPATIBILITY,
     PENDING,
     ISSUE,
@@ -84,6 +85,7 @@ internal data class DeviceTrustState(
             mountState == "failed" -> DeviceTrustLevel.ISSUE
             alignment == "failed" || reason in failedTrustReasons -> DeviceTrustLevel.ISSUE
             activeFont in setOf("", "default") -> DeviceTrustLevel.SYSTEM
+            alignment == "partial" -> DeviceTrustLevel.PARTIAL
             alignment == "not-applicable" -> DeviceTrustLevel.PENDING
             alignment == "skipped" -> DeviceTrustLevel.COMPATIBILITY
             reapplyPending -> DeviceTrustLevel.PENDING
@@ -127,6 +129,13 @@ internal suspend fun loadDeviceTrustState(): DeviceTrustState {
             backendSelected="${'$'}(read_value "${'$'}backendFile" selected_backend)"
             backendError="${'$'}(read_value "${'$'}backendFile" last_error)"
             case "${'$'}backendVerify" in
+                partial)
+                    mountState=partial
+                    alignment=partial
+                    mode=mount-partial
+                    reason="${'$'}(read_value "${'$'}backendFile" mount_warning)"
+                    mountFailure="${'$'}reason"
+                    ;;
                 failed)
                     mountState=failed
                     mountFailure="${'$'}backendError"
@@ -303,7 +312,7 @@ internal fun DeviceTrustDialog(
                 DeviceTrustRow("加载模式", friendlyTrustValue(state.mode))
                 DeviceTrustRow("自挂载事务", friendlyTrustValue(state.mountState))
                 if (state.mountFailure.isNotBlank()) {
-                    DeviceTrustRow("失败目标", state.mountFailure)
+                    DeviceTrustRow(if (state.level == DeviceTrustLevel.PARTIAL) "挂载 / 加载提示" else "失败目标", state.mountFailure)
                 }
                 if (state.reason.isNotBlank()) {
                     DeviceTrustRow("验证说明", friendlyTrustReason(state.reason))
@@ -364,6 +373,12 @@ private fun deviceTrustPresentation(state: DeviceTrustState): DeviceTrustPresent
             "没有启用字域字体，无需进行加载验证",
             Icons.Rounded.CheckCircle,
             scheme.primary,
+        )
+        state.level == DeviceTrustLevel.PARTIAL -> DeviceTrustPresentation(
+            "字体应用成功（有提示）",
+            state.reason.ifBlank { "部分槽位的挂载或加载状态需要确认；详见提示日志" },
+            Icons.Rounded.Warning,
+            scheme.tertiary,
         )
         state.level == DeviceTrustLevel.VERIFIED && state.mode == "mount-verified" -> DeviceTrustPresentation(
             "本次启动字体已验证",
@@ -453,6 +468,8 @@ private fun friendlyTrustValue(value: String): String = when (value) {
     "ready" -> "已就绪"
     "trusted" -> "可信"
     "verified" -> "验证通过"
+    "partial" -> "字体已应用（有提示）"
+    "mount-partial" -> "字体槽位验证有提示"
     "failed" -> "失败"
     "pending" -> "待验证"
     "unverified" -> "证据不足"

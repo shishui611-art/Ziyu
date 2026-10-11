@@ -165,7 +165,11 @@ private fun MiuixFontActionDialog(
                             fontWeight = FontWeight.Black,
                         )
                         Text(
-                            if (kind.destructive) "此操作不可撤销" else "完成后建议完整重启手机",
+                            when (kind) {
+                                FontActionKind.DELETE -> "此操作不可撤销"
+                                FontActionKind.APPLY -> "重启要求以应用结果为准"
+                                FontActionKind.RESTORE -> "恢复后按结果提示重启"
+                            },
                             color = tokens.textSecondary,
                             fontSize = 11.sp,
                         )

@@ -60,7 +60,18 @@ write_task() {
     _heartbeat="${8:-$(date +%s 2>/dev/null || echo 0)}"
     _timeout="${9:-$TIMEOUT_SECONDS}"; _elapsed="${10:-0}"
     _boot="${11:-$(current_boot_id)}"; _reused="${12:-false}"; _percent="${13:-0}"
+    _live_applied="${14:-false}"; _reboot_required="${15:-unknown}"
     [ "$_reused" = true ] || _reused=false
+    [ "$_live_applied" = true ] || _live_applied=false
+    _ui_cache_refresh=false
+    if [ "$_live_applied" = true ] &&
+       grep -q '^ui_cache_state=stale$' "$MODDIR/config/font-live-attempt.conf" 2>/dev/null &&
+       grep -Fqx "request_id=$_task" "$MODDIR/config/font-live-attempt.conf" 2>/dev/null &&
+       grep -Fqx "boot_id=$_boot" "$MODDIR/config/font-live-attempt.conf" 2>/dev/null; then
+        _ui_cache_refresh=true
+        _message='100% · 字体已热挂载；状态栏和通知界面仍使用旧字体缓存，可通过软重启刷新'
+    fi
+    case "$_reboot_required" in true|false) ;; *) _reboot_required=unknown ;; esac
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
     [ "$_percent" -ge 0 ] 2>/dev/null || _percent=0
     [ "$_percent" -le 100 ] 2>/dev/null || _percent=100
@@ -80,6 +91,9 @@ write_task() {
         printf 'percent=%s\n' "$_percent"
         printf 'bootId=%s\n' "$_boot"
         printf 'reused=%s\n' "$_reused"
+        printf 'liveApplied=%s\n' "$_live_applied"
+        printf 'rebootRequired=%s\n' "$_reboot_required"
+        printf 'uiCacheRefreshRequired=%s\n' "$_ui_cache_refresh"
     } > "$_tmp" 2>/dev/null || return 1
     mv -f "$_tmp" "$TASK_FILE" 2>/dev/null || return 1
     chmod 0644 "$TASK_FILE" 2>/dev/null || true
@@ -162,7 +176,15 @@ reconcile_task() {
     _age=$((_now - _started))
     [ "$_state" = queued ] && [ "$_age" -ge 0 ] 2>/dev/null && [ "$_age" -lt 8 ] 2>/dev/null && return 0
 
-    _reconciled_state=failed; _reconciled_message='字体切换进程已结束，任务锁已自动释放'
+    _scope_cleanup_confirmed=false
+    if grep -Fq '"leftoverPids": []' "$WORKER_PID_FILE.cleanup.json" 2>/dev/null &&
+       grep -Fq "\"task\": \"$_task\"" "$WORKER_PID_FILE.cleanup.json" 2>/dev/null; then
+        _scope_cleanup_confirmed=true
+    fi
+    _reconciled_state=failed; _reconciled_message='字体切换进程已结束'
+    if [ -e "$WORKER_PID_FILE" ] && [ "$_scope_cleanup_confirmed" != true ]; then
+        _reconciled_message='字体切换进程已结束，但子进程回收未确认，请导出日志或重启'
+    fi
     if [ "$_cancel_task" = "$_task" ] &&
        grep -Fq '"leftoverPids": []' "$WORKER_PID_FILE.cleanup.json" 2>/dev/null &&
        grep -Fq "\"task\": \"$_task\"" "$WORKER_PID_FILE.cleanup.json" 2>/dev/null; then
@@ -171,7 +193,9 @@ reconcile_task() {
     fi
     write_task "$_task" "$_reconciled_state" "$_font" "$_reconciled_message" \
         "$_started" "$_now" '' '' '' "${_elapsed:-0}" "$_now_boot" false 100
-    type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_task"
+    if [ "$_scope_cleanup_confirmed" = true ]; then
+        type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_task"
+    fi
 }
 
 terminate_child_tree() {
@@ -201,7 +225,12 @@ run_bounded() {
     _font="$1"; _output="$2"; _task="$3"; _started="$4"; _progress_file="$5"
     LUOSHU_SWITCH_PROGRESS_FILE="$_progress_file" sh "$MANAGER" action switch "$_font" > "$_output" 2>&1 &
     _child=$!; _switch_child=$_child; _elapsed=0; _next_heartbeat=0
+    _bounded_started=$(cut -d. -f1 /proc/uptime)
     while pid_alive "$_child"; do
+        _bounded_now=$(cut -d. -f1 /proc/uptime)
+        case "$_bounded_started:$_bounded_now" in
+            *[!0-9:]*|:*|*:) ;; *) _elapsed=$((_bounded_now - _bounded_started)) ;;
+        esac
         _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
         if [ "$_cancel_task" = "$_task" ]; then
             terminate_child_tree "$_child"; wait "$_child" 2>/dev/null || true
@@ -265,8 +294,30 @@ run_worker() {
 
     run_bounded "$_font" "$_output" "$_task" "$_started" "$_progress"
     _rc=$?; _finished=$(date +%s 2>/dev/null || echo 0)
+    if [ -e "$MODDIR/config/font-live-transaction.conf" ]; then
+        if ! sh "$MODDIR/common/font_live_switch.sh" recover >> "$LOG_FILE" 2>&1; then
+            write_task "$_task" failed "$_font" '热切换恢复尚未确认，已保留字体队列，请导出诊断日志' \
+                "$_started" "$_finished" '' '' '' 0 '' false 100
+            return 1
+        fi
+    fi
+    printf '[%s] [SWITCH-RESULT] task=%s font=%s rc=%s elapsed=%s stage=%s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "$_task" "$_font" "$_rc" "${_elapsed:-0}" \
+        "$(progress_message "$_progress" '未知阶段' "$(progress_value "$_progress" 0)")" >> "$LOG_FILE"
     _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
-    if [ "$_cancel_task" = "$_task" ]; then
+    . "$MODDIR/common/font_live_state.sh"
+    _live_committed=false
+    if ziyu_live_current && [ "$(ziyu_live_value "$MODDIR/config/font-live.conf" request_id)" = "$(ziyu_live_value "$MODDIR/config/font-payload-next.conf" requestId)" ] && \
+       [ "$(ziyu_live_value "$MODDIR/config/font-payload-next.conf" taskId)" = "$_task" ]; then _live_committed=true; fi
+    if [ "$_live_committed" = true ]; then
+        cat "$_output" >> "$LOG_FILE" 2>/dev/null || true
+        write_task "$_task" success "$_font" '100% · 字体已完成热挂载；部分界面可能需重新打开以刷新缓存' \
+            "$_started" "$_finished" '' '' '' 0 '' false 100 true false
+        [ -f "$HISTORY_TOOL" ] && MODDIR="$MODDIR" sh "$HISTORY_TOOL" record-direct "$_font" >/dev/null 2>&1 || true
+        rm -f "$_output" "$_progress" 2>/dev/null || true
+        return 0
+    elif [ "$_cancel_task" = "$_task" ]; then
+        tail -c 12000 "$_output" >> "$LOG_FILE" 2>/dev/null || true
         sh "$MODDIR/common/action_control.sh" discard-pending "$_task" >/dev/null 2>&1 || true
         write_task "$_task" cancelled "$_font" '字体应用已取消，当前生效字体保持原样' \
             "$_started" "$_finished" '' '' '' 0 '' false 100
@@ -274,31 +325,39 @@ run_worker() {
         cat "$_output" >> "$LOG_FILE" 2>/dev/null || true
         if grep -q '"reused":true' "$_output" 2>/dev/null; then
             write_task "$_task" success "$_font" '100% · 当前字体已验证，无需重新生成或重启' \
-                "$_started" "$_finished" '' '' '' 0 '' true 100
+                "$_started" "$_finished" '' '' '' 0 '' true 100 false false
+        elif grep -q '"liveApplied":true' "$_output" 2>/dev/null; then
+            write_task "$_task" success "$_font" '100% · 字体已热挂载；部分界面可能需重新打开以刷新缓存' \
+                "$_started" "$_finished" '' '' '' 0 '' false 100 true false
+            [ -f "$HISTORY_TOOL" ] && MODDIR="$MODDIR" sh "$HISTORY_TOOL" record-direct "$_font" >/dev/null 2>&1 || true
         elif grep -q '"pipeline":"universal"' "$_output" 2>/dev/null; then
             # Phase 9 owns the pending state for Universal. Do not write the
             # legacy load-verification marker or the App could confuse two engines.
             write_task "$_task" success "$_font" '100% · 通用字体引擎已准备完成，完整重启后自动验收' \
-                "$_started" "$_finished" '' '' '' 0 '' false 100
+                "$_started" "$_finished" '' '' '' 0 '' false 100 false true
             [ -f "$HISTORY_TOOL" ] && MODDIR="$MODDIR" sh "$HISTORY_TOOL" record-direct "$_font" >/dev/null 2>&1 || true
         else
-            mark_load_verification_pending "$_font" || true
+            # A queued later selection must not overwrite the proof of the old
+            # font that was restored or remains hot mounted in this boot.
+            ziyu_live_current || mark_load_verification_pending "$_font" || true
             write_task "$_task" success "$_font" '100% · 字体已准备完成，完整重启后生效' \
-                "$_started" "$_finished" '' '' '' 0 '' false 100
+                "$_started" "$_finished" '' '' '' 0 '' false 100 false true
             [ -f "$HISTORY_TOOL" ] && MODDIR="$MODDIR" sh "$HISTORY_TOOL" record-direct "$_font" >/dev/null 2>&1 || true
         fi
     elif [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
         cat "$_output" >> "$LOG_FILE" 2>/dev/null || true
         _last_stage=$(progress_message "$_progress" '正在准备下一启动字体负载' "$(progress_value "$_progress" 0)")
-        write_task "$_task" failed "$_font" "字体切换超过 ${TIMEOUT_SECONDS} 秒，已终止（${_last_stage}）；当前启动字体未被改动" \
+        write_task "$_task" failed "$_font" "字体切换超过 ${TIMEOUT_SECONDS} 秒，已终止（${_last_stage}）；如发生热切换中断，已尝试恢复上一套字体，请查看日志" \
             "$_started" "$_finished" '' '' '' "$TIMEOUT_SECONDS" '' false 100
     else
+        [ "$_rc" -ne 0 ] || _rc=1
         _message=$(sed -n 's/.*"message":"\([^"]*\)".*/\1/p' "$_output" 2>/dev/null | tail -n1)
         [ -n "$_message" ] || _message="字体切换失败（代码 $_rc），当前启动字体未被改动"
         cat "$_output" >> "$LOG_FILE" 2>/dev/null || true
         write_task "$_task" failed "$_font" "$_message" "$_started" "$_finished" '' '' '' 0 '' false 100
     fi
     rm -f "$_output" "$_progress" 2>/dev/null || true
+    return "$_rc"
 }
 
 start_task() {
@@ -316,6 +375,21 @@ start_task() {
     fi
     trap 'start_lock_release' EXIT
     reconcile_task
+    # A worker can write its final state slightly before its subreaper finishes
+    # cleanup. Preserve the old scope's sidecars until cleanup has released them;
+    # otherwise a rapid second tap can orphan the previous task's descendants.
+    _prior_boot=$(cat "$WORKER_PID_FILE.boot" 2>/dev/null)
+    if [ -e "$WORKER_PID_FILE" ] && [ "$_prior_boot" = "$(current_boot_id)" ]; then
+        _prior_wait=0
+        while [ -e "$WORKER_PID_FILE" ] && [ "$_prior_wait" -lt 25 ]; do
+            sleep 0.2
+            _prior_wait=$((_prior_wait + 1))
+        done
+        if [ -e "$WORKER_PID_FILE" ]; then
+            printf '{"status":"error","message":"上一字体任务还在运行或子进程回收未确认，请刷新进度后重试"}\n'
+            return 0
+        fi
+    fi
     _state=$(read_value state); _task_old=$(read_value task); _pid=$(read_value pid)
     if { [ "$_state" = queued ] || [ "$_state" = running ]; } && worker_alive "$_task_old" "$_pid"; then
         printf '{"status":"error","message":"已有字体任务在运行中，请查看当前进度"}\n'; return 0
@@ -329,6 +403,9 @@ start_task() {
     export MODDIR LUOSHU_FONT_MANAGER="$MANAGER" LUOSHU_SWITCH_TASK_FILE="$TASK_FILE" \
         LUOSHU_SWITCH_LOG="$LOG_FILE" LUOSHU_SWITCH_TIMEOUT_SECONDS="$TIMEOUT_SECONDS" \
         LUOSHU_SWITCH_HEARTBEAT_INTERVAL="$HEARTBEAT_INTERVAL" LUOSHU_SWITCH_WORKER_PID_FILE="$WORKER_PID_FILE"
+    LUOSHU_TASK_TIMEOUT_SECONDS=$((TIMEOUT_SECONDS + 15))
+    [ "$LUOSHU_TASK_TIMEOUT_SECONDS" -le 900 ] || LUOSHU_TASK_TIMEOUT_SECONDS=900
+    export LUOSHU_TASK_TIMEOUT_SECONDS
 
     if type luoshu_start_detached >/dev/null 2>&1; then
         luoshu_start_detached "$WORKER_PID_FILE" "$_task" "$LOG_FILE" sh "$0" run "$_task" "$_font" "$_started"
@@ -360,19 +437,25 @@ status_task() {
     _timeout=$(read_value timeout); _elapsed=$(read_value elapsed); _percent=$(read_value percent)
     _boot=$(read_value bootId); _reused=$(read_value reused)
     [ "$_reused" = true ] || _reused=false
+    _live_applied=$(read_value liveApplied)
+    _reboot_required=$(read_value rebootRequired)
+    _ui_cache_refresh=$(read_value uiCacheRefreshRequired)
+    [ "$_ui_cache_refresh" = true ] || _ui_cache_refresh=false
+    [ "$_live_applied" = true ] || _live_applied=false
+    case "$_reboot_required" in true|false) ;; *) _reboot_required=null ;; esac
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
     if [ "$_state" = success ] && [ -f "$STATUS_SCRIPT" ]; then MODDIR="$MODDIR" sh "$STATUS_SCRIPT" "$_font" >/dev/null 2>&1 || true; fi
-    printf '{"status":"ok","data":{"task":"%s","state":"%s","font":"%s","message":"%s","started":%s,"finished":%s,"heartbeat":%s,"timeout":%s,"elapsed":%s,"percent":%s,"bootId":"%s","reused":%s}}\n' \
+    printf '{"status":"ok","data":{"task":"%s","state":"%s","font":"%s","message":"%s","started":%s,"finished":%s,"heartbeat":%s,"timeout":%s,"elapsed":%s,"percent":%s,"bootId":"%s","reused":%s,"liveApplied":%s,"rebootRequired":%s,"uiCacheRefreshRequired":%s}}\n' \
         "$(json_escape "$_task")" "$(json_escape "$_state")" "$(json_escape "$_font")" "$(json_escape "$_message")" \
         "${_started:-0}" "${_finished:-0}" "${_heartbeat:-0}" "${_timeout:-$TIMEOUT_SECONDS}" "${_elapsed:-0}" "$_percent" \
-        "$(json_escape "$_boot")" "$_reused"
+        "$(json_escape "$_boot")" "$_reused" "$_live_applied" "$_reboot_required" "$_ui_cache_refresh"
 }
 
 case "${1:-status}" in
     start) start_task "${2:-}" ;;
     status) status_task "${2:-}" ;;
     reconcile) reconcile_task ;;
-    run) run_worker "${2:-}" "${3:-}" "${4:-0}" ;;
+    run) run_worker "${2:-}" "${3:-}" "${4:-0}"; exit $? ;;
     *) printf '{"status":"error","message":"未知切换命令"}\n' ;;
 esac
 exit 0

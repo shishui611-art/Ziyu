@@ -70,6 +70,17 @@ assert_json '"preferredBackend":"auto"' "$TMP/legacy-meta" 'legacy Meta request 
 assert_json '"rebootRequired":false' "$TMP/legacy-meta" 'legacy Meta request falsely reported a pending switch'
 pref cancel > "$TMP/cancel"
 assert_json '"rebootRequired":false' "$TMP/cancel" 'cancel left a preference migration pending'
+pref set overlayfs > "$TMP/overlayfs"
+assert_json '"preferredBackend":"overlayfs"' "$TMP/overlayfs" 'OverlayFS preference was not persisted'
+assert_json '"policy":"manual-overlayfs"' "$TMP/overlayfs" 'OverlayFS did not select its manual policy'
+pref set magic > "$TMP/magic"
+assert_json '"preferredBackend":"magic"' "$TMP/magic" 'Magic Mount preference was not persisted'
+assert_json '"policy":"manual-magic-mount"' "$TMP/magic" 'Magic Mount did not select its manual policy'
+pref set self_mount > "$TMP/self-mount"
+assert_json '"preferredBackend":"self_mount"' "$TMP/self-mount" 'self-mount preference was not persisted'
+assert_json '"policy":"manual-self-mount"' "$TMP/self-mount" 'self-mount did not select its manual policy'
+grep -qx 'preferred_backend=self_mount' "$MOD/config/mount-backend-preference.conf" || fail 'self-mount preference was not written to disk'
+pref set auto > "$TMP/auto-again"
 if pref set unsafe > "$TMP/invalid"; then fail 'invalid preference was accepted'; fi
 grep -qx 'preferred_backend=auto' "$MOD/config/mount-backend-preference.conf" || fail 'invalid preference changed the normalized policy'
 

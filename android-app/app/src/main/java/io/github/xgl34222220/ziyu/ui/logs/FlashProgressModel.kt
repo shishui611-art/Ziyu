@@ -20,7 +20,8 @@ internal fun taskDisplayMessage(raw: String): String {
 
 internal fun primaryFlashTask(tasks: List<TaskCenterItem>): TaskCenterItem? =
     tasks.firstOrNull { it.current && it.active }
+        ?: tasks.firstOrNull { it.current && it.kind in setOf(TaskKind.APPLY, TaskKind.RESTORE) }
         ?: tasks.firstOrNull { it.current && it.phase == TaskPhase.FAILED }
         ?: tasks.firstOrNull { it.current && it.phase == TaskPhase.WAITING_REBOOT }
         ?: tasks.firstOrNull { it.current }
-        ?: tasks.firstOrNull()
+        // Historical diagnostic lines cannot decide the current application.

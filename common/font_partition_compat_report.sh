@@ -188,6 +188,15 @@ while IFS='|' read -r _part _origin; do
                 for _try in "/$_part/fonts/$_ref" "/$_part/etc/fonts/$_ref" "/$_part/$_ref"; do
                     if [ -f "$_try" ]; then _resolved=$_try; break; fi
                 done
+                # OEM XML in system_ext/etc commonly references shared fonts.
+                # Match the inventory scanner's cross-partition candidate search
+                # instead of reporting every relative reference as missing.
+                if [ -z "$_resolved" ]; then
+                    for _font_part in system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product; do
+                        _try="/$_font_part/fonts/$_ref"
+                        if [ -f "$_try" ]; then _resolved=$_try; break; fi
+                    done
+                fi
                 ;;
             esac
             _self_state=missing; _pid_state=missing; _size=
@@ -221,6 +230,7 @@ printf '扫描完成：字体 XML %s 个，提取具体字体路由 %s 条。正
     [ "$_fpc_xml_total" -le "$_fpc_xml_limit" ] || printf '%s\n' '提示：XML 数量达到扫描上限，后续 XML 未读取。'
     printf '%s\n' '只读说明：不启动 App、不挂载/卸载、不改写模块配置；报告写在本脚本同目录。'
     printf '%s\n\n' 'PID 1 视图是 Android 系统进程的路径证据；Root Shell 自己可见不等于系统已经加载。'
+    printf '%s\n\n' '相对字体先查询 XML 所在分区，再查询共享字体分区；解析路径为可读候选，不能单独证明 OEM 实际加载顺序。'
 
     printf '%s\n' '一、字体分区候选与挂载证据' '------------------------------------------------------------------------'
     _evidence=0
@@ -304,9 +314,14 @@ printf '扫描完成：字体 XML %s 个，提取具体字体路由 %s 条。正
         printf '\n%s\n' '模块日志中的失败、blocked artifact、fallback、挂载和验证目标摘录（每份最多 120 行）'
         _logs=0
         for _name in logs/fontswitch.log logs/device-font-load-verify.log logs/mount-backend.log \
-          logs/font-route-verify.log logs/mount.log logs/self-mount.log logs/universal-runtime.log logs/service.log; do
+          logs/font-route-verify.log logs/mount.log logs/self-mount.log logs/mount-diagnostics.log logs/soft-reboot.log logs/universal-runtime.log logs/service.log; do
             _file="$_fpc_moddir/$_name"; [ -s "$_file" ] || continue
             printf '\n[%s]\n' "$_name"
+            if [ "$_name" = logs/mount-diagnostics.log ]; then
+                tail -n 600 "$_file" 2>&1
+                _logs=$((_logs+1))
+                continue
+            fi
             grep -Ei 'blocked|artifact|prepare failed|cutover|fallback|universal|font_route|route|partition|target|logicalPath|pid.?1|verify|verif|fail|error|denied|mount|payload' "$_file" 2>/dev/null | tail -n 120 | cut -c 1-700
             _logs=$((_logs+1))
         done
@@ -333,6 +348,31 @@ printf '扫描完成：字体 XML %s 个，提取具体字体路由 %s 条。正
             [ -n "$(grep -E '(^|/)(system|system_ext|product|vendor|odm|oem|oplus_[^ /]+|mi_ext|cust|hw_product)(/| )|/fonts?(/|$)|font_fallback\.xml|fonts\.xml' "$_mi" 2>/dev/null | head -n1)" ] || printf '%s\n' '没有匹配的字体/分区挂载项。'
         else printf '%s\n' '不可读（可能是权限或系统限制）。'; fi
     done
+
+    printf '\n%s\n' 'OverlayFS 能力与相关内核日志（只读采集，不尝试挂载）'
+    uname -a 2>&1
+    id 2>&1
+    getenforce 2>&1
+    for _ns in /proc/self/ns/mnt /proc/1/ns/mnt; do
+        printf '%s: ' "$_ns"; readlink "$_ns" 2>&1
+    done
+    cat /proc/filesystems 2>&1
+    _params=0
+    for _param in /sys/module/overlay/parameters/*; do
+        [ -f "$_param" ] || continue
+        _params=1
+        printf '%s=' "${_param##*/}"; cat "$_param" 2>&1
+    done
+    [ "$_params" = 1 ] || printf '%s\n' 'OverlayFS 参数目录不存在或不可读。'
+    dmesg > "$_fpc_report_tmp.kernel" 2>&1
+    _kernel_rc=$?
+    printf 'dmesg rc=%s；以下是历史快照，不能单独证明最近一次失败原因。\n' "$_kernel_rc"
+    if [ "$_kernel_rc" -eq 0 ]; then
+        grep -Ei 'overlay|avc:.*denied|kernelsu|sukisu|nomount' "$_fpc_report_tmp.kernel" | tail -n 120
+    else
+        head -n 8 "$_fpc_report_tmp.kernel"
+    fi
+    rm -f "$_fpc_report_tmp.kernel" 2>/dev/null
 
     printf '\n%s\n' '七、适配判断提示' '------------------------------------------------------------------------'
     printf '%s\n' '1. 优先以 PID 1 可读的具体字体文件和 XML 路由为准；字体目录存在本身不能证明它是 UI 字体槽位。'

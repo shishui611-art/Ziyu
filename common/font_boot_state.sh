@@ -97,6 +97,18 @@ luoshu_text_reboot_reconcile() {
     [ -s "$_lfbs_marker" ] || return 0
     _lfbs_marker_boot=$(_lfbs_value "$_lfbs_marker" bootId)
     _lfbs_current_boot=$(_lfbs_boot_id)
+    # A live route proof belongs to this exact queued request. Android UI caches
+    # remain a separate limitation; no reboot marker is needed for the mount.
+    [ ! -f "$_lfbs_module_dir/common/font_live_state.sh" ] || . "$_lfbs_module_dir/common/font_live_state.sh"
+    if type ziyu_live_current >/dev/null 2>&1 && ziyu_live_current && \
+       [ ! -e "$_lfbs_config/font-live-transaction.conf" ] && \
+       [ "$(ziyu_live_font)" = "$(head -n1 "$_lfbs_config/active_font.conf")" ] && \
+       [ "$(_lfbs_value "$_lfbs_config/font-live.conf" request_id)" = "$(_lfbs_value "$_lfbs_config/font-payload-next.conf" requestId)" ] && \
+       [ "$(_lfbs_value "$_lfbs_config/device-font-load-verification.conf" bootId)" = "$_lfbs_current_boot" ]; then
+        case "$(_lfbs_value "$_lfbs_config/device-font-load-verification.conf" state)" in
+            verified|partial) rm -f "$_lfbs_marker"; return $? ;;
+        esac
+    fi
     # Never clear a marker using the previous font that is still mounted in this boot.
     [ -n "$_lfbs_marker_boot" ] && [ "$_lfbs_marker_boot" = "$_lfbs_current_boot" ] && return 2
 
@@ -115,7 +127,7 @@ luoshu_text_reboot_reconcile() {
         MODDIR="$_lfbs_module_dir" MODULE_DIR="$_lfbs_module_dir" sh "$_lfbs_verify" verify >/dev/null 2>&1
     fi
     _lfbs_verify_state=$(_lfbs_value "$_lfbs_config/device-font-load-verification.conf" state)
-    case "$_lfbs_verify_state" in verified|not-applicable) ;; *) return 2 ;; esac
+    case "$_lfbs_verify_state" in verified|partial|not-applicable) ;; *) return 2 ;; esac
     _lfbs_confirm_boot_file || return 1
     rm -f "$_lfbs_marker" "$_lfbs_config/font-mount-verify-failures" \
         "$_lfbs_config/font-boot-inconclusive.conf" 2>/dev/null || true

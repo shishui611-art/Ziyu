@@ -90,8 +90,14 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
                 mountEngine="${'$'}(luoshu_detect_mount_engine 2>/dev/null)"
             fi
         fi
-        warningCount="${'$'}(tail -n 500 "${'$'}LOG" 2>/dev/null | grep -Eic 'warn|警告' 2>/dev/null)"
-        errorCount="${'$'}(tail -n 500 "${'$'}LOG" 2>/dev/null | grep -Eic 'error|failed|失败|错误' 2>/dev/null)"
+        logHealth="${'$'}(MODDIR="${'$'}MOD" sh "${'$'}MOD/common/action_control.sh" log-health 2>/dev/null)"
+        warningCount="${'$'}(printf '%s\n' "${'$'}logHealth" | sed -n 's/^recentWarnings=//p')"
+        errorCount="${'$'}(printf '%s\n' "${'$'}logHealth" | sed -n 's/^recentErrors=//p')"
+        ignoredCount="${'$'}(printf '%s\n' "${'$'}logHealth" | sed -n 's/^ignoredWarnings=//p')"
+        if [ -z "${'$'}warningCount" ] || [ -z "${'$'}errorCount" ]; then
+            warningCount="${'$'}(tail -n 500 "${'$'}LOG" 2>/dev/null | grep -Eic '(^|[^[:alnum:]_])(warn|warning)([^[:alnum:]_]|$)|警告')"
+            errorCount="${'$'}(tail -n 500 "${'$'}LOG" 2>/dev/null | grep -Eiv '(^|[^[:alnum:]_])(warn|warning)([^[:alnum:]_]|$)|警告' | grep -Eic '(^|[^[:alnum:]_])(error|failed|failure|fatal)([^[:alnum:]_]|$)|失败|错误')"
+        fi
         [ -n "${'$'}warningCount" ] || warningCount=0
         [ -n "${'$'}errorCount" ] || errorCount=0
         {
@@ -99,6 +105,9 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
             printf 'time=%s\n' "${'$'}(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)"
             printf 'moduleVersion=%s\n' "${'$'}{version:-unknown}"
             printf 'moduleVersionCode=%s\n' "${'$'}{versionCode:-0}"
+            printf 'pendingModuleVersion=%s\n' "${'$'}(read_value /data/adb/modules_update/LuoShu/module.prop version)"
+            printf 'pendingModuleVersionCode=%s\n' "${'$'}(read_value /data/adb/modules_update/LuoShu/module.prop versionCode)"
+            printf 'versionScope=installed and pending metadata; switch runtime version is recorded in CUTOVER log\n'
             printf 'activeFontType=%s\n' "${'$'}activeType"
             printf 'inventory=%s\n' "${'$'}inventory"
             printf 'engineState=%s\n' "${'$'}{engine:-missing}"
@@ -122,6 +131,9 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
             printf 'kernel=%s\n' "${'$'}(uname -r 2>/dev/null)"
             printf 'recentWarningCount=%s\n' "${'$'}warningCount"
             printf 'recentErrorCount=%s\n' "${'$'}errorCount"
+            printf 'ignoredWarningCount=%s\n' "${'$'}{ignoredCount:-0}"
+            printf 'logCountScope=recent font operation records; mount result is recorded separately\n'
+            printf 'currentBootId=%s\n' "${'$'}(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
             printf 'privacy=no serial, accounts or chat content collected; font names, paths, selected axes and exception stacks included\n'
         } > "${'$'}OUT" 2>/dev/null || exit 21
         # Explicit allowlist: never export arbitrary config files or all system properties.
@@ -134,6 +146,44 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
                 printf 'unavailable\n' >> "${'$'}OUT"
             fi
         done
+        for relative in config/mount-backend.conf config/mount-backend-verification.json \
+            config/font-payload-next.conf config/font-payload-activated.conf \
+            config/font-live.conf config/font-live-previous.conf config/font-live-boot-previous.conf \
+            config/font-live-transaction.conf config/font-live-attempt.conf config/font-ui-cache.json \
+            config/universal-font-next.conf config/universal-font-cutover.conf \
+            config/switch_task_worker.pid.cleanup.json config/text_reboot_required.conf \
+            .luoshu-state/backup/next-transaction/journal.conf \
+            config/font-apply-result.conf config/font-mount-warnings.conf config/device_font_partitions.conf \
+            config/device-font-load-verification.conf config/device-font-load-route-verification.json \
+            logs/mount-backend.log logs/self-mount.log logs/mount-diagnostics.log \
+            logs/mount-diagnostics.log.previous logs/soft-reboot.log logs/font-live.log; do
+            path="${'$'}MOD/${'$'}relative"
+            printf '\n[module-file:%s]\n' "${'$'}relative" >> "${'$'}OUT"
+            if [ -s "${'$'}path" ]; then
+                case "${'$'}relative" in
+                    logs/mount-diagnostics.log*) tail -n 1200 "${'$'}path" 2>/dev/null | tail -c 196608 >> "${'$'}OUT" ;;
+                    logs/*) tail -n 600 "${'$'}path" 2>/dev/null | tail -c 131072 >> "${'$'}OUT" ;;
+                    *verification.json) head -c 32768 "${'$'}path" >> "${'$'}OUT" ;;
+                    *) head -c 16384 "${'$'}path" >> "${'$'}OUT" ;;
+                esac
+                printf '\n' >> "${'$'}OUT"
+            else
+                printf 'unavailable\n' >> "${'$'}OUT"
+            fi
+        done
+        printf '\n[metamodule-detection-evidence]\n' >> "${'$'}OUT"
+        META="${'$'}(readlink -f /data/adb/metamodule 2>/dev/null)"
+        case "${'$'}META" in
+            /data/adb/modules/*)
+                printf 'selector=%s\n' "${'$'}META" >> "${'$'}OUT"
+                for entry in module.prop metamount.sh meta-overlayfs meta-overlay modules.img mnt; do
+                    ls -ldZ "${'$'}META/${'$'}entry" >> "${'$'}OUT" 2>&1
+                done
+                ;;
+            *) printf 'selector=unavailable\n' >> "${'$'}OUT" ;;
+        esac
+        printf '\n[font-mountinfo]\n' >> "${'$'}OUT"
+        grep -E '/fonts|/data/adb/(metamodule|modules/[^/]+/mnt|luoshu/(self-mount|live-mount))' /proc/1/mountinfo 2>/dev/null | head -n 160 >> "${'$'}OUT"
         printf '\n[recent-operation-log]\n' >> "${'$'}OUT"
         tail -n 180 "${'$'}LOG" 2>/dev/null | tail -c 196608 >> "${'$'}OUT"
         printf '\n[persistent-font-diagnostics]\n' >> "${'$'}OUT"

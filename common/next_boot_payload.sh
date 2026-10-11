@@ -67,8 +67,27 @@ luoshu_next_boot_restore_selection() {
     fi
 }
 
-luoshu_next_boot_activate() {
+luoshu_next_boot_activate() (
+    _lnb_guard_module=$(luoshu_next_boot_module)
+    [ -f "$_lnb_guard_module/common/font_switch_lock.sh" ] || return 1
+    . "$_lnb_guard_module/common/font_switch_lock.sh"
+    luoshu_font_lock_acquire "$_lnb_guard_module/.font_switch.lock" "$$" || return $?
+    trap 'luoshu_font_lock_release "$_lnb_guard_module/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    _luoshu_next_boot_activate_locked
+)
+
+_luoshu_next_boot_activate_locked() {
     _lnba_module=$(luoshu_next_boot_module)
+    [ -f "$_lnba_module/common/font_next_transaction.sh" ] || return 1
+    . "$_lnba_module/common/font_next_transaction.sh" || return 1
+    ZIYU_LIVE_OWNER_PID="$$" MODDIR="$_lnba_module" sh "$_lnba_module/common/font_live_switch.sh" retire || {
+        luoshu_next_boot_log 'live mount retirement unconfirmed; activation deferred'
+        return 1
+    }
+    luoshu_next_transaction_recover "$_lnba_module" || {
+        luoshu_next_boot_log 'pending transaction recovery unconfirmed; activation deferred'
+        return 1
+    }
     LUOSHU_ACTION_CONTROL_LIBRARY=true . "$_lnba_module/common/action_control.sh" || return 1
     LUOSHU_ACTION_CONTROL_LIBRARY=false
     _lnba_live="$_lnba_module/.luoshu-payload"
@@ -142,6 +161,23 @@ luoshu_next_boot_activate() {
 
     printf '%s\n' "$_lnba_font" > "$_lnba_module/config/active_font.conf" 2>/dev/null || true
     chmod 0644 "$_lnba_module/config/active_font.conf" 2>/dev/null || true
+
+    # The canonical tree may still be A after hot A -> B -> C. The true undo
+    # payload is the preserved immutable B generation, not that old A tree.
+    _lnba_live_previous="$_lnba_module/config/font-live-boot-previous.conf"
+    _lnba_live_retired=$(luoshu_next_boot_value "$_lnba_live_previous" source)
+    if [ "$(luoshu_next_boot_value "$_lnba_live_previous" schema)" = ziyu-live-boot-previous-v1 ] && \
+       [ "$(luoshu_next_boot_value "$_lnba_live_previous" request_id)" = "$_lnba_request" ] && \
+       [ "$(luoshu_next_boot_value "$_lnba_live_previous" font)" = "$_lnba_previous" ]; then
+        case "$_lnba_live_retired" in
+            "$_lnba_retired_root"/payload-live-*)
+                case "$_lnba_live_retired" in *'/../'*|*'/./'*) return 1 ;; esac
+                [ -d "$_lnba_live_retired" ] && [ ! -L "$_lnba_live_retired" ] || return 1
+                _lnba_retired="$_lnba_live_retired"
+                _lnba_previous_legacy=true
+                ;;
+        esac
+    fi
 
     # A legacy/default/classic payload taking over from Phase 9 must fully leave
     # Universal runtime mode before mount routing continues in this same boot.

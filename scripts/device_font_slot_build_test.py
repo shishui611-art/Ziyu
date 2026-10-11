@@ -18,6 +18,7 @@ import device_font_template as template_engine
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--font", required=True, type=Path)
+    parser.add_argument("--source-index", type=int, default=-1)
     return parser.parse_args()
 
 
@@ -33,7 +34,7 @@ def shifted_probe(probe: dict, *, shift_y: float = 0.0, advance_delta: float = 0
 
 def main() -> None:
     args = parse_args()
-    source = template_engine.inspect_font(args.font, -1, hash_fonts=True)
+    source = template_engine.inspect_font(args.font, args.source_index, hash_fonts=True)
     assert source["probes"]["digits"]["hits"] >= 10
     target = copy.deepcopy(source)
     target["path"] = "/system/fonts/Clockopia.ttf"
@@ -77,7 +78,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as temporary:
         output = Path(temporary) / "Clockopia.ttf"
-        report = builder.build_slot(args.font, -1, slot, output)
+        report = builder.build_slot(args.font, args.source_index, slot, output)
         assert report["schema"] == "device-font-slot-build-v2"
         assert report["status"] == "ok", report
         assert report["transformed"]["probes"]["digits"] >= 10, report

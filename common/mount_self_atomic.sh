@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # LuoShu atomic self-mount transaction and strict boot visibility verification.
-# Never leave a mixed ROM/LuoShu font tree visible: every required component
-# succeeds together, otherwise every mount created by this attempt is rolled back.
+# Independent physical font components may retain verified replacements while
+# unavailable components remain stock. XML-changing payloads remain atomic.
 set +e
 
 # Legacy injected metamodule fixtures keep their strict per-partition verifier.
@@ -21,6 +21,15 @@ _luoshu_atomic_file_optional() {
         luoshu/mount-probe.conf) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+_luoshu_font_mount_warning() {
+    _lfmw_module=$(_luoshu_self_module)
+    printf 'warning=%s\n' "$*" >> "$_lfmw_module/config/font-mount-warnings.conf"
+    printf '[%s] [FONT-MOUNT] WARN %s；其他已验证字体继续应用\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$*" \
+        >> "$_lfmw_module/logs/fontswitch.log"
+    _luoshu_self_log "[WARN] $*"
 }
 
 _luoshu_atomic_missing_target_allowed() {
@@ -121,6 +130,78 @@ _luoshu_atomic_files_equal() {
     [ -n "$_lsafe_left_fingerprint" ] && [ "$_lsafe_left_fingerprint" = "$_lsafe_right_fingerprint" ]
 }
 
+_luoshu_atomic_files_identical() {
+    _lsafi_left="$1"
+    _lsafi_right="$2"
+    [ -f "$_lsafi_left" ] && [ -f "$_lsafi_right" ] || return 2
+    _lsafi_left_size=$(_luoshu_atomic_file_size "$_lsafi_left")
+    _lsafi_right_size=$(_luoshu_atomic_file_size "$_lsafi_right")
+    [ -n "$_lsafi_left_size" ] && [ "$_lsafi_left_size" = "$_lsafi_right_size" ] || return 1
+    if command -v cmp >/dev/null 2>&1; then
+        cmp -s "$_lsafi_left" "$_lsafi_right" 2>/dev/null
+        return $?
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        _lsafi_left_hash=$(sha256sum "$_lsafi_left" 2>/dev/null | awk '{print $1}')
+        _lsafi_right_hash=$(sha256sum "$_lsafi_right" 2>/dev/null | awk '{print $1}')
+    elif command -v busybox >/dev/null 2>&1; then
+        _lsafi_left_hash=$(busybox sha256sum "$_lsafi_left" 2>/dev/null | awk '{print $1}')
+        _lsafi_right_hash=$(busybox sha256sum "$_lsafi_right" 2>/dev/null | awk '{print $1}')
+    else
+        return 2
+    fi
+    [ -n "$_lsafi_left_hash" ] && [ -n "$_lsafi_right_hash" ] || return 2
+    [ "$_lsafi_left_hash" = "$_lsafi_right_hash" ]
+}
+
+# A file bind follows the ROM symlink to its real inode. If two logical font
+# paths resolve to that inode but carry different payload bytes, no sequence of
+# per-file binds can satisfy both routes. Detect this before creating font binds.
+_luoshu_atomic_bind_conflict_detail() {
+    _lsabcd_source="$1"
+    _lsabcd_target="$2"
+    _lsabcd_state=$(_luoshu_self_state_root)
+    _lsabcd_files="$_lsabcd_state/conflict-files.$$"
+    _lsabcd_seen="$_lsabcd_state/conflict-seen.$$"
+    _LUOSHU_ATOMIC_BIND_CONFLICT_DETAIL=''
+    mkdir -p "$_lsabcd_state" 2>/dev/null || return 2
+    find "$_lsabcd_source" -type f 2>/dev/null > "$_lsabcd_files" || return 2
+    : > "$_lsabcd_seen" 2>/dev/null || { rm -f "$_lsabcd_files"; return 2; }
+    while IFS= read -r _lsabcd_src; do
+        [ -n "$_lsabcd_src" ] || continue
+        _lsabcd_rel=${_lsabcd_src#$_lsabcd_source/}
+        _lsabcd_dst="$_lsabcd_target/$_lsabcd_rel"
+        [ -f "$_lsabcd_dst" ] || continue
+        _lsabcd_real=$(_luoshu_atomic_real_target "$_lsabcd_dst")
+        if [ -L "$_lsabcd_dst" ] && [ "$_lsabcd_real" = "$_lsabcd_dst" ]; then
+            _LUOSHU_ATOMIC_BIND_CONFLICT_DETAIL="target=$_lsabcd_dst; real-target-resolution-unavailable"
+            rm -f "$_lsabcd_files" "$_lsabcd_seen" 2>/dev/null || true
+            return 2
+        fi
+        while IFS='|' read -r _lsabcd_prev_real _lsabcd_prev_src; do
+            [ -n "$_lsabcd_prev_real" ] && [ "$_lsabcd_prev_real" = "$_lsabcd_real" ] || continue
+            _luoshu_atomic_files_identical "$_lsabcd_prev_src" "$_lsabcd_src"
+            _lsabcd_identical_rc=$?
+            if [ "$_lsabcd_identical_rc" -eq 1 ]; then
+                _LUOSHU_ATOMIC_BIND_CONFLICT_DETAIL="target=$_lsabcd_real; first=$_lsabcd_prev_src; second=$_lsabcd_src"
+                rm -f "$_lsabcd_files" "$_lsabcd_seen" 2>/dev/null || true
+                return 1
+            fi
+            if [ "$_lsabcd_identical_rc" -ne 0 ]; then
+                _LUOSHU_ATOMIC_BIND_CONFLICT_DETAIL="target=$_lsabcd_real; byte-comparison-unavailable"
+                rm -f "$_lsabcd_files" "$_lsabcd_seen" 2>/dev/null || true
+                return 2
+            fi
+        done < "$_lsabcd_seen"
+        printf '%s|%s\n' "$_lsabcd_real" "$_lsabcd_src" >> "$_lsabcd_seen" || {
+            rm -f "$_lsabcd_files" "$_lsabcd_seen" 2>/dev/null || true
+            return 2
+        }
+    done < "$_lsabcd_files"
+    rm -f "$_lsabcd_files" "$_lsabcd_seen" 2>/dev/null || true
+    return 0
+}
+
 _luoshu_atomic_pid1_target() {
     _lsapt_target="$1"
     _lsapt_root="${LUOSHU_SELF_PID1_ROOT:-/proc/1/root}"
@@ -152,11 +233,24 @@ _luoshu_atomic_prepare_boot_state() {
     if [ -n "$_lsapbs_saved" ] && [ "$_lsapbs_saved" = "$_lsapbs_current" ]; then
         return 0
     fi
-    : > "$_lsapbs_list" 2>/dev/null || true
+    if _luoshu_self_state_mounts_remain; then
+        _luoshu_self_log '旧启动账本仍有工作目录挂载或无法检查挂载表，拒绝清空工作目录'
+        return 2
+    fi
+    : > "$_lsapbs_list" 2>/dev/null || return 2
     rm -rf "$_lsapbs_state/lower" "$_lsapbs_state/work" 2>/dev/null || true
     printf '%s\n' "$_lsapbs_current" > "${_lsapbs_file}.tmp.$$" 2>/dev/null && \
-        mv -f "${_lsapbs_file}.tmp.$$" "$_lsapbs_file" 2>/dev/null || true
+        mv -f "${_lsapbs_file}.tmp.$$" "$_lsapbs_file" 2>/dev/null || return 2
     return 1
+}
+
+# Derive this in every shell that verifies a manifest, including later boot
+# hooks that did not run the original mounting transaction.
+_luoshu_atomic_partial_fonts_enabled() {
+    _lsapfe_module=$(_luoshu_self_module)
+    [ "$(sed -n 's/^enabled=//p' "$_lsapfe_module/config/font_runtime_legacy_v14_4.conf" 2>/dev/null)" = true ] &&
+        [ "$(sed -n 's/^core=//p' "$_lsapfe_module/config/font_runtime_legacy_v14_4.conf" 2>/dev/null)" = physical-safe-v1 ] &&
+        [ "$(sed -n 's/^schema=//p' "$_lsapfe_module/config/font-payload-schema.conf" 2>/dev/null)" = legacy-physical-safe-v1 ]
 }
 
 _luoshu_atomic_tree_visible() {
@@ -168,6 +262,10 @@ _luoshu_atomic_tree_visible() {
     _lsatv_seen="$_lsatv_state/verify-targets.$$"
     _lsatv_failed=0
     _lsatv_total=0
+    _lsatv_partial=0
+    case "$_lsatv_source" in
+        */fonts) [ "$_lsatv_mode" != bind ] || ! _luoshu_atomic_partial_fonts_enabled || _lsatv_partial=1 ;;
+    esac
     mkdir -p "$_lsatv_state" 2>/dev/null || return 1
     : > "$_lsatv_seen" 2>/dev/null || return 1
     if [ "$_lsatv_mode" = bind ]; then
@@ -180,9 +278,13 @@ _luoshu_atomic_tree_visible() {
         _lsatv_rel=${_lsatv_src#$_lsatv_source/}
         _lsatv_dst="$_lsatv_target/$_lsatv_rel"
         if [ ! -f "$_lsatv_dst" ]; then
+            [ "$_lsatv_partial" != 1 ] || continue
             if _luoshu_atomic_missing_target_allowed "$_lsatv_rel" "$_lsatv_mode"; then
                 continue
             fi
+            _luoshu_self_log "负载可见性失败：mode=$_lsatv_mode reason=missing-or-inaccessible source=$_lsatv_src target=$_lsatv_dst"
+            _luoshu_mount_diag_log "verify missing-or-inaccessible source=$_lsatv_src target=$_lsatv_dst"
+            ls -lZ "$_lsatv_src" "$_lsatv_dst" >> "$(_luoshu_mount_diag_file)" 2>&1
             _lsatv_failed=1
             break
         fi
@@ -198,6 +300,13 @@ _luoshu_atomic_tree_visible() {
         fi
         _lsatv_total=$((_lsatv_total + 1))
         _luoshu_atomic_files_equal "$_lsatv_src" "$_lsatv_dst" || {
+            _luoshu_self_log "负载可见性失败：mode=$_lsatv_mode reason=content-or-read-mismatch source=$_lsatv_src target=$_lsatv_dst"
+            _luoshu_mount_diag_log "verify mismatch source=$_lsatv_src target=$_lsatv_dst source_size=$(_luoshu_atomic_file_size "$_lsatv_src") target_size=$(_luoshu_atomic_file_size "$_lsatv_dst") source_fp=$(_luoshu_atomic_quick_fingerprint "$_lsatv_src") target_fp=$(_luoshu_atomic_quick_fingerprint "$_lsatv_dst")"
+            ls -lZ "$_lsatv_src" "$_lsatv_dst" >> "$(_luoshu_mount_diag_file)" 2>&1
+            if [ "$_lsatv_partial" = 1 ]; then
+                _lsatv_total=$((_lsatv_total - 1))
+                continue
+            fi
             _lsatv_failed=1
             break
         }
@@ -218,6 +327,28 @@ _luoshu_atomic_bind_tree() {
     mkdir -p "$_lsabt_state" 2>/dev/null || return 1
     : > "$_lsabt_seen" 2>/dev/null || return 1
     _luoshu_atomic_bind_file_order "$_lsabt_source" "$_lsabt_target" "$_lsabt_files" || return 1
+    _luoshu_atomic_bind_conflict_detail "$_lsabt_source" "$_lsabt_target"
+    _lsabt_preflight_rc=$?
+    if [ "$_lsabt_preflight_rc" -ne 0 ]; then
+        if [ "$_lsabt_preflight_rc" -eq 1 ]; then
+            _lsabt_message="逐文件 bind 已在挂载前停止：多个字体路径指向同一 ROM 文件但内容不同；${_LUOSHU_ATOMIC_BIND_CONFLICT_DETAIL:-details-unavailable}"
+            _luoshu_self_log "$_lsabt_message"
+            _lsabt_module=$(_luoshu_self_module)
+            mkdir -p "$_lsabt_module/logs" 2>/dev/null || true
+            printf '[%s] [SELF-MOUNT] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" \
+                "$_lsabt_message" >> "$_lsabt_module/logs/mount-backend.log" 2>/dev/null || true
+            rm -f "$_lsabt_files" "$_lsabt_seen" 2>/dev/null || true
+            return 3
+        fi
+        _lsabt_message="逐文件 bind 预检无法确认字体别名冲突：${_LUOSHU_ATOMIC_BIND_CONFLICT_DETAIL:-comparison-unavailable}"
+        _luoshu_self_log "$_lsabt_message"
+        _lsabt_module=$(_luoshu_self_module)
+        mkdir -p "$_lsabt_module/logs" 2>/dev/null || true
+        printf '[%s] [SELF-MOUNT] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" \
+            "$_lsabt_message" >> "$_lsabt_module/logs/mount-backend.log" 2>/dev/null || true
+        rm -f "$_lsabt_files" "$_lsabt_seen" 2>/dev/null || true
+        return 4
+    fi
     while IFS= read -r _lsabt_src; do
         [ -n "$_lsabt_src" ] || continue
         _lsabt_rel=${_lsabt_src#$_lsabt_source/}
@@ -239,52 +370,137 @@ _luoshu_atomic_bind_tree() {
             _lsabt_failed=1
             break
         }
-        if _luoshu_mount_cmd -o bind "$_lsabt_src" "$_lsabt_dst" >/dev/null 2>&1; then
+        if _luoshu_mount_observe file-bind _luoshu_mount_cmd -o bind "$_lsabt_src" "$_lsabt_dst"; then
             printf '%s\n' "$_lsabt_dst" >> "$_lsme_mount_list" 2>/dev/null || {
+                _luoshu_mount_observe file-bind-journal-cleanup _luoshu_umount_cmd "$_lsabt_dst"
                 _lsabt_failed=1
                 break
             }
             _lsabt_mounted=$((_lsabt_mounted + 1))
         else
+            if [ "${LUOSHU_PARTIAL_FONT_MOUNT:-0}" = 1 ]; then
+                _luoshu_font_mount_warning "$_lsabt_dst 无法挂载，保留原厂字体"
+                continue
+            fi
             _lsabt_failed=1
             break
         fi
     done < "$_lsabt_files"
     rm -f "$_lsabt_files" "$_lsabt_seen" 2>/dev/null || true
     [ "$_lsabt_failed" -eq 0 ] || return 1
-    [ "$_lsabt_mounted" -eq "$_lsabt_expected" ] || return 1
+    [ "${LUOSHU_PARTIAL_FONT_MOUNT:-0}" = 1 ] || [ "$_lsabt_mounted" -eq "$_lsabt_expected" ] || return 1
     # Distinguish an actual bind failure from an additive-only component whose
     # files have no pre-existing ROM inode. The caller may skip the latter for
-    # non-core components, but system/fonts remains mandatory.
+    # a component without any proven font cannot count as applied.
     [ "$_lsabt_mounted" -gt 0 ] 2>/dev/null || return 2
     return 0
 }
 
+_luoshu_atomic_mountinfo_target_present() {
+    _lsamtp_target="$1"
+    [ -r /proc/1/mountinfo ] || return 1
+    awk -v target="$_lsamtp_target" '$5 == target { found=1 } END { exit !found }' \
+        /proc/1/mountinfo 2>/dev/null
+}
+
+_luoshu_atomic_mountinfo_owned_target() {
+    _lsamot_target="$1"
+    _lsamot_module=$(_luoshu_self_module)
+    _lsamot_state=$(_luoshu_self_state_root)
+    _lsamot_payload_relative="${_lsamot_module#/data}"
+    [ -r /proc/1/mountinfo ] || return 1
+    case "$_lsamot_target" in
+        "$_lsamot_state"/lower/*|"$_lsamot_state"/work/overlay-*)
+            awk -v target="$_lsamot_target" '$5 == target { found=1 } END { exit !found }' \
+                /proc/1/mountinfo 2>/dev/null
+            ;;
+        *)
+            awk -v target="$_lsamot_target" \
+                -v payload="$_lsamot_module/.luoshu-payload/" \
+                -v payload_relative="$_lsamot_payload_relative/.luoshu-payload/" \
+                -v live_payload="$_lsamot_module/.luoshu-state/cache/live/" \
+                -v live_relative="$_lsamot_payload_relative/.luoshu-state/cache/live/" \
+                -v mirror="$_lsamot_state/work/" \
+                -v mirror_relative="${_lsamot_state#/data}/work/" \
+                '$5 == target { if (index($0, payload) || index($0, payload_relative) || index($0, live_payload) || index($0, live_relative) || index($0, mirror) || index($0, mirror_relative)) found=1; else foreign=1 } END { exit !(found && !foreign) }' \
+                /proc/1/mountinfo 2>/dev/null
+            ;;
+    esac
+}
+
 _luoshu_atomic_rollback() {
     _lsar_list="$1"
+    _lsar_keep="${3:-0}"
+    case "$_lsar_keep" in ''|*[!0-9]*) return 1 ;; esac
+    [ -r /proc/1/mountinfo ] || return 1
     _lsar_state=$(_luoshu_self_state_root)
+    if [ ! -e "$_lsar_list" ]; then
+        _luoshu_self_state_mounts_remain && return 1
+        return 0
+    fi
     _lsar_remaining="${_lsar_list}.remaining.$$"
     _lsar_reverse="${_lsar_list}.reverse.$$"
+    _lsar_prefix="${_lsar_list}.prefix.$$"
+    awk -v keep="$_lsar_keep" 'NR <= keep { print } END { if (NR < keep) exit 1 }' "$_lsar_list" > "$_lsar_prefix" || return 1
     : > "$_lsar_remaining" || return 1
     if [ -s "$_lsar_list" ]; then
-        awk '{ item[NR]=$0 } END { for (i=NR; i>=1; i--) print item[i] }' "$_lsar_list" > "$_lsar_reverse" || return 1
+        awk -v keep="$_lsar_keep" 'NR > keep { item[NR]=$0 } END { for (i=NR; i>keep; i--) print item[i] }' "$_lsar_list" > "$_lsar_reverse" || return 1
         while IFS= read -r _lsar_target; do
             [ -n "$_lsar_target" ] || continue
-            if ! _luoshu_umount_cmd "$_lsar_target" >/dev/null 2>&1; then
-                printf '%s\n' "$_lsar_target" >> "$_lsar_remaining" || return 1
+            # An interrupted rollback can leave already detached targets in the
+            # journal. Never unmount a replacement owned by another module.
+            if ! _luoshu_atomic_mountinfo_owned_target "$_lsar_target"; then
+                [ -r /proc/1/mountinfo ] || return 1
+                if _luoshu_atomic_mountinfo_target_present "$_lsar_target"; then
+                    _luoshu_self_log "回滚保留未确认归属的目标，不卸载其他模块：$_lsar_target"
+                    printf '%s\n' "$_lsar_target" >> "$_lsar_remaining" || return 1
+                fi
+                continue
+            fi
+            if ! _luoshu_mount_observe rollback-unmount _luoshu_umount_cmd "$_lsar_target"; then
+                if ! _luoshu_atomic_mountinfo_target_present "$_lsar_target"; then
+                    continue
+                fi
+                _lsar_lazy_ok=0
+                if [ "${LUOSHU_SELF_ALLOW_LAZY_UMOUNT:-0}" = 1 ] && \
+                   _luoshu_atomic_mountinfo_owned_target "$_lsar_target"; then
+                    if command -v umount >/dev/null 2>&1; then
+                        _luoshu_mount_observe rollback-lazy-unmount umount -l "$_lsar_target" && _lsar_lazy_ok=1
+                    elif command -v toybox >/dev/null 2>&1; then
+                        _luoshu_mount_observe rollback-lazy-unmount toybox umount -l "$_lsar_target" && _lsar_lazy_ok=1
+                    elif command -v busybox >/dev/null 2>&1; then
+                        _luoshu_mount_observe rollback-lazy-unmount busybox umount -l "$_lsar_target" && _lsar_lazy_ok=1
+                    fi
+                    if [ "$_lsar_lazy_ok" = 1 ] && \
+                       _luoshu_atomic_mountinfo_owned_target "$_lsar_target"; then
+                        _lsar_lazy_ok=0
+                    fi
+                fi
+                [ "$_lsar_lazy_ok" = 1 ] || printf '%s\n' "$_lsar_target" >> "$_lsar_remaining" || return 1
             fi
         done < "$_lsar_reverse"
     fi
     rm -f "$_lsar_reverse"
-    if [ -s "$_lsar_remaining" ]; then
-        # Preserve original mount order so the next cleanup still runs in reverse.
-        awk '{ item[NR]=$0 } END { for (i=NR; i>=1; i--) print item[i] }' "$_lsar_remaining" > "$_lsar_reverse" || return 1
-        mv -f "$_lsar_reverse" "$_lsar_list" || return 1
-        rm -f "$_lsar_remaining"
+    _lsar_incomplete=0
+    [ ! -s "$_lsar_remaining" ] || _lsar_incomplete=1
+    # Replace the authoritative journal atomically. A crash before this rename
+    # retains all old entries; ownership checks make repeated cleanup safe.
+    cat "$_lsar_prefix" > "$_lsar_reverse" || return 1
+    awk '{ item[NR]=$0 } END { for (i=NR; i>=1; i--) print item[i] }' "$_lsar_remaining" >> "$_lsar_reverse" || return 1
+    chmod 0600 "$_lsar_reverse" || return 1
+    mv -f "$_lsar_reverse" "$_lsar_list" || return 1
+    rm -f "$_lsar_prefix" "$_lsar_remaining"
+    [ "$_lsar_incomplete" = 0 ] || return 1
+    # A failed independent component must not remove other components' lower
+    # views or work files. All targets after this component's boundary detached.
+    [ "${2:-all}" != component ] || return 0
+    # Detached fonts can still be mmap'ed. Live transactions keep all work files.
+    [ "${2:-all}" != detach ] && [ -z "${LUOSHU_LIVE_MOUNT_SOURCE:-}" ] || return 0
+    if _luoshu_self_state_mounts_remain payload; then
+        _luoshu_self_log '回滚后仍有私有负载/工作目录挂载或挂载表不可读，保留 lower/work 并标记回滚未确认'
+        _luoshu_mount_diag_kernel
         return 1
     fi
-    rm -f "$_lsar_remaining"
-    : > "$_lsar_list" 2>/dev/null || true
     rm -rf "$_lsar_state/lower" "$_lsar_state/work" 2>/dev/null || true
 }
 
@@ -339,6 +555,6 @@ luoshu_mount_verify_active() {
         luoshu_mount_record unverified 'PID 1 根命名空间未读取完整字域字体负载' '' 0 1 system '' visibility
         return 1
     fi
-    luoshu_mount_record verified '字域全部字体文件与配置已在系统主命名空间生效' '' 0 0 system system
+    luoshu_mount_record verified '已提交的字体目录已通过系统主命名空间检查，应用范围以字体路由报告为准' '' 0 0 system system
     return 0
 }

@@ -40,8 +40,39 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
 }
 
+# Config files may be checked out with CRLF endings on Windows and installed
+# without newline normalization. Cache the carriage return once, then keep
+# status reads inside the shell instead of starting sed, head and tr per key.
+_APP_BRIDGE_CR="$(printf '\r')"
+
 read_prop() {
-    sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
+    _rp_file="${1:-}"
+    _rp_key="${2:-}"
+    [ -r "$_rp_file" ] || return 0
+    while IFS= read -r _rp_line || [ -n "$_rp_line" ]; do
+        case "$_rp_line" in
+            "$_rp_key"=*)
+                _rp_value=${_rp_line#*=}
+                case "$_rp_value" in
+                    *"$_APP_BRIDGE_CR") _rp_value=${_rp_value%"$_APP_BRIDGE_CR"} ;;
+                esac
+                printf '%s' "$_rp_value"
+                return 0
+                ;;
+        esac
+    done < "$_rp_file"
+    return 0
+}
+
+read_first_line() {
+    _rfl_file="${1:-}"
+    _rfl_line=''
+    [ -r "$_rfl_file" ] || return 0
+    IFS= read -r _rfl_line < "$_rfl_file" || [ -n "$_rfl_line" ] || return 0
+    case "$_rfl_line" in
+        *"$_APP_BRIDGE_CR") _rfl_line=${_rfl_line%"$_APP_BRIDGE_CR"} ;;
+    esac
+    printf '%s' "$_rfl_line"
 }
 
 root_manager() {
@@ -67,7 +98,7 @@ mount_engine() {
         _backend_verify=$(read_prop "$_backend_file" verification)
         _backend_error=$(read_prop "$_backend_file" last_error)
         if [ "$_backend_verify" = not-applicable ]; then
-            if [ "$(head -n1 "$MODDIR/config/active_font.conf" 2>/dev/null | tr -d '\r\n')" = default ] || \
+            if [ "$(read_first_line "$MODDIR/config/active_font.conf")" = default ] || \
                [ ! -s "$MODDIR/config/active_font.conf" ]; then
                 printf '系统默认字体，无需挂载'
             else
@@ -84,6 +115,8 @@ mount_engine() {
                 font-route-verification-failed) printf '%s失败 · 已回滚' "$_backend_label" ;;
                 *) printf '%s失败 · 未生效' "$_backend_label" ;;
             esac
+        elif [ "$_backend_verify" = partial ]; then
+            printf '%s · 部分应用（有警告）' "$_backend_label"
         elif [ "$_backend_active" = none ] || [ "$_backend_verify" = pending ]; then
             printf '%s · 待验证' "$_backend_label"
         else
@@ -131,7 +164,7 @@ status_json() {
         _version="$(read_prop "$MODDIR/module.prop" version)"
         _version_code="$(read_prop "$MODDIR/module.prop" versionCode)"
     fi
-    _active="$(head -n1 "$MODDIR/config/active_font.conf" 2>/dev/null | tr -d '\r\n')"
+    _active="$(read_first_line "$MODDIR/config/active_font.conf")"
     [ -n "$_active" ] || _active='default'
     _universal_runtime="$MODDIR/config/universal-font-runtime.conf"
     _universal_verification="$MODDIR/config/universal-font-runtime-verification.conf"
@@ -185,6 +218,12 @@ status_json() {
         _backend_verification=$(read_prop "$_backend_current" verification)
         _backend_active=$(read_prop "$_backend_current" active_backend)
         case "$_backend_verification" in
+            partial)
+                _mount_state=partial
+                _mount_failed=$(read_prop "$_backend_current" mount_warning)
+                _verification_state=partial; _verification_grade=WARN
+                _verification_mode=mount-partial; _verification_reason="$_mount_failed"
+                ;;
             failed)
                 _mount_state=failed
                 _mount_failed=$(read_prop "$_backend_current" last_error)
@@ -263,6 +302,18 @@ EOF_TASK_SELECTION
     if [ "$_rollback_pending" = true ]; then
         _effective_active=unknown
         _font_effect_state=rollback-pending
+    elif ziyu_live_current && [ ! -e "$MODDIR/config/font-live-transaction.conf" ] && \
+         [ "$_mount_state" != failed ] && { [ "$_verification_state" = verified ] || [ "$_verification_state" = partial ]; }; then
+        _effective_active=$_zlc_font
+        if [ "$_effective_active" = "$_active" ] && [ "$_reboot_required" = false ]; then
+            _font_effect_state=live
+            [ "$_verification_state" != partial ] || _font_effect_state=live-partial
+        else
+            _font_effect_state=pending-reboot
+        fi
+    elif [ -e "$MODDIR/config/font-live-transaction.conf" ]; then
+        _font_effect_state=failed
+        _verification_reason=live-transaction-recovery-required
     elif [ "$_active" = default ]; then
         _effective_active=default
         _font_effect_state=system
@@ -272,6 +323,9 @@ EOF_TASK_SELECTION
         _font_effect_state=failed
         _effective_active=default
         [ "$_backend_rollback_uncertain" = true ] && _effective_active=unknown
+    elif [ "$_verification_state" = partial ] && [ "$_mount_state" = partial ]; then
+        _effective_active="$_active"
+        _font_effect_state=partial
     elif [ -n "$_verification_active" ] && [ "$_verification_active" != "$_active" ]; then
         _verification_state=pending
         _verification_mode=unknown
@@ -434,6 +488,13 @@ weight_axis_info() {
 }
 
 case "${1:-status}" in
+    app_reads)
+        [ -x "$PYBIN" ] && [ -f "$MODDIR/common/app_read_batch.py" ] || exit 127
+        export MODDIR MODULE_DIR="$MODDIR" PYTHONHOME="$PYROOT"
+        export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
+        export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        "$PYBIN" "$MODDIR/common/app_read_batch.py" "$MODDIR" "${2:-settings}"
+        ;;
     action_cancel) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" cancel "${2:-}" "${3:-}" ;;
     action_undo) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" undo ;;
     action_status) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" status ;;
@@ -528,6 +589,7 @@ case "${1:-status}" in
     switch_start) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" start "${2:-default}" ;;
     switch_status) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" status "${2:-}" ;;
     delete) manager_ready || exit 1; sh "$FONT_MANAGER" action delete "${2:-}" ;;
+    delete_many) manager_ready || exit 1; shift; sh "$FONT_MANAGER" action delete_many "$@" ;;
     mix_config) mix_ready || exit 1; sh "$MIX_ENGINE" config ;;
     mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" ;;
     mix_status) mix_ready || exit 1; sh "$MIX_ENGINE" status "${2:-}" ;;
@@ -551,10 +613,12 @@ case "${1:-status}" in
             *) printf '{"status":"error","message":"未知临时 Root 设置"}\n'; exit 1 ;;
         esac
         ;;
+    soft_reboot)
+        exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
+        ;;
     reboot)
         if temporary_root_mode; then
-            printf '{"status":"error","message":"当前使用 KernelSU 临时 Root 流程。请在 KernelSU 管理器中执行软重启，完成后返回字域查看挂载验证。"}\n'
-            exit 1
+            exec sh "$MODDIR/common/soft_reboot.sh" request
         fi
         manager_ready || exit 1
         sh "$FONT_MANAGER" action reboot_device

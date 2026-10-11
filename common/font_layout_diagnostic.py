@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 from pathlib import Path, PurePosixPath
+from font_live_payload import work_root as live_work_root
 import re
 import signal
 import subprocess
@@ -297,7 +298,7 @@ class Collector:
         p = PurePosixPath(logical)
         # Never read an inventory actualPath as stock: after reboot that path
         # may be overlaid. Only established read-only lower/mirror roots qualify.
-        roots = [self.physical(f"/data/adb/luoshu/self-mount/lower/{p.parts[1]}-fonts")]
+        roots = [self.physical(str(live_work_root() / "lower" / f"{p.parts[1]}-fonts"))]
         roots.extend(self.physical(str(prefix / p.parent.relative_to("/"))) for prefix in MIRROR_PREFIXES)
         for root in roots:
             path = root / p.name
@@ -318,6 +319,9 @@ class Collector:
         self.report["slots"].append(item)
         if entry:
             item["stock"] = {"status": "inventory-metrics", "metrics": metrics_only(entry["metrics"]),
+                              "source": entry.get("source", "unknown"),
+                              "validatedBy": entry.get("validatedBy", "unknown"),
+                              "validatedFormat": entry.get("validatedFormat", "unknown"),
                               "glyphs": {"status": "not-collected"}}
         item["activePayload"] = self.reference(self.module / ".luoshu-payload" / logical.lstrip("/"), face)
         item["mountedInCollector"] = self.reference(self.physical(logical), face)

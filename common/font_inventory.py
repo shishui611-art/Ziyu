@@ -9,6 +9,7 @@ filename heuristics and the existing font_check.sh validator.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -20,6 +21,8 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+from font_live_payload import work_root as live_work_root
+from font_digest_cache import file_identity
 from typing import Any, Iterable
 
 from fontTools.ttLib import TTFont
@@ -438,7 +441,7 @@ def _pick_actual_root(logical: Path, explicit: Path | None, overlay_risk: bool) 
     if overlay_risk:
         parts = logical.parts
         if len(parts) >= 3 and parts[0] == "/":
-            state_root = Path(os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT", "/data/adb/luoshu/self-mount"))
+            state_root = live_work_root()
             lower = state_root / "lower" / f"{parts[1]}-{parts[2]}"
             if lower.is_dir():
                 return lower
@@ -478,7 +481,8 @@ def _font_root_names(root: FontRoot) -> tuple[Path, ...]:
     return (root.logical, *aliases.get(root.logical, ()))
 
 
-def _stock_font_path(root: FontRoot, actual: Path, roots: Iterable[FontRoot]) -> Path:
+def _stock_font_path(root: FontRoot, actual: Path, roots: Iterable[FontRoot],
+                     *, preserve_namespace: bool = False) -> Path:
     """Resolve each font link inside the selected stock views, never the live ROM.
 
     A stock /system/fonts directory can contain absolute links to /product/fonts.
@@ -500,7 +504,10 @@ def _stock_font_path(root: FontRoot, actual: Path, roots: Iterable[FontRoot]) ->
     views: list[tuple[Path, Path]] = []
     for candidate in selected:
         try:
-            stock = candidate.actual.resolve(strict=True)
+            # realpath(/proc/1/root/...) discards the process namespace. A caller
+            # that proved a PID 1 lower mount must keep this projection intact.
+            stock = (lexical(candidate.actual) if preserve_namespace
+                     else candidate.actual.resolve(strict=True))
             if stock.is_dir():
                 views.extend((lexical(name), stock) for name in _font_root_names(candidate))
         except (OSError, RuntimeError):
@@ -742,8 +749,26 @@ def _generic_text_slot_candidate(name: str, metrics: dict[str, Any]) -> bool:
     return han >= 512 or (latin >= 52 and total >= 96)
 
 
-def _add_verified_text_slots(slots: dict[str, dict[str, Any]], roots: list[FontRoot]) -> None:
+def _read_metrics_cached(path: Path, face_index: int, cache: dict) -> tuple[str, dict[str, Any]]:
+    """Reuse stock metrics only within one scan, keeping each path readable."""
+    with path.open("rb") as stream:
+        identity = file_identity(os.fstat(stream.fileno()))
+        key = (identity, face_index)
+        result = cache.get(key)
+        if result is None:
+            result = _read_metrics(path, face_index)
+        if (file_identity(os.fstat(stream.fileno())) != identity
+                or file_identity(path.stat()) != identity):
+            raise InventoryError("stock font changed while reading metrics")
+        cache[key] = result
+        return copy.deepcopy(result)
+
+
+def _add_verified_text_slots(slots: dict[str, dict[str, Any]], roots: list[FontRoot],
+                             metrics_cache: dict | None = None) -> None:
     """Enumerate supported stock font roots and add verified text candidates."""
+    if metrics_cache is None:
+        metrics_cache = {}
     for root in roots:
         if not root.actual.is_dir():
             continue
@@ -767,7 +792,7 @@ def _add_verified_text_slots(slots: dict[str, dict[str, Any]], roots: list[FontR
                 continue
             try:
                 stock_file = _stock_font_path(root, actual, roots)
-                fmt, metrics = _read_metrics(stock_file, 0)
+                fmt, metrics = _read_metrics_cached(stock_file, 0, metrics_cache)
             except (InventoryError, OSError, ValueError):
                 continue
             if not _generic_text_slot_candidate(actual.name, metrics):
@@ -788,7 +813,9 @@ def _add_verified_text_slots(slots: dict[str, dict[str, Any]], roots: list[FontR
             }
 
 
-def _populate_metrics(slots: dict[str, dict[str, Any]]) -> None:
+def _populate_metrics(slots: dict[str, dict[str, Any]], metrics_cache: dict | None = None) -> None:
+    if metrics_cache is None:
+        metrics_cache = {}
     rejected: list[str] = []
     for logical, entry in slots.items():
         try:
@@ -796,7 +823,7 @@ def _populate_metrics(slots: dict[str, dict[str, Any]]) -> None:
                 _validate_metrics(entry["metrics"])
                 entry.pop("actualPath", None)
                 continue
-            fmt, metrics = _read_metrics(Path(entry["actualPath"]), int(entry.get("faceIndex", 0)))
+            fmt, metrics = _read_metrics_cached(Path(entry["actualPath"]), int(entry.get("faceIndex", 0)), metrics_cache)
         except (InventoryError, OSError, ValueError):
             rejected.append(logical)
             continue

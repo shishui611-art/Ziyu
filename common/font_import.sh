@@ -8,6 +8,7 @@ IMPORT_MAX_EXTRACT_BYTES=536870912
 USER_IMPORT_DIR="${USER_IMPORT_DIR:-${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/import}"
 IMPORT_CACHE_DIR="${IMPORT_CACHE_DIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}/cache/import}"
 IMPORT_PROBE="${IMPORT_PROBE:-${MODULE_DIR:-/data/adb/modules/LuoShu}/common/font_import_probe.py}"
+IMPORT_ZIP_EXTRACTOR="${IMPORT_ZIP_EXTRACTOR:-${MODULE_DIR:-/data/adb/modules/LuoShu}/common/font_zip_extract.py}"
 IMPORT_PYROOT="${IMPORT_PYROOT:-${MODULE_DIR:-/data/adb/modules/LuoShu}/common/python}"
 IMPORT_PYBIN="${IMPORT_PYBIN:-$IMPORT_PYROOT/bin/luoshu-python}"
 
@@ -44,6 +45,23 @@ import_probe_metadata() {
     case "$_probe_output" in *'|'*'|'*'|'*'|'*) printf '%s
 ' "$_probe_output"; return 0 ;; esac
     return 1
+}
+
+import_extract_zip_fonts() {
+    _extract_zip="$1"; _extract_dir="$2"
+    [ -f "$IMPORT_ZIP_EXTRACTOR" ] || return 127
+    if [ -n "${LUOSHU_IMPORT_PYTHON:-}" ]; then
+        "$LUOSHU_IMPORT_PYTHON" "$IMPORT_ZIP_EXTRACTOR" "$_extract_zip" "$_extract_dir" "$IMPORT_MAX_FILES" "$IMPORT_MAX_EXTRACT_BYTES"
+    elif [ -x "$IMPORT_PYBIN" ]; then
+        PYTHONHOME="$IMPORT_PYROOT" \
+            PYTHONPATH="$IMPORT_PYROOT/lib/python3.14:$IMPORT_PYROOT/lib/python3.14/site-packages" \
+            LD_LIBRARY_PATH="$IMPORT_PYROOT/lib:$IMPORT_PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$IMPORT_PYBIN" "$IMPORT_ZIP_EXTRACTOR" "$_extract_zip" "$_extract_dir" "$IMPORT_MAX_FILES" "$IMPORT_MAX_EXTRACT_BYTES"
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 "$IMPORT_ZIP_EXTRACTOR" "$_extract_zip" "$_extract_dir" "$IMPORT_MAX_FILES" "$IMPORT_MAX_EXTRACT_BYTES"
+    else
+        return 127
+    fi
 }
 
 import_safe_basename() {
@@ -271,9 +289,12 @@ import_zip_package() {
     _tmp="$IMPORT_CACHE_DIR/$(date +%s)-$$"
     rm -rf "$_tmp" 2>/dev/null || true
     mkdir -p "$_tmp" "$USER_FONTS_DIR" 2>/dev/null || { printf '{"status":"error","message":"无法创建导入临时目录"}\n'; return 0; }
-    for _pat in '*.ttf' '*.otf' '*.ttc' '*.TTF' '*.OTF' '*.TTC'; do
-        import_unzip -j -o "$_zip" "$_pat" -d "$_tmp" >/dev/null 2>&1 || true
-    done
+    _extract_result=$(import_extract_zip_fonts "$_zip" "$_tmp" 2>&1) || {
+        _extract_detail=$(printf '%s' "$_extract_result" | tr -d '\r\n' | cut -c1-200)
+        rm -rf "$_tmp" 2>/dev/null || true
+        printf '{"status":"error","message":"ZIP 字体提取失败：%s"}\n' "$(json_escape "${_extract_detail:-无法运行安全提取器}")"
+        return 0
+    }
     find "$_tmp" -type l -exec rm -f {} \; 2>/dev/null || true
 
     _manifest="$_tmp/.manifest"; : > "$_manifest"

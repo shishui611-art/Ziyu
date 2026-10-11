@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -22,7 +23,11 @@ OWNED_LOGS = ('fontswitch.log', 'service.log', 'mount.log', 'universal-runtime.l
               'font-role-shadow.log', 'provider_cache.log', 'google-font-provider.log',
               'font-weight-retire.log', 'mount-backend.log', 'self-mount.log',
               'mount_compat.log', 'universal-runtime-verify.log', 'universal-mount.log',
-              'app-install.log')
+              'app-install.log', 'font-live.log')
+
+def live_record(module: Path) -> dict:
+    from font_live_payload import current
+    return current(module)
 
 
 def values(path: Path) -> dict[str, str]:
@@ -129,11 +134,15 @@ def cancel(module: Path, kind: str, task: str) -> dict:
                 return {'state': 'cancelling', 'task': task, 'message': '停止请求已发出，进程回收尚未确认，请刷新',
                         'rebootRequired': False}
             record = values(cfg/filename)
+            outcome = discard_pending(module, task)
+            if outcome.get('state') == 'applied':
+                record.update(state='success', message=outcome['message'], finished=str(int(time.time())), pid='', percent='100')
+                conf(cfg/filename, record)
+                return outcome
             if record.get('task') == task and record.get('state') in ('running', 'queued', 'failed'):
                 record.update(state='cancelled', message='字体应用已取消，当前生效字体保持原样',
                               finished=str(int(time.time())), pid='', percent='100')
                 conf(cfg/filename, record)
-            discard_pending(module, task)
             return {'state': 'cancelled', 'task': task,
                     'message': '字体应用已取消，当前生效字体保持原样', 'rebootRequired': False}
         time.sleep(.05)
@@ -151,6 +160,10 @@ def status(module: Path) -> dict:
     cfg = module/'config'
     pending = values(cfg/'font-payload-next.conf') or values(cfg/'universal-font-next.conf')
     if pending:
+        live = live_record(module)
+        if live and live.get('request_id') == pending.get('requestId') and live.get('font') == pending.get('font'):
+            return {'undoAvailable': True, 'targetFont': pending.get('previousFont', 'default'),
+                    'rebootRequired': False, 'undoRebootRequired': True, 'state': 'live-mounted'}
         return {'undoAvailable': True, 'targetFont': pending.get('previousFont', 'default'),
                 'rebootRequired': True, 'undoRebootRequired': False, 'state': 'pending-reboot'}
     undone = values(cfg/'font-undo-result.conf')
@@ -174,11 +187,19 @@ def status(module: Path) -> dict:
 
 def discard_pending(module: Path, task: str) -> dict:
     cfg = module/'config'
+    if (cfg/'font-live-transaction.conf').exists():
+        raise ValueError('热切换回滚尚未确认，保留字体队列，请导出日志')
     for name in ('font-payload-next.conf', 'universal-font-next.conf'):
         pending = values(cfg/name)
         if pending.get('taskId') != task:
             continue
+        live = live_record(module)
+        if live and live.get('request_id') == pending.get('requestId'):
+            return {'state': 'applied', 'targetFont': live['font'], 'rebootRequired': False,
+                    'message': '字体已完成热挂载，停止请求晚于提交；如需恢复请使用恢复上一套字体'}
         previous = pending.get('previousFont', 'default')
+        if live:
+            previous = live['font']
         remove_owned(module, module/'.luoshu-payload-next')
         (cfg/name).unlink(missing_ok=True)
         (cfg/'text_reboot_required.conf').unlink(missing_ok=True)
@@ -204,8 +225,10 @@ def prune_retired(module: Path) -> dict:
         return {'removed': 0, 'reason': 'no-owned-snapshots'}
     owned_path(module, retired_root)
     keep = set()
-    for name in ('font-undo.conf', 'font-payload-activated.conf', 'universal-font-activated.conf'):
+    for name in ('font-undo.conf', 'font-payload-activated.conf', 'universal-font-activated.conf', 'font-live-boot-previous.conf'):
         retired = values(cfg/name).get('retired', '')
+        if name == 'font-live-boot-previous.conf':
+            retired = values(cfg/name).get('source', '')
         if retired:
             try:
                 keep.add(owned_path(module, Path(retired)))
@@ -225,6 +248,31 @@ def prune_retired(module: Path) -> dict:
 def undo(module: Path) -> dict:
     assert_idle(module)
     cfg = module/'config'
+    if (cfg/'font-live-transaction.conf').exists():
+        raise ValueError('热切换事务尚未恢复，请导出日志')
+    live = live_record(module)
+    if live:
+        pending = values(cfg/'font-payload-next.conf')
+        if live.get('request_id') == pending.get('requestId'):
+            previous = values(cfg/'font-live-previous.conf')
+            if previous.get('schema') != 'ziyu-live-previous-v1' or previous.get('boot_id') != live['boot_id']:
+                raise ValueError('上一套热切换字体记录不可用')
+            source = Path(previous.get('source', ''))
+            if source != module/'.luoshu-payload' and (source.parent != module/'.luoshu-state/cache/live'/live['boot_id'] or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name)):
+                raise ValueError('上一套字体来源不在模块目录')
+            if not source.is_dir() or source.is_symlink():
+                raise ValueError('上一套字体来源不可读取')
+            temporary = module/'.luoshu-state/tmp'/f'live-undo-{os.getpid()}'
+            shutil.copytree(source, temporary, symlinks=True)
+            remove_owned(module, module/'.luoshu-payload-next')
+            os.replace(temporary, module/'.luoshu-payload-next')
+            font = previous['font']
+            conf(cfg/'font-payload-next.conf', dict(state='prepared', font=font, previousFont=live['font'],
+                 previousLegacy='true', targetMode='legacy', undo='true', requestId=f'live-undo-{time.time_ns()}'))
+            atomic(cfg/'active_font.conf', font+'\n')
+            conf(cfg/'text_reboot_required.conf', dict(font=font, reason='explicit-live-undo-next-boot', bootId=live['boot_id']))
+            return {'state': 'staged', 'targetFont': font, 'rebootRequired': True,
+                    'message': '已准备恢复热切换前的字体，需确认重启后生效'}
     for name in ('font-payload-next.conf', 'universal-font-next.conf'):
         pending = values(cfg/name)
         if pending:
@@ -299,9 +347,92 @@ def log_fingerprint(module: Path) -> str:
     return digest.hexdigest()
 
 
+def recent_log_records(module: Path) -> list[tuple[str, str]]:
+    path = module/'logs/fontswitch.log'
+    if not path.is_file() or path.is_symlink():
+        return []
+    # Read the same last 500 records used by health reporting, without loading
+    # an unbounded font-switch history into memory.
+    with path.open('rb') as stream:
+        stat = os.fstat(stream.fileno())
+        stream.seek(0, os.SEEK_END)
+        offset = stream.tell()
+        chunks = []
+        lines = 0
+        while offset > 0 and lines <= 500:
+            size = min(offset, 65536)
+            offset -= size
+            stream.seek(offset)
+            chunk = stream.read(size)
+            chunks.append(chunk)
+            lines += chunk.count(b'\n')
+    records = []
+    for raw in b''.join(reversed(chunks)).splitlines(keepends=True):
+        records.append((raw.decode('utf-8', errors='replace').rstrip('\r\n'),
+                        f'{stat.st_dev}:{stat.st_ino}:{offset}'))
+        offset += len(raw)
+    return records[-500:]
+
+
+def log_severity(line: str) -> str:
+    if re.search(r'\[(?:ERROR|FATAL)\]|^(?:\[[^]]+\]\s*)*(?:ERROR|FATAL)\b', line, re.I):
+        return 'error'
+    if re.search(r'\[WARN(?:ING)?\]|^(?:\[[^]]+\]\s*)*WARN(?:ING)?\b', line, re.I):
+        return 'warning'
+    start = line.find('{')
+    if start >= 0 and line.rstrip().endswith('}'):
+        try:
+            status = str(json.loads(line[start:]).get('status', '')).lower()
+            if status in ('ok', 'success'):
+                return 'info'
+            if status in ('error', 'failed'):
+                return 'error'
+            if status in ('warn', 'warning'):
+                return 'warning'
+        except (ValueError, AttributeError):
+            pass
+    if re.search(r'\bwarn(?:ing)?\b|警告', line, re.I):
+        return 'warning'
+    if re.search(r'\b(?:error|failed|failure|fatal)\b|失败|错误', line, re.I):
+        return 'error'
+    return 'info'
+
+
+def warning_review(module: Path, ignore: bool = False) -> dict:
+    records = recent_log_records(module)
+    warnings: dict[str, int] = {}
+    errors = 0
+    for line, position in records:
+        severity = log_severity(line)
+        if severity == 'error':
+            errors += 1
+        elif severity == 'warning':
+            # Position distinguishes a newly appended identical warning from
+            # one the user already ignored, even after the 500-line window moves.
+            key = hashlib.sha256(f'{position}:{line}'.encode('utf-8')).hexdigest()
+            warnings[key] = warnings.get(key, 0) + 1
+    marker = module/'config/log-warning-review.json'
+    if ignore:
+        atomic(marker, json.dumps({'warnings': warnings, 'ignoredAt': int(time.time())}) + '\n')
+    try:
+        ignored = json.loads(marker.read_text(encoding='utf-8')).get('warnings', {})
+        if not isinstance(ignored, dict):
+            ignored = {}
+    except (OSError, ValueError, AttributeError):
+        ignored = {}
+    ignored_count = sum(min(count, max(0, ignored.get(key, 0)))
+                        for key, count in warnings.items()
+                        if isinstance(ignored.get(key, 0), int))
+    total = sum(warnings.values())
+    return {'recentWarnings': total - ignored_count, 'recentErrors': errors,
+            'ignoredWarnings': ignored_count,
+            'warningsIgnored': total > 0 and total == ignored_count}
+
+
 def review_logs(module: Path, action: str) -> dict:
     marker = module/'config/log-review.conf'
     if action == 'clear':
+        (module/'config/log-warning-review.json').unlink(missing_ok=True)
         for name in OWNED_LOGS:
             path = module/'logs'/name
             if path.is_file() and not path.is_symlink():
@@ -312,15 +443,17 @@ def review_logs(module: Path, action: str) -> dict:
     if action in ('mark', 'clear'):
         conf(marker, {'fingerprint': log_fingerprint(module), 'viewedAt': int(time.time())})
     record = values(marker)
-    return {'viewed': record.get('fingerprint') == log_fingerprint(module),
+    return {**warning_review(module, ignore=action == 'ignore-warnings'),
+            'viewed': record.get('fingerprint') == log_fingerprint(module),
             'viewedAt': int(record.get('viewedAt', '0')), 'cleared': action == 'clear',
-            'message': '日志已清空' if action == 'clear' else '日志已标记为已查看' if action == 'mark' else ''}
+            'message': ('日志已清空' if action == 'clear' else '日志已标记为已查看' if action == 'mark'
+                        else '当前警告已忽略；新警告和错误仍会提示' if action == 'ignore-warnings' else '')}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--module', required=True)
-    parser.add_argument('action', choices=('cancel', 'undo', 'status', 'discard-pending', 'prune-retired', 'logs'))
+    parser.add_argument('action', choices=('cancel', 'undo', 'status', 'discard-pending', 'prune-retired', 'logs', 'log-health'))
     parser.add_argument('arguments', nargs='*')
     args = parser.parse_args()
     module = Path(args.module).resolve()
@@ -338,9 +471,13 @@ def main() -> int:
             result = discard_pending(module, args.arguments[0])
         elif args.action == 'prune-retired':
             result = prune_retired(module)
+        elif args.action == 'log-health':
+            for key, value in warning_review(module).items():
+                print(f'{key}={str(value).lower() if isinstance(value, bool) else value}')
+            return 0
         else:
             action = args.arguments[0] if args.arguments else 'status'
-            if action not in ('status', 'mark', 'clear'):
+            if action not in ('status', 'mark', 'clear', 'ignore-warnings'):
                 raise ValueError('未知日志操作')
             result = review_logs(module, action)
         print(json.dumps({'status': 'ok', 'data': result}, ensure_ascii=False))

@@ -8,6 +8,23 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
+    if (viewModel.fontCacheRefreshPrompt) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissFontCacheRefresh,
+            title = { Text("系统界面仍使用旧字体") },
+            text = { Text(if (viewModel.fontCacheSoftRebootAvailable)
+                "新字体已热挂载，但状态栏、下拉面板和通知栏仍保留旧字体缓存。是否通过 KernelSU 软重启刷新？软重启会中断当前应用，完成后返回查看结果。也可以稍后处理。"
+                else "新字体已热挂载，但系统界面仍保留旧字体缓存，需要重启刷新。当前未确认支持 KernelSU 软重启，可稍后手动重启。") },
+            confirmButton = {
+                if (viewModel.fontCacheSoftRebootAvailable) {
+                    TextButton(onClick = viewModel::confirmFontCacheRefresh) { Text("软重启刷新") }
+                } else {
+                    TextButton(onClick = viewModel::dismissFontCacheRefresh) { Text("知道了") }
+                }
+            },
+            dismissButton = { TextButton(onClick = viewModel::dismissFontCacheRefresh) { Text("稍后处理") } },
+        )
+    }
     viewModel.preparedCombination?.let { result ->
         var sample by remember(result.taskId) { mutableStateOf("字域 · 让文字更悦目\nZiyu Typography 0123456789") }
         var ready by remember(result.taskId) { mutableStateOf(false) }

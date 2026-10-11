@@ -207,6 +207,12 @@ internal fun LogsScreenCompact(
                                     }
                                     TextButton(onClick = actions.clearLogs, enabled = state.lineCount > 0) { Text("清空日志") }
                                 }
+                                if (state.warningCount > 0) {
+                                    TextButton(onClick = actions.ignoreWarnings, enabled = !state.warningsIgnored) {
+                                        Text(if (state.warningsIgnored) "当前警告已忽略" else "忽略当前警告")
+                                    }
+                                    Text("忽略后设置页不再提醒这些警告；原始日志、真正的错误及新警告仍保留。", color = tokens.textSecondary, fontSize = 12.sp)
+                                }
                                 OutlinedTextField(
                                     value = query,
                                     onValueChange = { query = it },

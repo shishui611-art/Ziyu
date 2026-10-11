@@ -304,7 +304,61 @@ weight_sort_order() {
 # 扫描字体族的字重变体，依赖 $USER_FONTS_DIR（customize.sh 和 font_manager.sh
 # 都会在调用这些函数之前设置好这个变量）
 # 输出格式："字重1,字重2,字重3"
+# Explicit switching can take one invocation-local snapshot. Other callers keep
+# the original scan path. Never export or persist these variables across tasks.
+prepare_family_weights() {
+    _ffx_family="$1"
+    _ffx_dir="$USER_FONTS_DIR"
+    _ffx_first='' _ffx_weights=''
+    _ffx_variable='' _ffx_thin='' _ffx_extralight='' _ffx_light=''
+    _ffx_regular='' _ffx_medium='' _ffx_semibold='' _ffx_bold=''
+    _ffx_extrabold='' _ffx_black=''
+    for _ffx_file in "$USER_FONTS_DIR"/*.ttf "$USER_FONTS_DIR"/*.otf "$USER_FONTS_DIR"/*.ttc "$USER_FONTS_DIR"/*.TTF "$USER_FONTS_DIR"/*.OTF "$USER_FONTS_DIR"/*.TTC; do
+        [ -f "$_ffx_file" ] || continue
+        _ffx_name=${_ffx_file##*/}
+        [ "$(detect_font_family "$_ffx_name")" = "$_ffx_family" ] || continue
+        [ -n "$_ffx_first" ] || _ffx_first=$_ffx_file
+        _ffx_role=$(detect_font_weight "$_ffx_name")
+        # First match wins, exactly as get_weight_file's original glob order.
+        case "$_ffx_role" in
+            variable) [ -n "$_ffx_variable" ] || _ffx_variable=$_ffx_file ;;
+            thin) [ -n "$_ffx_thin" ] || _ffx_thin=$_ffx_file ;;
+            extralight) [ -n "$_ffx_extralight" ] || _ffx_extralight=$_ffx_file ;;
+            light) [ -n "$_ffx_light" ] || _ffx_light=$_ffx_file ;;
+            regular) [ -n "$_ffx_regular" ] || _ffx_regular=$_ffx_file ;;
+            medium) [ -n "$_ffx_medium" ] || _ffx_medium=$_ffx_file ;;
+            semibold) [ -n "$_ffx_semibold" ] || _ffx_semibold=$_ffx_file ;;
+            bold) [ -n "$_ffx_bold" ] || _ffx_bold=$_ffx_file ;;
+            extrabold) [ -n "$_ffx_extrabold" ] || _ffx_extrabold=$_ffx_file ;;
+            black) [ -n "$_ffx_black" ] || _ffx_black=$_ffx_file ;;
+        esac
+    done
+    for _ffx_role in variable thin extralight light regular medium semibold bold extrabold black; do
+        select_family_snapshot_file "$_ffx_role"
+        [ -n "$_ffx_selected" ] || continue
+        [ -z "$_ffx_weights" ] || _ffx_weights="$_ffx_weights,"
+        _ffx_weights="$_ffx_weights$_ffx_role"
+    done
+    return 0
+}
+
+select_family_snapshot_file() {
+    _ffx_selected=''
+    case "$1" in
+        variable) _ffx_selected=$_ffx_variable ;; thin) _ffx_selected=$_ffx_thin ;;
+        extralight) _ffx_selected=$_ffx_extralight ;; light) _ffx_selected=$_ffx_light ;;
+        regular) _ffx_selected=$_ffx_regular ;; medium) _ffx_selected=$_ffx_medium ;;
+        semibold) _ffx_selected=$_ffx_semibold ;; bold) _ffx_selected=$_ffx_bold ;;
+        extrabold) _ffx_selected=$_ffx_extrabold ;; black) _ffx_selected=$_ffx_black ;;
+    esac
+    return 0
+}
+
 scan_family_weights() {
+    if [ "${_ffx_family:-}" = "$1" ] && [ "${_ffx_dir:-}" = "$USER_FONTS_DIR" ]; then
+        printf '%s\n' "$_ffx_weights"
+        return 0
+    fi
     family="$1"
     weights=""
     for f in "$USER_FONTS_DIR"/*.ttf "$USER_FONTS_DIR"/*.otf "$USER_FONTS_DIR"/*.ttc "$USER_FONTS_DIR"/*.TTF "$USER_FONTS_DIR"/*.OTF "$USER_FONTS_DIR"/*.TTC; do
@@ -328,6 +382,11 @@ scan_family_weights() {
 
 # 获取字体族中指定字重的文件路径
 get_weight_file() {
+    if [ "${_ffx_family:-}" = "$1" ] && [ "${_ffx_dir:-}" = "$USER_FONTS_DIR" ]; then
+        select_family_snapshot_file "$2"
+        printf '%s\n' "${_ffx_selected:-$_ffx_first}"
+        return 0
+    fi
     family="$1"
     target_w="$2"
     fallback_file=""

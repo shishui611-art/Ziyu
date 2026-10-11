@@ -96,6 +96,8 @@ class FontRef:
     axes: str
     source_xml: Path
     dynamic: bool
+    axis_children: tuple[dict[str, str], ...] = ()
+    xml_weight: int | None = None
 
 
 def local_name(tag: str) -> str:
@@ -273,6 +275,10 @@ def parse_xml(path: Path) -> list[FontRef]:
                 index = int(child.attrib.get("index", "0") or "0")
             except ValueError:
                 index = 0
+            try:
+                xml_weight = max(1, min(1000, int(child.attrib.get("weight", "400") or "400")))
+            except ValueError:
+                xml_weight = 400
             refs.append(FontRef(
                 family=family_name,
                 family_attrs=family_attrs,
@@ -284,6 +290,13 @@ def parse_xml(path: Path) -> list[FontRef]:
                 axes=child.attrib.get("axis", child.attrib.get("axes", "")),
                 source_xml=path,
                 dynamic=dynamic,
+                xml_weight=xml_weight,
+                axis_children=tuple({
+                    "tag": str(axis.attrib.get("tag") or ""),
+                    "stylevalue": str(axis.attrib.get("stylevalue")
+                                      or axis.attrib.get("styleValue")
+                                      or axis.attrib.get("value") or ""),
+                } for axis in list(child) if local_name(axis.tag) == "axis"),
             ))
     return refs
 

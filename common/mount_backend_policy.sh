@@ -1,13 +1,15 @@
 #!/system/bin/sh
-# Prefer the external provider when available; use Ziyu's own mount as the
-# recovery route whenever a provider is absent, unavailable, or excluded.
+# Select a provider automatically or use a user-selected self-mount strategy.
 ziyu_mount_select() {
     [ "${1:-false}" != true ] || { printf 'none\n'; return 0; }
-    # The provider tree is only needed when an actual custom font is selected.
-    # Do not publish an empty/default payload into the external module scan path.
+    # A default-font selection has no active mount backend. The runtime separately
+    # retracts a prior provider publication when an ownership receipt is present.
     [ "${3:-false}" = true ] || { printf 'none\n'; return 0; }
+    case "${4:-auto}" in
+        magic|overlayfs|self_mount) printf 'self\n'; return 0 ;;
+    esac
     case "${2:-unknown}" in
         available) printf 'external\n' ;;
-        *) printf 'self\n' ;;
+        *) printf 'unresolved\n' ;;
     esac
 }

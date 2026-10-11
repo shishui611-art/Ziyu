@@ -386,8 +386,8 @@ private fun nextStepFor(state: HomeUiState, actions: HomeActions): HomeNextStep 
     )
     state.rebootRequired -> HomeNextStep(
         title = "字体已经准备完成",
-        description = if (state.temporaryRootMode) "请在 KernelSU 管理器中软重启，完成后返回查看挂载验证" else "执行一次完整重启后应用全局字体并自动验证",
-        actionLabel = if (state.temporaryRootMode) "软重启说明" else "立即重启",
+        description = if (state.temporaryRootMode) "通过内置脚本请求 KernelSU 软重启，完成后返回查看挂载验证" else "执行一次完整重启后应用全局字体并自动验证",
+        actionLabel = if (state.temporaryRootMode) "立即软重启" else "立即重启",
         icon = Icons.Rounded.RestartAlt,
         onClick = actions.reboot,
     )

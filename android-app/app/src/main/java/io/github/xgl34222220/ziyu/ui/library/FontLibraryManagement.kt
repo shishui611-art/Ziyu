@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Label
 import androidx.compose.material.icons.rounded.ListAlt
 import androidx.compose.material.icons.rounded.Star
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -265,13 +267,16 @@ internal fun FontLibraryManagementDialog(
     style: UiStyle,
     fonts: List<FontItem>,
     activeFontId: String,
+    operationBusy: Boolean,
     collections: FontLibraryCollections,
     conflicts: FontLibraryConflictReport,
     onCollectionsChange: (FontLibraryCollections) -> Unit,
+    onDeleteFonts: (Set<String>) -> Unit,
     onOpenDetails: (FontItem) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var selectedIds by remember(fonts) { mutableStateOf(emptySet<String>()) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val sections = remember(fonts) { groupFontFamilies(fonts) }
     val allIds = remember(fonts) { fonts.map { it.id }.toSet() }
 
@@ -326,6 +331,8 @@ internal fun FontLibraryManagementDialog(
                     onClear = { selectedIds = emptySet() },
                     onToggleFavorite = { onCollectionsChange(toggleFontFavorite(collections, selectedIds)) },
                     onToggleTag = { tag -> onCollectionsChange(toggleFontTag(collections, selectedIds, tag)) },
+                    onDeleteSelected = { confirmDelete = true },
+                    operationBusy = operationBusy,
                 )
                 Spacer(Modifier.size(10.dp))
 
@@ -368,6 +375,36 @@ internal fun FontLibraryManagementDialog(
             }
         }
     }
+
+    if (confirmDelete) {
+        val includesActive = activeFontId in selectedIds
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除所选字体？") },
+            text = {
+                Text(
+                    buildString {
+                        append("将删除 ").append(selectedIds.size).append(" 个字体 Family，相关字体文件也会一并删除。操作不可撤销。")
+                        if (includesActive) append(" 当前正在使用的字体会先恢复为系统默认字体。")
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !operationBusy && selectedIds.isNotEmpty(),
+                    onClick = {
+                        val deleting = selectedIds
+                        confirmDelete = false
+                        selectedIds = emptySet()
+                        onDeleteFonts(deleting)
+                    },
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -379,6 +416,8 @@ private fun ManagementBatchPanel(
     onClear: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleTag: (String) -> Unit,
+    onDeleteSelected: () -> Unit,
+    operationBusy: Boolean,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -422,6 +461,14 @@ private fun ManagementBatchPanel(
                             icon = Icons.Rounded.Label,
                             onClick = { onToggleTag(tag) },
                         )
+                    }
+                    TextButton(
+                        onClick = onDeleteSelected,
+                        enabled = !operationBusy,
+                    ) {
+                        Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(5.dp))
+                        Text("删除所选", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

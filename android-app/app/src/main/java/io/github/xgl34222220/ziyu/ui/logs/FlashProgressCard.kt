@@ -54,9 +54,9 @@ internal fun FlashProgressCard(state: LogsUiState) {
     }
     val title = when {
         running -> if (task?.phase == TaskPhase.QUEUED) "正在等待执行" else "正在处理字体"
-        failed -> "这次应用未完成"
+        failed -> if (task?.kind == TaskKind.APPLY) "字体应用失败" else "本次任务失败"
         reboot -> if (state.temporaryRootMode) "准备就绪，等待软重启" else "准备就绪，等待重启"
-        complete -> "本次任务已完成"
+        complete -> if (task?.kind == TaskKind.APPLY) "字体应用成功" else "本次任务已完成"
         else -> "等待新的字体任务"
     }
     val progress by animateFloatAsState(

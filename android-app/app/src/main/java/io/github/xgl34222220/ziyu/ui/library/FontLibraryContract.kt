@@ -46,6 +46,7 @@ internal data class FontLibraryActions(
     val setQuery: (String) -> Unit,
     val apply: (FontItem) -> Unit,
     val delete: (FontItem) -> Unit,
+    val deleteMany: (Set<String>) -> Unit = {},
     val restoreDefault: () -> Unit,
     val importSystemFonts: () -> Unit = {},
     val details: (FontItem) -> Unit = {},

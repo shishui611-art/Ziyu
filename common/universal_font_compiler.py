@@ -29,6 +29,7 @@ import tempfile
 import time
 import unicodedata
 from pathlib import Path
+from font_live_payload import work_root as live_work_root
 from typing import Any, Iterable
 
 from fontTools.misc.transform import Transform
@@ -57,7 +58,7 @@ from legacy_v14_4.composite_layout import (
 )
 
 SCHEMA = "universal-font-artifacts-v1"
-COMPILER_REVISION = 1
+COMPILER_REVISION = 2
 FONT_PLAN_SCHEMA = "universal-font-plan-v1"
 ROUTE_SCHEMA = "minimal-xml-route-plan-v1"
 ROUTABLE_ACTIONS = {"replace", "compile", "compile-specialized"}
@@ -215,6 +216,16 @@ def _axis_values(raw_axes: Any) -> dict[str, float]:
     return result
 
 
+def _artifact_weight(artifact: dict[str, Any], target: dict[str, Any]) -> int:
+    # An explicit XML wght axis is the actual geometry contract, even when the
+    # family weight attribute differs. Keep both original XML attributes intact.
+    axis_weight = _axis_values(artifact.get("requiredAxes")).get("wght")
+    if axis_weight is not None:
+        return int(axis_weight)
+    return _int(artifact.get("requiredWeight"),
+                _int(target.get("targetContract", {}).get("weight"), 400))
+
+
 def _profile_from_font(font: TTFont) -> dict[str, Any]:
     if "head" not in font or "hhea" not in font:
         raise CompilerError("字体缺少 head/hhea")
@@ -354,23 +365,126 @@ def _stock_map(path: Path | None) -> dict[str, Path]:
     return result
 
 
-def _lower_stock_candidate(logical: Path) -> Path | None:
-    parts = logical.parts
-    if len(parts) < 4 or parts[0] != "/" or parts[2] != "fonts":
-        return None
-    state_root = Path(
-        os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT", "/data/adb/luoshu/self-mount")
-    )
-    candidate = state_root / "lower" / f"{parts[1]}-fonts" / Path(*parts[3:])
-    return candidate if candidate.is_file() else None
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return ""
 
 
-def _mirror_stock_candidate(logical: Path) -> Path | None:
-    for prefix in font_inventory.MIRROR_PREFIXES:
-        candidate = prefix / logical.relative_to("/")
-        if candidate.is_file():
-            return candidate
-    return None
+def _mount_path(value: str) -> str:
+    return re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), value)
+
+
+def _verified_lower_roots(projection: Path | None = None) -> list[font_inventory.FontRoot]:
+    state_root = live_work_root()
+    if not state_root.is_absolute():
+        return []
+    project = lambda path: projection / path.relative_to("/") if projection else path
+    current_boot = _read_text(Path("/proc/sys/kernel/random/boot_id"))
+    if not current_boot or _read_text(project(state_root / "boot-id")) != current_boot:
+        return []
+    journal = set(_read_text(project(state_root / "mounts.list")).splitlines())
+    mountinfo = Path("/proc/1/mountinfo" if projection else "/proc/self/mountinfo")
+    mounts: list[tuple[str, list[str]]] = []
+    for line in _read_text(mountinfo).splitlines():
+        fields = line.split()
+        if len(fields) < 10 or "-" not in fields:
+            continue
+        separator = fields.index("-")
+        mounts.append((_mount_path(fields[4]), fields[6:separator]))
+    roots = []
+    for partition, logical in font_inventory.LOGICAL_FONT_ROOTS:
+        lower = state_root / "lower" / f"{partition}-fonts"
+        name = str(lower)
+        actual = project(lower)
+        if name not in journal or actual.is_symlink() or not actual.is_dir():
+            continue
+        root_mounts = [options for mounted, options in mounts if mounted == name]
+        # A lower is trusted only in this boot, while its private bind still
+        # exists. Descendant mounts would make the snapshot contaminated.
+        if not root_mounts or any(option.startswith(("shared:", "master:", "propagate_from:"))
+                                  for option in root_mounts[-1]):
+            continue
+        if any(mounted.startswith(name + "/") for mounted, _options in mounts):
+            continue
+        roots.append(font_inventory.FontRoot(partition, logical, actual))
+    return roots
+
+
+def _stock_views() -> list[list[font_inventory.FontRoot]]:
+    views = []
+    rom_roots = _verified_rom_roots()
+    for projection in (None, Path("/proc/1/root")):
+        lower = _verified_lower_roots(projection)
+        mirrors = []
+        for partition, logical in font_inventory.LOGICAL_FONT_ROOTS:
+            for prefix in font_inventory.MIRROR_PREFIXES:
+                actual = prefix / logical.relative_to("/")
+                if projection:
+                    actual = projection / actual.relative_to("/")
+                if actual.is_dir() and not actual.is_symlink():
+                    mirrors.append(font_inventory.FontRoot(partition, logical, actual))
+                    break
+        selected = lower + [root for root in mirrors
+                            if not any(item.partition == root.partition for item in lower)]
+        selected += [root for root in rom_roots
+                     if not any(item.partition == root.partition for item in selected)]
+        if selected:
+            views.append(selected)
+        # A valid lower can lack a ROM alias that another stock mirror contains.
+        # Retry a separate view rather than duplicating one logical root and
+        # letting link resolution accidentally choose the wrong copy.
+        if mirrors:
+            views.append(mirrors + [root for root in rom_roots
+                                   if not any(item.partition == root.partition for item in mirrors)])
+    return views
+
+
+def _verified_rom_roots() -> list[font_inventory.FontRoot]:
+    """Admit untouched font directories only on a read-only block ROM mount.
+
+    Some stock links point to partitions the payload does not replace, so no
+    lower was captured for them. Prove the covering mount and absence of font
+    mounts instead of enabling the caller's unrestricted --allow-live-stock.
+    """
+    records = []
+    for line in _read_text(Path("/proc/self/mountinfo")).splitlines():
+        fields = line.split()
+        if len(fields) < 10 or "-" not in fields:
+            continue
+        separator = fields.index("-")
+        if separator + 2 >= len(fields):
+            continue
+        records.append({"root": _mount_path(fields[3]), "target": _mount_path(fields[4]),
+                        "options": fields[5].split(","), "type": fields[separator + 1],
+                        "source": _mount_path(fields[separator + 2])})
+    roots = []
+    for partition, logical in font_inventory.LOGICAL_FONT_ROOTS:
+        probe = font_inventory.FontRoot(partition, logical, logical)
+        for alias in font_inventory._font_root_names(probe):
+            try:
+                actual = alias.resolve(strict=True)
+                if not actual.is_dir():
+                    continue
+            except (OSError, RuntimeError):
+                continue
+            name = str(actual)
+            if any(item["target"] == name or item["target"].startswith(name + "/") for item in records):
+                continue
+            covering = [item for item in records if item["target"] == "/"
+                        or name.startswith(item["target"].rstrip("/") + "/")]
+            if not covering:
+                continue
+            covering.sort(key=lambda item: len(item["target"]))
+            mount = covering[-1]
+            if (mount["root"] != "/" or mount["type"] not in {"erofs", "ext4"}
+                    or "ro" not in mount["options"] or not mount["source"].startswith("/dev/block/")
+                    or mount["target"] not in {"/", str(actual.parent)}):
+                continue
+            roots.append(font_inventory.FontRoot(partition, logical, actual))
+            break
+    return roots
 
 
 def _resolve_stock(
@@ -382,15 +496,28 @@ def _resolve_stock(
     candidate = explicit.get(logical_value)
     if candidate is not None and candidate.is_file():
         return candidate
-    candidate = _lower_stock_candidate(logical)
-    if candidate is not None:
-        return candidate
-    candidate = _mirror_stock_candidate(logical)
-    if candidate is not None:
-        return candidate
+    failures: list[str] = []
+    for roots in _stock_views():
+        aliases = [(name, root) for root in roots
+                   for name in font_inventory._font_root_names(root)]
+        aliases.sort(key=lambda pair: len(pair[0].parts), reverse=True)
+        for name, root in aliases:
+            try:
+                relative = logical.relative_to(name)
+            except ValueError:
+                continue
+            try:
+                # Remap every absolute/relative symlink into the selected stock
+                # partitions. Never follow a lower link back to live fonts.
+                return font_inventory._stock_font_path(
+                    root, root.actual / relative, roots, preserve_namespace=True)
+            except font_inventory.InventoryError as error:
+                failures.append(str(error))
+                break
     if allow_live and logical.is_file():
         return logical
-    raise CompilerError(f"找不到可验证的原厂字体快照：{logical_value}")
+    detail = f"；{failures[-1]}" if failures else "；当前启动没有可读的原厂 lower/mirror"
+    raise CompilerError(f"找不到可验证的原厂字体快照：{logical_value}{detail}")
 
 
 def _validate_stock_contract(target: dict[str, Any], stock: Path, face_index: int) -> dict[str, Any]:
@@ -993,6 +1120,9 @@ def _collect_units(font_plan: dict[str, Any], route_plan: dict[str, Any]) -> lis
             target = targets.get(target_path)
             if not isinstance(artifact, dict) or not isinstance(target, dict):
                 continue
+            target = universal_font_plan.target_for_route(
+                target, artifact.get("requiredWeight"), artifact.get("requiredStyle"),
+                artifact.get("requiredAxes"))
             artifact_id = str(artifact.get("artifactId") or "")
             unit = units.setdefault(artifact_id, {
                 "artifact": copy.deepcopy(artifact),
@@ -1205,7 +1335,7 @@ def _validate_output_face(
     try:
         instance = _instance_for_validation(
             raw,
-            _int(artifact.get("requiredWeight"), _int(target.get("targetContract", {}).get("weight"), 400)),
+            _artifact_weight(artifact, target),
             geometry_axes,
         )
         if instance is raw:
@@ -1259,7 +1389,7 @@ def _compile_source_as_base(
     temp_root: Path,
 ) -> dict[str, Any]:
     source_info = target.get("source") if isinstance(target.get("source"), dict) else {}
-    weight = _int(artifact.get("requiredWeight"), _int(target.get("targetContract", {}).get("weight"), 400))
+    weight = _artifact_weight(artifact, target)
     route_axes = _axis_values(artifact.get("requiredAxes"))
 
     probe_source_raw = Path(str(source_info.get("sourcePath") or ""))
@@ -1351,7 +1481,7 @@ def _compile_stock_shell(
     temp_root: Path,
 ) -> dict[str, Any]:
     source_info = target.get("source") if isinstance(target.get("source"), dict) else {}
-    weight = _int(artifact.get("requiredWeight"), _int(target.get("targetContract", {}).get("weight"), 400))
+    weight = _artifact_weight(artifact, target)
     route_axes = _axis_values(artifact.get("requiredAxes"))
     source_path = Path(str(source_info.get("sourcePath") or ""))
     if not source_path.is_file():
@@ -1595,6 +1725,8 @@ def _compile_unit(
         "sha256": "",
         "bytes": 0,
         "reason": "",
+        "sourceFace": {key: copy.deepcopy(target.get("source", {}).get(key))
+                       for key in ("uid", "fileUid", "faceIndex", "weight", "italic")},
     }
 
     try:
@@ -1695,6 +1827,29 @@ def compile_all(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     units = _collect_units(font_plan, route_plan)
+    # Production cutover requires every unit. Do not spend minutes compiling
+    # expensive VF shells when a known blocked unit already makes deployment
+    # impossible. Standalone diagnostic compilation keeps its detailed manifest.
+    if os.environ.get("LUOSHU_COMPILER_REQUIRE_DEPLOYABLE") == "1":
+        blockers = []
+        for unit in units:
+            target = unit["target"]
+            path = str(target.get("path") or "")
+            try:
+                if str(target.get("status") or "") == "blocked":
+                    raise CompilerError("FontPlan 目标已经 blocked")
+                for risk in target.get("risks") or []:
+                    if risk in {"static-weight-fallback", "italic-style-mismatch",
+                                "source-weight-axis-out-of-range"}:
+                        raise CompilerError(f"FontPlan 风险不能由编译器安全消除：{risk}")
+                _resolve_stock(path, stock_paths, allow_live_stock)
+            except CompilerError as error:
+                artifact = unit["artifact"]
+                blockers.append(f"{path}（字重 {_artifact_weight(artifact, target)}，"
+                                f"样式 {artifact.get('requiredStyle', 'normal')}）：{error}")
+        if blockers:
+            detail = "；".join(blockers[:8])
+            raise CompilerError(f"通用编译预检未通过：{len(blockers)} 个目标不可部署；{detail}")
     artifacts = [
         _compile_unit(unit, stock_paths, output_dir, allow_live_stock)
         for unit in units

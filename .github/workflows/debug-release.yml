@@ -63,9 +63,43 @@ jobs:
           fi
           cat "$log"
 
-      - name: Build Debug App
+      - name: Load existing release signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LUOSHU_KEYSTORE_BASE64 }}
+          LUOSHU_KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          LUOSHU_KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
+          LUOSHU_KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 LUOSHU_KEYSTORE_PASSWORD LUOSHU_KEY_ALIAS LUOSHU_KEY_PASSWORD; do
+            [[ -n "${!name}" ]] || { echo "Missing signing secret: $name" >&2; exit 3; }
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/luoshu-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/luoshu-release.jks" -storepass:env LUOSHU_KEYSTORE_PASSWORD -alias "$LUOSHU_KEY_ALIAS" >/dev/null
+
+      - name: Build Debug App with release identity
         working-directory: android-app
+        env:
+          LUOSHU_KEYSTORE_FILE: ${{ runner.temp }}/luoshu-release.jks
+          LUOSHU_KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          LUOSHU_KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
+          LUOSHU_KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
         run: gradle --no-daemon --stacktrace :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Verify shared App signing certificate
+        shell: bash
+        env:
+          EXPECTED_CERT_SHA256: ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468
+        run: |
+          set -euo pipefail
+          apk='android-app/app/build/outputs/apk/debug/app-debug.apk'
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)"
+          test -x "$apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/debug-signature.txt"
+          actual_cert="$(awk -F': ' '/Signer.*certificate SHA-256 digest:/ {print $NF; exit}' "$RUNNER_TEMP/debug-signature.txt" | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          [[ "$actual_cert" == "$EXPECTED_CERT_SHA256" ]] || { echo 'Debug signing certificate does not match release.' >&2; exit 3; }
 
       - name: Package Debug module and checksums
         shell: bash
@@ -74,7 +108,7 @@ jobs:
           . ./scripts/version.sh
           apk='android-app/app/build/outputs/apk/debug/app-debug.apk'
           test -s "$apk"
-          LUOSHU_APP_APK="$apk" LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
+          LUOSHU_APP_APK="$apk" LUOSHU_APP_PACKAGE=io.github.shishui611_art.ziyu LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 
           short_sha="${GITHUB_SHA:0:7}"
           module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
@@ -83,7 +117,7 @@ jobs:
           (cd dist && sha256sum "$(basename "$debug_module")" > "$(basename "$debug_module").sha256")
 
           unzip -t "$debug_module" >/dev/null
-          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.shishui611_art.ziyu.debug'
+          test "$(unzip -p "$debug_module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.shishui611_art.ziyu'
           test "$(unzip -p "$debug_module" bundled/Ziyu-App.apk | sha256sum | awk '{print $1}')" = "$(sha256sum "$apk" | awk '{print $1}')"
 
           echo "DEBUG_MODULE=$debug_module" >> "$GITHUB_ENV"
@@ -101,4 +135,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "字域 ${DEBUG_VERSION} Debug 测试版 (${GITHUB_RUN_NUMBER})" \
             --prerelease \
-            --notes $'此版本由 GitHub Actions 云端构建，供调试和手动测试。\n\n这是独立的 Debug 预发布，不属于正式版本，也不会写入正式更新清单。安装前请先备份当前字体配置；遇到异常可在 Root 管理器中停用模块。'
+            --notes $'此版本由 GitHub Actions 云端构建，供调试和手动测试。\n\n内置 Debug App 与正式版使用相同包名和已有正式签名，覆盖安装保留正式 App 数据；历史独立 .debug App 可手动卸载一次。本次仍是 Debug 预发布，不写入正式更新清单。安装前请先备份当前字体配置；遇到异常可在 Root 管理器中停用模块。'

@@ -66,9 +66,13 @@ android {
 
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".debug"
+            // A Debug build signed with the release key updates the existing
+            // release App. Only unsigned local development uses a separate ID.
+            if (!hasReleaseSigning) {
+                applicationIdSuffix = ".debug"
+            }
             versionNameSuffix = "-debug"
-            // Test packages remain installable over the existing debug app, but execute with release-like optimization.
+            // Keep release-like optimization and a visible Debug version label.
             isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true

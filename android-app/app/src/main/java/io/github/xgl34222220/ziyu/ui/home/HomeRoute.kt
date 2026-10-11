@@ -1,11 +1,17 @@
 package io.github.xgl34222220.ziyu.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -17,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,6 +36,13 @@ import org.json.JSONObject
 
 private const val STOCK_SCAN_COMMAND =
     "sh /data/adb/modules/LuoShu/common/font_manager.sh action stock_scan"
+
+private fun mountModeLabel(mode: String): String = when (mode) {
+    "magic" -> "Magic Mount"
+    "overlayfs" -> "OverlayFS"
+    "self_mount" -> "字域自挂载"
+    else -> "元模块自动挂载"
+}
 
 private fun stockScanResultMessage(stdout: String, stderr: String, code: Int): String {
     val jsonLine = stdout.lineSequence()
@@ -68,6 +82,10 @@ fun HomeRoute(
     val scope = rememberCoroutineScope()
     val visibleActions = if (state.temporaryRootMode) actions.copy(reboot = { showTemporaryRootGuide = true }) else actions
 
+    LaunchedEffect(state.mountBackendRebootPrompt) {
+        if (state.mountBackendRebootPrompt != null) showMountSettings = false
+    }
+
     LaunchedEffect(
         state.moduleInstalled,
         state.currentFont,
@@ -98,7 +116,9 @@ fun HomeRoute(
         trustContent = {
             if (state.moduleInstalled) {
                 Column(Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { actions.mountSettings(); showMountSettings = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) { Text("挂载状态：自动选择") }
+                    OutlinedButton(onClick = { actions.mountSettings(); showMountSettings = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (state.mountPreferenceLoaded) "挂载方式：${mountModeLabel(state.mountBackendPreference)}" else "挂载方式：读取中…")
+                    }
                     if (state.taskRunning) {
                         OutlinedButton(onClick = actions.cancelTask, modifier = Modifier.fillMaxWidth()) { Text("终止当前字体任务") }
                     }
@@ -152,12 +172,60 @@ fun HomeRoute(
     if (showMountSettings) {
         AlertDialog(
             onDismissRequest = { showMountSettings = false },
-            title = { Text("字体挂载状态") },
-            text = { Column {
-                Text(state.mountPreferences)
-                Text("优先使用可用的外部提供者；没有提供者时由字域接管。外部接管失败后保持当前选择，查看状态原因并重启处理。")
-            } },
+            title = { Text("字体挂载方式") },
+            text = {
+                Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+                    MountModeOption(
+                        title = "OverlayFS",
+                        description = "仅使用 OverlayFS；内核不支持时显示失败原因。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "overlayfs",
+                        onClick = { actions.setMountBackend("overlayfs") },
+                    )
+                    MountModeOption(
+                        title = "Magic Mount",
+                        description = "由字域执行 bind；字体别名冲突时使用目录镜像 bind。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "magic",
+                        onClick = { actions.setMountBackend("magic") },
+                    )
+                    MountModeOption(
+                        title = "元模块自动挂载",
+                        description = "交给当前可用的元模块或管理器内置挂载；失败时显示原因。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "auto",
+                        onClick = { actions.setMountBackend("auto") },
+                    )
+                    MountModeOption(
+                        title = "字域自挂载",
+                        description = "由字域执行 OverlayFS / bind；遇到别名冲突使用目录镜像。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "self_mount",
+                        onClick = { actions.setMountBackend("self_mount") },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (state.mountPreferences.isNotBlank()) Text(state.mountPreferences)
+                    Text(if (state.temporaryRootMode) "切换模式后需通过 KernelSU 软重启验证。" else "切换模式后需完整重启验证。")
+                }
+            },
             confirmButton = { TextButton(onClick = { showMountSettings = false }) { Text("完成") } },
+        )
+    }
+    state.mountBackendRebootPrompt?.let { mode ->
+        AlertDialog(
+            onDismissRequest = actions.dismissMountBackendRebootPrompt,
+            title = { Text("是否重启验证挂载？") },
+            text = {
+                Text("已保存为${mountModeLabel(mode)}。" +
+                    if (state.temporaryRootMode) "字域将请求 KernelSU 软重启应用选择，完成后回到字域查看实际挂载方式和验证结果。"
+                    else "完整重启后执行所选挂载方式，完成后回到字域查看实际挂载方式和验证结果。")
+            },
+            confirmButton = {
+                TextButton(onClick = { actions.dismissMountBackendRebootPrompt(); actions.reboot() }) {
+                    Text(if (state.temporaryRootMode) "立即软重启" else "立即重启")
+                }
+            },
+            dismissButton = { TextButton(onClick = actions.dismissMountBackendRebootPrompt) { Text("稍后重启") } },
         )
     }
     if (showUndo) {
@@ -192,8 +260,29 @@ fun HomeRoute(
         AlertDialog(
             onDismissRequest = { showTemporaryRootGuide = false },
             title = { Text("KernelSU 软重启") },
-            text = { Text("请在 KernelSU 管理器中执行软重启。完成后回到字域，查看本次挂载和字体加载验证结果。字域不会发起完整重启。") },
-            confirmButton = { TextButton(onClick = { showTemporaryRootGuide = false; actions.refresh() }) { Text("知道了") } },
+            text = { Text("是否请求 KernelSU 软重启？完成后回到字域，查看本次挂载和字体加载验证结果。") },
+            confirmButton = { TextButton(onClick = { showTemporaryRootGuide = false; actions.reboot() }) { Text("立即软重启") } },
+            dismissButton = { TextButton(onClick = { showTemporaryRootGuide = false }) { Text("稍后") } },
         )
+    }
+}
+
+@Composable
+private fun MountModeOption(
+    title: String,
+    description: String,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick, enabled = enabled)
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }

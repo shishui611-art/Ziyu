@@ -39,8 +39,15 @@ _lc_real_old_mod="$LUOSHU_OLD_MOD"
 # to this wrapper, but convert its top-level exit statements into returns. This is
 # essential for APatch (which sources customize.sh) and guarantees cleanup of the
 # temporary private-payload view on a controlled migration rejection.
+_lc_core_aborted=0
+_lc_core_abort() {
+    _lc_core_aborted=1
+    ui_print "! $*"
+    return 0
+}
 sed -e 's/^[[:space:]]*exit 1[[:space:]]*$/        return 1/' \
     -e 's/^[[:space:]]*exit 0[[:space:]]*$/return 0/' \
+    -e 's/^[[:space:]]*abort[[:space:]]*/        _lc_core_abort /' \
     -e '/^ui_print "✓ 挂载：字域私有自挂载"$/d' \
     "$_lc_base" > "$_lc_temp" 2>/dev/null || {
     abort '安装入口准备失败'
@@ -51,6 +58,12 @@ sed -e 's/^[[:space:]]*exit 1[[:space:]]*$/        return 1/' \
 _lc_rc=$?
 rm -f "$_lc_temp" 2>/dev/null || true
 if [ "$_lc_rc" -ne 0 ]; then
+    if [ "$_lc_core_aborted" = 1 ]; then
+        # Preserve the manager's abort semantics, but only after the generated
+        # source file has been removed from the module directory.
+        abort '安装核心拒绝迁移当前字体；本次更新已停止'
+        return 1 2>/dev/null || exit 1
+    fi
     return "$_lc_rc" 2>/dev/null || exit "$_lc_rc"
 fi
 
@@ -65,8 +78,8 @@ if [ -f "$MODPATH/common/mount_backend_preferences.sh" ]; then
         abort '挂载偏好迁移失败'
         return 1 2>/dev/null || exit 1
     }
-    _lc_saved_preference=$(luoshu_mount_preference_get "$MODPATH")
     MODDIR="$MODPATH" MODULE_DIR="$MODPATH"
+    _lc_saved_preference=$(luoshu_mount_preference_get "$MODPATH")
     [ ! -f "$MODPATH/common/root_manager_detection.sh" ] || . "$MODPATH/common/root_manager_detection.sh"
     type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager >/dev/null
     [ ! -f "$MODPATH/common/meta_mount_detection.sh" ] || . "$MODPATH/common/meta_mount_detection.sh"

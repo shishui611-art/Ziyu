@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from font_live_payload import work_root as live_work_root
 from typing import Any
 
 import device_font_payload_build_base as _base
@@ -54,7 +55,7 @@ def _roles(name: str) -> list[str]:
 
 def _stock_file(module: Path, partition: str, name: str) -> Path | None:
     logical = Path("/") / partition / "fonts" / name
-    state_root = Path(os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT", "/data/adb/luoshu/self-mount"))
+    state_root = live_work_root()
     lower = state_root / "lower" / f"{partition}-fonts" / name
     if lower.is_file():
         return lower
@@ -74,7 +75,7 @@ def _enrich_hyperos(template: dict[str, Any]) -> dict[str, Any]:
     candidates: list[tuple[str, str, Path, list[str]]] = []
     hyperos_marker = False
     for partition in _ROOTS:
-        lower_root = Path(os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT", "/data/adb/luoshu/self-mount")) / "lower" / f"{partition}-fonts"
+        lower_root = live_work_root() / "lower" / f"{partition}-fonts"
         live_root = Path("/") / partition / "fonts"
         names: set[str] = set()
         for root in (lower_root, live_root):

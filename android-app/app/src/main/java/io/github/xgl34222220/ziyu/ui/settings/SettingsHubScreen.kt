@@ -638,7 +638,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
             SettingCard("KernelSU 软重启") {
                 ToggleLine(
                     title = "使用临时 Root 流程",
-                    description = "完整重启会掉 Root 时开启。字体准备后请在 KernelSU 管理器中软重启；late-load 会自动识别，无需手动开启。",
+                    description = "完整重启会掉 Root 时开启。字体准备后可在字域内确认软重启；late-load 会自动识别，无需手动开启。",
                     checked = temporaryRootEnabled,
                     enabled = !temporaryRootBusy,
                     onChange = { enabled ->
@@ -673,8 +673,12 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
                     InfoLine("Payload 字体", h.payloadFonts.toString())
                     InfoLine("切换锁", when (h.lockState) { "idle" -> "空闲"; "active" -> "切换中"; "stale" -> "失效残留"; else -> h.lockState })
                     InfoLine("最近日志", "${h.recentWarnings} 警告 · ${h.recentErrors} 错误")
+                    if (h.ignoredWarnings > 0) InfoLine("已忽略警告", "${h.ignoredWarnings} 条；原始日志仍保留")
                 }
                 Spacer(Modifier.height(10.dp))
+                if (h.recentWarnings > 0) {
+                    TextButton(model::ignoreCurrentWarnings, enabled = !h.loading && !m.busy) { Text("忽略当前警告") }
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(model::refreshHealth, Modifier.weight(1f), enabled = !h.loading && !m.busy) { Icon(Icons.Rounded.Refresh, null, Modifier.size(17.dp)); Spacer(Modifier.width(5.dp)); Text("重新体检") }
                     Button(model::clearStaleState, Modifier.weight(1f), enabled = !m.busy) { Icon(Icons.Rounded.Build, null, Modifier.size(17.dp)); Spacer(Modifier.width(5.dp)); Text("安全清理") }

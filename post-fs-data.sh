@@ -22,7 +22,28 @@ if [ -e "$MODDIR/disable" ] || [ -e "$MODDIR/remove" ] || \
 fi
 
 # Activate a previously prepared payload before exposing any module files.
+# Recover publication under the same lock before deciding which next-state wins.
+# An interrupted physical publish may still have a Universal receipt in config.
+if [ -f "$MODDIR/common/font_next_transaction.sh" ] &&
+   [ -f "$MODDIR/common/font_switch_lock.sh" ]; then
+    . "$MODDIR/common/font_next_transaction.sh"
+    . "$MODDIR/common/font_switch_lock.sh"
+    luoshu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || exit 1
+    luoshu_next_transaction_recover "$MODDIR"
+    _pending_recovery_rc=$?
+    luoshu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1 || true
+    if [ "$_pending_recovery_rc" -ne 0 ]; then
+        mkdir -p "$MODDIR/logs"
+        printf '[NEXT-TRANSACTION] recovery unconfirmed rc=%s; activation deferred\n' \
+            "$_pending_recovery_rc" >> "$MODDIR/logs/fontswitch.log"
+        exit 1
+    fi
+fi
 UNIVERSAL_NEXT_STATE="$MODDIR/config/universal-font-next.conf"
+MODDIR="$MODDIR" sh "$MODDIR/common/font_live_switch.sh" retire >> "$MODDIR/logs/font-live.log" 2>&1 || {
+    echo '字域：旧热挂载清理未确认，保留字体负载并停止本次启动切换。' >&2
+    exit 1
+}
 if [ -s "$UNIVERSAL_NEXT_STATE" ]; then
     NEXT_BOOT_HELPER="$MODDIR/common/universal_next_boot.sh"
     [ -f "$NEXT_BOOT_HELPER" ] && . "$NEXT_BOOT_HELPER"

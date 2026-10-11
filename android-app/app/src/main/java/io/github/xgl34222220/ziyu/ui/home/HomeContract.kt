@@ -21,6 +21,10 @@ data class HomeUiState(
     val temporaryRootMode: Boolean = false,
     val error: String = "",
     val mountPreferences: String = "",
+    val mountBackendPreference: String = "auto",
+    val mountBackendRebootPrompt: String? = null,
+    val mountPreferenceSaving: Boolean = false,
+    val mountPreferenceLoaded: Boolean = false,
     val undoAvailable: Boolean = false,
 )
 
@@ -35,6 +39,7 @@ data class HomeActions(
     val reboot: () -> Unit,
     val mountSettings: () -> Unit = {},
     val setMountBackend: (String) -> Unit = {},
+    val dismissMountBackendRebootPrompt: () -> Unit = {},
     val cancelMountChange: () -> Unit = {},
     val undoApply: () -> Unit = {},
     val cancelTask: () -> Unit = {},
@@ -51,10 +56,13 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
         moduleInstalled = installed,
         mountEngine = mountEngine.replace("洛书", "字域"),
         mountHealthy = rootGranted && installed && !effectFailed && mountState != "failed" &&
-            (mountState == "mounted" || (activeFont in setOf("", "default") && mountState in setOf("idle", "not-applicable"))),
+            (mountState in setOf("mounted", "partial") || (activeFont in setOf("", "default") && mountState in setOf("idle", "not-applicable"))),
         taskRunning = running,
         taskTitle = when {
             running -> "字体任务执行中"
+            fontEffectState == "live" -> "字体热挂载成功"
+            fontEffectState == "live-partial" -> "字体热挂载成功（有提示）"
+            fontEffectState == "partial" -> "字体应用成功（有提示）"
             rollbackPending || fontEffectState == "rollback-pending" -> "正在等待安全回退"
             effectFailed -> "字体未生效"
             mountState == "failed" -> "挂载验证未通过"
@@ -64,6 +72,9 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
             else -> "正在等待模块连接"
         },
         taskMessage = when {
+            fontEffectState in setOf("live", "live-partial") -> "新字体挂载已验证。部分已打开界面可能仍使用缓存，可重新打开应用或手动软重启。" +
+                if (fontEffectState == "live-partial") " ${mountFailure.ifBlank { verificationReason }}" else ""
+            fontEffectState == "partial" -> mountFailure.ifBlank { verificationReason }
             mountState == "failed" && (mountFailure.contains("rollback-failed") ||
                 mountFailure.contains("rollback-verification-failed") || mountFailure.contains("cleanup") ||
                 mountFailure.contains("backend-conflict")) -> "挂载失败且安全回滚尚未确认，请查看日志：$mountFailure"

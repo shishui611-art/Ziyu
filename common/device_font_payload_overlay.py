@@ -17,6 +17,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict, deque
 from pathlib import Path
+from font_live_payload import work_root as live_work_root
 from typing import Any, Iterable
 
 import device_font_template as template_engine
@@ -202,7 +203,7 @@ def stock_xml_input(template: dict[str, Any], source_xml: str) -> Path:
 
     parts = source.parts
     if len(parts) >= 4 and parts[0] == "/" and parts[2] == "etc":
-        state_root = Path(os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT", "/data/adb/luoshu/self-mount"))
+        state_root = live_work_root()
         lower = state_root / "lower" / f"{parts[1]}-etc" / Path(*parts[3:])
         if lower.is_file():
             return lower

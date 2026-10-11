@@ -328,12 +328,12 @@ assert_eq "$(state "$M26" active_backend)" self 'case 26 uses SukiSU self-mount 
 M27="$TMP/self-backend-handoff"; new_module "$M27"
 run_hook "$M27" KernelSU 0 pass post-fs-data none 0 0 pass 0 0 1 1 0 self-backend-boot
 assert_eq "$(state "$M27" selected_backend)" self 'case 27 selects self when no provider exists'
-assert_eq "$(state "$M27" selected_self_backend)" legacy 'case 27 selects the supported self implementation'
+assert_eq "$(state "$M27" selected_self_backend)" overlayfs 'case 27 selects the supported OverlayFS-first self implementation'
 assert_eq "$(state "$M27" active_backend)" none 'case 27 waits for the KernelSU mount hook'
 [ ! -f "$M27/config/test-self-mounted" ] || fail 'case 27 mounted before post-mount'
 run_hook "$M27" KernelSU 0 pass post-mount none 0 0 pass 0 0 1 1 2 self-backend-boot
 assert_eq "$(state "$M27" active_backend)" self 'case 27 activates self at post-mount'
-assert_eq "$(state "$M27" active_self_backend)" legacy 'case 27 records the active implementation'
+assert_eq "$(state "$M27" active_self_backend)" legacy 'case 27 records the compatibility runtime wrapper'
 [ -f "$M27/config/test-self-mounted" ] || fail 'case 27 did not execute the supported self route'
 [ ! -f "$M27/config/test-nomount-applied" ] || fail 'case 27 invoked the retired NoMount backend'
 
@@ -358,6 +358,62 @@ run_hook "$M31" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 pro
 assert_eq "$(state "$M31" selected_backend)" external 'case 31 rescans and selects the provider after reboot'
 run_hook "$M31" KernelSU 1 pass post-mount hybrid-mount 0 0 pass 0 0 0 0 0 provider-boot-2
 assert_eq "$(state "$M31" active_backend)" external 'case 31 commits the provider on the new boot'
+
+# Restoring the system font must withdraw the previously published font tree
+# before the provider scans modules on this boot.
+M33="$TMP/restore-default-clears-provider"
+new_module "$M33"
+printf 'default\n' > "$M33/config/active_font.conf"
+mkdir -p "$M33/system/fonts" "$M33/common" "$M33/.ziyu-state"
+printf 'stale-custom-font\n' > "$M33/system/fonts/Roboto-Regular.ttf"
+printf 'keep-me\n' > "$M33/common/unrelated-runtime-file"
+rm -f "$M33/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+printf 'boot_id=previous-boot\nroot_manager=KernelSU\nprovider_state=available\nprovider_id=hybrid-mount\nprovider_layout=nested-system\nprovider_content_root=%s\nselected_backend=external\nactive_backend=external\n' \
+  "$M33" > "$M33/config/mount-backend.conf"
+run_hook "$M33" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 restore-default-boot
+[ ! -e "$M33/system/fonts/Roboto-Regular.ttf" ] || fail 'case 33 left an old provider-published font after restoring system default'
+[ -f "$M33/common/unrelated-runtime-file" ] || fail 'case 33 changed unrelated module runtime files'
+[ -f "$M33/.ziyu-state/provider-published.conf" ] || fail 'case 33 did not record the cleaned legacy publication'
+assert_eq "$(state "$M33" selected_backend)" none 'case 33 does not activate a backend for system default'
+assert_eq "$(state "$M33" verification)" not-applicable 'case 33 keeps default-font routing not-applicable'
+
+# The oldest provider-first state may omit both the content-root and provider
+# state fields; infer only the module's own native scan tree.
+M36="$TMP/restore-default-old-state"
+new_module "$M36"
+printf 'default\n' > "$M36/config/active_font.conf"
+rm -f "$M36/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+mkdir -p "$M36/system/fonts" "$M36/.ziyu-state"
+printf 'stale-custom-font\n' > "$M36/system/fonts/Roboto-Regular.ttf"
+printf 'boot_id=previous-boot\nprovider_id=hybrid-mount\nprovider_layout=nested-system\nselected_backend=external\nactive_backend=external\n' \
+  > "$M36/config/mount-backend.conf"
+run_hook "$M36" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 restore-default-old-state-boot
+[ ! -e "$M36/system/fonts/Roboto-Regular.ttf" ] || fail 'case 36 did not clean a legacy native provider tree without a receipt or root field'
+
+# Current builds use the publisher receipt as the ownership proof even when the
+# previous backend record has already been rotated or is absent.
+M35="$TMP/restore-default-receipt"
+new_module "$M35"
+printf 'default\n' > "$M35/config/active_font.conf"
+rm -f "$M35/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+mkdir -p "$M35/system/fonts" "$M35/.ziyu-state"
+printf 'stale-custom-font\n' > "$M35/system/fonts/Roboto-Regular.ttf"
+printf 'boot_id=previous-boot\nlayout=nested-system\n' > "$M35/.ziyu-state/provider-published.conf"
+run_hook "$M35" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 restore-default-receipt-boot
+[ ! -e "$M35/system/fonts/Roboto-Regular.ttf" ] || fail 'case 35 left an old receipt-owned provider font after restoring system default'
+
+# Explicit self-mount must bypass an available provider, while still selecting
+# the supported OverlayFS-first implementation.
+M34="$TMP/explicit-self-mount"
+new_module "$M34"
+printf 'preferred_backend=self_mount\n' > "$M34/config/mount-backend-preference.conf"
+run_hook "$M34" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 self-mount-boot
+assert_eq "$(state "$M34" selected_backend)" self 'case 34 explicit self-mount bypasses an available provider'
+assert_eq "$(state "$M34" selected_self_backend)" overlayfs 'case 34 uses OverlayFS first for explicit self-mount'
+assert_eq "$(state "$M34" fallback_used)" 0 'case 34 is a user selection, not an automatic fallback'
+run_hook "$M34" KernelSU 1 pass post-mount hybrid-mount 0 0 pass 0 0 0 0 0 self-mount-boot
+assert_eq "$(state "$M34" active_backend)" self 'case 34 activates explicit self-mount at post-mount'
+[ -f "$M34/config/test-self-mounted" ] || fail 'case 34 did not execute explicit self-mount'
 
 # The global foreign skip gate cleans an already active Ziyu backend before it
 # returns, while leaving the user's marker untouched.

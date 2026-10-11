@@ -55,6 +55,11 @@ luoshu_undo_cancel_pending_boot() {
     [ -n "$_lucpb_task" ] || return 1
     _lucpb_cancel=$(sed -n 's/^task=//p' "$_lucpb_module/config/switch_task.cancel" 2>/dev/null | head -n1)
     [ "$_lucpb_task" = "$_lucpb_cancel" ] || return 1
+    # A stop request arriving after a committed hot switch cannot discard the
+    # matching boot queue or rename its label back to a font no longer mounted.
+    _lucpb_live="$_lucpb_module/config/font-live.conf"
+    if [ "$(sed -n 's/^request_id=//p' "$_lucpb_live" | head -n1)" = "$(sed -n 's/^requestId=//p' "$_lucpb_state" | head -n1)" ] && \
+       [ -n "$(sed -n 's/^requestId=//p' "$_lucpb_state" | head -n1)" ]; then return 1; fi
     _lucpb_previous=$(sed -n 's/^previousFont=//p' "$_lucpb_state" 2>/dev/null | head -n1)
     [ -n "$_lucpb_previous" ] || _lucpb_previous=default
     # The next payload is never mounted; live payload/config XML stay untouched.

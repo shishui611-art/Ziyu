@@ -7,6 +7,13 @@ _zpp_owned_path() {
     case "${2#"$1"/}" in ''|../*|*/../*|*/..|*'|'*) return 1 ;; esac
 }
 
+_zpp_log() {
+    mkdir -p "$_zpp_module/logs" 2>/dev/null || true
+    printf '[%s] [PROVIDER-PUBLISH] %s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$*" \
+        >> "$_zpp_module/logs/mount-backend.log" 2>/dev/null || true
+}
+
 # Recover an interrupted multi-partition publication before exposing a new tree.
 ziyu_provider_payload_recover() (
     _zpp_root="$1"
@@ -38,8 +45,27 @@ ziyu_provider_payload_publish() (
     _zpp_root="$2"
     _zpp_layout="$3"
     _zpp_payload="$_zpp_module/.luoshu-payload"
+    _zpp_payload_kind=private
     case "$_zpp_layout" in nested-system|nomount-partition-roots) ;; *) return 1 ;; esac
-    [ -d "$_zpp_payload" ] || return 1
+    if [ ! -d "$_zpp_payload" ]; then
+        # Older or interrupted installs can still have an intact public tree.
+        # Reuse it only after checking every artifact against the durable manifest.
+        _zpp_payload="$_zpp_module"
+        _zpp_update_state="$_zpp_module/common/module_update_state.sh"
+        if [ ! -f "$_zpp_update_state" ]; then
+            _zpp_log 'publish refused: private payload missing and verifier unavailable'
+            return 1
+        fi
+        . "$_zpp_update_state"
+        if ! type luoshu_update_verify_manifest >/dev/null 2>&1 || \
+           ! luoshu_update_verify_manifest "$_zpp_module" "$_zpp_payload"; then
+            _zpp_reason="${LUOSHU_UPDATE_FAILURE_REASON:-payload-manifest-verification-failed}"
+            _zpp_log "publish refused: legacy module tree failed manifest verification reason=$_zpp_reason"
+            return 1
+        fi
+        _zpp_payload_kind=legacy-module-tree
+        _zpp_log 'using legacy module tree after payload manifest verification'
+    fi
     case "$_zpp_root" in ''|/|/system|/data|/data/adb|/data/adb/modules|*/../*|*/..|*'|'*) return 1 ;; esac
     mkdir -p "$_zpp_root/.ziyu-state" || return 1
     ziyu_provider_payload_recover "$_zpp_root" || return 1
@@ -85,7 +111,8 @@ ziyu_provider_payload_publish() (
         mv "$_zpp_candidate" "$_zpp_target" || { ziyu_provider_payload_recover "$_zpp_root"; return 1; }
     done
     # The receipt is committed only after every destination is installed.
-    printf 'boot_id=%s\nlayout=%s\n' "${_lbr_boot:-unknown}" "$_zpp_layout" > "$_zpp_receipt.tmp" || {
+    printf 'boot_id=%s\nlayout=%s\nsource=%s\n' \
+        "${_lbr_boot:-unknown}" "$_zpp_layout" "$_zpp_payload_kind" > "$_zpp_receipt.tmp" || {
         ziyu_provider_payload_recover "$_zpp_root"; return 1;
     }
     mv -f "$_zpp_receipt.tmp" "$_zpp_receipt" || { ziyu_provider_payload_recover "$_zpp_root"; return 1; }

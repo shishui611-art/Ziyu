@@ -208,6 +208,7 @@ internal fun ZiyuAppShell(
             reboot = viewModel::rebootDevice,
             mountSettings = viewModel::loadMountPreferences,
             setMountBackend = viewModel::setMountPreference,
+            dismissMountBackendRebootPrompt = viewModel::dismissMountBackendRebootPrompt,
             cancelMountChange = viewModel::cancelMountPreference,
             undoApply = viewModel::undoFontApplication,
             cancelTask = viewModel::cancelCurrentTask,
@@ -222,6 +223,7 @@ internal fun ZiyuAppShell(
                 viewModel.prewarmFont(it.id)
             },
             delete = { pendingDelete = it },
+            deleteMany = viewModel::deleteFonts,
             restoreDefault = { restoreDefault = true },
             importSystemFonts = viewModel::importSystemFonts,
         )
@@ -238,7 +240,7 @@ internal fun ZiyuAppShell(
             cancel = viewModel::cancelCurrentTask,
         )
     }
-    val logsActions = remember(viewModel) { LogsActions(refresh = viewModel::refreshLogs, cancelTask = viewModel::cancelTask, undoApply = viewModel::undoFontApplication, markViewed = viewModel::markLogsViewed, clearLogs = viewModel::clearLogs) }
+    val logsActions = remember(viewModel) { LogsActions(refresh = viewModel::refreshLogs, cancelTask = viewModel::cancelTask, undoApply = viewModel::undoFontApplication, markViewed = viewModel::markLogsViewed, clearLogs = viewModel::clearLogs, ignoreWarnings = viewModel::ignoreCurrentWarnings) }
     val appearanceActions = remember(appearanceViewModel) {
         AppearanceActions(
             setUiStyle = appearanceViewModel::setUiStyle,
@@ -375,7 +377,14 @@ internal fun ZiyuAppShell(
                             CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
                                 HomeRoute(
                                     style = appearance.uiStyle,
-                                    state = viewModel.snapshot.toHomeUiState().copy(mountPreferences = viewModel.mountPreferences, undoAvailable = viewModel.undoAvailable),
+                                    state = viewModel.snapshot.toHomeUiState().copy(
+                                        mountPreferences = viewModel.mountPreferences,
+                                        mountBackendPreference = viewModel.mountBackendPreference,
+                                        mountBackendRebootPrompt = viewModel.mountBackendRebootPrompt,
+                                        mountPreferenceSaving = viewModel.mountPreferenceSaving,
+                                        mountPreferenceLoaded = viewModel.mountPreferenceLoaded,
+                                        undoAvailable = viewModel.undoAvailable,
+                                    ),
                                     actions = homeActions,
                                 )
                             }
@@ -508,8 +517,8 @@ internal fun ZiyuAppShell(
                 style = appearance.uiStyle,
                 kind = FontActionKind.APPLY,
                 message = if (font.supportsCjk) {
-                    if (viewModel.snapshot.temporaryRootMode) "直接应用「${font.name}」。准备完成后请在 KernelSU 管理器中软重启。"
-                    else "直接应用「${font.name}」。准备完成后需要完整重启手机。"
+                    if (viewModel.snapshot.temporaryRootMode) "直接应用「${font.name}」。完成后显示挂载结果；如需重启应用或刷新系统字体缓存，请使用 KernelSU 软重启。"
+                    else "直接应用「${font.name}」。完成后显示挂载结果，以及系统字体缓存是否需要重启刷新。"
                 } else {
                     "「${font.name}」不包含完整中文字形。直接应用后中文会继续使用系统默认字体，看起来可能没有变化；建议在组合页把它作为英文字体使用。"
                 },

@@ -28,7 +28,7 @@ from typing import Any, Iterable
 import universal_font_plan
 
 SCHEMA = "minimal-xml-route-plan-v1"
-ROUTE_REVISION = 1
+ROUTE_REVISION = 2
 FONT_PLAN_SCHEMA = "universal-font-plan-v1"
 ROUTABLE_ACTIONS = {"replace", "compile", "compile-specialized"}
 DYNAMIC_PREFIX = "/data/fonts/"
@@ -300,6 +300,7 @@ def _ref_locator(ref: dict[str, Any]) -> dict[str, Any]:
         "index": max(0, _int(ref.get("index"), 0)),
         "declared": declared,
         "postScriptName": postscript,
+        "axes": list(ref["axes"]) if isinstance(ref.get("axes"), list) else None,
     }
 
 
@@ -331,6 +332,14 @@ def _match_score(locator: dict[str, Any], node: dict[str, Any]) -> tuple[int, li
         return None
     score += 30
     reasons.append("index")
+
+    if isinstance(locator.get("axes"), list):
+        if universal_font_plan.route_source_key(
+                locator.get("weight"), locator.get("style"), locator["axes"]) != universal_font_plan.route_source_key(
+                node.get("weight"), node.get("style"), node.get("axes")):
+            return None
+        score += 30
+        reasons.append("axes")
 
     declared = str(locator.get("declared") or "")
     if declared:
@@ -412,6 +421,8 @@ def _artifact_extension(target: dict[str, Any], node: dict[str, Any]) -> str:
 
 
 def _artifact_contract(font_plan: dict[str, Any], target: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
+    target = universal_font_plan.target_for_route(
+        target, node.get("weight"), node.get("style"), node.get("axes"))
     semantic = {
         "fontPlanId": font_plan.get("planId"),
         "targetPath": target.get("path"),
@@ -618,6 +629,8 @@ def build_route_plan(
                 continue
 
             artifact = _artifact_contract(font_plan, target, node)
+            route_target = universal_font_plan.target_for_route(
+                target, node.get("weight"), node.get("style"), node.get("axes"))
             key = (source_xml, int(node["ordinal"]))
             previous = node_artifacts.get(key)
             if previous is not None:
@@ -638,10 +651,10 @@ def build_route_plan(
                 "operation": "replace-font-reference",
                 "targetPath": target_path,
                 "role": str(target.get("role") or ""),
-                "targetStatus": str(target.get("status") or ""),
-                "compiler": str(target.get("compiler") or ""),
-                "requirements": list(target.get("requirements") or []),
-                "risks": list(target.get("risks") or []),
+                "targetStatus": str(route_target.get("status") or ""),
+                "compiler": str(route_target.get("compiler") or ""),
+                "requirements": list(route_target.get("requirements") or []),
+                "risks": list(route_target.get("risks") or []),
                 "locator": locator,
                 "match": match,
                 "node": node,
@@ -1008,7 +1021,7 @@ def main() -> int:
             **route_plan["summary"],
         }, ensure_ascii=False, separators=(",", ":")))
         return 0
-    except (RouterError, OSError, json.JSONDecodeError) as error:
+    except (RouterError, universal_font_plan.UniversalPlanError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "error", "message": str(error)}, ensure_ascii=False, separators=(",", ":")))
         return 1
 

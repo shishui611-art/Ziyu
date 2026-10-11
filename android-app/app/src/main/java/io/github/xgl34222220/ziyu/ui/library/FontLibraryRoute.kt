@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,13 +45,28 @@ internal fun FontLibraryRoute(
     var showManagement by rememberSaveable { mutableStateOf(false) }
     val latestActions by rememberUpdatedState(actions)
     val conflicts = remember(state.fonts) { analyzeFontLibraryConflicts(state.fonts) }
-    val displayState = remember(state, filter, sort, collections.favoriteIds, conflicts.issueIds) {
+    val issueIds = remember(conflicts) { conflicts.issueIds }
+    val displayFonts = remember(state.fonts, state.activeFontId, filter, sort, collections.favoriteIds, issueIds) {
         state.forDisplay(
             selectedFilter = filter,
             selectedSort = sort,
             favoriteIds = collections.favoriteIds,
-            issueIds = conflicts.issueIds,
-        )
+            issueIds = issueIds,
+        ).fonts
+    }
+    val displayState = state.copy(fonts = displayFonts, visibleCount = displayFonts.size, filter = filter, sort = sort)
+    LaunchedEffect(state.allFonts, state.loading) {
+        if (!state.loading) {
+            val existing = state.allFonts.map { it.id }.toSet()
+            val cleaned = FontLibraryCollections(
+                favoriteIds = collections.favoriteIds.intersect(existing),
+                tags = collections.tags.filterKeys { it in existing },
+            )
+            if (cleaned != collections) {
+                collections = cleaned
+                collectionStore.save(cleaned)
+            }
+        }
     }
     val displayActions = remember {
         FontLibraryActions(
@@ -58,6 +74,7 @@ internal fun FontLibraryRoute(
             setQuery = { latestActions.setQuery(it) },
             apply = { latestActions.apply(it) },
             delete = { latestActions.delete(it) },
+            deleteMany = { latestActions.deleteMany(it) },
             restoreDefault = { latestActions.restoreDefault() },
             importSystemFonts = { latestActions.importSystemFonts() },
             details = { detailFont = it },
@@ -130,17 +147,22 @@ internal fun FontLibraryRoute(
     if (showManagement) {
         FontLibraryManagementDialog(
             style = style,
-            fonts = state.fonts,
+            fonts = state.allFonts,
             activeFontId = state.activeFontId,
+            operationBusy = state.operationBusy,
             collections = collections,
             conflicts = conflicts,
             onCollectionsChange = { visibleNext ->
-                val visibleIds = state.fonts.map { it.id }.toSet()
+                val visibleIds = state.allFonts.map { it.id }.toSet()
                 val merged = FontLibraryCollections(
                     favoriteIds = (collections.favoriteIds - visibleIds) + visibleNext.favoriteIds,
                     tags = collections.tags.filterKeys { it !in visibleIds } + visibleNext.tags,
                 )
                 persistCollections(merged)
+            },
+            onDeleteFonts = { ids ->
+                showManagement = false
+                latestActions.deleteMany(ids)
             },
             onOpenDetails = { font ->
                 showManagement = false

@@ -8,6 +8,8 @@ _dfload_module() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
 }
 
+[ ! -f "$(_dfload_module)/common/font_live_state.sh" ] || . "$(_dfload_module)/common/font_live_state.sh"
+
 _dfload_visible_path() {
     _dfload_rel="${1#/}"
     if [ -n "${LUOSHU_VISIBLE_ROOT:-}" ]; then
@@ -48,6 +50,7 @@ _dfload_write_simple() {
 
 _dfload_active_font() {
     _dfload_module_dir="$(_dfload_module)"
+    if type ziyu_live_font >/dev/null 2>&1; then ziyu_live_font && return 0; fi
     _dfload_active=$(head -n1 "$_dfload_module_dir/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_dfload_active" ] || _dfload_active=default
     printf '%s\n' "$_dfload_active"
@@ -134,7 +137,7 @@ _dfload_backend_authority() {
         return 1
     fi
     case "$_dfload_authority_backend:$_dfload_authority_result" in
-        meta:passed|self:passed|external:passed) ;;
+        meta:passed|self:passed|external:passed|meta:partial|self:partial|external:partial) ;;
         *)
             _dfload_write_simple pending backend-verification-pending "$(_dfload_active_font)" backend
             return 2
@@ -146,7 +149,24 @@ _dfload_backend_authority() {
             _dfload_log "后端记录通过，但 PID 1 字体路由复核失败；原始错误见本日志及 device-font-load-route-verification.json"
             return 1
         fi
-        _dfload_write_simple verified "backend-pid1-route-verified:$_dfload_authority_backend" "$(_dfload_active_font)" mount-verified
+        if [ "$(_dfload_state_value "$(_dfload_module)/config/font-apply-result.conf" state)" = partial ]; then
+            _dfload_write_simple partial "backend-pid1-route-partial:$_dfload_authority_backend" "$(_dfload_active_font)" mount-partial
+            _dfload_warning=$(_dfload_state_value "$(_dfload_module)/config/font-apply-result.conf" warning)
+            _dfload_backend_temp="${_dfload_authority_file}.tmp.$$"
+            if awk '$0 !~ /^(verification|mount_warning)=/' "$_dfload_authority_file" > "$_dfload_backend_temp" &&
+               printf 'verification=partial\nmount_warning=%s\n' "$_dfload_warning" >> "$_dfload_backend_temp"; then
+                chmod 0600 "$_dfload_backend_temp" && mv -f "$_dfload_backend_temp" "$_dfload_authority_file"
+            fi
+        else
+            _dfload_write_simple verified "backend-pid1-route-verified:$_dfload_authority_backend" "$(_dfload_active_font)" mount-verified
+            # Late-boot route proof can resolve an early partial verdict. Keep
+            # the selected backend intact and remove only its old route warning.
+            _dfload_backend_temp="${_dfload_authority_file}.tmp.$$"
+            if awk '$0 !~ /^(verification|mount_warning)=/' "$_dfload_authority_file" > "$_dfload_backend_temp" &&
+               printf 'verification=passed\nmount_warning=\n' >> "$_dfload_backend_temp"; then
+                chmod 0600 "$_dfload_backend_temp" && mv -f "$_dfload_backend_temp" "$_dfload_authority_file"
+            fi
+        fi
     else
         # An App status query is intentionally cheap. Reuse only the same boot
         # and same font's deep readback, never promote backend metadata alone.
@@ -155,6 +175,7 @@ _dfload_backend_authority() {
            [ "$(_dfload_state_value "$_dfload_authority_cached" activeFont)" = "$(_dfload_active_font)" ]; then
             case "$(_dfload_state_value "$_dfload_authority_cached" state):$(_dfload_state_value "$_dfload_authority_cached" reason)" in
                 "verified:backend-pid1-route-verified:$_dfload_authority_backend") return 0 ;;
+                "partial:backend-pid1-route-partial:$_dfload_authority_backend") return 0 ;;
                 failed:backend-pid1-route-verification-failed) return 1 ;;
             esac
         fi
@@ -199,6 +220,11 @@ _dfload_quick_fingerprint() {
 _dfload_payload_file() {
     _dfload_rel="${1#/}"
     _dfload_module_dir="$(_dfload_module)"
+    _dfload_live=''
+    type ziyu_live_source >/dev/null 2>&1 && _dfload_live=$(ziyu_live_source)
+    if [ -n "$_dfload_live" ] && [ -f "$_dfload_live/$_dfload_rel" ]; then
+        printf '%s/%s\n' "$_dfload_live" "$_dfload_rel"; return 0
+    fi
     for _dfload_candidate in \
         "$_dfload_module_dir/.luoshu-payload/$_dfload_rel" \
         "$_dfload_module_dir/$_dfload_rel"; do
@@ -332,7 +358,7 @@ device_font_load_status() {
     return 2
 }
 
-device_font_load_verify() {
+_dfload_verify_unlocked() {
     _dfload_module_dir="$(_dfload_module)"
     _dfload_active=$(_dfload_active_font)
     if [ "$_dfload_active" = default ]; then
@@ -373,6 +399,26 @@ device_font_load_verify() {
     _dfload_log "暂未取得挂载证据，保留当前字体负载并等待下一次检测：$_dfload_active"
     return 2
 }
+
+device_font_load_verify() (
+    # Deep readback writes a route result and backend status. Hold the same
+    # identity lock as font switching so they belong to one font generation.
+    _dfload_lock_module="$(_dfload_module)"
+    . "$_dfload_lock_module/common/font_switch_lock.sh" || return 2
+    _dfload_lock="$_dfload_lock_module/.font_switch.lock"
+    if [ -n "$(luoshu_font_lock_owned_record "$_dfload_lock" "$$")" ] &&
+       luoshu_font_lock_active "$_dfload_lock"; then
+        # Called from a switch which already owns this lock; do not release it.
+        _dfload_verify_unlocked
+        return $?
+    fi
+    luoshu_font_lock_acquire "$_dfload_lock" "$$" || {
+        _dfload_log '字体切换正在进行，加载路径复核延后；保留已有结果'
+        return 2
+    }
+    trap 'luoshu_font_lock_release "$_dfload_lock" "$$" >/dev/null 2>&1' EXIT
+    _dfload_verify_unlocked
+)
 
 if [ "${0##*/}" = device_font_load_verify.sh ]; then
     case "${1:-status}" in

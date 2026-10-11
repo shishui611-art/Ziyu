@@ -14,6 +14,7 @@ import shutil
 import struct
 import sys
 import tempfile
+import time
 
 from fontTools.ttLib import TTFont
 from fontTools import subset
@@ -25,6 +26,8 @@ from font_role_policy import (is_code_monospace, is_clock_slot, slot_for,
                               protected_aliases, record_preserved, assert_isolated)
 import font_slot_weight as slot_weight
 from font_config_overlay import is_safe_family
+from font_metrics_io import FontMetricsIO
+from font_digest_cache import file_identity
 
 PARTS = ("system", "system_ext", "product", "mi_ext", "vendor", "odm", "oem",
          "my_product", "hw_product", "cust")
@@ -182,13 +185,17 @@ def compact_routed_source(source: Path, output: Path, routing: frozenset[int],
 def write_metrics(source: Path, output: Path, contract: tuple,
                   cjk_fallback_codepoints: frozenset[int] | None = None,
                   stock_cjk_punctuation: frozenset[int] = frozenset(), *,
-                  align_bitmap_bottom: bool = False) -> dict:
+                  align_bitmap_bottom: bool = False,
+                  metrics_io: FontMetricsIO | None = None) -> dict:
     # lazy + recalcBBoxes=False retains glyf/CFF/gvar as raw tables. Loading glyph
     # bounds just to change hhea/OS2 used to recompile entire CJK fonts per slot.
     face = _pick_face(source)
     options = {'fontNumber': face} if face >= 0 else {}
     with source.open('rb') as stream, TTFont(
             stream, lazy=True, recalcBBoxes=False, recalcTimestamp=False, **options) as font:
+        identity = file_identity(os.fstat(stream.fileno()))
+        if metrics_io is not None and not cjk_fallback_codepoints:
+            metrics_io.seed(font, identity)
         head, hhea, os2 = font['head'], font['hhea'], font['OS/2']
         upem = int(head.unitsPerEm)
         if not 16 <= upem <= 16384:
@@ -248,7 +255,18 @@ def write_metrics(source: Path, output: Path, contract: tuple,
         # their original reader bytes instead of reserializing the outlines.
         for tag in ('glyf', 'CFF ', 'CFF2', 'gvar'):
             font.tables.pop(tag, None)
-        font.save(output, reorderTables=False)
+        if metrics_io is None:
+            font.save(output, reorderTables=False)
+        else:
+            changed = ['head', 'hhea', 'OS/2']
+            if removed:
+                changed.append('cmap')
+            metrics_io.save(font, output, identity, changed)
+            if not cjk_fallback_codepoints:
+                metrics_io.remember(font, identity)
+        if (file_identity(os.fstat(stream.fileno())) != identity
+                or file_identity(source.stat()) != identity):
+            raise ValueError('源字体在度量处理过程中发生变化')
         report = {'sourceUpem': upem, 'sourceHead': list(source_frame),
                   'outputHead': [int(head.yMin), int(head.yMax)],
                   'layoutBoundsSource': ('stock-line-descent' if bottom_correction else
@@ -463,6 +481,7 @@ def build(module: Path, stage: Path, names: list[str]) -> dict:
     prepared = []
     slot_report = []
     fallback = 0
+    metrics_io = FontMetricsIO()
     try:
         for source, dest, contract in jobs:
             logical = '/' + dest.relative_to(stage).as_posix()
@@ -493,8 +512,10 @@ def build(module: Path, stage: Path, names: list[str]) -> dict:
                             source, outputs / f'source-{len(compact_sources)}.font',
                             routing, stock_punctuation)
                     metric_source, compact_removed = compact_sources[source_key]
+                write_started = time.perf_counter()
                 output_reports[key] = write_metrics(metric_source, output, contract, routing, stock_punctuation,
-                                                    align_bitmap_bottom=align_bottom)
+                                                    align_bitmap_bottom=align_bottom, metrics_io=metrics_io)
+                output_reports[key]['metricsWriteSeconds'] = round(time.perf_counter() - write_started, 3)
                 output_reports[key]['removedCjkMappings'] += compact_removed
                 cache[key] = output
             prepared.append((cache[key], dest))
@@ -534,7 +555,8 @@ def build(module: Path, stage: Path, names: list[str]) -> dict:
         # alias. Keeping these temporary names after success only enlarges
         # cached payload copies and accumulates on repeated stage completion.
         shutil.rmtree(outputs, ignore_errors=True)
-    return {'mapped': len(jobs), 'generated': len(cache), 'fallbackSlots': fallback}
+    return {'mapped': len(jobs), 'generated': len(cache), 'fallbackSlots': fallback,
+            **metrics_io.stats()}
 
 
 def main() -> int:

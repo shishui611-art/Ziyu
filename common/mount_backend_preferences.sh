@@ -1,31 +1,39 @@
 #!/system/bin/sh
-# Legacy preference commands remain compatible; the boot policy is automatic.
+# Persist provider-first automatic selection or one of the explicit self-mount modes.
 _lmp_module() { printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"; }
 _lmp_value() { sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'; }
-_lmp_valid() { case "$1" in auto|meta|self) return 0 ;; *) return 1 ;; esac; }
+_lmp_valid() { case "$1" in auto|magic|overlayfs|self_mount|meta|self) return 0 ;; *) return 1 ;; esac; }
+_lmp_normalize() {
+    case "${1:-}" in
+        magic|overlayfs|self_mount) printf '%s\n' "$1" ;;
+        auto|meta|self|'') printf 'auto\n' ;;
+        *) printf 'auto\n' ;;
+    esac
+}
 _lmp_json_string() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'; }
 _lmp_boot_id() {
     printf '%s\n' "${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
 }
 luoshu_mount_preference_get() {
-    # Accept older App commands, but all stored preferences migrate to automatic.
-    printf 'auto\n'
+    _lmp_read_module="${1:-$(_lmp_module)}"
+    _lmp_read_file="$_lmp_read_module/config/mount-backend-preference.conf"
+    _lmp_normalize "$(_lmp_value "$_lmp_read_file" preferred_backend)"
 }
 luoshu_mount_preference_write() {
     _lmp_write_preference="$1"
     _lmp_write_module="${2:-$(_lmp_module)}"
     _lmp_valid "$_lmp_write_preference" || return 2
-    _lmp_write_preference=auto
+    _lmp_write_preference=$(_lmp_normalize "$_lmp_write_preference")
     mkdir -p "$_lmp_write_module/config" 2>/dev/null || return 1
     _lmp_write_file="$_lmp_write_module/config/mount-backend-preference.conf"
     _lmp_write_tmp="$_lmp_write_file.tmp.$$"
-    (umask 077; printf 'schema=ziyu-mount-preference-v1\npreferred_backend=%s\n' "$_lmp_write_preference" > "$_lmp_write_tmp") || return 1
+    (umask 077; printf 'schema=ziyu-mount-preference-v2\npreferred_backend=%s\n' "$_lmp_write_preference" > "$_lmp_write_tmp") || return 1
     mv -f "$_lmp_write_tmp" "$_lmp_write_file" 2>/dev/null || { rm -f "$_lmp_write_tmp"; return 1; }
 }
 luoshu_mount_preference_restore() {
     # Explicitly migrate even when the font payload itself cannot be migrated.
     [ -f "$1/config/mount-backend-preference.conf" ] || return 0
-    _lmp_restore=$(luoshu_mount_preference_get "$1")
+    _lmp_restore=$(_lmp_normalize "$(_lmp_value "$1/config/mount-backend-preference.conf" preferred_backend)")
     luoshu_mount_preference_write "$_lmp_restore" "$2"
 }
 luoshu_mount_preference_status() {
@@ -44,14 +52,14 @@ luoshu_mount_preference_status() {
     _lmp_selected_self=none
     _lmp_pending=true
     if [ -n "$_lmp_current_boot" ] && [ "$_lmp_state_boot" = "$_lmp_current_boot" ]; then
-        _lmp_valid "$_lmp_boot_preference" || _lmp_boot_preference=auto
+        _lmp_boot_preference=$(_lmp_normalize "$_lmp_boot_preference")
         _lmp_active=$(_lmp_value "$_lmp_status_file" active_backend)
         _lmp_selected=$(_lmp_value "$_lmp_status_file" selected_backend)
         # A matching boot record means detection ran, even when NoMount is unusable.
         _lmp_nomount_observed=true
         [ "$(_lmp_value "$_lmp_status_file" nomount_kernel_usable)" = 1 ] && _lmp_nomount_usable=true
         _lmp_selected_self=$(_lmp_value "$_lmp_status_file" selected_self_backend)
-        case "$_lmp_selected_self" in nomount|legacy) ;; *) _lmp_selected_self=none ;; esac
+        case "$_lmp_selected_self" in nomount|legacy|magic|overlayfs|self_mount) ;; *) _lmp_selected_self=none ;; esac
         [ "$_lmp_preferred" != "$_lmp_boot_preference" ] || _lmp_pending=false
     else
         _lmp_boot_preference=auto
@@ -76,8 +84,14 @@ luoshu_mount_preference_status() {
     [ -n "$_lmp_provider_id" ] || _lmp_provider_id=unknown
     [ -n "$_lmp_provider_layout" ] || _lmp_provider_layout=unknown
     [ -n "$_lmp_verification" ] || _lmp_verification=pending
-    printf '{"ok":true,"policy":"automatic-provider-first","preferredBackend":"%s","bootPreference":"%s","providerState":"%s","providerId":"%s","providerLayout":"%s","plannedBackend":"%s","activeBackend":"%s","verification":"%s","selectedBackend":"%s","selectedSelfBackend":"%s","bootNomountObserved":%s,"bootNomountKernelUsable":%s,"pending":%s,"rebootRequired":%s,"preferenceFailure":"%s","lastError":"%s","providerName":"%s","providerVersion":"%s","mountMethod":"%s","mountMethodEvidence":"%s","rootManager":"%s","rootVersion":"%s"}\n' \
-        "$_lmp_preferred" "$_lmp_boot_preference" "$(_lmp_json_string "$_lmp_provider_state")" "$(_lmp_json_string "$_lmp_provider_id")" "$(_lmp_json_string "$_lmp_provider_layout")" "$(_lmp_json_string "$_lmp_selected")" "$_lmp_active" "$(_lmp_json_string "$_lmp_verification")" "$_lmp_selected" "$_lmp_selected_self" "$_lmp_nomount_observed" "$_lmp_nomount_usable" "$_lmp_pending" "$_lmp_pending" \
+    case "$_lmp_preferred" in
+        magic) _lmp_policy=manual-magic-mount ;;
+        overlayfs) _lmp_policy=manual-overlayfs ;;
+        self_mount) _lmp_policy=manual-self-mount ;;
+        *) _lmp_policy=automatic-provider-first ;;
+    esac
+    printf '{"ok":true,"policy":"%s","preferredBackend":"%s","bootPreference":"%s","providerState":"%s","providerId":"%s","providerLayout":"%s","plannedBackend":"%s","activeBackend":"%s","verification":"%s","selectedBackend":"%s","selectedSelfBackend":"%s","bootNomountObserved":%s,"bootNomountKernelUsable":%s,"pending":%s,"rebootRequired":%s,"preferenceFailure":"%s","lastError":"%s","providerName":"%s","providerVersion":"%s","mountMethod":"%s","mountMethodEvidence":"%s","rootManager":"%s","rootVersion":"%s"}\n' \
+        "$_lmp_policy" "$_lmp_preferred" "$_lmp_boot_preference" "$(_lmp_json_string "$_lmp_provider_state")" "$(_lmp_json_string "$_lmp_provider_id")" "$(_lmp_json_string "$_lmp_provider_layout")" "$(_lmp_json_string "$_lmp_selected")" "$_lmp_active" "$(_lmp_json_string "$_lmp_verification")" "$_lmp_selected" "$_lmp_selected_self" "$_lmp_nomount_observed" "$_lmp_nomount_usable" "$_lmp_pending" "$_lmp_pending" \
         "$(_lmp_json_string "${_lmp_failure:-none}")" "$(_lmp_json_string "${_lmp_error:-none}")" \
         "$(_lmp_json_string "$MOUNT_PROVIDER_NAME")" "$(_lmp_json_string "$MOUNT_PROVIDER_VERSION")" "$(_lmp_json_string "$MOUNT_METHOD")" "$(_lmp_json_string "$MOUNT_METHOD_EVIDENCE")" "$(_lmp_json_string "$MOUNT_ROOT_MANAGER")" "$(_lmp_json_string "$MOUNT_ROOT_VERSION")"
 }

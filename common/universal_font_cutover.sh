@@ -78,16 +78,20 @@ _uc_write_state() {
     chmod 0644 "$CUTOVER_STATE" 2>/dev/null || true
 }
 
-_uc_cleanup_universal_next() {
-    rm -f "$CONFIG_DIR/universal-font-next.conf" 2>/dev/null || true
-    # A switch request supersedes any previously queued next-boot payload.
-    rm -rf "$MODDIR/.luoshu-payload-next" "$MODDIR"/.luoshu-payload-next.stage.* 2>/dev/null || true
-}
+_uc_recover_pending() (
+    [ -f "$MODDIR/common/font_switch_lock.sh" ] &&
+        [ -f "$MODDIR/common/font_next_transaction.sh" ] || return 1
+    . "$MODDIR/common/font_switch_lock.sh"
+    . "$MODDIR/common/font_next_transaction.sh"
+    luoshu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || return $?
+    trap 'luoshu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    luoshu_next_transaction_recover "$MODDIR"
+)
 
 _uc_legacy() {
     _ucl_font="$1"; _ucl_reason="$2"
     case "$_ucl_reason" in
-        default-font|composite-runtime|composite-family)
+        default-font|composite-runtime|composite-family|physical-continuous-switch)
             _uc_log "INFO compatibility path selected font=$_ucl_font reason=$_ucl_reason"
             ;;
         *)
@@ -95,22 +99,9 @@ _uc_legacy() {
             ;;
     esac
     _uc_write_state fallback "$_ucl_font" legacy "$_ucl_reason"
-    _uc_progress 25 "通用引擎未接管，正在使用兼容切换路径"
+    _uc_progress 25 "正在使用兼容字体切换路径"
 
-    # A queued Universal request updates active_font.conf to the user's configured
-    # choice before reboot. If this new request falls back to legacy, restore the
-    # queued request's previousFont first so the legacy switcher records the real
-    # current-boot font as its rollback source.
-    if [ -s "$CONFIG_DIR/universal-font-next.conf" ]; then
-        _ucl_live_font=$(_uc_value "$CONFIG_DIR/universal-font-next.conf" previousFont)
-        if [ -n "$_ucl_live_font" ]; then
-            printf '%s\n' "$_ucl_live_font" > "$CONFIG_DIR/active_font.conf.tmp.$$" 2>/dev/null && \
-                mv -f "$CONFIG_DIR/active_font.conf.tmp.$$" "$CONFIG_DIR/active_font.conf" 2>/dev/null || true
-            chmod 0644 "$CONFIG_DIR/active_font.conf" 2>/dev/null || true
-        fi
-    fi
-
-    _uc_cleanup_universal_next
+    # The physical publisher snapshots and supersedes queued selections only on commit.
     [ -f "$LEGACY_SWITCH" ] || {
         _uc_write_state failed "$_ucl_font" legacy compatibility-core-missing
         _uc_log "ERROR compatibility path unavailable font=$_ucl_font missing=legacy-switcher"
@@ -122,8 +113,13 @@ _uc_legacy() {
     _ucl_rc=$?
     [ -n "$_ucl_output" ] && printf '%s\n' "$_ucl_output"
     if [ "$_ucl_rc" -eq 0 ]; then
-        _uc_write_state fallback "$_ucl_font" legacy compatibility-path-prepared
-        _uc_log "INFO compatibility path prepared font=$_ucl_font reboot-required=true"
+        if printf '%s' "$_ucl_output" | grep -q '"liveApplied":true'; then
+            _uc_write_state fallback "$_ucl_font" legacy compatibility-path-live-mounted
+            _uc_log "INFO compatibility path live mounted font=$_ucl_font reboot-required=false ui-cache-refresh=not-guaranteed"
+        else
+            _uc_write_state fallback "$_ucl_font" legacy compatibility-path-prepared
+            _uc_log "INFO compatibility path prepared font=$_ucl_font reboot-required=true"
+        fi
         return 0
     fi
     _uc_write_state failed "$_ucl_font" legacy "compatibility-path-failed-rc-$_ucl_rc"
@@ -155,6 +151,11 @@ _uc_paths() {
 _uc_switch() {
     _uc_font="$1"
     [ -n "$_uc_font" ] || { printf '{"status":"error","message":"未指定字体"}\n'; return 1; }
+    _uc_log "switch runtime version=$(_uc_value "$MODDIR/module.prop" version) boot=$(cat /proc/sys/kernel/random/boot_id) font=$_uc_font"
+    if ! _uc_recover_pending; then
+        printf '{"status":"error","message":"上一字体提交尚未恢复或仍在运行，请稍后重试并导出日志"}\n'
+        return 1
+    fi
     # A new explicit user choice supersedes any previously staged automatic rollback.
     rm -f "$ROLLBACK_STATE" 2>/dev/null || true
 
@@ -172,6 +173,17 @@ _uc_switch() {
         mix|LuoShuAutoMix|LuoShuMix*) _uc_legacy "$_uc_font" composite-family; return $? ;;
     esac
 
+    # Keep the established physical engine for A -> B and queued B -> C.
+    # Its stock slot templates are persistent; rebuilding Universal from an
+    # actively overlaid font view is unnecessary and can exceed the task budget.
+    if { [ "$(_uc_value "$CONFIG_DIR/font_runtime_legacy_v14_4.conf" enabled)" = true ] &&
+         [ "$(_uc_value "$CONFIG_DIR/font-payload-schema.conf" schema)" = legacy-physical-safe-v1 ]; } ||
+       { [ "$(_uc_value "$CONFIG_DIR/font-payload-next.conf" state)" = prepared ] &&
+         [ ! -s "$CONFIG_DIR/universal-font-next.conf" ]; }; then
+        _uc_legacy "$_uc_font" physical-continuous-switch
+        return $?
+    fi
+
     if ! _uc_precondition; then
         _uc_legacy "$_uc_font" universal-precondition-missing
         return $?
@@ -180,11 +192,31 @@ _uc_switch() {
     _uc_write_state preparing "$_uc_font" universal preparing
     _uc_progress 8 "通用引擎正在分析设备字体拓扑"
     _uc_log "universal prepare start font=$_uc_font"
+    _uc_prepare_budget="${LUOSHU_UNIVERSAL_PREPARE_TIMEOUT_SECONDS:-90}"
+    case "$_uc_prepare_budget" in ''|*[!0-9]*) _uc_prepare_budget=90 ;; esac
+    [ "$_uc_prepare_budget" -ge 15 ] || _uc_prepare_budget=15
+    [ "$_uc_prepare_budget" -le 120 ] || _uc_prepare_budget=120
+    # The nested subreaper must finish descendant cleanup before fallback can
+    # write anything. This prevents late compiler writers from escaping timeout.
     _uc_prepare_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" CONFIG_DIR="$CONFIG_DIR" \
-        LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" sh "$DEPLOYMENT" prepare "$_uc_font" 2>&1)
+        LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_COMPILER_REQUIRE_DEPLOYABLE=1 \
+        sh "$MODDIR/common/task_scope.sh" --timeout "$_uc_prepare_budget" \
+        --task "${LUOSHU_TASK_SCOPE_TASK:-direct}-universal" -- \
+        sh "$DEPLOYMENT" prepare "$_uc_font" 2>&1)
     _uc_prepare_rc=$?
+    _uc_log "universal prepare finished font=$_uc_font rc=$_uc_prepare_rc budget=${_uc_prepare_budget}s"
+    printf '%s\n' "$_uc_prepare_output" | tail -c 12000 >> "$LOG_FILE" 2>/dev/null || true
+    case "$_uc_prepare_rc" in
+        125|129|130|143)
+            _uc_write_state failed "$_uc_font" universal "prepare-not-clean-rc-$_uc_prepare_rc"
+            printf '{"status":"error","message":"通用字体任务取消或清理未确认，当前字体及待应用选择保持原样"}\n'
+            return "$_uc_prepare_rc" ;;
+    esac
     if [ "$_uc_prepare_rc" -ne 0 ]; then
         _uc_prepare_message=$(printf '%s\n' "$_uc_prepare_output" | sed -n 's/.*"message":"\(.*\)"}$/\1/p' | head -n1 | cut -c1-900)
+        if [ "$_uc_prepare_rc" -eq 124 ]; then
+            _uc_prepare_message="通用准备超过 ${_uc_prepare_budget} 秒，子进程已回收，转兼容路径"
+        fi
         [ -n "$_uc_prepare_message" ] || _uc_prepare_message='未返回详细原因，请查看 Artifact 日志'
         _uc_log "WARN universal prepare not ready font=$_uc_font rc=$_uc_prepare_rc detail=$_uc_prepare_message"
         _uc_legacy "$_uc_font" universal-prepare-not-ready

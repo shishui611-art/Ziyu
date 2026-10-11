@@ -10,8 +10,13 @@ _luoshu_self_module() {
 LUOSHU_MOUNT_MODDIR="${LUOSHU_MOUNT_MODDIR:-$(_luoshu_self_module)}"
 
 _luoshu_self_state_root() {
+    if [ -z "${LUOSHU_SELF_MOUNT_STATE_ROOT:-}" ] && type ziyu_live_work_root >/dev/null 2>&1; then
+        ziyu_live_work_root && return 0
+    fi
     printf '%s\n' "${LUOSHU_SELF_MOUNT_STATE_ROOT:-/data/adb/luoshu/self-mount}"
 }
+
+[ ! -f "$(_luoshu_self_module)/common/font_live_state.sh" ] || . "$(_luoshu_self_module)/common/font_live_state.sh"
 
 _luoshu_self_visible_root() {
     printf '%s\n' "${LUOSHU_SELF_MOUNT_VISIBLE_ROOT:-}"
@@ -365,7 +370,7 @@ _luoshu_self_state_write() {
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_lssw_module/config/self-mount.conf.tmp.$$" 2>/dev/null && \
         mv -f "$_lssw_module/config/self-mount.conf.tmp.$$" \
-            "$_lssw_module/config/self-mount.conf" 2>/dev/null || true
+            "$_lssw_module/config/self-mount.conf" 2>/dev/null || return 1
 }
 
 # Called from post-mount.sh, after KernelSU's selected metamodule has already run.

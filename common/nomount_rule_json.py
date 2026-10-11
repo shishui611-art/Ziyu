@@ -6,7 +6,27 @@ import json
 import os
 import sys
 from typing import Any
-from urllib.parse import unquote
+
+
+def unquote(value: str) -> str:
+    """Decode percent-encoded paths without the pruned urllib runtime."""
+    encoded = value.encode("utf-8")
+    decoded = bytearray()
+    index = 0
+    hex_digits = b"0123456789abcdefABCDEF"
+    while index < len(encoded):
+        if (
+            encoded[index] == ord("%")
+            and index + 2 < len(encoded)
+            and encoded[index + 1] in hex_digits
+            and encoded[index + 2] in hex_digits
+        ):
+            decoded.append(int(encoded[index + 1 : index + 3], 16))
+            index += 3
+        else:
+            decoded.append(encoded[index])
+            index += 1
+    return decoded.decode("utf-8", errors="replace")
 
 
 def inspect_rules(node: Any, target: str, source: str | None) -> tuple[bool, bool]:
@@ -38,11 +58,37 @@ def inspect_rules(node: Any, target: str, source: str | None) -> tuple[bool, boo
     return target_present, exact_pair_present
 
 
+def contains_path_under_root(node: Any, root: str) -> bool:
+    """Return whether any rule path equals root or is inside that directory."""
+    normalized_root = root.rstrip("/") or "/"
+
+    def matches(value: str) -> bool:
+        candidate = unquote(value).strip()
+        if normalized_root == "/":
+            return candidate.startswith("/")
+        return candidate == normalized_root or candidate.startswith(normalized_root + "/")
+
+    if isinstance(node, dict):
+        return any(
+            (isinstance(key, str) and matches(key))
+            or (isinstance(value, str) and matches(value))
+            or contains_path_under_root(value, normalized_root)
+            for key, value in node.items()
+        )
+    if isinstance(node, list):
+        return any(contains_path_under_root(value, normalized_root) for value in node)
+    return isinstance(node, str) and matches(node)
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) not in (2, 3, 4) or argv[1] not in {"target", "pair"}:
-        print("usage: nomount_rule_json.py target | pair", file=sys.stderr)
+    if len(argv) not in (2, 3, 4) or argv[1] not in {"target", "pair", "root"}:
+        print("usage: nomount_rule_json.py target | pair | root", file=sys.stderr)
         return 2
-    if len(argv) == 2:
+    if argv[1] == "root" and len(argv) == 3:
+        root = argv[2]
+    elif argv[1] == "root" and len(argv) == 2:
+        root = unquote(os.environ.get("LUOSHU_NOMOUNT_JSON_ROOT", ""))
+    elif len(argv) == 2:
         target = unquote(os.environ.get("LUOSHU_NOMOUNT_JSON_TARGET", ""))
         source_value = os.environ.get("LUOSHU_NOMOUNT_JSON_SOURCE")
         source = unquote(source_value) if source_value is not None and argv[1] == "pair" else None
@@ -56,6 +102,8 @@ def main(argv: list[str]) -> int:
         source = argv[3]
     else:
         return 2
+    if argv[1] == "root" and not root:
+        return 2
 
     try:
         payload = json.load(sys.stdin)
@@ -64,6 +112,10 @@ def main(argv: list[str]) -> int:
         return 0
     if not isinstance(payload, (dict, list)):
         print("invalid", end="")
+        return 0
+
+    if argv[1] == "root":
+        print("present" if contains_path_under_root(payload, root) else "absent", end="")
         return 0
 
     present, exact = inspect_rules(payload, target, source)

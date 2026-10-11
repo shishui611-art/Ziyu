@@ -104,6 +104,7 @@ internal fun TaskCenterHost() {
                         undoApply = model::undoFontApplication,
                         markViewed = model::markLogsViewed,
                         clearLogs = model::clearLogs,
+                        ignoreWarnings = model::ignoreCurrentWarnings,
                     ),
                     onBack = { (context as? Activity)?.finish() },
                 )

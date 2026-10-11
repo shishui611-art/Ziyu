@@ -23,13 +23,24 @@ luoshu_physical_manifest_build() (
         [ ! -d "$_lpm_root/$_lpm_part/fonts" ] || find "$_lpm_root/$_lpm_part/fonts" \( -type f -o -type l \) >> "$_lpm_list" || return 1
         [ ! -d "$_lpm_root/$_lpm_part/etc" ] || find "$_lpm_root/$_lpm_part/etc" -maxdepth 1 -type f -name '*font*.xml' >> "$_lpm_list" || return 1
     done
+    _lpm_pyroot="$_lpm_module/common/python"
+    if [ -x "$_lpm_pyroot/bin/luoshu-python" ] && [ -f "$_lpm_module/common/physical_payload_hashes.py" ]; then
+        PYTHONHOME="$_lpm_pyroot" \
+        PYTHONPATH="$_lpm_module/common:$_lpm_pyroot/lib/python3.14:$_lpm_pyroot/lib/python3.14/site-packages" \
+        LD_LIBRARY_PATH="$_lpm_pyroot/lib:$_lpm_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$_lpm_pyroot/bin/luoshu-python" "$_lpm_module/common/physical_payload_hashes.py" \
+            "$_lpm_root" "$_lpm_list" "$_lpm_tmp" || return 1
+        chmod 0644 "$_lpm_tmp" || return 1
+        mv -f "$_lpm_tmp" "$_lpm_config/font-payload-manifest.conf" || return 1
+        return 0
+    fi
+    _lpm_root_real=$(readlink -f "$_lpm_root") || return 1
     _lpm_fonts=0
     while IFS= read -r _lpm_file; do
         case "$_lpm_file" in *.ttf|*.otf|*.ttc|*.font|*.TTF|*.OTF|*.TTC) _lpm_fonts=$((_lpm_fonts + 1)) ;; *.xml) ;; *) continue ;; esac
         [ -s "$_lpm_file" ] && [ -r "$_lpm_file" ] || return 1
         # Font aliases must resolve inside this transaction's immutable payload.
         _lpm_real=$(readlink -f "$_lpm_file") || return 1
-        _lpm_root_real=$(readlink -f "$_lpm_root") || return 1
         case "$_lpm_real" in "$_lpm_root_real"/*) ;; *) return 1 ;; esac
         _lpm_rel=${_lpm_file#"$_lpm_root"/}
         case "$_lpm_rel" in *'|'*|*'\'*|/*|../*|*/../*) return 1 ;; esac

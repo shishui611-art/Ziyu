@@ -3,6 +3,9 @@
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .luoshu-runtime.
 common/app_bridge.sh
 common/temporary_root_mode.sh
+common/soft_reboot.sh
+common/mount_diagnostics.sh
+common/mount_overlay_layer.sh
 common/app_installer.sh
 common/background_task.sh
 common/task_scope.sh
@@ -10,6 +13,12 @@ common/task_scope.py
 common/coloros_global.sh
 common/coloros_metrics_batch.py
 common/coloros_stage_complete.sh
+common/font_cache_identity.py
+common/font_digest_cache.py
+common/font_update_manifest.py
+common/font_metrics_io.py
+common/app_read_batch.py
+common/physical_payload_hashes.py
 common/composite_font.py
 common/device_font_boot_verify.sh
 common/device_font_cache.sh
@@ -50,6 +59,7 @@ common/font_details.sh
 common/font_extract_faces.py
 common/font_finalize_hotfix.sh
 common/font_import.sh
+common/font_zip_extract.py
 common/font_import_compat.sh
 common/font_import_probe.py
 common/font_instance.py
@@ -161,6 +171,7 @@ README.md
 docs/MOUNT_FLOW.md
 docs/MODULE_UPDATE.md
 更新日志/CHANGELOG.md
+更新日志/RELEASE_NOTES_ziyu-v1.2.30.md
 customize.sh
 module.prop
 icon/icon.png
@@ -195,3 +206,9 @@ common/log_review.sh
 common/diagnostic_bundle.sh
 common/mount_backend_details.sh
 common/mount_backend_preferences.sh
+
+common/font_next_transaction.sh
+common/font_live_state.sh
+common/font_live_payload.py
+common/font_live_switch.sh
+common/font_ui_cache.py

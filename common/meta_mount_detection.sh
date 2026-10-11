@@ -377,6 +377,22 @@ _luoshu_meta_active_identity() {
     [ "$_lmai_resolved" = "$(readlink -f "$_lmai_dir" 2>/dev/null)" ]
 }
 
+_luoshu_meta_overlay_content_base() {
+    # KernelSU may expose the provider's image at MODULE_CONTENT_DIR instead
+    # of <metamodule>/mnt. Only accept an existing image mount, never mkdir it.
+    for _lmoc_path in "${MODULE_CONTENT_DIR:-}" "${META_ACTIVE_DIR:-${META_MODULE_DIR:-}}/mnt"; do
+        case "$_lmoc_path" in /data/adb/*) ;; *) continue ;; esac
+        case "$_lmoc_path" in */../*|*/..|*'|'*|*' '*|*'\\'*) continue ;; esac
+        _lmoc_image="$_lmoc_path"
+        case "$_lmoc_image" in */LuoShu) _lmoc_image="${_lmoc_image%/*}" ;; esac
+        if [ -d "$_lmoc_path" ] && type luoshu_mountpoint_ready >/dev/null 2>&1 && luoshu_mountpoint_ready "$_lmoc_image"; then
+            printf '%s\n' "$_lmoc_path"
+            return 0
+        fi
+    done
+    return 1
+}
+
 _luoshu_meta_hybrid_runtime_api() {
     # Older Hybrid releases have a binary and VFS config but no scoped runtime
     # API. Its read-only status returns supported=false before the boot ledger
@@ -410,6 +426,7 @@ luoshu_meta_mount_detect() {
     META_HYBRID_CONFIG_PATH=''
     META_HYBRID_DEFAULT_MODE=''
     META_HYBRID_ROUTE_REASON=''
+    META_DETECTION_CHECKS=''
 
     if [ -n "${LUOSHU_META_TEST_ENGINE:-}" ]; then
         META_ENGINE="$LUOSHU_META_TEST_ENGINE"
@@ -495,10 +512,17 @@ luoshu_meta_mount_detect() {
         fi
         case "$META_ENGINE" in
             meta-overlayfs)
-                if [ "$_lmd_is_active" -eq 1 ] && \
-                { [ "$_lmd_flag" = 1 ] || [ "$_lmd_flag" = true ]; } && [ "$_lmd_skip_mount_ok" -eq 1 ] && \
-                { [ -f "$META_MODULE_DIR/metamount.sh" ] || [ -x "$META_MODULE_DIR/meta-overlayfs" ] || [ -x "$META_MODULE_DIR/meta-overlay" ]; } && \
-                { [ -f "$META_MODULE_DIR/modules.img" ] || [ -d "$META_MODULE_DIR/mnt" ]; }; then
+                _lmd_overlay_flag=0; _lmd_overlay_hook=0; _lmd_overlay_image=0
+                { [ "$_lmd_flag" = 1 ] || [ "$_lmd_flag" = true ]; } && _lmd_overlay_flag=1
+                { [ -f "$META_MODULE_DIR/metamount.sh" ] || [ -x "$META_MODULE_DIR/meta-overlayfs" ] || [ -x "$META_MODULE_DIR/meta-overlay" ]; } && _lmd_overlay_hook=1
+                { [ -f "$META_MODULE_DIR/modules.img" ] || [ -d "$META_MODULE_DIR/mnt" ] || _luoshu_meta_overlay_content_base >/dev/null; } && _lmd_overlay_image=1
+                META_DETECTION_CHECKS="active=$_lmd_is_active,metamodule=$_lmd_overlay_flag,skip_ok=$_lmd_skip_mount_ok,hook=$_lmd_overlay_hook,image=$_lmd_overlay_image"
+                if [ "$_lmd_is_active" -ne 1 ]; then META_USABLE_REASON=overlayfs-not-active
+                elif [ "$_lmd_overlay_flag" != 1 ]; then META_USABLE_REASON=overlayfs-not-metamodule
+                elif [ "$_lmd_skip_mount_ok" != 1 ]; then META_USABLE_REASON=overlayfs-module-excluded
+                elif [ "$_lmd_overlay_hook" != 1 ]; then META_USABLE_REASON=overlayfs-hook-unavailable
+                elif [ "$_lmd_overlay_image" != 1 ]; then META_USABLE_REASON=overlayfs-content-image-unavailable
+                else
                 # Same degraded acceptance as Hybrid without an unload API: the
                 # engine mounts the payload; rollback on verification failure
                 # means reboot, because meta mounts never survive one.

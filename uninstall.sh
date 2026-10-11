@@ -5,6 +5,10 @@
 set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
+MODDIR="$MODDIR" sh "$MODDIR/common/font_live_switch.sh" retire || {
+    echo '字域：热挂载清理尚未确认，保留运行文件并停止卸载。' >&2
+    exit 1
+}
 # Stop the watcher and its active child before undoing mounts; otherwise an
 # in-flight FontTools/bind child can recreate a view after restore completes.
 [ ! -f "$MODDIR/common/font_switch_lock.sh" ] || . "$MODDIR/common/font_switch_lock.sh"
@@ -24,6 +28,13 @@ fi
 for _bridge in google_font_provider_bridge.sh hyperos_theme_font_bridge.sh; do
     [ ! -f "$MODDIR/common/$_bridge" ] || MODDIR="$MODDIR" sh "$MODDIR/common/$_bridge" restore >/dev/null 2>&1 || true
 done
+if [ -e "$MODDIR/.ziyu-state/nomount-rules.current" ]; then
+    . "$MODDIR/common/mount_nomount_backend.sh" || exit 1
+    luoshu_nomount_cleanup "$MODDIR" || {
+        echo '字域：NoMount 救援规则清理未确认，停止卸载脚本并保留诊断记录。' >&2
+        exit 1
+    }
+fi
 [ -f "$MODDIR/common/private_payload.sh" ] && . "$MODDIR/common/private_payload.sh"
 type luoshu_private_unmount_module_view >/dev/null 2>&1 && \
     luoshu_private_unmount_module_view "$MODDIR" >/dev/null 2>&1 || true

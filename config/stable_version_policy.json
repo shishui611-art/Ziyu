@@ -5,7 +5,7 @@
   "effectiveFrom": "v1.1.0",
   "currentStable": "v1.2.20",
   "firstRelease": "v1.0.0",
-  "nextStable": "v1.2.21",
+  "nextStable": "v1.3.0",
   "rule": "Semantic versions; major*10000 + minor*1000 + patch",
   "deliveryRule": "Maintenance and Debug deliveries increment the patch; user-visible feature releases may advance the minor version; module and App share one source version",
   "debugVersionName": "module version without leading v plus -debug",

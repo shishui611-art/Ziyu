@@ -44,6 +44,7 @@ internal data class SystemHealthSnapshot(
     val templateState: String = "",
     val alignmentState: String = "",
     val alignmentMode: String = "",
+    val mountWarning: String = "",
     val selfMountState: String = "",
     val selfMountBackend: String = "",
     val mountEngine: String = "unknown",
@@ -51,6 +52,7 @@ internal data class SystemHealthSnapshot(
     val rebootRequired: Boolean = false,
     val recentWarnings: Int = 0,
     val recentErrors: Int = 0,
+    val ignoredWarnings: Int = 0,
     val conflicts: List<ModuleConflict> = emptyList(),
 ) {
     private val errorNotices: List<String>
@@ -75,8 +77,10 @@ internal data class SystemHealthSnapshot(
                 if (lockState == "stale") add("检测到失效字体切换锁，可在安全页一键清理")
                 if (conflicts.isNotEmpty()) add("发现 ${conflicts.size} 个其它模块字体覆盖目标")
                 if (recentErrors > 0) add("最近日志中有 $recentErrors 条错误记录")
+                if (recentWarnings > 0) add("最近日志中有 $recentWarnings 条未忽略的警告")
                 if (cachePending) add("设备字体缓存仍在等待完成")
                 when (alignmentState) {
+                    "partial" -> if (recentWarnings > 0) add(mountWarning.ifBlank { "字体已应用；槽位挂载与加载状态见提示日志" })
                     "", "verified", "ready", "ok", "passed", "failed" -> Unit
                     "not-applicable" -> if (activeFont != "default") add("当前自定义字体没有执行挂载")
                     "skipped" -> add("当前自定义字体的挂载已跳过，请检查排除设置")
@@ -227,6 +231,19 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         }
     }
 
+    fun ignoreCurrentWarnings() {
+        if (maintenance.busy || moduleUpdate.busy) return
+        maintenance = MaintenanceState(busy = true, message = "正在忽略当前警告…")
+        viewModelScope.launch {
+            val result = RootShell.exec("sh /data/adb/modules/LuoShu/common/app_bridge.sh log_review ignore-warnings", timeoutMs = 20_000L)
+            val response = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
+            maintenance = if (result.code == 0 && response?.optString("status") == "ok") {
+                MaintenanceState(message = response.optJSONObject("data")?.optString("message").orEmpty())
+            } else MaintenanceState(error = response?.optString("message").orEmpty().ifBlank { result.stderr.ifBlank { "忽略警告失败" } })
+            refreshHealth()
+        }
+    }
+
     fun clearStaleState() {
         if (maintenance.busy || moduleUpdate.busy) return
         maintenance = MaintenanceState(busy = true, message = "正在清理失效锁与残留 PID…")
@@ -324,6 +341,7 @@ internal fun parseHealthReport(raw: String): SystemHealthSnapshot {
         templateState = values["templateState"].orEmpty(),
         alignmentState = values["alignmentState"].orEmpty(),
         alignmentMode = values["alignmentMode"].orEmpty(),
+        mountWarning = values["mountWarning"].orEmpty(),
         selfMountState = values["selfMountState"].orEmpty(),
         selfMountBackend = values["selfMountBackend"].orEmpty(),
         mountEngine = values["mountEngine"].orEmpty().ifBlank { "unknown" },
@@ -331,6 +349,7 @@ internal fun parseHealthReport(raw: String): SystemHealthSnapshot {
         rebootRequired = values.bool("rebootRequired"),
         recentWarnings = values.int("recentWarnings"),
         recentErrors = values.int("recentErrors"),
+        ignoredWarnings = values.int("ignoredWarnings"),
         conflicts = conflicts,
     )
 }

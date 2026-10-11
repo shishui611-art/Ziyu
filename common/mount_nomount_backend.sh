@@ -18,11 +18,24 @@ _lnm_log() {
 _lnm_cli() {
     [ -x "${META_NOMOUNT_CLI:-}" ] && { printf '%s\n' "$META_NOMOUNT_CLI"; return 0; }
     _lnm_meta="${META_MODULE_DIR:-}"
-    [ -n "$_lnm_meta" ] || return 1
-    for _lnm_candidate in "$_lnm_meta/bin/nm" "$_lnm_meta/nm" "$_lnm_meta/nomount"; do
-        [ -x "$_lnm_candidate" ] || continue
-        printf '%s\n' "$_lnm_candidate"
-        return 0
+    if [ -n "$_lnm_meta" ]; then
+        for _lnm_candidate in "$_lnm_meta/bin/nm" "$_lnm_meta/nm" "$_lnm_meta/nomount"; do
+            [ -x "$_lnm_candidate" ] || continue
+            printf '%s\n' "$_lnm_candidate"
+            return 0
+        done
+    fi
+    # The soft-reboot hook can run without provider detection having populated
+    # META_MODULE_DIR. Locate only a module whose declared id is NoMount.
+    for _lnm_candidate_dir in /data/adb/modules/nomount /data/adb/modules/NoMount /data/adb/modules/*; do
+        [ -d "$_lnm_candidate_dir" ] || continue
+        _lnm_candidate_id=$(sed -n 's/^id=//p' "$_lnm_candidate_dir/module.prop" 2>/dev/null | head -n1 | tr '[:upper:]' '[:lower:]')
+        [ "$_lnm_candidate_id" = nomount ] || continue
+        for _lnm_candidate in "$_lnm_candidate_dir/bin/nm" "$_lnm_candidate_dir/nm" "$_lnm_candidate_dir/nomount"; do
+            [ -x "$_lnm_candidate" ] || continue
+            printf '%s\n' "$_lnm_candidate"
+            return 0
+        done
     done
     return 1
 }
@@ -47,7 +60,8 @@ _lnm_json_parse() {
     # keeps Git Bash/MSYS from rewriting Android virtual paths for host Python.
     LUOSHU_NOMOUNT_JSON_TARGET=$(printf '%s' "$3" | sed 's/%/%25/g; s|/|%2F|g')
     LUOSHU_NOMOUNT_JSON_SOURCE=$(printf '%s' "${4:-}" | sed 's/%/%25/g; s|/|%2F|g')
-    export LUOSHU_NOMOUNT_JSON_TARGET LUOSHU_NOMOUNT_JSON_SOURCE
+    LUOSHU_NOMOUNT_JSON_ROOT=$(printf '%s' "$3" | sed 's/%/%25/g; s|/|%2F|g')
+    export LUOSHU_NOMOUNT_JSON_TARGET LUOSHU_NOMOUNT_JSON_SOURCE LUOSHU_NOMOUNT_JSON_ROOT
     if [ "$_lnm_bundled" = 1 ]; then
         _lnm_pyroot="$_lnm_module/common/python"
         if [ "$2" = pair ]; then
@@ -79,6 +93,14 @@ _lnm_rule_state() {
     _lnm_json=$("$_lnm_cli_path" rule list --json 2>>"$_lnm_module/logs/mount-backend.log") || return 1
     _lnm_state=$(printf '%s\n' "$_lnm_json" | _lnm_json_parse "$_lnm_module" "$_lnm_mode" "$_lnm_target" "$_lnm_source") || return 1
     case "$_lnm_state" in present|absent|exact|conflict) printf '%s\n' "$_lnm_state" ;; *) return 1 ;; esac
+}
+
+luoshu_nomount_module_rules_state() {
+    _lnm_module=$(_lnm_module "${1:-}")
+    _lnm_cli_path=$(_lnm_cli) || return 2
+    mkdir -p "$_lnm_module/logs" 2>/dev/null || return 2
+    _lnm_state=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" root "$_lnm_module") || return 2
+    case "$_lnm_state" in present|absent) printf '%s\n' "$_lnm_state" ;; *) return 2 ;; esac
 }
 
 _lnm_hash() {

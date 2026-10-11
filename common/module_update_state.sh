@@ -40,6 +40,7 @@ luoshu_update_font_builder_compatible() {
     for _lufb_relative in \
         common/hyperos_physical_policy.py \
         common/hyperos_metrics_batch.py \
+        common/font_metrics_io.py \
         common/legacy_v14_4/hyperos_full_coverage.sh \
         common/coloros_metrics_batch.py; do
         [ -e "$1/$_lufb_relative" ] || [ -e "$2/$_lufb_relative" ] || continue
@@ -68,7 +69,7 @@ luoshu_update_config_is_volatile() {
         composite_progress.json|mix_last_error.txt|app_install_pending|app_install_state.conf|\
         app_install_manual|font-payload-rebuild-pending.conf|font-payload-reapply-notified.conf|font-boot-failures|\
         font-payload-quarantine.conf|mount_compat.conf|self-mount.conf|\
-        self-mount-required.conf|device-font-load-verification.conf|\
+        self-mount-required.conf|device-font-load-verification.conf|font-ui-cache.json|\
         device-font-cache-pending.conf|device-font-cache-failures.conf|\
         device-font-engine.conf|device-font-installed.conf|device-font-dynamic-mount.conf|\
         device-font-load-verification.json|device-font-manager-dump.txt|\
@@ -96,7 +97,31 @@ luoshu_update_payload_partitions() {
     done < "$_lup_config_module/config/device_font_partitions.conf"
 }
 
-luoshu_update_payload_root() {
+luoshu_update_payload_root() (
+    # Hot switching leaves the canonical boot tree at A while the manifest and
+    # selection describe B. Use B's validated current-boot generation together
+    # with that manifest; never search arbitrary directories until a hash fits.
+    MODULE_DIR="$1"; MODDIR="$1"
+    _lupr_helper="${2:-$1}/common/font_live_state.sh"
+    if [ -f "$_lupr_helper" ]; then
+        . "$_lupr_helper" || return 1
+        if ziyu_live_current; then
+            [ -n "$(ziyu_live_value "$1/config/font-live.conf" request_id)" ] || return 1
+            if [ "$_zlc_source" != "$1/.luoshu-payload" ]; then
+                _lupr_generation=${_zlc_source##*/generation-}
+                [ "${#_lupr_generation}" = 64 ] || return 1
+                case "$_lupr_generation" in *[!0-9a-f]*) return 1 ;; esac
+            fi
+            [ "$_zlc_font" = "${3:-$(head -n1 "$1/config/active_font.conf" | tr -d '\r\n')}" ] || return 1
+            printf '%s\n' "$_zlc_source"
+            return 0
+        fi
+        # An invalid pointer for this boot must not silently select the old A.
+        if [ "$(ziyu_live_value "$1/config/font-live.conf" state)" = mounted ] &&
+           [ "$(ziyu_live_value "$1/config/font-live.conf" boot_id)" = "$(cat /proc/sys/kernel/random/boot_id)" ]; then
+            return 1
+        fi
+    fi
     # Private storage is the durable artifact, while the public partition view
     # may be absent or only partially projected in a flashing namespace.
     if [ -d "$1/.luoshu-payload" ]; then
@@ -104,7 +129,7 @@ luoshu_update_payload_root() {
     else
         printf '%s\n' "$1"
     fi
-}
+)
 
 luoshu_update_verify_manifest() {
     _luvm_module="$1"
@@ -113,21 +138,47 @@ luoshu_update_verify_manifest() {
     [ -e "$_luvm_manifest" ] || return 0
     [ -s "$_luvm_manifest" ] || { LUOSHU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
     _luvm_normalize="${3:-0}"
+    _luvm_pyroot="$_luvm_module/common/python"
+    if [ -x "$_luvm_pyroot/bin/luoshu-python" ] && [ -f "$_luvm_module/common/font_update_manifest.py" ]; then
+        _luvm_result=$(PYTHONHOME="$_luvm_pyroot" \
+            PYTHONPATH="$_luvm_module/common:$_luvm_pyroot/lib/python3.14:$_luvm_pyroot/lib/python3.14/site-packages" \
+            LD_LIBRARY_PATH="$_luvm_pyroot/lib:$_luvm_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$_luvm_pyroot/bin/luoshu-python" "$_luvm_module/common/font_update_manifest.py" \
+            "$_luvm_root" "$_luvm_manifest" "$_luvm_normalize" \
+            "$(luoshu_update_payload_partitions "$_luvm_module" | tr '\n' ' ')" \
+            2>>"$_luvm_module/logs/module-update.log")
+        _luvm_rc=$?
+        if [ "$_luvm_rc" = 0 ]; then
+            printf '%s\n' "$_luvm_result" >>"$_luvm_module/logs/module-update.log"
+            return 0
+        fi
+        # Only interpreter startup/import failures may use the portable path.
+        # A real manifest rejection must never be retried with weaker rules.
+        case "$_luvm_result" in update-manifest-rejected:*)
+            LUOSHU_UPDATE_FAILURE_REASON=${_luvm_result#update-manifest-rejected:}; return 1 ;;
+        esac
+        printf 'batch verifier unavailable rc=%s; portable verifier used\n' "$_luvm_rc" >>"$_luvm_module/logs/module-update.log"
+    fi
     _luvm_records=0
     _luvm_tmp="$_luvm_manifest.tmp.$$"
+    _luvm_parts=$(luoshu_update_payload_partitions "$_luvm_module" | tr '\n' ' ')
+    _luvm_root_real=$(readlink -f "$_luvm_root") || return 1
     [ "$_luvm_normalize" != 1 ] || : > "$_luvm_tmp" || return 1
     while IFS='|' read -r _luvm_rel _luvm_expected _luvm_extra || [ -n "$_luvm_rel" ]; do
         [ -n "$_luvm_rel" ] || continue
-        case "$_luvm_rel" in /*|../*|*/../*|*/..|*\\*|*//* )
+        case "$_luvm_rel" in /*|../*|*/../*|*/..|./*|*/./*|*/.|*\\*|*//* )
             LUOSHU_UPDATE_FAILURE_REASON=unsafe-payload-manifest-path; return 1 ;;
         esac
         _luvm_partition=${_luvm_rel%%/*}
-        case " $(luoshu_update_payload_partitions "$_luvm_module" | tr '\n' ' ') " in *" $_luvm_partition "*) ;; *)
+        case " $_luvm_parts " in *" $_luvm_partition "*) ;; *)
             LUOSHU_UPDATE_FAILURE_REASON=unsupported-payload-manifest-partition; return 1 ;;
         esac
         [ -s "$_luvm_root/$_luvm_rel" ] || {
             LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-missing:$_luvm_rel"; return 1;
         }
+        _luvm_resolved=$(readlink -f "$_luvm_root/$_luvm_rel") || return 1
+        case "$_luvm_resolved" in "$_luvm_root_real"/*) ;; *)
+            LUOSHU_UPDATE_FAILURE_REASON=unsafe-payload-artifact-link; return 1 ;; esac
         case "$_luvm_expected" in ''|*[!0-9a-fA-F]*)
             LUOSHU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;;
         esac
@@ -158,7 +209,8 @@ luoshu_update_verify_manifest() {
 }
 
 luoshu_update_has_font_payload() {
-    _module=$(luoshu_update_payload_root "$1")
+    _module="$2"
+    [ -n "$_module" ] || _module=$(luoshu_update_payload_root "$1") || return 1
     for _partition in $(luoshu_update_payload_partitions "$1"); do
         case "$_partition" in
             system) _directory="$_module/system/fonts" ;;
@@ -272,7 +324,11 @@ luoshu_migrate_update_cache() {
     # regular files from config/*, silently dropping the entire device alignment cache on update.
     # Metric/source caches are content-addressed and safe across releases. A device payload cache is
     # retained only when its payload schema and physical-font builder agree.
-    for _relative in cache/auto-multiweight-mix/source-meta-v1 config/metrics_cache config/font-config-source; do
+    # Safe-switch artifacts validate source, inventory, ROM and builder identities
+    # on every restore. Copying them preserves a hit across compatible upgrades;
+    # changed identities remain a miss without modifying the active payload.
+    for _relative in cache/auto-multiweight-mix/source-meta-v1 config/metrics_cache config/font-config-source \
+                     config/safe-switch-cache; do
         [ -d "$_old/$_relative" ] || continue
         rm -rf "$_new/$_relative" 2>/dev/null || true
         mkdir -p "${_new}/${_relative%/*}" 2>/dev/null || continue
@@ -292,15 +348,32 @@ luoshu_migrate_update_cache() {
 }
 
 luoshu_migrate_active_install() {
+    [ -f "$1/module.prop" ] || return 2
+    [ "$1" != "$2" ] || return 2
+    [ -f "$2/common/font_switch_lock.sh" ] && . "$2/common/font_switch_lock.sh"
+    if ! type luoshu_font_lock_acquire >/dev/null 2>&1; then
+        LUOSHU_UPDATE_FAILURE_REASON=migration-lock-unavailable; return 1
+    fi
+    luoshu_font_lock_acquire "$1/.font_switch.lock" "$$" || {
+        LUOSHU_UPDATE_FAILURE_REASON=font-switch-in-progress-retry-update; return 1;
+    }
+    _luoshu_migrate_active_install_locked "$1" "$2"
+    _luma_rc=$?
+    luoshu_font_lock_release "$1/.font_switch.lock" "$$" >/dev/null 2>&1 || true
+    return "$_luma_rc"
+}
+
+_luoshu_migrate_active_install_locked() {
     _old="$1"
     _new="$2"
     [ -f "$_old/module.prop" ] || return 2
     [ "$_old" != "$_new" ] || return 2
     LUOSHU_UPDATE_FAILURE_REASON=migration-copy-failed
-    _lup_payload_root=$(luoshu_update_payload_root "$_old")
-
     _active=$(head -n1 "$_old/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_active" ] || _active=default
+    _lup_payload_root=$(luoshu_update_payload_root "$_old" "$_new" "$_active") || {
+        LUOSHU_UPDATE_FAILURE_REASON=live-font-state-unconfirmed-or-pending-switch; return 1;
+    }
     _old_schema=$(luoshu_update_payload_schema "$_old")
     LUOSHU_UPDATE_ACTIVE="$_active"
     LUOSHU_UPDATE_OLD_SCHEMA="$_old_schema"
@@ -320,12 +393,13 @@ luoshu_migrate_active_install() {
     fi
     # Copying an already generated mix does not need the original recipe or
     # source fonts. Those are only needed for the user's next explicit apply.
-    if [ "$_active" != default ] && ! luoshu_update_has_font_payload "$_old"; then
+    if [ "$_active" != default ] && ! luoshu_update_has_font_payload "$_old" "$_lup_payload_root"; then
         LUOSHU_UPDATE_FAILURE_REASON=active-font-payload-missing
         return 1
     fi
     if [ "$_active" != default ]; then
-        luoshu_update_verify_manifest "$_old" "$_lup_payload_root" || return 1
+        # Verify the staged bytes against the inherited manifest once below.
+        # Re-reading the source beforehand provides no extra content proof.
         if [ -s "$_old/config/universal-font-runtime.conf" ]; then
             for _lup_artifact in deployment.json font-plan.json artifact-manifest.json; do
                 [ -s "$_lup_payload_root/.luoshu-runtime/deployment/$_lup_artifact" ] || {
@@ -335,8 +409,18 @@ luoshu_migrate_active_install() {
         fi
     fi
 
-    mkdir -p "$_new/config" "$_new/system/fonts" 2>/dev/null || return 1
+    mkdir -p "$_new/config" "$_new/system/fonts" "$_new/logs" 2>/dev/null || return 1
     luoshu_migrate_update_config "$_old" "$_new" || return 1
+    printf 'migration font=%s source=%s validation=staged-manifest\n' "$_active" "$_lup_payload_root" \
+        >>"$_new/logs/module-update.log" 2>/dev/null || true
+    # The replacement boots from the inherited generation. Old current-boot
+    # pointers and a queue already represented by it must not replay later.
+    rm -f "$_new/config/font-live.conf" "$_new/config/font-live-previous.conf" \
+        "$_new/config/font-live-attempt.conf" "$_new/config/font-live-boot-previous.conf" \
+        "$_new/config/font-ui-cache.json" 2>/dev/null || true
+    if [ "$_lup_payload_root" != "$_old" ] && [ "$_lup_payload_root" != "$_old/.luoshu-payload" ]; then
+        rm -f "$_new/config/font-payload-next.conf" "$_new/config/universal-font-next.conf" 2>/dev/null || true
+    fi
 
     # Keep the new release's system/bin runtime, but migrate both system font
     # trees and every supported OEM partition from the active installation.

@@ -60,7 +60,12 @@ ziyu_mount_provider_detect() {
             *) PROVIDER_STATE=unknown; PROVIDER_LAYOUT=unknown; PROVIDER_REASON=unsupported-meta-engine; return 0 ;;
         esac
         if [ "$META_ENGINE" = meta-overlayfs ]; then
-            _zpd_content_base="${MODULE_CONTENT_DIR:-${META_ACTIVE_DIR}/mnt}"
+            _zpd_content_base=$(_luoshu_meta_overlay_content_base)
+            if [ -z "$_zpd_content_base" ]; then
+                PROVIDER_STATE=unknown
+                PROVIDER_REASON=provider-content-image-not-mounted
+                return 0
+            fi
             _zpd_module_id=$(sed -n 's/^id=//p' "$_zpd_module/module.prop" 2>/dev/null | head -n1 | tr -d '\r\n')
             [ -n "$_zpd_module_id" ] || _zpd_module_id="${_zpd_module##*/}"
             case "$_zpd_module_id" in ''|*[!A-Za-z0-9_.-]*|.|..) PROVIDER_STATE=unknown; PROVIDER_REASON=invalid-module-id; return 0 ;; esac
