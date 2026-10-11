@@ -39,7 +39,7 @@ luoshu_migrate_active_install() {
     _lvm_old_schema=$(luoshu_update_payload_schema "$_lvm_old")
     _lvm_compatible=false
     [ -n "$_lvm_old_schema" ] && [ "$_lvm_old_schema" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ] && _lvm_compatible=true
-    if [ "$_lvm_active" != default ] && ! luoshu_update_has_font_payload "$_lvm_old"; then
+    if [ "$_lvm_active" != default ] && ! luoshu_update_has_font_payload "$_lvm_old" "$_lvm_old"; then
         _lvm_compatible=false
     fi
 

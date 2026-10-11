@@ -133,6 +133,9 @@ MODULE_DIR="$REPO_ROOT"
 . "$ATOMIC_SCRIPT"
 [ -z "$FINAL_SCRIPT" ] || . "$FINAL_SCRIPT"
 _luoshu_mirror_context() { return 0; }
+# Every mount in this fixture is simulated, including the read-only remount.
+# A BusyBox installed on a CI runner must never bypass the fake mount function.
+_luoshu_overlay_select_loop_mounter() { return 1; }
 # Model the lower bind as a stock-tree snapshot. The transaction test does not
 # create real mounts or mutate the host mount namespace.
 _luoshu_capture_lower_dir() {
@@ -272,7 +275,12 @@ printf 'font-canonical\n' > "$MODULE_DIR/system/fonts/Canonical.ttf"
 printf 'stock-canonical\n' > "$CASE_ROOT/root/system/fonts/Canonical.ttf"
 ln -s Canonical.ttf "$CASE_ROOT/root/system/fonts/Alias.ttf"
 FAIL_OVERLAY=system-fonts
-luoshu_self_mount_ensure || fail 'bind fallback rejected aliases sharing one real ROM target'
+if ! luoshu_self_mount_ensure; then
+    cat "$MODULE_DIR/config/self-mount.conf" >&2 2>/dev/null || true
+    tail -n 12 "$MODULE_DIR/logs/self-mount.log" >&2 2>/dev/null || true
+    tail -n 12 "$MODULE_DIR/logs/mount-diagnostics.log" >&2 2>/dev/null || true
+    fail 'bind fallback rejected aliases sharing one real ROM target'
+fi
 grep -q '^state=mounted$' "$MODULE_DIR/config/self-mount.conf" || fail 'symlink bind fallback was not committed'
 test "$(cat "$CASE_ROOT/root/system/fonts/Canonical.ttf")" = 'font-canonical' || fail 'canonical bind target was overwritten by its alias'
 test "$(cat "$CASE_ROOT/root/system/fonts/Alias.ttf")" = 'font-alias' || fail 'directory mirror did not preserve the alias font payload'

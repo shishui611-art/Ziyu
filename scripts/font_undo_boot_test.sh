@@ -6,6 +6,10 @@ trap 'rm -rf "$TMP"' EXIT
 MODDIR="$TMP/module"; MODULE_DIR="$MODDIR"; export MODDIR MODULE_DIR
 mkdir -p "$MODDIR/common" "$MODDIR/config" "$MODDIR/.luoshu-payload" "$MODDIR/.luoshu-payload-next"
 cp "$ROOT/common/action_control.sh" "$MODDIR/common/"
+cp "$ROOT/common/font_live_state.sh" "$MODDIR/common/"
+cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/"
+cp "$ROOT/common/font_next_transaction.sh" "$MODDIR/common/"
+cp "$ROOT/common/font_switch_lock.sh" "$MODDIR/common/"
 cp "$ROOT/common/physical_payload_manifest.sh" "$MODDIR/common/"
 mkdir -p "$MODDIR/.luoshu-payload/system/fonts" "$MODDIR/.luoshu-payload-next/system/fonts"
 printf 'old CJK\n' > "$MODDIR/.luoshu-payload/system/fonts/SysSans-Hans-Regular.ttf"

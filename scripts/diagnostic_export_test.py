@@ -48,7 +48,8 @@ class DiagnosticExportTest(unittest.TestCase):
                 self.assertIn(value, report)
             self.assertIn("[config:switch_task.conf]\nunavailable", report)
             self.assertNotIn("getprop ro.serialno", command)
-            self.assertNotIn("cat /proc", command)
+            self.assertIn("cat /proc/sys/kernel/random/boot_id", command)
+            self.assertNotIn("cat /proc/", command.replace("cat /proc/sys/kernel/random/boot_id", ""))
             self.assertIn("font names, paths", report)
 
 

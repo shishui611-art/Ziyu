@@ -21,6 +21,9 @@ mkdir -p \
 
 cp "$ROOT/uninstall.sh" "$MODDIR/uninstall.sh"
 cp "$ROOT/common/private_payload.sh" "$MODDIR/common/private_payload.sh"
+cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/font_live_switch.sh"
+cp "$ROOT/common/font_live_state.sh" "$MODDIR/common/font_live_state.sh"
+cp "$ROOT/common/font_switch_lock.sh" "$MODDIR/common/font_switch_lock.sh"
 cp "$ROOT/.luoshu-runtime/compat/v227/uninstall.sh" "$MODDIR/.luoshu-runtime/compat/v227/uninstall.sh"
 printf '%s\n' 'version=v-test' > "$MODDIR/module.prop"
 printf '%s\n' 'old log' > "$MODDIR/logs/fontswitch.log"

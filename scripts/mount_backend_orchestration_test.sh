@@ -45,6 +45,10 @@ run_hook() {
   bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
 }
 
+expect_hook_failure() {
+  if run_hook "$@"; then fail "accepted failed provider operation: $*"; fi
+}
+
 state() { sed -n "s/^$2=//p" "$1/config/mount-backend.conf" | head -n1; }
 
 # Root manager identity prioritizes SukiSU's explicit identity over KSU env vars.
@@ -155,8 +159,9 @@ META_STATUS=$(LUOSHU_META_DETECT_ROOT="$META_ADB" MODDIR="$TMP/ziyu" ROOT_MANAGE
   bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'mountify|1' 'Magisk Mountify is detected as a selected provider'
 
-# Case 1: Magisk without Meta selects and activates self at post-fs-data.
+# Case 1: Explicit self-mount on Magisk activates at post-fs-data.
 M1="$TMP/magisk-self"; new_module "$M1"
+printf 'preferred_backend=self_mount\n' > "$M1/config/mount-backend-preference.conf"
 run_hook "$M1" Magisk 0 pass post-fs-data
 assert_eq "$(state "$M1" selected_backend)" self 'case 1 selected backend'
 assert_eq "$(state "$M1" active_backend)" self 'case 1 active backend'
@@ -171,17 +176,19 @@ assert_eq "$(state "$M2" selected_backend)" external 'case 2 selection'
 run_hook "$M2" KernelSU 1 pass post-mount hybrid-mount
 assert_eq "$(state "$M2" active_backend)" external 'case 2 active backend'
 
-# Case 3: KSU Meta verification failure cleans the attempt and falls back to
-# self in the KSU post-mount stage.
+# Case 3: External verification failure never changes the selected mode.
 M3="$TMP/ksu-meta-fallback"; new_module "$M3"
 run_hook "$M3" KernelSU 1 pass post-fs-data hybrid-mount
-run_hook "$M3" KernelSU 1 fail post-mount hybrid-mount
-assert_eq "$(state "$M3" active_backend)" self 'case 3 active backend'
-assert_eq "$(state "$M3" fallback_used)" 1 'case 3 fallback flag'
-[ -f "$M3/config/test-self-mounted" ] || fail 'case 3 did not run fallback self mount'
+expect_hook_failure "$M3" KernelSU 1 fail post-mount hybrid-mount
+assert_eq "$(state "$M3" selected_backend)" external 'M3 preserves the external mode'
+assert_eq "$(state "$M3" active_backend)" none 'M3 does not claim an unverified backend'
+assert_eq "$(state "$M3" verification)" failed 'M3 records route failure'
+assert_eq "$(state "$M3" fallback_used)" 0 'M3 never switches to self'
+[ ! -f "$M3/config/test-self-mounted" ] || fail 'M3 ran an unselected self backend'
 
-# Case 4: KernelSU without Meta defers self until post-mount.
+# Case 4: Explicit KernelSU self-mount waits for post-mount.
 M4="$TMP/ksu-self"; new_module "$M4"
+printf 'preferred_backend=self_mount\n' > "$M4/config/mount-backend-preference.conf"
 run_hook "$M4" KernelSU 0 pass post-fs-data
 [ ! -f "$M4/config/test-self-mounted" ] || fail 'case 4 mounted before KSU post-mount'
 run_hook "$M4" KernelSU 0 pass post-mount
@@ -194,22 +201,22 @@ run_hook "$M5" KernelSU 1 pass post-mount hybrid-mount
 assert_eq "$(state "$M5" active_backend)" external 'case 5 active backend'
 [ ! -f "$M5/config/test-self-mounted" ] || fail 'case 5 ran self beside Meta'
 
-# Case 6: APatch with unusable Meta falls back to self at post-mount.
+# Case 6: Explicit APatch self-mount waits for post-mount.
 M6="$TMP/apatch-self"; new_module "$M6"
+printf 'preferred_backend=self_mount\n' > "$M6/config/mount-backend-preference.conf"
 run_hook "$M6" APatch 0 pass post-fs-data
 run_hook "$M6" APatch 0 pass post-mount
 assert_eq "$(state "$M6" active_backend)" self 'case 6 active backend'
 
-# If publishing the private payload for an external provider fails, KernelSU
-# must select the self fallback and activate it only at the post-mount stage.
-M14="$TMP/ksu-meta-prepare-fallback"; new_module "$M14"
+# A failed external publication remains a failure in the selected mode.
+M14="$TMP/ksu-meta-prepare-failed"; new_module "$M14"
 rm -rf "$M14/.luoshu-payload"
-run_hook "$M14" KernelSU 1 pass post-fs-data hybrid-mount
-assert_eq "$(state "$M14" selected_backend)" self 'case 14 fallback selected backend'
-assert_eq "$(state "$M14" active_backend)" none 'case 14 waits for the correct hook'
-[ ! -f "$M14/config/test-self-mounted" ] || fail 'case 14 ran KSU self-mount during post-fs-data'
-run_hook "$M14" KernelSU 1 pass post-mount hybrid-mount
-assert_eq "$(state "$M14" active_backend)" self 'case 14 activates self at post-mount'
+expect_hook_failure "$M14" KernelSU 1 pass post-fs-data hybrid-mount
+assert_eq "$(state "$M14" selected_backend)" external 'case 14 preserves external publication mode'
+assert_eq "$(state "$M14" active_backend)" none 'case 14 publication failure is not activation'
+[ ! -f "$M14/config/test-self-mounted" ] || fail 'case 14 ran an unselected self backend'
+expect_hook_failure "$M14" KernelSU 1 fail post-mount hybrid-mount
+assert_eq "$(state "$M14" verification)" failed 'case 14 later failed verification stays failed'
 
 # SukiSU is distinct in diagnostics but follows KSU's post-mount hook timing.
 M10="$TMP/sukisu-meta"; new_module "$M10"
@@ -219,26 +226,29 @@ assert_eq "$(state "$M10" root_manager)" 'SukiSU Ultra' 'SukiSU root identity in
 assert_eq "$(state "$M10" active_backend)" external 'SukiSU Meta backend'
 [ ! -f "$M10/config/test-self-mounted" ] || fail 'SukiSU ran self beside Meta'
 
-# If an external provider fails route verification, the runtime must still run
-# the selected self fallback instead of leaving the font route unresolved.
+# External route failures remain explicit failures, without an unselected mount.
 M11="$TMP/external-route-fallback"; new_module "$M11"
 run_hook "$M11" KernelSU 1 pass post-fs-data
-run_hook "$M11" KernelSU 1 fail post-mount hybrid-mount 1
-assert_eq "$(state "$M11" active_backend)" self 'case 11 fell back after external route verification failed'
-assert_eq "$(state "$M11" fallback_used)" 1 'case 11 records external fallback'
-[ -f "$M11/config/test-self-mounted" ] || fail 'case 11 did not run self fallback'
+expect_hook_failure "$M11" KernelSU 1 fail post-mount hybrid-mount 1
+assert_eq "$(state "$M11" selected_backend)" external 'M11 preserves the external mode'
+assert_eq "$(state "$M11" active_backend)" none 'M11 does not claim an unverified backend'
+assert_eq "$(state "$M11" verification)" failed 'M11 records route failure'
+assert_eq "$(state "$M11" fallback_used)" 0 'M11 never switches to self'
+[ ! -f "$M11/config/test-self-mounted" ] || fail 'M11 ran an unselected self backend'
 
-# Hybrid Mount route verification failure also proceeds to self fallback.
+# Hybrid Mount route failure also preserves the selected external mode.
 M17="$TMP/hybrid-route-fallback"; new_module "$M17"
 run_hook "$M17" KernelSU 1 pass post-fs-data hybrid-mount
-run_hook "$M17" KernelSU 1 fail post-mount hybrid-mount
-assert_eq "$(state "$M17" active_backend)" self 'case 17 falls back after Hybrid Mount verification fails'
-assert_eq "$(state "$M17" fallback_used)" 1 'case 17 records Hybrid Mount fallback'
-[ -f "$M17/config/test-self-mounted" ] || fail 'case 17 did not run self fallback'
+expect_hook_failure "$M17" KernelSU 1 fail post-mount hybrid-mount
+assert_eq "$(state "$M17" selected_backend)" external 'M17 preserves the external mode'
+assert_eq "$(state "$M17" active_backend)" none 'M17 does not claim an unverified backend'
+assert_eq "$(state "$M17" verification)" failed 'M17 records route failure'
+assert_eq "$(state "$M17" fallback_used)" 0 'M17 never switches to self'
+[ ! -f "$M17/config/test-self-mounted" ] || fail 'M17 ran an unselected self backend'
 
-# An unrecognized Root manager uses the compatibility hook and Ziyu self route
-# when no external provider is available.
+# An explicit self selection on an unknown manager uses the compatibility hook.
 M12="$TMP/unknown-root"; new_module "$M12"
+printf 'preferred_backend=self_mount\n' > "$M12/config/mount-backend-preference.conf"
 run_hook "$M12" unknown 0 pass post-fs-data
 assert_eq "$(state "$M12" selected_backend)" self 'case 12 selected compatibility self backend'
 assert_eq "$(state "$M12" active_backend)" self 'case 12 activated compatibility self backend'
@@ -255,6 +265,7 @@ grep -q '字体路由验证不适用' "$M13/logs/mount-backend.log" || fail 'def
 # A failed self-route verification must roll its own mount transaction back and
 # never report a verified backend.
 M15="$TMP/self-verify-rollback"; new_module "$M15"
+printf 'preferred_backend=self_mount\n' > "$M15/config/mount-backend-preference.conf"
 if run_hook "$M15" Magisk 0 pass post-fs-data meta-overlayfs 0 0 fail; then
   fail 'case 15 accepted a failed self font-route verification'
 fi
@@ -263,6 +274,7 @@ assert_eq "$(state "$M15" verification)" failed 'case 15 verification state'
 [ -f "$M15/config/test-self-rollback" ] || fail 'case 15 skipped the rollback transaction'
 
 M16="$TMP/self-rollback-failed"; new_module "$M16"
+printf 'preferred_backend=self_mount\n' > "$M16/config/mount-backend-preference.conf"
 if run_hook "$M16" Magisk 0 pass post-fs-data meta-overlayfs 0 0 fail 1; then
   fail 'case 16 accepted a failed self rollback'
 fi
@@ -274,6 +286,7 @@ assert_eq "$(state "$M16" last_error)" 'font-route-verification-failed;rollback-
 # A successful rollback command is not enough: the PID 1 namespace must no
 # longer expose any target recorded by the self-mount transaction.
 M20="$TMP/self-rollback-readback-failed"; new_module "$M20"
+printf 'preferred_backend=self_mount\n' > "$M20/config/mount-backend-preference.conf"
 if MODDIR="$M20" MODULE_DIR="$M20" LUOSHU_BACKEND_TEST_MODE=1 \
   LUOSHU_BACKEND_TEST_BOOT_ID=backend-test-boot LUOSHU_BACKEND_TEST_MANAGER=Magisk \
   LUOSHU_BACKEND_TEST_META_ENGINE=meta-overlayfs LUOSHU_BACKEND_TEST_META_USABLE=0 \
@@ -289,6 +302,7 @@ assert_eq "$(state "$M20" last_error)" 'font-route-verification-failed;rollback-
 # A stale active marker from a previous physical boot cannot describe live
 # mounts in this boot; the selector ignores it and records a fresh backend.
 M21="$TMP/stale-backend-state"; new_module "$M21"
+printf 'preferred_backend=self_mount\n' > "$M21/config/mount-backend-preference.conf"
 printf 'boot_id=previous-boot\nactive_backend=external\nselected_backend=external\n' \
   > "$M21/config/mount-backend.conf"
 run_hook "$M21" Magisk 0 pass post-fs-data
@@ -307,9 +321,12 @@ assert_eq "$(state "$M23" active_backend)" external 'case 23 commits Magisk Meta
 
 M24="$TMP/magisk-meta-fallback"; new_module "$M24"
 run_hook "$M24" Magisk 1 pass post-fs-data hybrid-mount
-run_hook "$M24" Magisk 1 fail service hybrid-mount
-assert_eq "$(state "$M24" active_backend)" self 'case 24 falls back to Magisk self-mount after scoped Meta unload'
-assert_eq "$(state "$M24" fallback_used)" 1 'case 24 records Magisk fallback'
+expect_hook_failure "$M24" Magisk 1 fail service hybrid-mount
+assert_eq "$(state "$M24" selected_backend)" external 'M24 preserves the external mode'
+assert_eq "$(state "$M24" active_backend)" none 'M24 does not claim an unverified backend'
+assert_eq "$(state "$M24" verification)" failed 'M24 records route failure'
+assert_eq "$(state "$M24" fallback_used)" 0 'M24 never switches to self'
+[ ! -f "$M24/config/test-self-mounted" ] || fail 'M24 ran an unselected self backend'
 
 M25="$TMP/apatch-meta"; new_module "$M25"
 run_hook "$M25" APatch 1 pass post-fs-data hybrid-mount
@@ -318,6 +335,7 @@ assert_eq "$(state "$M25" active_backend)" external 'case 25 commits APatch Meta
 [ ! -f "$M25/config/test-self-mounted" ] || fail 'case 25 ran self beside APatch Meta'
 
 M26="$TMP/sukisu-self"; new_module "$M26"
+printf 'preferred_backend=self_mount\n' > "$M26/config/mount-backend-preference.conf"
 run_hook "$M26" 'SukiSU Ultra' 0 pass post-fs-data
 [ ! -f "$M26/config/test-self-mounted" ] || fail 'case 26 mounted before SukiSU post-mount'
 run_hook "$M26" 'SukiSU Ultra' 0 pass post-mount
@@ -326,14 +344,15 @@ assert_eq "$(state "$M26" active_backend)" self 'case 26 uses SukiSU self-mount 
 # Stale NoMount capability flags cannot select an unshipped backend; the
 # supported self route remains the legacy OverlayFS/bind implementation.
 M27="$TMP/self-backend-handoff"; new_module "$M27"
+printf 'preferred_backend=self_mount\n' > "$M27/config/mount-backend-preference.conf"
 run_hook "$M27" KernelSU 0 pass post-fs-data none 0 0 pass 0 0 1 1 0 self-backend-boot
 assert_eq "$(state "$M27" selected_backend)" self 'case 27 selects self when no provider exists'
-assert_eq "$(state "$M27" selected_self_backend)" overlayfs 'case 27 selects the supported OverlayFS-first self implementation'
+assert_eq "$(state "$M27" selected_self_backend)" self_mount 'case 27 preserves the selected self-mount mode'
 assert_eq "$(state "$M27" active_backend)" none 'case 27 waits for the KernelSU mount hook'
 [ ! -f "$M27/config/test-self-mounted" ] || fail 'case 27 mounted before post-mount'
 run_hook "$M27" KernelSU 0 pass post-mount none 0 0 pass 0 0 1 1 2 self-backend-boot
 assert_eq "$(state "$M27" active_backend)" self 'case 27 activates self at post-mount'
-assert_eq "$(state "$M27" active_self_backend)" legacy 'case 27 records the compatibility runtime wrapper'
+assert_eq "$(state "$M27" active_self_backend)" self_mount 'case 27 records the active self-mount mode'
 [ -f "$M27/config/test-self-mounted" ] || fail 'case 27 did not execute the supported self route'
 [ ! -f "$M27/config/test-nomount-applied" ] || fail 'case 27 invoked the retired NoMount backend'
 
@@ -346,11 +365,13 @@ run_hook "$M30" KernelSU 0 pass post-fs-data none 0 0 pass 0 0 1 1 0 foreign-ski
 assert_eq "$(cat "$M30/skip_mount")" 'user disabled this module' 'case 30 preserved foreign marker content'
 assert_eq "$(state "$M30" active_backend)" none 'case 30 exits without injecting a backend'
 
-# Provider changes never hot-switch a frozen boot choice; a new boot rescans
-# providers and may select the external route.
+# A preference change never hot-switches a frozen boot choice; the new boot
+# selects the newly requested external route.
 M31="$TMP/provider-choice-per-boot"; new_module "$M31"
+printf 'preferred_backend=self_mount\n' > "$M31/config/mount-backend-preference.conf"
 run_hook "$M31" KernelSU 0 pass post-fs-data none 0 0 pass 0 0 0 0 0 provider-boot-1
 assert_eq "$(state "$M31" selected_backend)" self 'case 31 stages self while the provider is absent'
+printf 'preferred_backend=auto\n' > "$M31/config/mount-backend-preference.conf"
 run_hook "$M31" KernelSU 1 pass post-mount hybrid-mount 0 0 pass 0 0 0 0 0 provider-boot-1
 assert_eq "$(state "$M31" selected_backend)" self 'case 31 keeps its staged choice after a provider appears'
 assert_eq "$(state "$M31" active_backend)" self 'case 31 activates the frozen self choice'
@@ -409,7 +430,7 @@ new_module "$M34"
 printf 'preferred_backend=self_mount\n' > "$M34/config/mount-backend-preference.conf"
 run_hook "$M34" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 self-mount-boot
 assert_eq "$(state "$M34" selected_backend)" self 'case 34 explicit self-mount bypasses an available provider'
-assert_eq "$(state "$M34" selected_self_backend)" overlayfs 'case 34 uses OverlayFS first for explicit self-mount'
+assert_eq "$(state "$M34" selected_self_backend)" self_mount 'case 34 preserves the explicit self-mount mode'
 assert_eq "$(state "$M34" fallback_used)" 0 'case 34 is a user selection, not an automatic fallback'
 run_hook "$M34" KernelSU 1 pass post-mount hybrid-mount 0 0 pass 0 0 0 0 0 self-mount-boot
 assert_eq "$(state "$M34" active_backend)" self 'case 34 activates explicit self-mount at post-mount'

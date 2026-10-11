@@ -10,7 +10,9 @@ trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 OLD="$TMP/old"
 NEW="$TMP/new"
 mkdir -p "$OLD/config" "$OLD/system/bin" "$OLD/.luoshu-payload/system/fonts" \
-    "$OLD/.luoshu-payload/system/etc" "$OLD/.luoshu-payload/product/fonts/.luoshu-font-store" "$NEW/config" "$NEW/system/bin"
+    "$OLD/.luoshu-payload/system/etc" "$OLD/.luoshu-payload/product/fonts/.luoshu-font-store" "$NEW/config" "$NEW/system/bin" "$NEW/common"
+cp "$ROOT/common/font_switch_lock.sh" "$NEW/common/"
+cp "$ROOT/common/font_live_state.sh" "$NEW/common/"
 printf 'id=LuoShu\nversionCode=11003\n' > "$OLD/module.prop"
 printf 'mix\n' > "$OLD/config/active_font.conf"
 printf 'old-schema\n' > "$OLD/config/font-payload-schema.conf"
@@ -34,7 +36,7 @@ mkdir -p "$ANCHOR/.luoshu-payload/system/fonts/.luoshu-font-store"
 printf 'font anchor\n' > "$ANCHOR/.luoshu-payload/system/fonts/.luoshu-font-store/cjk.font"
 # On Android aliases point to .font anchors. Test the actual regular files;
 # MSYS ln -s may copy instead, which would hide this bug on Windows.
-luoshu_update_has_font_payload "$ANCHOR" || { echo 'FAIL: .font anchor was missed'; exit 1; }
+luoshu_update_has_font_payload "$ANCHOR" "$ANCHOR/.luoshu-payload" || { echo 'FAIL: .font anchor was missed'; exit 1; }
 echo 'PASS: font-store anchors count as an existing private font payload'
 
 mkdir -p "$OLD/.luoshu-payload/.luoshu-runtime/deployment" "$NEW/.luoshu-runtime/core"

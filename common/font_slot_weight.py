@@ -74,13 +74,14 @@ def source_for(fonts: Path, name: str, weight: int) -> Path:
     raise ValueError(f'没有可用的源字体：{name}')
 
 
-def prepare(source: Path, output: Path, weight: int, keep_variable: bool) -> tuple[Path, dict]:
+def prepare(source: Path, output: Path, weight: int, keep_variable: bool,
+            collection_role: str = 'latin') -> tuple[Path, dict]:
     with source.open('rb') as stream:
         collection = stream.read(4) == b'ttcf'
     if collection:
         from font_instance import pick_face, InstanceError
         try:
-            face = pick_face(source, 'latin', weight)
+            face = pick_face(source, collection_role, weight)
         except InstanceError:
             face = pick_face(source, 'cjk', weight)
         # Older global font collections can have no Latin; keep the existing

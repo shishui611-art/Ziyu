@@ -38,7 +38,21 @@ done
 # routing ambiguity and are not allowed to return.
 [ -f "$ROOT/common/font_inventory_scan.py" ] || fail "canonical font scanner missing"
 [ ! -e "$ROOT/common/font_inventory_scan_v3.py" ] || fail "versioned font scanner returned"
-grep -q 'SCANNER_REVISION = 5' "$ROOT/common/font_inventory_scan.py" || fail "canonical scanner is not v5"
+python3 - "$ROOT/common/font_inventory_scan.py" <<'PY' || fail "canonical scanner lacks topology-aware inventory"
+import ast
+import sys
+from pathlib import Path
+
+tree = ast.parse(Path(sys.argv[1]).read_text(encoding="utf-8"))
+revision = next(
+    node.value.value
+    for node in tree.body
+    if isinstance(node, ast.Assign)
+    and any(isinstance(target, ast.Name) and target.id == "SCANNER_REVISION" for target in node.targets)
+    and isinstance(node.value, ast.Constant)
+)
+raise SystemExit(0 if revision >= 5 else 1)
+PY
 
 # Exact copies formerly carried inside legacy_v14_4 must stay deduplicated.
 for duplicate in luoshu_composite.sh font_role_check.sh font_role_check.py; do

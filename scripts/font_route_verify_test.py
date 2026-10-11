@@ -201,21 +201,25 @@ def main() -> None:
         assert "no-pid1-font-xml-verified" in ordinary_no_xml["failures"], ordinary_no_xml
         (pm / "config/font-payload-schema.conf").write_text("schema=legacy-physical-safe-v1\n")
 
-        # Stock XML cannot point at a missing or old Chinese artifact in PID 1.
+        # Missing or old Chinese artifacts remain unapplied warnings when other
+        # unchanged-stock physical slots have independently verified routes.
         (pr / pf).unlink()
         missing_physical = MODULE.verify_legacy(pm, pr, pi)
-        assert missing_physical["state"] == "failed", missing_physical
-        assert "pid1-visible-missing-or-empty:" + pf in missing_physical["failures"], missing_physical
+        assert missing_physical["state"] == "partial", missing_physical
+        assert missing_physical["appliedCount"] > 0 and not missing_physical["failures"], missing_physical
+        assert "pid1-visible-missing-or-empty:" + pf in missing_physical["warnings"], missing_physical
         write(pr / pf, b"old-stock-cjk")
         stale_physical = MODULE.verify_legacy(pm, pr, pi)
-        assert stale_physical["state"] == "failed", stale_physical
-        assert "pid1-visible-hash-mismatch:" + pf in stale_physical["failures"], stale_physical
+        assert stale_physical["state"] == "partial", stale_physical
+        assert stale_physical["appliedCount"] > 0 and not stale_physical["failures"], stale_physical
+        assert "pid1-visible-hash-mismatch:" + pf in stale_physical["warnings"], stale_physical
         write(pr / pf, (pm / ".luoshu-payload" / pf).read_bytes())
         stock_xml = (pr / px).read_bytes()
         write(pr / px, b'<familyset><family name="sans-serif"><font>SysSans-En-Regular.ttf</font></family></familyset>')
         no_cjk_route = MODULE.verify_legacy(pm, pr, pi)
-        assert no_cjk_route["state"] == "failed", no_cjk_route
-        assert "cjk-route-not-proven" in no_cjk_route["failures"], no_cjk_route
+        assert no_cjk_route["state"] == "partial", no_cjk_route
+        assert no_cjk_route["appliedCount"] > 0 and not no_cjk_route["failures"], no_cjk_route
+        assert "cjk-route-not-proven" in no_cjk_route["warnings"], no_cjk_route
         write(pr / px, b"malformed xml")
         malformed_stock = MODULE.verify_legacy(pm, pr, pi)
         assert malformed_stock["state"] == "failed", malformed_stock
@@ -241,8 +245,9 @@ def main() -> None:
         direct_xml = b'<familyset><family name="NotoSansCJKsc"><font>LuoShuSlotCJK-Regular.ttf</font></family></familyset>'
         write(pr / px, direct_xml)
         no_direct_evidence = MODULE.verify_legacy(pm, pr, pi)
-        assert no_direct_evidence["state"] == "failed", no_direct_evidence
-        assert "physical-slot-route-not-proven:system/fonts/OSans-Solid-Digits-VF.ttf" in no_direct_evidence["failures"], no_direct_evidence
+        assert no_direct_evidence["state"] == "partial", no_direct_evidence
+        assert no_direct_evidence["appliedCount"] > 0 and not no_direct_evidence["failures"], no_direct_evidence
+        assert "physical-slot-route-not-proven:system/fonts/OSans-Solid-Digits-VF.ttf" in no_direct_evidence["warnings"], no_direct_evidence
         inventory_file = pm / "config/device_font_inventory.json"
         direct_slots = {
             "/system/fonts/SysSans-En-Regular.ttf": {"path": "/system/fonts/SysSans-En-Regular.ttf", "source": "xml"},
@@ -254,7 +259,8 @@ def main() -> None:
         assert direct_ok["roleRoutes"]["digit"] == ["OSans-Solid-Digits-VF.ttf"], direct_ok
         inventory_file.write_text(json.dumps({"state": "pending", "slots": direct_slots}))
         pending_inventory = MODULE.verify_legacy(pm, pr, pi)
-        assert pending_inventory["state"] == "failed", pending_inventory
+        assert pending_inventory["state"] == "partial", pending_inventory
+        assert pending_inventory["appliedCount"] == 1 and len(pending_inventory["unconfirmedFonts"]) == 2, pending_inventory
         inventory_file.unlink()
         write(pr / px, stock_xml)
 

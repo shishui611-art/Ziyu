@@ -89,7 +89,8 @@ class ColorOSMetricsTest(unittest.TestCase):
                         '/system/fonts/SysSans-En-Regular.ttf': stock()})
         with patch.object(TTFont, 'getGlyphSet', side_effect=AssertionError('outline rebuild')):
             result = batch.build(self.module, self.stage)
-        self.assertEqual(result, {'mapped': 2, 'generated': 2, 'preservedSlots': 1})
+        self.assertEqual({key: result[key] for key in ('mapped', 'generated', 'preservedSlots')},
+                         {'mapped': 2, 'generated': 2, 'preservedSlots': 1})
         self.assertFalse(self.target('SysSans-En-Regular.ttf').exists(), 'must not add slots')
         self.assertEqual(numeric.read_bytes(), originals[numeric.name])
         for path, top in ((regular, 730), (bold, 940)):

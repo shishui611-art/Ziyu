@@ -10,7 +10,8 @@ SU_VIEW="$TMP/su"
 mkdir -p "$MOD/common" "$MOD/config" "$MOD/logs" "$TMP/bin" \
     "$MOD/.luoshu-payload/system/fonts" "$MOD/.luoshu-payload/system/etc"
 cp "$ROOT/service.sh" "$MOD/service.sh"
-cp "$ROOT/common/device_font_load_verify.sh" "$ROOT/common/font_route_verify.py" "$MOD/common/"
+cp "$ROOT/common/device_font_load_verify.sh" "$ROOT/common/font_route_verify.py" \
+    "$ROOT/common/font_switch_lock.sh" "$MOD/common/"
 printf 'mix\n' > "$MOD/config/active_font.conf"
 printf 'font=mix\n' > "$MOD/config/font_runtime_legacy_v14_4.conf"
 printf 'state=mounted\n' > "$MOD/config/self-mount.conf"

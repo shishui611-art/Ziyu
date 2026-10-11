@@ -141,6 +141,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_metrics_io.py" \
                          "$MODDIR/common/font_metrics_normalize.py" \
                          "$MODDIR/common/coloros_metrics_batch.py" \
+                         "$MODDIR/common/originos_stage_complete.py" \
                          "$MODDIR/common/hyperos_physical_policy.py" \
                          "$MODDIR/common/font_role_policy.py" \
                          "$MODDIR/common/font_slot_weight.py" \
@@ -621,6 +622,16 @@ stage_coloros_complete() {
     LUOSHU_REAL_MODDIR="$MODDIR" sh "$_stage_bridge" "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1
 }
 
+stage_originos_complete() {
+    _pyroot="$MODDIR/common/python"
+    _python="$_pyroot/bin/luoshu-python"
+    [ -x "$_python" ] || return 1
+    PYTHONHOME="$_pyroot" \
+    PYTHONPATH="$MODDIR/common:$_pyroot/lib/python3.14:$_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_pyroot/lib:$_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_python" "$MODDIR/common/originos_stage_complete.py" "$MODDIR" "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1
+}
+
 stage_preserve_font_roles() {
     _pyroot="$MODDIR/common/python"
     _python="$_pyroot/bin/luoshu-python"
@@ -807,6 +818,12 @@ switch_font() {
                 progress 76 '正在按原厂槽位对齐 ColorOS 字体度量'
                 stage_coloros_complete || {
                     safe_error 'ColorOS 字体度量处理失败，请查看字体切换日志'
+                    return 1
+                }
+            else
+                progress 76 '正在检查并补齐原厂中文字体槽位'
+                stage_originos_complete || {
+                    safe_error 'vivo 中文字体槽位或度量处理失败，请查看字体切换日志'
                     return 1
                 }
             fi

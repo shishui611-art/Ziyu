@@ -15,6 +15,7 @@ export LUOSHU_SWITCH_WORKER_PID_FILE="$MODDIR/config/switch_task_worker.pid"
 mkdir -p "$MODDIR/common" "$MODDIR/config" "$MODDIR/logs"
 cp "$ROOT/common/background_task.sh" "$MODDIR/common/background_task.sh"
 cp "$ROOT/common/util_functions.sh" "$ROOT/common/util_functions_core.sh" "$MODDIR/common/"
+cp "$ROOT/common/font_switch_lock.sh" "$ROOT/common/font_live_state.sh" "$MODDIR/common/"
 
 MANAGER="$TMP/fake-manager.sh"
 cat > "$MANAGER" <<'EOF_MANAGER'

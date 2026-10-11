@@ -75,7 +75,8 @@ class HyperOSMetricsTest(unittest.TestCase):
         self.inventory({'/system/fonts/MiSansVF.ttf': slot()})
         with patch.object(TTFont, 'getGlyphSet', side_effect=AssertionError('outline rebuild')):
             result = batch.build(self.module, self.stage, ['MiSansVF.ttf'])
-        self.assertEqual(result, {'mapped': 1, 'generated': 1, 'fallbackSlots': 0})
+        self.assertEqual({key: result[key] for key in ('mapped', 'generated', 'fallbackSlots')},
+                         {'mapped': 1, 'generated': 1, 'fallbackSlots': 0})
         report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())
         self.assertEqual(report['slots'][0]['metricsSource'], 'stock')
         self.assertEqual(report['slots'][0]['slot'], '/system/fonts/MiSansVF.ttf')

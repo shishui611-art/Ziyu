@@ -15,7 +15,8 @@ mkdir -p \
     "$OLD/config" "$OLD/system/fonts/.luoshu-font-store" "$OLD/system/etc" "$OLD/product/fonts" \
     "$OLD/cache/full-composite-v5" "$OLD/cache/auto-multiweight-mix/composites-v2" \
     "$OLD/config/device-font-cache/stale" \
-    "$NEW/config" "$NEW/system/bin"
+    "$NEW/config" "$NEW/system/bin" "$NEW/common"
+cp "$ROOT/common/font_switch_lock.sh" "$NEW/common/font_switch_lock.sh"
 for partition in $OEM_PARTITIONS; do
     mkdir -p "$OLD/$partition/fonts"
     printf '%s payload\n' "$partition" >"$OLD/$partition/fonts/LuoShu-OEM.ttf"
@@ -111,7 +112,9 @@ mkdir -p "$CURRENT/config" "$CURRENT/system/fonts" \
     "$CURRENT/cache/full-composite-v12" "$CURRENT/cache/full-composite-v7" \
     "$CURRENT/cache/auto-multiweight-mix/composites-v9" "$CURRENT/cache/auto-multiweight-mix/composites-v3" \
     "$CURRENT/cache/auto-multiweight-mix/prepared-v8" "$CURRENT/config/device-font-cache/current/payload" \
-    "$CURRENT/config/device-font-cache/current/overlay" "$CURRENT/config/metrics_cache" "$CURRENT_NEW/config"
+    "$CURRENT/config/device-font-cache/current/overlay" "$CURRENT/config/metrics_cache" \
+    "$CURRENT_NEW/config" "$CURRENT_NEW/common"
+cp "$ROOT/common/font_switch_lock.sh" "$CURRENT_NEW/common/font_switch_lock.sh"
 printf 'id=LuoShu\nversion=current\n' >"$CURRENT/module.prop"
 printf 'mix\n' >"$CURRENT/config/active_font.conf"
 printf 'cjk=Qsal\nlatin=Latin\ndigit=Digit\n' >"$CURRENT/config/font_mix.conf"
@@ -153,7 +156,8 @@ test ! -e "$CURRENT_NEW/config/font-payload-rebuild-pending.conf"
 # A valid current-schema payload may live only in an OEM partition and must be retained.
 OPLUS_ONLY="$TMP/oplus-only"
 OPLUS_ONLY_NEW="$TMP/oplus-only-new"
-mkdir -p "$OPLUS_ONLY/config" "$OPLUS_ONLY/oplus_product/fonts" "$OPLUS_ONLY_NEW/config"
+mkdir -p "$OPLUS_ONLY/config" "$OPLUS_ONLY/oplus_product/fonts" "$OPLUS_ONLY_NEW/config" "$OPLUS_ONLY_NEW/common"
+cp "$ROOT/common/font_switch_lock.sh" "$OPLUS_ONLY_NEW/common/font_switch_lock.sh"
 printf 'id=LuoShu\nversion=oplus-only\n' >"$OPLUS_ONLY/module.prop"
 printf 'Qsal\n' >"$OPLUS_ONLY/config/active_font.conf"
 printf 'schema=%s\nfont=Qsal\n' "$SCHEMA" >"$OPLUS_ONLY/config/font-payload-schema.conf"
@@ -166,7 +170,8 @@ test "$LUOSHU_UPDATE_REBUILD_REQUIRED" = false
 # install-time rebuild. If its source font is really unavailable, customize.sh aborts before commit.
 INVALID="$TMP/invalid"
 TARGET="$TMP/invalid-target"
-mkdir -p "$INVALID/config" "$TARGET/config"
+mkdir -p "$INVALID/config" "$TARGET/config" "$TARGET/common"
+cp "$ROOT/common/font_switch_lock.sh" "$TARGET/common/font_switch_lock.sh"
 printf 'id=LuoShu\n' >"$INVALID/module.prop"
 printf 'MissingFont\n' >"$INVALID/config/active_font.conf"
 luoshu_migrate_active_install "$INVALID" "$TARGET"

@@ -33,7 +33,7 @@ PY
 # Without mount evidence the lightweight path remains pending.
 AUTO_MOD="$TMP/auto-module"
 mkdir -p "$AUTO_MOD/common" "$AUTO_MOD/config" "$AUTO_MOD/logs"
-cp "$ROOT/common/device_font_load_verify.sh" "$AUTO_MOD/common/"
+cp "$ROOT/common/device_font_load_verify.sh" "$ROOT/common/font_switch_lock.sh" "$AUTO_MOD/common/"
 printf 'Composite Font\n' > "$AUTO_MOD/config/active_font.conf"
 printf 'state=confirmed\nfont=Composite Font\n' > "$AUTO_MOD/config/font-payload-boot.conf"
 set +e
@@ -62,7 +62,7 @@ COMPAT_MOD="$TMP/compat-module"
 VISIBLE_ROOT="$TMP/visible-root"
 mkdir -p "$COMPAT_MOD/common" "$COMPAT_MOD/config" "$COMPAT_MOD/logs" \
     "$COMPAT_MOD/.luoshu-payload/system/fonts" "$VISIBLE_ROOT/system/fonts"
-cp "$ROOT/common/device_font_load_verify.sh" "$COMPAT_MOD/common/"
+cp "$ROOT/common/device_font_load_verify.sh" "$ROOT/common/font_switch_lock.sh" "$COMPAT_MOD/common/"
 printf 'Composite Font\n' > "$COMPAT_MOD/config/active_font.conf"
 python3 - "$COMPAT_MOD/.luoshu-payload/system/fonts/Roboto-Regular.ttf" "$VISIBLE_ROOT/system/fonts/Roboto-Regular.ttf" <<'PY_FONT'
 from pathlib import Path

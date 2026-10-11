@@ -84,9 +84,9 @@ pref set auto > "$TMP/auto-again"
 if pref set unsafe > "$TMP/invalid"; then fail 'invalid preference was accepted'; fi
 grep -qx 'preferred_backend=auto' "$MOD/config/mount-backend-preference.conf" || fail 'invalid preference changed the normalized policy'
 
-# Without an external provider, automatic policy waits for the KernelSU mount
-# hook, then verifies the private self-mount before reporting it active.
+# Explicit self-mount waits for the KernelSU mount hook and route verification.
 make_module "$TMP/self"
+printf 'preferred_backend=self_mount\n' > "$MOD/config/mount-backend-preference.conf"
 hook post-fs-data absent none pass
 [[ "$(value "$MOD" selected_backend)" == self ]] || fail 'missing provider did not select self mount'
 [[ "$(value "$MOD" active_backend)" == none ]] || fail 'KernelSU self mount ran before post-mount'
@@ -94,14 +94,22 @@ hook post-mount absent none pass
 [[ "$(value "$MOD" active_backend)" == self ]] || fail 'private self-mount fallback did not activate'
 [[ "$(value "$MOD" verification)" == passed ]] || fail 'self-mount was reported before verification'
 
-# A provider route failure activates the same verified self recovery path.
-make_module "$TMP/provider-fallback"
+# A provider route failure remains external and cannot mount the self backend.
+make_module "$TMP/provider-failed"
 hook post-fs-data available hybrid-mount pass
-hook post-mount available hybrid-mount fail
-[[ "$(value "$MOD" selected_backend)" == self ]] || fail 'failed provider route did not select self recovery'
-[[ "$(value "$MOD" active_backend)" == self ]] || fail 'self recovery did not become active'
-[[ "$(value "$MOD" fallback_used)" == 1 ]] || fail 'provider failure fallback was not recorded'
-[[ "$(value "$MOD" verification)" == passed ]] || fail 'fallback success was recorded without route verification'
+if hook post-mount available hybrid-mount fail; then fail 'provider failure was accepted'; fi
+[[ "$(value "$MOD" selected_backend)" == external ]] || fail 'provider failure changed the selected mode'
+[[ "$(value "$MOD" active_backend)" == none ]] || fail 'failed provider was reported active'
+[[ "$(value "$MOD" fallback_used)" == 0 ]] || fail 'provider failure switched to self'
+[[ "$(value "$MOD" verification)" == failed ]] || fail 'provider failure was not recorded'
+[[ ! -f "$MOD/config/test-self-mounted" ]] || fail 'provider failure ran an unselected self backend'
+
+# An absent provider in automatic mode fails without silently mounting fonts.
+make_module "$TMP/provider-absent"
+if hook post-fs-data absent none fail; then fail 'absent provider was accepted'; fi
+[[ "$(value "$MOD" selected_backend)" == external ]] || fail 'absent provider changed automatic mode'
+[[ "$(value "$MOD" active_backend)" == none ]] || fail 'absent provider was reported active'
+[[ ! -f "$MOD/config/test-self-mounted" ]] || fail 'absent provider ran an unselected self backend'
 
 # Previous-boot observations are historical and must not be exposed as live.
 make_module "$TMP/stale"
@@ -113,4 +121,4 @@ assert_json '"bootNomountObserved":false' "$TMP/stale-status" 'stale state was m
 assert_json '"providerState":"unknown"' "$TMP/stale-status" 'stale provider state was exposed as live'
 assert_json '"verification":"pending"' "$TMP/stale-status" 'stale verification was exposed as live'
 
-printf 'Mount preference migration, provider-first selection, current-boot status and verified self-fallback checks passed\n'
+printf 'Mount preference migration, provider-first selection, current-boot status and explicit mode failure checks passed\n'

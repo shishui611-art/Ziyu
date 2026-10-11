@@ -3,6 +3,7 @@
 set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
+mkdir -p "$MODDIR/logs" || exit 1
 
 _soft_stage="$MODDIR/config/temporary-root-soft-reboot.conf"
 _soft_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')

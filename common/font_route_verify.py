@@ -196,6 +196,10 @@ def physical_roles(name: str, family: str = "", language: str = "") -> set[str]:
     explicitly_other = LATIN_ROLE.search(name) or DIGIT_ROLE.search(name)
     if not explicitly_other and (re.search(r"(?:han[st]?|cjk|noto.*(?:sc|cjk)|LuoShuSlotCJK|chinese|simplified)", label, re.IGNORECASE) or re.search(r"(?:^|[ ,;])zh(?:[-_]|$)|Hans|Hant", language, re.IGNORECASE)):
         roles.add("cjk")
+    # Vivo's direct Chinese UI slots also require the measured stock-Han
+    # coverage proof below; their filename alone never proves activation.
+    if name.lower() in {"droidsansfallbackbbk.ttf", "droidsansfallbackmonster.ttf", "vivofont.ttf"}:
+        roles.add("cjk")
     # ColorOS declares its composite global UI slot as sans-serif. It is not
     # evidence for a Latin-only Roboto slot serving Chinese.
     if re.fullmatch(r"SysFont(?:-Static)?-Regular\.(?:ttf|otf|ttc)", name, re.IGNORECASE) and family.strip().lower() == "sans-serif":

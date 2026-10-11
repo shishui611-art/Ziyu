@@ -19,6 +19,7 @@ cp() {
 make_install() {
     mkdir -p "$1/config" "$1/system/fonts" "$1/common"
     printf 'id=LuoShu\nversion=v4.2.0\nversionCode=40200\n' > "$1/module.prop"
+    cp "$ROOT/common/font_switch_lock.sh" "$1/common/font_switch_lock.sh"
     for _fixture_builder in $BUILDERS; do
         mkdir -p "$1/${_fixture_builder%/*}"
         printf '# builder policy before update\n' > "$1/$_fixture_builder"

@@ -15,6 +15,8 @@ source_executable() {
 # payload visible to every host-side Python test as well; otherwise a clean CI
 # runner fails before the Android build even though the runtime is present.
 LUOSHU_BUNDLED_SITE="$ROOT/common/python/lib/python3.14/site-packages"
+PYTHONPATH="$ROOT/common${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
 if [ -d "$LUOSHU_BUNDLED_SITE/fontTools" ]; then
   PYTHONPATH="$LUOSHU_BUNDLED_SITE${PYTHONPATH:+:$PYTHONPATH}"
   export PYTHONPATH
@@ -303,6 +305,7 @@ sh "$ROOT/scripts/hyperos_global_mapping_test.sh"
 sh "$ROOT/scripts/coloros_consistency_mapping_test.sh"
 sh "$ROOT/scripts/module_layout_test.sh"
 python3 "$ROOT/scripts/coloros_metrics_batch_test.py"
+python3 "$ROOT/scripts/originos_stage_complete_test.py"
 FONT_INVENTORY_TEST_FONT=${FONT_INVENTORY_TEST_FONT:-$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)}
 [ -s "$FONT_INVENTORY_TEST_FONT" ]
 python3 "$ROOT/scripts/font_source_profile_test.py" --font "$FONT_INVENTORY_TEST_FONT"

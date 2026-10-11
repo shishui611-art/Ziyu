@@ -13,6 +13,10 @@ mkdir -p "$MODDIR/common" "$MODDIR/config" "$MODDIR/logs" "$PUBLIC_DIR/fonts" \
 cp "$ROOT/common/font_manager.sh" "$MODDIR/common/font_manager.sh"
 cp "$ROOT/common/legacy_v14_4_switch.sh" "$MODDIR/common/legacy_v14_4_switch.sh"
 cp "$ROOT/common/font_switch_lock.sh" "$MODDIR/common/font_switch_lock.sh"
+cp "$ROOT/common/font_next_transaction.sh" "$MODDIR/common/font_next_transaction.sh"
+cp "$ROOT/common/font_live_state.sh" "$MODDIR/common/font_live_state.sh"
+cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/font_live_switch.sh"
+cp "$ROOT/common/font_live_payload.py" "$MODDIR/common/font_live_payload.py"
 ln -s "$ROOT/common/legacy_v14_4" "$MODDIR/common/legacy_v14_4"
 printf 'live-payload-must-not-change\n' > "$MODDIR/.luoshu-payload/live-marker"
 printf 'BeforeSwitch\n' > "$MODDIR/config/active_font.conf"
@@ -111,7 +115,7 @@ test ! -e "$LOCK"
 # available while the replacement is queued for post-fs-data activation.
 mkdir "$LOCK"
 printf '%s\n' 999999 > "$LOCK/pid"
-MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
+MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_PYTHON=python3 \
     sh "$MODDIR/common/font_manager.sh" action switch default > "$TMP/stale.out" 2>&1
 grep -q '"status":"ok"' "$TMP/stale.out"
 grep -q '"core":"physical-safe-v1"' "$TMP/stale.out"

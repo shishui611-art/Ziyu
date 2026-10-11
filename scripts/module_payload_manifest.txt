@@ -138,6 +138,7 @@ common/mount_self_fallback.sh
 common/multiweight_mix_task.sh
 common/native_import.sh
 common/origin_flyme_global.sh
+common/originos_stage_complete.py
 common/rom_adapters.sh
 common/util_functions.sh
 common/root_manager_detection.sh

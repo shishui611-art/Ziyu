@@ -2,11 +2,13 @@
 """Exercise service routing, active provider sources and slow-copy staging."""
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import tempfile
 import time
 import unittest
+import sys
 from host_task_scope_fixture import install_task_scope
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -170,7 +172,20 @@ exec "$TEST_REAL_CP" "$@"
         for name in ('font_switch_safe.sh', 'payload_clone.sh'):
             shutil.copyfile(ROOT / 'common/legacy_v14_4' / name, legacy / name)
         shutil.copyfile(ROOT / 'common/font_switch_lock.sh', self.module / 'common/font_switch_lock.sh')
-        (legacy / 'util_functions.sh').write_text('''
+        for name in ('font_next_transaction.sh', 'font_live_state.sh',
+                     'font_live_switch.sh', 'font_live_payload.py',
+                     'originos_stage_complete.py'):
+            shutil.copyfile(ROOT / 'common' / name, self.module / 'common' / name)
+        runtime = self.module / 'common/python/bin/luoshu-python'
+        runtime.write_text(
+            '#!/bin/sh\n'
+            'case "$1" in */originos_stage_complete.py) exit 0;; esac\n'
+            'unset PYTHONHOME PYTHONPATH LD_LIBRARY_PATH\n'
+            f'exec {shlex.quote(sys.executable)} "$@"\n')
+        runtime.chmod(0o755)
+        shutil.copyfile(ROOT / 'common/legacy_v14_4/util_functions.sh', legacy / 'util_functions.sh')
+        with (legacy / 'util_functions.sh').open('a') as util:
+            util.write('''
 check_coloros() { IS_COLOROS=false; }
 check_hyperos() { IS_HYPEROS=false; }
 detect_font_family() { printf '%s\\n' "${1%.ttf}"; }
