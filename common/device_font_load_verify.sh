@@ -5,7 +5,7 @@
 set +e
 
 _dfload_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 [ ! -f "$(_dfload_module)/common/font_live_state.sh" ] || . "$(_dfload_module)/common/font_live_state.sh"

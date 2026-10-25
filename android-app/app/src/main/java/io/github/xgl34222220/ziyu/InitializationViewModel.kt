@@ -71,7 +71,7 @@ private val ROOT_AND_MODULE_PROBE = """
     printf 'uid=%s\n' "${'$'}uid"
     if [ "${'$'}uid" != 0 ]; then exit 1; fi
 
-    module_dir=/data/adb/modules/LuoShu
+    module_dir=/data/adb/modules/ziyu
     if [ -f "${'$'}module_dir/common/root_manager_detection.sh" ]; then
         . "${'$'}module_dir/common/root_manager_detection.sh"
         luoshu_detect_root_manager >/dev/null 2>&1 || true
@@ -105,7 +105,7 @@ private val ROOT_AND_MODULE_PROBE = """
     fi
     printf 'root_manager=%s\n' "${'$'}root_manager"
 
-    update_dir=/data/adb/modules_update/LuoShu
+    update_dir=/data/adb/modules_update/ziyu
     module_installed=false
     module_pending_update=false
     module_disabled=false
@@ -118,7 +118,7 @@ private val ROOT_AND_MODULE_PROBE = """
     if [ -f "${'$'}module_dir/module.prop" ]; then
         module_installed=true
         module_id="${'$'}(sed -n 's/^id=//p' "${'$'}module_dir/module.prop" 2>/dev/null | head -n1 | tr -d '\\r\\n')"
-        [ "${'$'}module_id" = LuoShu ] && module_id_matches=true
+        case "${'$'}module_id" in ziyu|LuoShu) module_id_matches=true ;; esac
         module_version="${'$'}(sed -n 's/^version=//p' "${'$'}module_dir/module.prop" 2>/dev/null | head -n1 | tr -cd 'A-Za-z0-9._+-')"
         [ -e "${'$'}module_dir/disable" ] && module_disabled=true
         [ -e "${'$'}module_dir/remove" ] && module_remove_pending=true

@@ -4,7 +4,7 @@
 # This wrapper only bridges its async task lifecycle to the current private payload boot mode.
 set +e
 RUNTIME="${MODDIR:-}"
-REALMOD="${LUOSHU_REAL_MODDIR:-/data/adb/modules/LuoShu}"
+REALMOD="${LUOSHU_REAL_MODDIR:-/data/adb/modules/ziyu}"
 ENGINE="$RUNTIME/common/font_mix_engine.sh"
 TASK_FILE="$RUNTIME/config/mix_task.conf"
 LEGACY_MODE="$RUNTIME/config/font_runtime_legacy_v14_4.conf"

@@ -4,7 +4,7 @@
 set +e
 
 _luoshu_active_state_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 _luoshu_active_state_value() {

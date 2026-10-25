@@ -46,6 +46,7 @@ internal fun ZiyuHost() {
     }
 
     ZiyuTheme(appearance) {
+        if (setupRequired == false) NotificationPermissionOnboarding()
         val pageBackground = LocalZiyuPaletteTokens.current.pageBackground
         val useDarkSystemBars = pageBackground.luminance() < .5f
         val context = LocalContext.current

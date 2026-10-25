@@ -10,9 +10,11 @@ if [ -z "$REALMOD" ]; then
     if [ -f "${0%/*}/../../module.prop" ]; then
         REALMOD="$(CDPATH= cd -- "${0%/*}/../.." 2>/dev/null && pwd)"
     else
-        REALMOD="/data/adb/modules/LuoShu"
+        REALMOD="/data/adb/modules/ziyu"
     fi
 fi
+. "$REALMOD/common/user_storage.sh" || exit 1
+ziyu_user_storage_environment "$REALMOD" || exit 1
 LEGACY="$REALMOD/common/legacy_v14_4"
 RUNTIME="$REALMOD/.legacy-v14-runtime"
 LIVE_PAYLOAD="$REALMOD/.luoshu-payload"
@@ -49,7 +51,7 @@ publish_named_mix() (
     [ -n "$_pnm_name" ] || _pnm_name=组合字体
     _pnm_request=$(read_value "$MIX_STAGE_STATE" requestId)
     _pnm_public=$(read_value "$MIX_STAGE_STATE" publicRoot)
-    [ -n "$_pnm_public" ] || _pnm_public=/sdcard/LuoShu
+    [ -n "$_pnm_public" ] || _pnm_public=${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}
     _pnm_source="$MIX_STAGE/mix-composite.ttf"
     [ -s "$_pnm_source" ] || return 1
     _pnm_result=$(mix_python "$REALMOD/common/mix_library.py" --source "$_pnm_source" \
@@ -316,7 +318,7 @@ prepare_mix_stage() {
         printf 'requestId=%s\n' "$_request"
         printf 'cjk=%s\nlatin=%s\ndigit=%s\n' "$1" "$2" "$3"
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$4" "$5" "$6"
-        printf 'mixName=%s\npublicRoot=%s\n' "${7:-}" "${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+        printf 'mixName=%s\npublicRoot=%s\n' "${7:-}" "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
         printf 'cjkName=%s\nlatinName=%s\ndigitName=%s\n' "${8:-}" "${9:-}" "${10:-}"
         printf 'latinSize=%s\nlatinOffset=%s\n' \
             "$(composite_tune_clamp "${11:-0}" 15)" "$(composite_tune_clamp "${12:-0}" 10)"
@@ -619,7 +621,7 @@ case "$_cmd" in
     start)
         if [ -f "$REALMOD/common/boot_ota_guard.sh" ] && ! MODDIR="$REALMOD" MODULE_DIR="$REALMOD" \
             sh "$REALMOD/common/boot_ota_guard.sh" allow-apply "$REALMOD" mix >/dev/null 2>&1; then
-            printf '{"status":"error","message":"开机安全保护当前只允许恢复系统默认字体；OTA 期间请先完成原厂扫描"}\n'
+            printf '{"status":"error","message":"开机保护暂未解除，请在开机保护页面核对原因并完成原厂字体扫描"}\n'
             exit 1
         fi
         mkdir -p "$REALMOD/logs" 2>/dev/null || exit 1
@@ -629,7 +631,7 @@ case "$_cmd" in
                 printf '{"status":"error","message":"已有字体组合任务正在运行或取消"}\n'
                 exit 1 ;;
         esac
-        _mix_public_fonts="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+        _mix_public_fonts="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
         for _mix_source_id in "$2" "$3" "$4"; do
             case "$_mix_source_id" in
                 ''|/*|*/*|*\\*)

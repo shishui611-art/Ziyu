@@ -11,7 +11,13 @@
 - 字域适配：保留当前组合保存与应用流程、字形兼容和错误报告；微调接入三种界面风格、方案备份及任务参数；实例缓存沿用字域实现并补充同源英数复用。
 - 许可证：GPL-3.0-only。上游此标签的许可证文本保存在 [`licenses/LuoShu-v3.0.0-GPL-3.0.txt`](licenses/LuoShu-v3.0.0-GPL-3.0.txt)。完整范围和当前验证状态见 [`docs/UPSTREAM_V3_PORT.md`](docs/UPSTREAM_V3_PORT.md)。
 
-## 挂载协议参考
+## 字体预加载公共接口
+
+- `native/font-preload/zygisk.hpp` 原样取自 `topjohnwu/zygisk-module-sample` 提交 `7bb941ac8edfcffd1d23761e401c45ca95409dc1` 的 `module/jni/zygisk.hpp`（Zygisk API v4）；版权 John "topjohnwu" Wu，原宽松许可证保存在文件头及 `licenses/Zygisk-API-LICENSE.txt`。
+- `native/font-preload/preload.cpp`、`common/font_preload_state.py`、构建脚本和安装生命周期脚本为字域 GPL-3.0-only 代码。字体缓存调用思路参考 [JingMatrix/FontLoader](https://github.com/JingMatrix/FontLoader) 的说明；其 Usage 建议将字体定制目标应用移出 DenyList。回调资格边界参考 [Magisk 的 `zygisk_should_load_module`](https://github.com/topjohnwu/Magisk/blob/master/native/src/core/zygisk/daemon.rs)：当目标同时处于 `ProcessOnDenyList` 和 `DenyListEnforced` 状态时，该函数不加载 Zygisk 模块。字域不会自动修改排除设置；这些参考只用于说明字体预热原理与回调限制，未复制 FontLoader 或 Magisk 的源码实现。
+- `common/font_preload_module/zygisk/*.so` 由上述源码使用 Android NDK r28c 编译，未链接外置 `libc++_shared.so`。源码及库哈希记录在同目录 `build.json`，模块清单明确包含该组件和许可证。
+
+## 挂载实现参考
 
 `common/device_font_template_base.py` 的按需 PostScript 名称索引及字体表懒加载移植自 LuoShu 提交 [`852297117606ca37436b999b6307fd598742bca7`](https://github.com/xgl34222220-ops/LuoShu/commit/852297117606ca37436b999b6307fd598742bca7)，保持 GPL-3.0-only；许可证完整文本沿用 `licenses/LuoShu-v3.0.0-GPL-3.0.txt`。它仅改变采集读取时机，原有解析、哈希和验证流程保留。
 
@@ -81,7 +87,7 @@ v1.3.3 新增的 `common/font_scan_profile.py` 和 `common/stock_font_snapshot.p
 
 字域不会在仓库或发布包中附带商业字体。以下内容不受字域 GPL-3.0-only 授权：
 
-- 用户自行放入 `/sdcard/LuoShu/fonts/` 的字体；
+- 用户自行放入当前默认目录 `/sdcard/ziyu/fonts/` 的字体；升级兼容期间也可能仍从旧目录 `/sdcard/LuoShu/fonts/` 读取；
 - 从其他模块 ZIP 中读取的字体；
 - ROM、厂商、Google 或应用自带字体；
 - 使用这些字体生成的复合输出中由原字体权利人拥有的字形数据。
@@ -97,3 +103,27 @@ v1.3.3 新增的 `common/font_scan_profile.py` 和 `common/stock_font_snapshot.p
 - `common/composite_collection_build.py`、`composite_collection_contract.py` 及 Shell 入口参考上游组合字体集合方向，基于字域现有组合输出、fontTools 与可信原厂快照实现逐面构建/证明校验；代码按本仓库 GPL-3.0-only 授权，字体数据的权利仍属于原权利人。
 - `common/boot_ota_guard.sh` 及设置入口为按字域现有启动、任务监督、切换事务和挂载验证路径编写的启动/OTA 保护适配，按本仓库 GPL-3.0-only 授权；不复制或接管 Root 管理器挂载实现。
 - 完整移植范围、验收证据与手机待测项见本次版本说明和 `docs/UPSTREAM_PORT_20261018.md`；不把上游未发布 main 或其历史设备观察当作字域当前版本手机验收。
+
+## ziyu v1.4.8 运行文件
+
+`common/user_storage.{sh,py}`、`common/user_storage_dispatch.sh`、`common/full_backup.{sh,py}`、`common/identity_migration.sh` 与 Android 背景导入为项目自有实现，沿用项目许可证；依赖现有 CPython 的 fcntl/hashlib 与 Android ImageDecoder，未引入第三方二进制。保留的 LuoShu 前缀状态、文件与来源注释用于旧负载恢复及许可证溯源，不代表模块管理器 ID。
+
+## ziyu v1.4.10 字形兼容修正
+
+`common/composite_collection_build.py`、`font_slot_compat.py` 内的原厂组合字形部件隔离、变化映射复制及回读契约为本项目基于现有 FontTools API 编写的修改，沿用 GPL-3.0-only；使用已有运行库，未引入新第三方文件或二进制。原厂字体仅用于设备上本次离线兼容编译，不随模块分发。
+
+## ziyu v1.4.11 本地显示配置
+
+`common/display_config_storage.{sh,py}`、`display_typography.sh` 的本地配置读写、迁移与内部镜像，以及 `font_axis_info.py` 的元数据缓存为本项目自有实现，沿用 GPL-3.0-only。使用已有 CPython 标准库和 Android 设置接口，未增加第三方依赖、密钥或后台常驻服务。新增运行文件列入模块打包清单。
+
+## ziyu v1.4.12 SukiSU 双主题适配
+
+v1.4.13 的通知授权状态、独立预览通知与 `ui/navigation/PredictiveBack.kt` 手势状态管理为项目自有实现，沿用 GPL-3.0-only。使用现有 Android/AndroidX Compose API，没有引入新第三方库、运行二进制或签名密钥。主题交互继续基于以下固定 SukiSU 参考适配，已有来源声明和许可保持。
+
+来源：[SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra)，固定提交 `df84920b20a925fd1135530f6e403361ad494d7b`，获取日期 2026-10-24。参考 `manager/app/src/main/java/com/sukisu/ultra/ui/theme/{Theme,MiuixTheme,MaterialTheme,ThemeExt,Shape,Colors}.kt`、`ui/screen/colorpalette/ColorPaletteScreenMiuix.kt`、`ui/component/material/TonalCard.kt` 与 `ui/component/bottombar/BottomBarMaterial.kt`。
+
+上游 manager 使用 GPL-3.0-or-later；本次适配选择 GPL 第 3 版，修改沿用本仓库 GPL-3.0-only。许可证全文保存在 `licenses/SukiSU-Ultra-GPL-3.0.txt` 并进入模块清单。适配涉及调色枚举/2025 支持范围、主题色数值、Expressive 圆角/主题与按压反馈、明暗预览布局、Material 导航的实体和液态样式；保留字域自己的内容、业务状态、控件桥和低版本兼容路径。未复制上游图标插画、应用标识、Root 管理或内核代码。已有玻璃导航的 KernelSU/Miuix/Apache 来源说明继续保留。
+
+`common/font_verity.{sh,py}` 是项目自有 Linux fs-verity ioctl 封装，UAPI 参数参考 Android NDK `<linux/fsverity.h>`；不引入额外库或证书。新增用户存储、备份与标识迁移同为项目自有代码，保留项目许可证。
+
+`common/font_parallel.py` 与 Android `NotificationAccess.kt` 为项目自有实现，沿用项目许可证。并行处理使用已有 CPython 的 os/signal/json，通知使用 Android 系统 API，未引入第三方库、厂商 SDK、签名密钥或驻留服务。

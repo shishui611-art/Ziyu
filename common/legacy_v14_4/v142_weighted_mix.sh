@@ -8,14 +8,18 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
 fi
 
 CONFIG_DIR="$MODDIR/config"
 export LUOSHU_PREPARE_CACHE="$MODDIR/cache/prepared-selected-v1"
 CACHE_ROOT="$MODDIR/cache/axes-mix"
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 BASE_ENGINE="$MODDIR/common/font_mix.sh"
 INSTANCE_PY="$MODDIR/common/font_instance.py"
 PYROOT="$MODDIR/common/python"

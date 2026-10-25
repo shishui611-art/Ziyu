@@ -167,8 +167,7 @@ private fun NativeZiyuAlertDialog(
             ) {
                 Column(
                     modifier = Modifier
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
+                        .weight(1f, fill = false),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {

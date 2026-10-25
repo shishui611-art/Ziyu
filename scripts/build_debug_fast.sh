@@ -33,6 +33,7 @@ esac
 rm -rf "$STAGE"
 mkdir -p "$STAGE" "$OUT"
 PAYLOAD_MANIFEST="$ROOT/scripts/module_payload_manifest.txt"
+python3 "$ROOT/scripts/build_font_preload.py" --verify
 test -s "$PAYLOAD_MANIFEST"
 while IFS= read -r path || [ -n "$path" ]; do
   case "$path" in ''|\#*) continue ;; esac
@@ -41,6 +42,8 @@ while IFS= read -r path || [ -n "$path" ]; do
   cp -a "$ROOT/$path" "$STAGE/$path"
 done < "$PAYLOAD_MANIFEST"
 [ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$LUOSHU_VERSION/" "$STAGE/config/version_notes.conf"
+sed -i -e "s/^version=.*/version=$LUOSHU_VERSION/" -e "s/^versionCode=.*/versionCode=$EXPECTED_VERSION_CODE/" \
+    "$STAGE/common/font_preload_module/module.prop"
 
 mkdir -p "$STAGE/bundled"
 cp -f "$APP_APK" "$STAGE/bundled/Ziyu-App.apk"

@@ -3,7 +3,7 @@
 # Read-only: collects FontManager evidence and merges it with the trusted stock inventory.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODDIR/config"
 PYROOT="$MODDIR/common/python"

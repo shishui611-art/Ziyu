@@ -155,7 +155,13 @@ fw_snap() {
     printf '%s\n' "$_fw_snap_value"
 }
 
-fw_reset() {
+fw_reset() (
+    # Serialize the retired legacy owner against the new explicit display
+    # transaction so it cannot restore an old value during a user's write.
+    MODULE_DIR="$FW_MODDIR"
+    . "$FW_MODDIR/common/util_functions.sh" || return 4
+    luoshu_font_lock_acquire "$FW_MODDIR/.display-typography.lock" "$$" || return 4
+    trap 'luoshu_font_lock_release "$FW_MODDIR/.display-typography.lock" "$$" >/dev/null 2>&1 || true' EXIT
     if ! fw_load_active || ! fw_load_original; then
         fw_clear_owned_state
         printf '%s\n' '{"status":"ok","data":{"reset":false,"message":"没有字域保存的原始系统粗细"}}'
@@ -178,7 +184,7 @@ fw_reset() {
     fw_report reset >/dev/null 2>&1 || true
     printf '{"status":"ok","data":{"reset":true,"weight":%s,"message":"已恢复系统原始字体粗细"}}\n' \
         "$(fw_snap $((400 + FW_ADJUSTMENT)))"
-}
+)
 
 fw_boot() {
     # Retired feature: restore only a setting still owned by this module.

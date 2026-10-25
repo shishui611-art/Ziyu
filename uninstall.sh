@@ -73,4 +73,11 @@ done
 [ ! -f "$MODDIR/common/apatch_boot_prepare.sh" ] || {
     . "$MODDIR/common/apatch_boot_prepare.sh" && ziyu_apatch_hook_remove
 } || exit 1
+if [ -f "$MODDIR/common/font_preload_helper.sh" ]; then
+    . "$MODDIR/common/font_preload_helper.sh"
+    ziyu_preload_helper_remove || {
+        echo '字域：自有字体预加载组件的移除标记写入失败。' >&2
+        exit 1
+    }
+fi
 . "$MODDIR/.luoshu-runtime/compat/v227/uninstall.sh"

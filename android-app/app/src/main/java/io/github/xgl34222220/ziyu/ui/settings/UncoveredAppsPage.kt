@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
-private const val APP_COVERAGE_BRIDGE = "/data/adb/modules/LuoShu/common/app_bridge.sh"
+private const val APP_COVERAGE_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
 private val APP_PACKAGE_PATTERN = Regex("^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$")
 
 private data class RunningAppChoice(val packageName: String, val processCount: Int)

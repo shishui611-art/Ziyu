@@ -61,7 +61,7 @@ internal fun googleFontActionMessage(action: String, status: String): String = w
 internal fun googleFontCommand(action: String, user: Int): String {
     require(action in setOf("status", "enable", "restore"))
     require(user in 0..21474)
-    val path = "/data/adb/modules/LuoShu/common/google_font_fallback.sh"
+    val path = "/data/adb/modules/ziyu/common/google_font_fallback.sh"
     return "if [ -f ${RootShell.quote(path)} ]; then /system/bin/sh ${RootShell.quote(path)} " +
         "$action --user $user --json; else printf '%s\\n' " +
         RootShell.quote("""{"status":"error","message":"当前模块尚未内置此功能，请安装配套模块并完整重启。"}""") +

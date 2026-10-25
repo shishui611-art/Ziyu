@@ -105,7 +105,7 @@ _legacy_coloros_digits_enabled() {
         _coloros_osans_digits_enabled
         return $?
     fi
-    _lcde_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _lcde_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     _lcde_enabled=1
     _lcde_groups="$_lcde_module/config/coloros_slot_groups.conf"
     if [ -r "$_lcde_groups" ]; then

@@ -7,10 +7,14 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
 fi
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 PYROOT="$MODDIR/common/python"
 PYBIN="$PYROOT/bin/luoshu-python"
 INSPECTOR="$MODDIR/common/font_metadata.py"

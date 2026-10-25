@@ -3,7 +3,7 @@
 # Finite, boot-scoped verification only; no resident watcher and no target discovery.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
 VERIFIER="$MODDIR/common/universal_font_runtime_verify.py"

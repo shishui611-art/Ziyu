@@ -16,6 +16,7 @@ EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
 # dependencies and signature checks. The App updater independently caps downloads at 128 MiB.
 MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-12582912}"
 
+python3 "$ROOT/scripts/build_font_preload.py" --verify
 sh "$ROOT/scripts/check.sh"
 [ -n "$APP_APK" ] || {
   echo 'LUOSHU_APP_APK is required for the App-only module.' >&2
@@ -78,6 +79,8 @@ while IFS= read -r path || [ -n "$path" ]; do
   cp -a "$ROOT/$path" "$STAGE/$path"
 done < "$PAYLOAD_MANIFEST"
 [ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$LUOSHU_VERSION/" "$STAGE/config/version_notes.conf"
+sed -i -e "s/^version=.*/version=$LUOSHU_VERSION/" -e "s/^versionCode=.*/versionCode=$EXPECTED_VERSION_CODE/" \
+    "$STAGE/common/font_preload_module/module.prop"
 
 mkdir -p "$STAGE/bundled"
 cp -f "$APP_APK" "$STAGE/bundled/Ziyu-App.apk"

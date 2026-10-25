@@ -83,8 +83,8 @@ def evaluate(
                 reasons.append(f"replacement-role-not-allowed:{role}:{path}")
         if role in PROTECTED_ROLES and action != "preserve":
             reasons.append(f"protected-role-not-preserved:{role}:{path}")
-        if role == "unknown-protected" and action != "review":
-            reasons.append(f"unknown-role-not-review:{path}")
+        if role == "unknown-protected" and not universal_font_plan.unknown_action_allowed(target):
+            reasons.append(f"unknown-role-not-preserved-or-review:{path}")
 
     if replacement_count == 0:
         reasons.append("no-universal-replacement-targets")

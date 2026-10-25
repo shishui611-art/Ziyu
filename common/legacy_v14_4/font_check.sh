@@ -52,7 +52,7 @@ font_validate() {
         return 1
     fi
     if [ "$FONT_CHECK_SIZE" -lt 4096 ]; then
-        _struct_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+        _struct_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
         _struct_root="$_struct_module/common/python"
         _struct_checker="$_struct_module/common/font_structure.py"
         _struct_python="${LUOSHU_HOST_PYTHON:-$_struct_root/bin/luoshu-python}"
@@ -123,7 +123,7 @@ font_validate() {
 font_validate_global() {
     _file="$1"
     font_validate "$_file" text || return 1
-    _module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     _python="$_module/common/python/bin/luoshu-python"
     _checker="$_module/common/font_coverage.py"
     FONT_CHECK_COVERAGE=""

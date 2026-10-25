@@ -66,11 +66,9 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // A Debug build signed with the release key updates the existing
-            // release App. Only unsigned local development uses a separate ID.
-            if (!hasReleaseSigning) {
-                applicationIdSuffix = ".debug"
-            }
+            // All distributions keep one identity. Covering an installed App
+            // still requires its existing certificate; local Debug signing
+            // cannot replace the GitHub release certificate.
             versionNameSuffix = "-debug"
             // Keep release-like optimization and a visible Debug version label.
             isDebuggable = false
@@ -121,7 +119,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
+    // Match SukiSU's public Expressive API; alpha17 keeps this interface internal.
+    implementation("androidx.compose.material3:material3:1.5.0-alpha28")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")

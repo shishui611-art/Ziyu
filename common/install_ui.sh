@@ -52,6 +52,24 @@ luoshu_install_choose_mount_backend() {
         *) _lui_mode='元模块自动挂载' ;;
     esac
     ui_print "• 已保存挂载选择：$_lui_mode"
+    _lui_auto_self_mode=self_mount
+    if [ "$LUOSHU_INSTALL_BACKEND_PREFERENCE" = auto ]; then
+        if type ziyu_mount_auto_self_backend >/dev/null 2>&1; then
+            _lui_auto_self_mode=$(ziyu_mount_auto_self_backend "${ROOT_MANAGER:-unknown}")
+        fi
+        if [ "$_lui_auto_self_mode" = magic ]; then
+            ui_print '• 自动策略：Root 管理器未识别，重启时尝试 Magic Mount（bind）'
+        else
+            case "${ROOT_MANAGER:-unknown}" in
+                Magisk|APatch)
+                    ui_print '• 自动策略：优先可用元模块或管理器内置挂载，不可用则尝试字域自挂载'
+                    ;;
+                *)
+                    ui_print '• 自动策略：未检测到可用元模块时，重启尝试字域自挂载'
+                    ;;
+            esac
+        fi
+    fi
     _lui_module="${MODPATH:-${MODDIR:-}}"
     _lui_active_font='default'
     [ -z "$_lui_module" ] || _lui_active_font=$(head -n1 "$_lui_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
@@ -84,6 +102,10 @@ luoshu_install_choose_mount_backend() {
     LUOSHU_INSTALL_MOUNT_STATE=pending
     if [ "$LUOSHU_INSTALL_BACKEND_PREFERENCE" != auto ]; then
         ui_print "• 挂载：待重启验证（使用已保存的 $_lui_mode）"
+        return 0
+    fi
+    if [ "$_lui_auto_self_mode" = magic ]; then
+        ui_print '• 挂载：待重启验证（Root 未识别，使用字域 Magic Mount / bind 回退）'
         return 0
     fi
     case "${META_ENABLED:-0}:${META_USABLE:-0}" in

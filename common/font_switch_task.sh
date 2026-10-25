@@ -9,7 +9,7 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
 fi
 MODULE_DIR="$MODDIR"

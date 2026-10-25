@@ -2,7 +2,7 @@
 # LuoShu successful font switch history. Records only completed transactions and
 # restores through the existing guarded switch/mix controllers.
 set +e
-MODDIR="${MODDIR:-/data/adb/modules/LuoShu}"
+MODDIR="${MODDIR:-/data/adb/modules/ziyu}"
 CONFIG_DIR="$MODDIR/config"
 HISTORY_DIR="${LUOSHU_HISTORY_DIR:-$CONFIG_DIR/switch_history}"
 DIRECT_TASK="$MODDIR/common/font_switch_task.sh"

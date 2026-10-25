@@ -3,8 +3,12 @@
 # 只读取文件名、大小和修改时间，不解析字体轮廓，可用于 App 后台快速判断是否需要重建索引。
 
 font_library_fingerprint_value() {
-    _font_dir="${USER_FONTS_DIR:-/sdcard/LuoShu/fonts}"
-    _config_dir="${CONFIG_DIR:-/data/adb/modules/LuoShu/config}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+    _font_dir="${USER_FONTS_DIR:-${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts}"
+    _config_dir="${CONFIG_DIR:-/data/adb/modules/ziyu/config}"
     mkdir -p "$_config_dir" 2>/dev/null || true
     _tmp="$_config_dir/.font-fingerprint.$$"
     : > "$_tmp" 2>/dev/null || return 1
@@ -53,15 +57,17 @@ font_library_fingerprint_json() {
 
 # font_manager.sh 在 rom_adapters.sh 之后加载本文件，因此这里接入 HyperOS 增强层，
 # 让直接应用字体使用真实分区映射与原厂度量外壳。
-_hyperos_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/hyperos_global.sh"
+_hyperos_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/hyperos_global.sh"
 [ -f "$_hyperos_helper" ] && . "$_hyperos_helper"
-_font_config_partitions="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/font_config_partitions.sh"
+_font_config_partitions="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/font_config_partitions.sh"
 [ -f "$_font_config_partitions" ] && . "$_font_config_partitions"
 
 # 直接执行时提供给原生 App 使用；被 font_manager.sh source 时只定义函数。
 if [ "${0##*/}" = "font_library_cache.sh" ]; then
     MODDIR="${MODDIR:-$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)}"
-    USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+    . "$MODDIR/common/user_storage.sh" || exit 1
+    ziyu_user_storage_environment "$MODDIR" || exit 1
+    USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
     CONFIG_DIR="$MODDIR/config"
     ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
     json_escape() {

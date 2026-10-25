@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "universal-font-plan-v1"
-PLAN_REVISION = 2
+PLAN_REVISION = 4
 TOPOLOGY_SCHEMA = "device-font-topology-v1"
 ROLES_SCHEMA = "device-font-roles-v1"
 SOURCE_SCHEMA = "source-font-profile-v1"
@@ -30,6 +30,13 @@ SPECIALIZED_ROLES = {"numeric", "clock"}
 
 class UniversalPlanError(RuntimeError):
     pass
+
+
+def unknown_action_allowed(target: dict[str, Any]) -> bool:
+    """Unknown slots can be reviewed or explicitly kept by the role policy."""
+    return target.get("action") == "review" or (
+        target.get("action") == "preserve" and target.get("roleAction") == "preserve"
+    )
 
 
 def _int(value: Any, default: int | None = None) -> int | None:
@@ -879,7 +886,7 @@ def validate_plan(
 ) -> None:
     if plan.get("schema") != SCHEMA or plan.get("state") != "planned":
         raise UniversalPlanError("Universal FontPlan 格式无效")
-    if _int(plan.get("planRevision"), 0) != PLAN_REVISION:
+    if _int(plan.get("planRevision"), 0) not in {2, 3, PLAN_REVISION}:
         raise UniversalPlanError("Universal FontPlan 版本无效")
     if plan.get("mutatesSystem") is not False:
         raise UniversalPlanError("Phase 4 FontPlan 不得修改系统")
@@ -914,13 +921,20 @@ def validate_plan(
         action = str(item.get("action") or "")
         if role in PROTECTED_ROLES and action != "preserve":
             raise UniversalPlanError(f"受保护字体不得进入替换计划：{path}")
-        if role == "unknown-protected" and action != "review":
+        if role == "unknown-protected" and not unknown_action_allowed(item):
             raise UniversalPlanError(f"未知字体不得自动替换：{path}")
         if role in SPECIALIZED_ROLES and action not in {"compile-specialized", "blocked"} and not (
             action == "preserve" and str(item.get("roleAction") or "") == "preserve"
         ):
             raise UniversalPlanError(f"Clock/Numeric 不得走普通替换：{path}")
-        if role in TEXT_ROLES and action not in {"replace", "compile", "blocked"}:
+        # The role classifier can explicitly retain a text slot (for example
+        # a script fallback outside the selected donor's coverage). _plan_target
+        # emits preserve in that case; validation must honor the same policy.
+        # This does not allow a replacement without a source face or bypass any
+        # protected-role, route, digest or output checks.
+        if role in TEXT_ROLES and action not in {"replace", "compile", "blocked"} and not (
+            action == "preserve" and item.get("roleAction") == "preserve"
+        ):
             raise UniversalPlanError(f"文本目标包含无效动作：{path}")
         if role not in PROTECTED_ROLES | TEXT_ROLES | SPECIALIZED_ROLES | {"unknown-protected"}:
             if action != "preserve":

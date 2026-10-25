@@ -20,6 +20,8 @@ fun HomeScreenMiuix(state: HomeUiState, actions: HomeActions, trustContent: @Com
         item(key = "connection") { HomeConnectionRow(state.moduleInstalled, state.rootGranted, state.version) }
         if (state.hasTaskNotice) item(key = "task") { HomeTaskNotice(state, actions) }
         item(key = "font") { HomeCurrentFont(UiStyle.MIUIX, state.currentFont, state.moduleInstalled, state.rootGranted, state.version, nextStepFor(state, actions)) }
+        if (state.typographyVisible) item(key = "typography") { HomeTypographyCard(state, actions) }
+        item(key = "mount") { HomeMountButton(state, actions) }
         item(key = "navigation") { HomeNavigation(UiStyle.MIUIX, actions) }
         item(key = "device") { HomeDevicePanel(state, trustContent) }
         item(key = "restore") { HomeRecovery(state.moduleInstalled && state.rootGranted && !state.taskRunning, actions.restoreDefault) }

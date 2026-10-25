@@ -46,7 +46,7 @@ internal data class CoverageProbeState(
 )
 
 internal class Alpha15FeatureViewModel : ViewModel() {
-    private val coverageTool = "/data/adb/modules/LuoShu/common/font_coverage.sh"
+    private val coverageTool = "/data/adb/modules/ziyu/common/font_coverage.sh"
 
     var coverage by mutableStateOf(CoverageProbeState())
         private set

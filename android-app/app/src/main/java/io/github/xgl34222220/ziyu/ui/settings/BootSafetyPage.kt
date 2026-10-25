@@ -31,7 +31,7 @@ import io.github.xgl34222220.ziyu.ui.theme.ZiyuShapeTokens
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private const val BOOT_SAFETY_BRIDGE = "/data/adb/modules/LuoShu/common/app_bridge.sh"
+private const val BOOT_SAFETY_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
 
 @Composable
 internal fun BootSafetyPage() {

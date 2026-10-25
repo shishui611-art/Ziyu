@@ -1,0 +1,19 @@
+{
+  "schema": "ziyu-font-preload-build-v1",
+  "version": "v1.4.19",
+  "ndk": "Pkg.Desc = Android NDK\nPkg.Revision = 28.2.13676358\nPkg.BaseRevision = 28.2.13676358\nPkg.ReleaseName = r28c\n",
+  "sourceSha256": "105a37a71b914690a2e2dfa20f4d6842f90f1da9d1d15cd2c7b3e2784a49a65a",
+  "builderSha256": "1e5d792f580f05b27159ef5c0574deee5e2ef173962254a1c53b3069b95a6208",
+  "apiHeaderSha256": "fc6523882c0f8659b4fcd1e04ffb07d3a948090e5a8c08817af6e2b506a078d0",
+  "apiVersion": 4,
+  "libraries": {
+    "arm64-v8a": {
+      "sha256": "4adbf0a40b32b4e0e2ccee1a8bb21c19d3c2b21b24cd4c4aa76216e769d539ce",
+      "bytes": 17688
+    },
+    "armeabi-v7a": {
+      "sha256": "d21a9031c76f2bde3c9c10e8ad6d4975b63b003baabb2ad7338462e9fdf5b493",
+      "bytes": 15148
+    }
+  }
+}

@@ -54,6 +54,18 @@ _luoshu_meta_find_installed() {
     _lmfi_root="$(_luoshu_meta_root)/modules"
     _lmfi_type="$1"
     _lmfi_require_enabled="${2:-0}"
+    if [ "${_lmd_installed_snapshot_ready:-0}" = 1 ]; then
+        while IFS='|' read -r _lmfi_detected _lmfi_dir; do
+            [ "$_lmfi_detected" = "$_lmfi_type" ] || continue
+            [ "$(_luoshu_meta_type_for_dir "$_lmfi_dir")" = "$_lmfi_type" ] || continue
+            if [ "$_lmfi_require_enabled" = 1 ]; then _luoshu_meta_enabled "$_lmfi_dir" || continue; fi
+            printf '%s\n' "$_lmfi_dir"
+            return 0
+        done <<EOF_META_INSTALLED
+$_lmd_installed_snapshot
+EOF_META_INSTALLED
+        return 1
+    fi
     for _lmfi_dir in "$_lmfi_root"/*; do
         [ -d "$_lmfi_dir" ] || continue
         _lmfi_detected=$(_luoshu_meta_type_for_dir "$_lmfi_dir") || continue
@@ -67,8 +79,18 @@ _luoshu_meta_find_installed() {
     return 1
 }
 
+_luoshu_meta_installed_snapshot() {
+    _lmis_modules="$(_luoshu_meta_root)/modules"
+    for _lmis_dir in "$_lmis_modules"/*; do
+        [ -d "$_lmis_dir" ] || continue
+        case "$_lmis_dir" in *'|'*) continue ;; esac
+        _lmis_type=$(_luoshu_meta_type_for_dir "$_lmis_dir") || continue
+        printf '%s|%s\n' "$_lmis_type" "$_lmis_dir"
+    done
+}
+
 _luoshu_meta_is_owned_skip() {
-    _lmis_root="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+    _lmis_root="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
     case "${1:-skip_mount}" in
         skip_mount)
             [ -f "$_lmis_root/.ziyu_skip_mount_owned" ] || [ -f "$_lmis_root/config/self-mount-owned" ]
@@ -105,12 +127,12 @@ _luoshu_meta_mountify_selected() {
         0) return 1 ;;
         1)
             [ -n "$_lmms_list" ] || return 1
-            grep -Fxq 'LuoShu' "$_lmms_list" 2>/dev/null || return 1
+            grep -Fxq 'ziyu' "$_lmms_list" 2>/dev/null || return 1
             ;;
         2) ;;
         *) return 1 ;;
     esac
-    _lmms_module="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+    _lmms_module="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
     if [ -e "$_lmms_module/skip_mountify" ] && ! _luoshu_meta_is_owned_skip skip_mountify; then
         return 1
     fi
@@ -137,8 +159,8 @@ _luoshu_meta_hybrid_selected() {
     [ -n "$_lmhs_file" ] || return 1
     META_HYBRID_CONFIG_PATH="$_lmhs_file"
     [ -r "$_lmhs_file" ] || { META_HYBRID_ROUTE_REASON=hybrid-config-unreadable; return 1; }
-    _lmhs_id=$(_luoshu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}" id)
-    [ -n "$_lmhs_id" ] || _lmhs_id=LuoShu
+    _lmhs_id=$(_luoshu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}" id)
+    [ -n "$_lmhs_id" ] || _lmhs_id=ziyu
     # Upstream Config defaults to Overlay, uses case-sensitive module IDs, and
     # accepts module/path rules. Only prove the ordinary table form here: inline
     # or dotted rule syntax must not hide a Magic/Overlay override. This is a
@@ -318,12 +340,8 @@ luoshu_meta_hybrid_ensure_vfs_rule() {
     }
     _lmev_file="$META_HYBRID_CONFIG_PATH"
     [ -r "$_lmev_file" ] || { LUOSHU_META_ENSURE_RESULT=config-unreadable; return 1; }
-    _lmev_id=$(_luoshu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}" id)
-    [ -n "$_lmev_id" ] || _lmev_id=LuoShu
-    if command grep -q 'ziyu-luoshu-vfs-rule' "$_lmev_file" 2>/dev/null; then
-        LUOSHU_META_ENSURE_RESULT=already
-        return 0
-    fi
+    _lmev_id=$(_luoshu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}" id)
+    [ -n "$_lmev_id" ] || _lmev_id=ziyu
     _lmev_state=$(_luoshu_meta_hybrid_route_state "$_lmev_id" "$_lmev_file")
     IFS='|' read -r _lmev_kind _lmev_global _lmev_module <<EOF_LMEV
 $_lmev_state
@@ -350,7 +368,7 @@ EOF_LMEV
     }
     {
         printf '\n# >>> ziyu-luoshu-vfs-rule (added by the Ziyu font module for scoped unload)\n'
-        printf '[rules.LuoShu]\ndefault_mode = "vfs"\n'
+        printf '[rules.%s]\ndefault_mode = "vfs"\n' "$_lmev_id"
         printf '# <<< ziyu-luoshu-vfs-rule\n'
     } >> "$_lmev_file" 2>/dev/null || {
         cat "$_lmev_backup" > "$_lmev_file" 2>/dev/null
@@ -384,7 +402,7 @@ _luoshu_meta_overlay_content_base() {
         case "$_lmoc_path" in /data/adb/*) ;; *) continue ;; esac
         case "$_lmoc_path" in */../*|*/..|*'|'*|*' '*|*'\\'*) continue ;; esac
         _lmoc_image="$_lmoc_path"
-        case "$_lmoc_image" in */LuoShu) _lmoc_image="${_lmoc_image%/*}" ;; esac
+        case "$_lmoc_image" in */ziyu|*/LuoShu) _lmoc_image="${_lmoc_image%/*}" ;; esac
         if [ -d "$_lmoc_path" ] && type luoshu_mountpoint_ready >/dev/null 2>&1 && luoshu_mountpoint_ready "$_lmoc_image"; then
             printf '%s\n' "$_lmoc_path"
             return 0
@@ -426,6 +444,8 @@ luoshu_nomount_kernel_probe() {
 }
 
 luoshu_meta_mount_detect() {
+    _lmd_installed_snapshot_ready=0
+    _lmd_installed_snapshot=''
     META_ENGINE=none
     META_INSTALLED=0
     META_ENABLED=0
@@ -473,6 +493,14 @@ luoshu_meta_mount_detect() {
         fi
     fi
 
+    if [ "$META_ENGINE" = none ]; then
+        # One finite inventory per detection call instead of a complete module
+        # directory traversal for every engine and enabled/disabled pass.
+        # Matching candidates and disable/remove markers are rechecked on use.
+        _lmd_installed_snapshot=$(_luoshu_meta_installed_snapshot)
+        _lmd_installed_snapshot_ready=1
+    fi
+
     # Prefer an enabled engine when no active metamodule link exists. A disabled
     # install remains visible in META_INSTALLED/META_ENABLED for diagnostics.
     # Mountify also runs as a standalone Magisk mount engine, where KernelSU's
@@ -488,7 +516,7 @@ luoshu_meta_mount_detect() {
         fi
     fi
     if [ "$META_ENGINE" = none ]; then
-        for _lmd_type in meta-overlayfs hybrid-mount mountify magic-mount; do
+        for _lmd_type in meta-overlayfs hybrid-mount mountify magic-mount nomount; do
             _lmd_candidate=$(_luoshu_meta_find_installed "$_lmd_type" 1)
             [ -n "$_lmd_candidate" ] || continue
             META_ENGINE="$_lmd_type"
@@ -499,7 +527,7 @@ luoshu_meta_mount_detect() {
         done
     fi
     if [ "$META_ENGINE" = none ]; then
-        for _lmd_type in meta-overlayfs hybrid-mount mountify magic-mount; do
+        for _lmd_type in meta-overlayfs hybrid-mount mountify magic-mount nomount; do
             _lmd_candidate=$(_luoshu_meta_find_installed "$_lmd_type" 0)
             [ -n "$_lmd_candidate" ] || continue
             META_ENGINE="$_lmd_type"
@@ -520,7 +548,7 @@ luoshu_meta_mount_detect() {
         _lmd_flag=$(_luoshu_meta_prop "$META_MODULE_DIR" metamodule | tr '[:upper:]' '[:lower:]')
         _lmd_is_active=0
         _luoshu_meta_active_identity "$META_MODULE_DIR" && _lmd_is_active=1
-        _lmd_module_dir="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+        _lmd_module_dir="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
         _lmd_skip_mount_ok=1
         _lmd_skip_mountify_ok=1
         if [ -e "$_lmd_module_dir/skip_mount" ] && ! _luoshu_meta_is_owned_skip skip_mount; then

@@ -4,7 +4,7 @@
 # namespaces. Invoked by the existing provider watcher, with no extra daemon.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 . "$MODDIR/common/google_font_provider_bridge.sh"
 HTF_CACHE="$MODDIR/config/hyperos-theme-font"
 HTF_STATE="$MODDIR/config/hyperos-theme-font-mount.conf"

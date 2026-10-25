@@ -18,6 +18,9 @@ import time
 from font_inventory import FONT_EXTENSIONS, LOGICAL_FONT_ROOTS, _heuristic_candidate
 from font_inventory_scan import _is_ui_family
 from font_metrics_io import FontMetricsIO
+from font_digest_cache import file_identity
+from font_parallel import run_batches
+from font_slot_compat import SlotCompat
 from hyperos_metrics_batch import (bitmap_bottom_slot, contract_for_slot, link_copy,
                                   read_inventory, write_metrics)
 
@@ -111,40 +114,73 @@ def build(module: Path, stage: Path) -> dict:
             jobs.append((source, contract, report))
 
     outputs = Path(tempfile.mkdtemp(prefix='.coloros-metrics-', dir=stage))
-    cache = {}
-    cached_reports = {}
     prepared = []
-    metrics_io = FontMetricsIO()
+    metric_stats = {}
+    execution = {}
+    groups = {}
+    identities = {}
     try:
         # Pin every source/contract result before replacing any hard-linked alias.
         # Reading a later source after an earlier replacement can change its
         # frame or weight, especially when the same basename spans partitions.
         for source, contract, report in jobs:
             stat = source.stat()
+            identities[source] = file_identity(stat)
             align_bottom = bitmap_bottom_slot(inventory, report['slot'], contract)
             key = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, contract, align_bottom)
-            if key not in cache:
-                output = outputs / f'{len(cache)}.font'
+            groups.setdefault(key, []).append((source, report))
+
+        def prepare_batch(indexed_groups, private, _isolated):
+            metrics_io = FontMetricsIO()
+            slot_compat = SlotCompat(module, private)
+            results = []
+            for index, (key, aliases) in indexed_groups:
+                contract, align_bottom = key[-2:]
+                output = private / f'metrics-{index}.font'
                 write_started = time.perf_counter()
-                cached_reports[key] = write_metrics(source, output, contract,
-                                                   align_bitmap_bottom=align_bottom,
-                                                   metrics_io=metrics_io)
-                cached_reports[key]['metricsWriteSeconds'] = round(time.perf_counter() - write_started, 3)
-                cache[key] = output
-            prepared.append((cache[key], source))
-            report.update({'metricsSource': 'stock', 'referenceUpem': contract[0],
-                           'hhea': list(contract[1:4]), 'typo': list(contract[4:7]),
-                           'win': list(contract[7:9]), 'useTypoMetrics': contract[9],
-                           **cached_reports[key]})
+                details = write_metrics(aliases[0][0], output, contract,
+                                        align_bitmap_bottom=align_bottom, metrics_io=metrics_io)
+                details['metricsWriteSeconds'] = round(time.perf_counter() - write_started, 3)
+                for source, original_report in aliases:
+                    report = dict(original_report)
+                    report.update({'metricsSource': 'stock', 'referenceUpem': contract[0],
+                                   'hhea': list(contract[1:4]), 'typo': list(contract[4:7]),
+                                   'win': list(contract[7:9]), 'useTypoMetrics': contract[9], **details})
+                    compatible, compatibility_report = slot_compat.prepare(output, report['slot'])
+                    report.update(compatibility_report)
+                    if 'outputUpem' in compatibility_report:
+                        report['layoutBoundsDifferFromSource'] = any(
+                            abs(old / report['sourceUpem'] - new / report['outputUpem']) > 1e-6
+                            for old, new in zip(report['sourceHead'], report['outputHead']))
+                    results.append({'source': str(source), 'output': str(compatible), 'report': report})
+            return {'results': results, 'metrics': metrics_io.stats()}
+
+        batches, execution = run_batches(list(groups.items()), outputs,
+                                         max((s.stat().st_size for s, _, _ in jobs), default=0),
+                                         prepare_batch)
+        by_slot = {report['slot']: report for report in reports}
+        for batch in batches:
+            for key, value in batch['metrics'].items():
+                metric_stats[key] = metric_stats.get(key, 0) + value
+            for item in batch['results']:
+                by_slot[item['report']['slot']].update(item['report'])
+                prepared.append((Path(item['output']), Path(item['source'])))
+        # No alias is replaced until all workers have succeeded and all pinned inputs are unchanged.
+        for source, expected in identities.items():
+            if file_identity(source.stat()) != expected:
+                raise ValueError(f'字体来源在并行处理期间发生变化：{source.name}')
         for output, destination in prepared:
             link_copy(output, destination)
         write_report(stage, reports)
     finally:
         shutil.rmtree(outputs, ignore_errors=True)
-    return {'mapped': len(jobs), 'generated': len(cache),
+    return {'mapped': len(jobs), 'generated': len(groups),
             'preservedSlots': len(reports) - len(jobs),
+            'stockContractSlots': sum(r.get('slotCompatibility') == 'stock-contract-preserved' for r in reports),
+            'stockOnlyCharactersRetained': sum(r.get('stockOnlyCharactersRetained', 0) for r in reports),
+            'slotCompatibilityUnverified': sum(r.get('slotCompatibility') == 'unverified' for r in reports),
             'metricsBatchSeconds': round(time.perf_counter() - started, 3),
-            **metrics_io.stats()}
+            'execution': execution, **metric_stats}
 
 
 def main() -> int:

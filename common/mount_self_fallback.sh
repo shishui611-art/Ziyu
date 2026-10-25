@@ -4,7 +4,7 @@
 set +e
 
 _luoshu_self_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 LUOSHU_MOUNT_MODDIR="${LUOSHU_MOUNT_MODDIR:-$(_luoshu_self_module)}"

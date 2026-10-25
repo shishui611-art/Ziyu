@@ -3,7 +3,7 @@
 # Automatic mode may try self-mount after an external route fails verification;
 # every active backend still must pass PID 1 route verification.
 set +e
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 _lbr_state="$MODDIR/config/mount-backend.conf"
 _lbr_log="$MODDIR/logs/mount-backend.log"
@@ -212,6 +212,21 @@ _lbr_write_state() {
     mv -f "$_lbr_tmp" "$_lbr_state" 2>/dev/null || return 1
     # Refresh once after a successful atomic commit, never reuse a failed write.
     ziyu_backend_state_load "$_lbr_state" || :
+    # Bind optional cache preparation to this verified state and immutable
+    # payload. A pending/live generation must not reuse a prior boot receipt.
+    case "$_lbr_active:$_lbr_verify" in
+        self:passed|self:partial|external:passed|external:partial)
+            _lbr_preload_pyroot="$MODDIR/common/python"
+            if [ "${LUOSHU_BACKEND_TEST_MODE:-0}" != 1 ] && \
+               [ -x "$_lbr_preload_pyroot/bin/luoshu-python" ] && [ -f "$MODDIR/common/font_preload_state.py" ]; then
+                PYTHONHOME="$_lbr_preload_pyroot" \
+                PYTHONPATH="$MODDIR/common:$_lbr_preload_pyroot/lib/python3.14:$_lbr_preload_pyroot/lib/python3.14/site-packages" \
+                LD_LIBRARY_PATH="$_lbr_preload_pyroot/lib:$_lbr_preload_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+                    "$_lbr_preload_pyroot/bin/luoshu-python" "$MODDIR/common/font_preload_state.py" "$MODDIR" \
+                    >> "$MODDIR/logs/font-preload.log" 2>&1 || _lbr_log 'optional font preload generation not ready; existing mount result retained'
+            fi
+            ;;
+    esac
     return 0
 }
 
@@ -540,10 +555,13 @@ _lbr_try_auto_self_fallback() {
     _lbr_fallback=1
     _lbr_fallback_reason="$_lbr_fallback_cause"
     _lbr_selected=self
-    _lbr_self_backend_selected=self_mount
+    _lbr_self_backend_selected=$(ziyu_mount_auto_self_backend "${ROOT_MANAGER:-unknown}")
+    if [ "$_lbr_self_backend_selected" = magic ]; then
+        _lbr_fallback_reason="root-manager-unidentified:$_lbr_fallback_cause"
+    fi
     _lbr_self_backend_active=none
-    _lbr_log "[FALLBACK] external mount unavailable ($_lbr_fallback_cause); attempting verified self-mount"
-    _lbr_write_state self none 1 failed pending "$_lbr_stage" pending "self-fallback-pending:$_lbr_fallback_cause" || return 1
+    _lbr_log "[FALLBACK] external mount unavailable ($_lbr_fallback_reason); attempting verified self-mount mode=$_lbr_self_backend_selected"
+    _lbr_write_state self none 1 failed pending "$_lbr_stage" pending "self-fallback-pending:$_lbr_fallback_reason" || return 1
 
     _lbr_fallback_expected_stage=$(_lbr_stage_for_root "$ROOT_MANAGER")
     if [ "$_lbr_stage" != "$_lbr_fallback_expected_stage" ] && [ "$_lbr_stage" != service ]; then
@@ -574,8 +592,12 @@ luoshu_mount_backend_hook() {
             10|12)
                 _lbr_guard_reason=ota-fingerprint-change
                 [ "$_lbr_guard_rc" != 10 ] || _lbr_guard_reason=boot-safety-safe-mode
+                # The guard blocks activation and mounting, not read-only
+                # identity detection. Keep real manager/meta evidence visible
+                # instead of replacing it with unknown on a protected boot.
+                _lbr_detect || :
                 _lbr_write_state unresolved none 0 blocked blocked "$_lbr_stage" failed "$_lbr_guard_reason" || return 1
-                _lbr_log "mount/backend scan stopped before provider detection: $_lbr_guard_reason"
+                _lbr_log "mounting blocked: $_lbr_guard_reason; detected root=${ROOT_MANAGER:-unknown} meta=${META_ENGINE:-none}; no payload activated"
                 return 0
                 ;;
             *)
@@ -644,6 +666,8 @@ luoshu_mount_backend_hook() {
                 _lbr_log '[挂载原因] 上次启动的字域自有 skip 标记未能清理；继续检测并按路由结果回退'
             fi
         fi
+        _lbr_has_font=false
+        [ "$(_lbr_active_font)" = default ] || _lbr_has_font=true
         if ! _lbr_detect; then
             _lbr_detect_failure=provider-detection-failed
             PROVIDER_STATE=unknown
@@ -651,8 +675,6 @@ luoshu_mount_backend_hook() {
             PROVIDER_LAYOUT=unknown
             PROVIDER_REASON=provider-detection-failed
         fi
-        _lbr_has_font=false
-        [ "$(_lbr_active_font)" = default ] || _lbr_has_font=true
         _lbr_selected=$(ziyu_mount_select false "$PROVIDER_STATE" "$_lbr_has_font" "$_lbr_preference")
         _lbr_log "provider=$PROVIDER_STATE id=$PROVIDER_ID selected=$_lbr_selected"
         case "$_lbr_selected" in

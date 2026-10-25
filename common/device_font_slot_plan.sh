@@ -4,7 +4,7 @@
 # source font but does not change the active systemless font payload.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 PYROOT="$MODDIR/common/python"
 PYTHON="$PYROOT/bin/luoshu-python"
 PLANNER="$MODDIR/common/device_font_slot_plan.py"

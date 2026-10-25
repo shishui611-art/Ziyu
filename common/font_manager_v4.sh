@@ -7,14 +7,18 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
 fi
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODULE_DIR/config"
 SYSTEM_FONTS_DIR="$MODULE_DIR/system/fonts"
 ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
 USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
 USER_REPORT_DIR="$LUOSHU_PUBLIC_DIR/reports"
 LEGACY_FONTS_DIR="/sdcard/Fonts"

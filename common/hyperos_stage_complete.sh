@@ -16,7 +16,11 @@ fi
 
 MODULE_DIR="$REALMOD"
 MODDIR="$REALMOD"
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 export MODULE_DIR MODDIR USER_FONTS_DIR
 
 [ -f "$REALMOD/common/util_functions.sh" ] && . "$REALMOD/common/util_functions.sh"

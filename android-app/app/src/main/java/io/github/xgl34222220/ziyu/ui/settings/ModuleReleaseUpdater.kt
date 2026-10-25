@@ -35,7 +35,7 @@ internal class ModuleReleaseUpdater(private val context: Context) {
 
     private fun identity(raw: String): InstalledModule {
         val prop = properties(raw)
-        require(prop["id"] == "LuoShu") { "模块 ID 不匹配" }
+        require(prop["id"] in setOf("ziyu", "LuoShu")) { "模块 ID 不匹配" }
         val version = prop["version"].orEmpty()
         val code = prop["versionCode"]?.toIntOrNull() ?: 0
         require(version.matches(Regex("v?\\d+\\.\\d+\\.\\d+(?:[-+].*)?")) && code > 0) { "模块版本信息无效" }
@@ -43,7 +43,7 @@ internal class ModuleReleaseUpdater(private val context: Context) {
     }
 
     private suspend fun installed(pending: Boolean = false): InstalledModule? {
-        val path = if (pending) "/data/adb/modules_update/LuoShu/module.prop" else "/data/adb/modules/LuoShu/module.prop"
+        val path = if (pending) "/data/adb/modules_update/ziyu/module.prop" else "/data/adb/modules/ziyu/module.prop"
         val result = RootShell.exec("if [ -f ${RootShell.quote(path)} ]; then cat ${RootShell.quote(path)}; else exit 3; fi", 12_000L)
         if (pending && result.code == 3) return null
         require(result.code == 0) { result.stderr.ifBlank { "无法读取已安装模块，请确认 Root 授权和模块安装状态" } }
@@ -148,9 +148,9 @@ internal class ModuleReleaseUpdater(private val context: Context) {
 
     private fun installCommand(archive: File, rootZip: String, sha: String): String = """
         set -e
-        MODDIR=/data/adb/modules/LuoShu
+        MODDIR=/data/adb/modules/ziyu
         [ ! -e "${'$'}MODDIR/remove" ] && [ ! -e "${'$'}MODDIR/disable" ] || { echo '请先启用模块并完整重启' >&2; exit 1; }
-        [ ! -f /data/adb/modules_update/LuoShu/module.prop ] || { echo '已有模块等待重启' >&2; exit 1; }
+        [ ! -f /data/adb/modules_update/ziyu/module.prop ] || { echo '已有模块等待重启' >&2; exit 1; }
         for state in "${'$'}MODDIR/config/switch_task.conf" "${'$'}MODDIR/config/axes_task.conf"; do
             if grep -Eq '^state=(queued|running)${'$'}' "${'$'}state" 2>/dev/null; then echo '请等待字体任务结束后更新模块' >&2; exit 1; fi
         done

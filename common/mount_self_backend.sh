@@ -3,10 +3,10 @@
 # Uses the same read-only lower-layer model as KernelSU's reference meta-overlayfs:
 # module content first, captured stock tree last, and source name KSU for unified cleanup.
 set +e
-_lsmb_diag="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/mount_diagnostics.sh"
+_lsmb_diag="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/mount_diagnostics.sh"
 [ ! -f "$_lsmb_diag" ] || . "$_lsmb_diag"
 unset _lsmb_diag
-_lsmb_layer="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/mount_overlay_layer.sh"
+_lsmb_layer="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/mount_overlay_layer.sh"
 [ ! -f "$_lsmb_layer" ] || . "$_lsmb_layer"
 unset _lsmb_layer
 
@@ -133,7 +133,7 @@ _luoshu_capture_lower_dir() {
     }
     # Android toybox parses "private", while util-linux also has --make-private.
     # A propagation change ignores the source/type at the kernel boundary.
-    _luoshu_mount_observe lower-private _luoshu_mount_cmd -o private -t none none "$_lscld_lower" || \
+    _luoshu_mount_observe lower-private _luoshu_mount_cmd -o private "$_lscld_lower" || \
         _luoshu_mount_observe lower-private-util-linux _luoshu_mount_cmd --make-private "$_lscld_lower" || return 1
     awk -v target="$_lscld_lower" '$5==target {found=1; for(i=7;i<=NF && $i!="-";i++) if ($i ~ /^(shared|master|propagate_from):/) bad=1} END {exit !(found && !bad)}' \
         "${LUOSHU_SELF_MOUNTINFO:-/proc/self/mountinfo}" || {

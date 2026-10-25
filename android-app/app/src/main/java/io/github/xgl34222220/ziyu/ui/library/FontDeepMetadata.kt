@@ -4,7 +4,7 @@ import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.RootShell
 import org.json.JSONObject
 
-private const val DETAILS_BRIDGE = "/data/adb/modules/LuoShu/common/font_details.sh"
+private const val DETAILS_BRIDGE = "/data/adb/modules/ziyu/common/font_details.sh"
 
 internal data class FontDeepMetadata(
     val title: String,

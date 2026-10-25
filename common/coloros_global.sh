@@ -4,7 +4,7 @@
 set +e
 
 _luoshu_coloros_module_dir() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 # real font directory | matching module overlay directory

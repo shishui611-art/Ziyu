@@ -4,7 +4,7 @@
 set +e
 
 _luoshu_private_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 _luoshu_private_root() {
@@ -100,7 +100,7 @@ luoshu_private_install_migrate() {
     fi
     find "$_lpp_root" -type d -exec chmod 0755 {} \; 2>/dev/null || true
     find "$_lpp_root" -type f -exec chmod 0644 {} \; 2>/dev/null || true
-    chmod 0755 "$_lpp_root/system/bin/洛书" "$_lpp_root/system/bin/luoshud" 2>/dev/null || true
+    chmod 0755 "$_lpp_root/system/bin/ziyu" "$_lpp_root/system/bin/luoshud" 2>/dev/null || true
     return 0
 }
 

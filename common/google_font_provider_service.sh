@@ -2,7 +2,7 @@
 # Apply currently available provider/theme fonts once, then exit.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 # One bounded boot task, never an all-day observer. The wrapper supervises
 # descendants even when a bridge double-forks or starts a separate session.
 if [ "${LUOSHU_SCOPE_WORKER_PID:-}" != "$$" ]; then

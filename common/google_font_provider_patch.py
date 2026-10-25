@@ -164,7 +164,11 @@ def patch(source_path: Path, target_path: Path, output_path: Path, weight: int) 
         source = instantiate_for_target(source, target, weight)
         copy_target_names(source, target)
         normalize_weight(source, weight)
+        source["head"].fontRevision = target["head"].fontRevision
         atomic_save(source, output_path)
+        if str(target_path).startswith('/data/fonts/'):
+            from font_verity import seal
+            seal(output_path)
         return {
             "status": "ok",
             "source": str(source_path),

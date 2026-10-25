@@ -2,6 +2,9 @@ package io.github.xgl34222220.ziyu.ui.theme
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,8 +15,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
@@ -117,7 +123,7 @@ internal fun ZiyuCard(
         }
         return
     }
-    val materialShape = if (shape === DefaultZiyuCardShape) MaterialTheme.shapes.large else shape
+    val materialShape = if (shape === DefaultZiyuCardShape || shape == ZiyuShapeTokens.Card) MaterialTheme.shapes.large else shape
     val elevation = CardDefaults.cardElevation(
         defaultElevation = shadow,
         pressedElevation = shadow,
@@ -131,12 +137,18 @@ internal fun ZiyuCard(
     }
     if (onClick == null) {
         MaterialCard(modifier = modifier, shape = materialShape, colors = colors,
-            elevation = elevation, border = resolvedBorder, content = materialContent)
+            elevation = elevation, border = border, content = materialContent)
     } else {
+        // SukiSU TonalCard uses a spring-driven press scale; reuse Card's own
+        // interaction source so keyboard, touch and cancellation stay aligned.
+        val interactions = interactionSource ?: remember { MutableInteractionSource() }
+        val pressed by interactions.collectIsPressedAsState()
+        val scale by animateFloatAsState(if (pressed && enabled) .97f else 1f,
+            animationSpec = spring(dampingRatio = .8f, stiffness = 400f), label = "tonalCardPress")
         MaterialCard(
-            onClick = onClick, modifier = modifier, enabled = enabled,
+            onClick = onClick, modifier = modifier.scale(scale), enabled = enabled,
             shape = materialShape, colors = colors, elevation = elevation,
-            border = resolvedBorder, interactionSource = interactionSource, content = materialContent,
+            border = border, interactionSource = interactions, content = materialContent,
         )
     }
 }

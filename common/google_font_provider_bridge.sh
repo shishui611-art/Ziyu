@@ -7,7 +7,7 @@
 # bind-mounts them read-only in zygote/GMS/Play mount namespaces.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 PYROOT="$MODDIR/common/python"
 PYTHON="${LUOSHU_GOOGLE_FONT_PYTHON:-$PYROOT/bin/luoshu-python}"
@@ -15,7 +15,7 @@ PATCHER="$MODDIR/common/google_font_provider_patch.py"
 CACHE="$MODDIR/config/google-font-provider"
 STATE="$MODDIR/config/google-font-provider-mounts.conf"
 MOUNTS="$MODDIR/config/google-font-provider-namespaces.conf"
-INSPECT_CACHE="$CACHE/inspected-targets-v1.conf"
+INSPECT_CACHE="$CACHE/inspected-targets-v2.conf"
 REFRESH_QUEUE="$MODDIR/config/google-font-refresh-pending.conf"
 LOG="$MODDIR/logs/google-font-provider.log"
 
@@ -291,7 +291,7 @@ _gfp_build_clone() {
     if [ -s "$STATE" ]; then
         while IFS='|' read -r _gfp_old_target _gfp_old_clone _gfp_old_target_hash \
             _gfp_old_clone_hash _gfp_old_source_hash _gfp_old_weight _gfp_old_schema _gfp_old_identity; do
-            [ "$_gfp_old_schema" = provider-v3 ] || continue
+            [ "$_gfp_old_schema" = provider-v4-verity ] || continue
             [ "$_gfp_old_target" = "$_gfp_target" ] || continue
             [ "$_gfp_old_source_hash" = "$_gfp_source_hash" ] || continue
             [ "$_gfp_old_weight" = "$_gfp_weight_value" ] || continue
@@ -304,7 +304,7 @@ _gfp_build_clone() {
             return 0
         done < "$STATE"
     fi
-    _gfp_key=$(printf 'provider-v3\n%s\n%s\n%s\n' "$_gfp_source_hash" "$_gfp_target_hash" "$_gfp_weight_value" | _gfp_hash_text)
+    _gfp_key=$(printf 'provider-v4-verity\n%s\n%s\n%s\n' "$_gfp_source_hash" "$_gfp_target_hash" "$_gfp_weight_value" | _gfp_hash_text)
     [ -n "$_gfp_key" ] || return 1
     _gfp_output="$CACHE/${_gfp_key}.ttf"
     if ! _gfp_valid_font "$_gfp_output"; then
@@ -430,7 +430,15 @@ _gfp_mount_in_pid() {
     _gfp_stage_dir="${LUOSHU_GOOGLE_FONT_STAGE_DIR:-/data/local/tmp}"
     _gfp_ns_shell="${LUOSHU_GOOGLE_FONT_NS_SHELL:-/system/bin/sh}"
     _gfp_mount_detail=$(nsenter -t "$_gfp_pid" -m -- "$_gfp_ns_shell" -c '
-        plain="$1"; proc_src="$2"; dst="$3"; stage_dir="$4"; owner_pid="$5"; regular_only="$6"
+        plain="$1"; proc_src="$2"; dst="$3"; stage_dir="$4"; owner_pid="$5"; regular_only="$6"; module="$7"
+        protected=0
+        case "$dst" in /data/fonts/*) protected=1 ;; esac
+        verity() {
+            PYTHONHOME="/proc/1/root$module/common/python" \
+            PYTHONPATH="/proc/1/root$module/common/python/lib/python3.14" \
+            LD_LIBRARY_PATH="/proc/1/root$module/common/python/lib:/proc/1/root$module/common/python/lib/python3.14/lib-dynload" \
+                "/proc/1/root$module/common/python/bin/luoshu-python" "/proc/1/root$module/common/font_verity.py" "$@"
+        }
         if [ "$regular_only" = 1 ] && [ -L "$dst" ]; then
             printf "target-is-symlink"; exit 1
         fi
@@ -442,6 +450,10 @@ _gfp_mount_in_pid() {
 
         bind_one() {
             src="$1"
+            expected_verity=
+            if [ "$protected" = 1 ]; then
+                expected_verity=$(verity seal "$src" 2>&1) || { printf "replacement-not-sealed:%s" "$expected_verity"; return 1; }
+            fi
             first=$(mount --bind "$src" "$dst" 2>&1)
             first_rc=$?
             if [ "$first_rc" -ne 0 ]; then
@@ -454,12 +466,16 @@ _gfp_mount_in_pid() {
             fi
             mount -o remount,bind,ro "$dst" 2>/dev/null || \
                 mount -o bind,remount,ro "$dst" 2>/dev/null || true
+            if [ "$protected" = 1 ] && [ "$(verity check "$dst" 2>/dev/null)" != "$expected_verity" ]; then
+                umount "$dst" >/dev/null 2>&1 || { printf "verity-verification-and-rollback-failed"; return 1; }
+                printf "visible-verity-verification-failed"; return 1
+            fi
             return 0
         }
 
         plain_detail=source-not-visible
         if [ -f "$plain" ]; then
-            if cmp -s "$plain" "$dst" 2>/dev/null; then
+            if cmp -s "$plain" "$dst" 2>/dev/null && { [ "$protected" != 1 ] || verity check "$dst" >/dev/null 2>&1; }; then
                 printf "ok:already"
                 exit 0
             fi
@@ -468,6 +484,7 @@ _gfp_mount_in_pid() {
                 printf "ok:plain"
                 exit 0
             fi
+            case "$plain_detail" in *rollback-failed*) printf "%s" "$plain_detail"; exit 1 ;; esac
             [ -n "$plain_detail" ] || plain_detail=bind-failed
         fi
 
@@ -482,7 +499,7 @@ _gfp_mount_in_pid() {
                 elif command -v toybox >/dev/null 2>&1; then
                     toybox chcon --reference="$dst" "$stage" 2>/dev/null || true
                 fi
-                if cmp -s "$stage" "$dst" 2>/dev/null; then
+                if cmp -s "$stage" "$dst" 2>/dev/null && { [ "$protected" != 1 ] || verity check "$dst" >/dev/null 2>&1; }; then
                     rm -f "$stage" 2>/dev/null || true
                     printf "ok:already"
                     exit 0
@@ -502,7 +519,7 @@ _gfp_mount_in_pid() {
         fi
         printf "plain=%s; staging=%s" "$(one_line "$plain_detail")" "$(one_line "$stage_detail")"
         exit 1
-    ' sh "$_gfp_source" "$_gfp_proc_source" "$_gfp_target" "$_gfp_stage_dir" "$_gfp_pid" "$_gfp_regular_only" 2>&1)
+    ' sh "$_gfp_source" "$_gfp_proc_source" "$_gfp_target" "$_gfp_stage_dir" "$_gfp_pid" "$_gfp_regular_only" "$MODDIR" 2>&1)
     _gfp_mount_rc=$?
     case "$_gfp_mount_detail" in
         ok:plain) _gfp_mount_mode=plain; _gfp_mount_detail=; return 0 ;;
@@ -691,7 +708,18 @@ _gfp_mount_target() {
         _gfp_mount_mode=already
     else
         _gfp_clear_owned_pid "$_gfp_mt_pid" "$_gfp_mt_target" || { _gfp_mount_detail=owned-unmount-failed; return 1; }
-        _gfp_mount_in_pid "$_gfp_mt_pid" "$_gfp_mt_clone" "$_gfp_mt_target" || return 1
+        if ! _gfp_mount_in_pid "$_gfp_mt_pid" "$_gfp_mt_clone" "$_gfp_mt_target"; then
+            case "$_gfp_mount_detail" in
+                *rollback-failed*)
+                    _gfp_mt_id=$(_gfp_identity "$_gfp_mt_proc/$_gfp_mt_pid/root$_gfp_mt_target")
+                    if [ -n "$_gfp_mt_id" ] && [ -n "$_gfp_mt_ns" ] &&
+                       cmp -s "$_gfp_mt_clone" "$_gfp_mt_proc/$_gfp_mt_pid/root$_gfp_mt_target"; then
+                        printf '%s|%s|%s|%s\n' "$_gfp_mt_ns" "$_gfp_mt_target" "$_gfp_mt_id" "$_gfp_mt_clone" >> "$MOUNTS" || true
+                    fi
+                    ;;
+            esac
+            return 1
+        fi
         _gfp_mt_id=$(_gfp_identity "$_gfp_mt_proc/$_gfp_mt_pid/root$_gfp_mt_target")
         [ "$_gfp_mount_mode" = already ] || _gfp_queue_all_consumers "$_gfp_mt_previous"
     fi
@@ -745,8 +773,30 @@ $_gfp_cached
     done
 }
 
+_gfp_retire_unsealed_updates() {
+    [ -s "$MOUNTS" ] || return 0
+    _gfp_ru_targets=$(awk -F '|' 'NF==4 && $2 ~ /^\/data\/fonts\// && !seen[$2]++ {print $2}' "$MOUNTS")
+    [ -n "$_gfp_ru_targets" ] || return 0
+    _gfp_ru_pids="1 $(_gfp_unique_namespace_pids)"
+    while IFS= read -r _gfp_ru_target; do
+        [ -n "$_gfp_ru_target" ] || continue
+        for _gfp_ru_pid in $_gfp_ru_pids; do
+            _gfp_ru_visible="${LUOSHU_PROC_ROOT:-/proc}/$_gfp_ru_pid/root$_gfp_ru_target"
+            _gfp_ru_id=$(_gfp_identity "$_gfp_ru_visible")
+            _gfp_owned_identity "$_gfp_ru_target" "$_gfp_ru_id" || continue
+            # All old protected mounts are retired before target metadata is read,
+            # including sealed older revisions. This exposes the authentic file.
+            _gfp_clear_owned_pid "$_gfp_ru_pid" "$_gfp_ru_target" || return 1
+        done
+    done <<EOF
+$_gfp_ru_targets
+EOF
+    _gfp_log 'retired owned update-font binds before creating metadata-compatible sealed replacements'
+}
+
 _gfp_apply_internal() {
     [ "$(_gfp_active_font)" != default ] || return 2
+    _gfp_retire_unsealed_updates || return 1
     mkdir -p "$CACHE" "$MODDIR/logs" 2>/dev/null || return 1
     _gfp_targets_file="$CACHE/.apply-targets.$$"
     _gfp_candidates_file="$CACHE/.apply-candidates.$$"
@@ -838,7 +888,7 @@ _gfp_apply_internal() {
         fi
         if [ "${LUOSHU_GOOGLE_FONT_DRY_RUN:-0}" = 1 ] || [ "$_gfp_target_mounts" -gt 0 ]; then
             _gfp_mounted=$((_gfp_mounted + 1))
-            printf '%s|%s|%s|%s|%s|%s|provider-v3|%s\n' "$_gfp_target" "$_gfp_clone" \
+            printf '%s|%s|%s|%s|%s|%s|provider-v4-verity|%s\n' "$_gfp_target" "$_gfp_clone" \
                 "$_gfp_original_target_hash" "$(_gfp_hash "$_gfp_clone")" \
                 "$_gfp_selected_hash" "$_gfp_weight_value" "$_gfp_original_identity" >> "$_gfp_state_tmp"
         else

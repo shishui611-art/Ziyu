@@ -63,9 +63,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-private const val FULL_BACKUP_TYPE = "luoshu-full-backup"
+private const val FULL_BACKUP_TYPE = "ziyu-full-backup"
 private const val FULL_BACKUP_SCHEMA = 1
-private const val FULL_BACKUP_ROOT_TOOL = "/data/adb/modules/LuoShu/system/bin/luoshu-backup"
+private const val FULL_BACKUP_ROOT_TOOL = "/data/adb/modules/ziyu/common/full_backup.sh"
 private const val FULL_BACKUP_MAX_FILES = 1200
 private const val FULL_BACKUP_MAX_BYTES = 1_825_361_920L
 
@@ -182,6 +182,11 @@ private suspend fun prepareFullBackupStage(context: Context, stage: File, settin
         .put("presets", JSONObject(encodePresets(presets)))
         .put("studioProfile", profile.takeIf { it.isNotBlank() }?.let(::JSONObject) ?: JSONObject.NULL)
     withContext(Dispatchers.IO) { File(stage, "app/state.json").writeText(state.toString(2), Charsets.UTF_8) }
+    if (settings.backgroundPath.isNotBlank()) withContext(Dispatchers.IO) {
+        val image = File(settings.backgroundPath)
+        require(image.isFile && image.length() <= 32L * 1024 * 1024) { "背景图片丢失或过大" }
+        image.copyTo(File(stage, "app/background.png"))
+    }
     writeManifest(stage)
 }
 
@@ -213,6 +218,9 @@ private suspend fun restoreFullBackup(context: Context, uri: Uri, actions: Appea
         appState.optJSONObject("presets")?.let { StudioPresetStore(context).replaceAll(decodePresets(it.toString())) }
         appState.optJSONObject("studioProfile")?.let { StudioProfileBridgeStore(context).saveCurrent(it.toString()) }
         appState.optJSONObject("appearance")?.let { restoreAppearance(it, actions) }
+        val image = File(stage, "app/background.png")
+        if (image.isFile) actions.setBackgroundPath(io.github.xgl34222220.ziyu.ui.appearance.importBackground(context, Uri.fromFile(image)))
+        else actions.setBackgroundPath("")
         "备份已恢复；请重新进入字体库检查字体，并按需重新应用方案"
     } finally {
         withContext(Dispatchers.IO) { stage.deleteRecursively() }
@@ -244,13 +252,15 @@ private fun validateManifest(stage: File) {
     val manifestFile = File(stage, "manifest.json")
     require(manifestFile.isFile) { "备份缺少 manifest.json" }
     val root = JSONObject(manifestFile.readText(Charsets.UTF_8))
-    require(root.optInt("schema", -1) == FULL_BACKUP_SCHEMA && root.optString("type") == FULL_BACKUP_TYPE) { "不是受支持的字域完整备份" }
+    require(root.optInt("schema", -1) == FULL_BACKUP_SCHEMA && root.optString("type") in setOf(FULL_BACKUP_TYPE, "luoshu-full-backup")) { "不是受支持的字域完整备份" }
     val files = root.optJSONArray("files") ?: error("备份清单不完整")
     require(files.length() <= FULL_BACKUP_MAX_FILES) { "备份文件数量异常" }
     var total = 0L
+    val listed = mutableSetOf<String>()
     for (index in 0 until files.length()) {
         val item = files.getJSONObject(index)
         val relative = safeRelativePath(item.getString("path"))
+        require(listed.add(relative)) { "备份清单包含重复文件" }
         val file = File(stage, relative)
         require(file.isFile) { "备份缺少文件：$relative" }
         val bytes = item.optLong("bytes", -1L)
@@ -259,6 +269,7 @@ private fun validateManifest(stage: File) {
         require(total <= FULL_BACKUP_MAX_BYTES) { "备份展开后超过大小限制" }
         require(sha256(file).equals(item.getString("sha256"), ignoreCase = true)) { "SHA-256 校验失败：$relative" }
     }
+    require(stage.walkTopDown().filter { it.isFile && it.name != "manifest.json" }.map { it.relativeTo(stage).invariantSeparatorsPath }.toSet() == listed) { "备份文件与校验清单不一致" }
     require(File(stage, "app/state.json").isFile) { "备份缺少 App 配置" }
 }
 
@@ -299,18 +310,22 @@ private fun safeRelativePath(value: String): String {
 private fun encodeAppearance(settings: AppearanceSettings) = JSONObject()
     .put("uiStyle", settings.uiStyle.name).put("themeMode", settings.themeMode.name)
     .put("seedArgb", settings.seedArgb).put("kolorStyle", settings.kolorStyle.name)
+    .put("colorStandard", settings.colorStandard.name)
     .put("monetEnabled", settings.monetEnabled).put("amoledBlack", settings.amoledBlack)
     .put("blurEnabled", settings.blurEnabled).put("glassEnabled", settings.glassEnabled)
     .put("floatingDock", settings.floatingDock).put("highRefreshRate", settings.highRefreshRate)
+    .put("predictiveBack", settings.predictiveBack)
 
 private fun restoreAppearance(root: JSONObject, actions: AppearanceActions) {
     runCatching { actions.setUiStyle(UiStyle.valueOf(root.optString("uiStyle"))) }
     runCatching { actions.setThemeMode(ThemeMode.valueOf(root.optString("themeMode"))) }
     if (root.has("seedArgb")) actions.setSeedArgb(root.optInt("seedArgb"))
     runCatching { actions.setKolorStyle(KolorStyle.valueOf(root.optString("kolorStyle"))) }
+    if (root.has("colorStandard")) actions.setColorStandard(io.github.xgl34222220.ziyu.ui.appearance.ColorStandard.fromStorage(root.optString("colorStandard")))
     actions.setMonetEnabled(root.optBoolean("monetEnabled", true)); actions.setAmoledBlack(root.optBoolean("amoledBlack", false))
     actions.setGlassEnabled(root.optBoolean("glassEnabled", true)); actions.setBlurEnabled(root.optBoolean("blurEnabled", true))
     actions.setFloatingDock(root.optBoolean("floatingDock", true)); actions.setHighRefreshRate(root.optBoolean("highRefreshRate", false))
+    if (root.has("predictiveBack")) actions.setPredictiveBack(root.optBoolean("predictiveBack", true))
 }
 
 private fun encodeCollections(value: FontLibraryCollections) = JSONObject()

@@ -17,9 +17,23 @@ internal data class ShellResult(
 )
 
 internal object RootShell {
+    private val moduleMutex = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var moduleRoot: String? = null
+    private suspend fun resolveModule(): String {
+        moduleRoot?.let { return it }
+        moduleMutex.lock()
+        try {
+            moduleRoot?.let { return it }
+            val found = executeProcess(listOf("su", "-c", "for p in /data/adb/modules/ziyu /data/adb/modules/LuoShu; do [ -f \"\$p/common/app_bridge.sh\" ] || continue; case \"\$(sed -n 's/^id=//p' \"\$p/module.prop\" | tr -d '\\r')\" in ziyu|LuoShu) printf '%s' \"\$p\"; break ;; esac; done"), 8_000L)
+            val path = found.stdout.trim()
+            if (found.code == 0 && path in setOf("/data/adb/modules/ziyu", "/data/adb/modules/LuoShu")) moduleRoot = path
+            return moduleRoot ?: "/data/adb/modules/ziyu"
+        } finally { moduleMutex.unlock() }
+    }
+
     suspend fun exec(command: String, timeoutMs: Long = 600_000L): ShellResult = withContext(Dispatchers.IO) {
         try {
-            executeProcess(listOf("su", "-c", command), timeoutMs)
+            executeProcess(listOf("su", "-c", if (command.contains("/data/adb/modules/ziyu")) command.replace("/data/adb/modules/ziyu", resolveModule()) else command), timeoutMs)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (interrupted: InterruptedException) {

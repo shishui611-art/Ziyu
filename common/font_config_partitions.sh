@@ -58,7 +58,7 @@ _luoshu_font_config_partition_rows() {
     # Scanner-discovered OEM partitions are intentionally data-driven. Only safe
     # root-level names from device_font_partitions.conf are accepted, and only
     # when a real etc directory exists on this ROM.
-    _lfcp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _lfcp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     _lfcp_manifest="$_lfcp_module/config/device_font_partitions.conf"
     if [ -f "$_lfcp_manifest" ]; then
         while IFS= read -r _lfcp_part; do
@@ -100,12 +100,12 @@ $(_luoshu_font_config_partition_rows)
 EOF_LUOSHU_PARTITIONS
 }
 
-_luoshu_coloros_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/coloros_global.sh"
+_luoshu_coloros_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/coloros_global.sh"
 [ -f "$_luoshu_coloros_helper" ] && . "$_luoshu_coloros_helper"
-_luoshu_origin_flyme_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/origin_flyme_global.sh"
+_luoshu_origin_flyme_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/origin_flyme_global.sh"
 [ -f "$_luoshu_origin_flyme_helper" ] && . "$_luoshu_origin_flyme_helper"
 
-_luoshufp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+_luoshufp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 if ! type luoshu_payload_validate_current >/dev/null 2>&1; then
     [ -f "$_luoshufp_module/common/font_config_runtime.sh" ] && . "$_luoshufp_module/common/font_config_runtime.sh"
 fi

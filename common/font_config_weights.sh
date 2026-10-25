@@ -3,7 +3,7 @@
 set +e
 
 _luoshu_config_weight_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 _luoshu_config_weight_fonts() {

@@ -12,10 +12,14 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
 fi
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
 CURRENT_MANAGER="$MODDIR/common/font_manager_v4.sh"
 CUTOVER_SWITCH="$MODDIR/common/universal_font_cutover.sh"
 SAFE_SWITCH="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"

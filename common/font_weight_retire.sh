@@ -52,6 +52,10 @@ if [ "${LUOSHU_SCOPE_WORKER_PID:-}" != "$$" ]; then
     MODDIR="$_fwr_new"; export MODDIR
     exec sh "$_fwr_new/common/task_scope.sh" --timeout 15 -- sh "$0" "$@"
 fi
+MODULE_DIR="$_fwr_new"
+. "$_fwr_new/common/util_functions.sh" || _fwr_defer
+luoshu_font_lock_acquire "$_fwr_new/.display-typography.lock" "$$" || _fwr_defer
+trap 'luoshu_font_lock_release "$_fwr_new/.display-typography.lock" "$$" >/dev/null 2>&1 || true' EXIT
 command -v settings >/dev/null 2>&1 || _fwr_defer
 _fwr_current=$(settings --user current get secure font_weight_adjustment 2>/dev/null)
 _fwr_get_rc=$?
@@ -60,9 +64,11 @@ if [ "$_fwr_get_rc" -ne 0 ]; then
 fi
 if [ "$_fwr_current" != "$_fwr_saved" ]; then
     # Preserve null/unset and the system/user's newer preference alike.
+    touch "$_fwr_cfg/display-typography-dirty" 2>/dev/null || true
     _fwr_clear externally-changed
     exit 0
 fi
+touch "$_fwr_cfg/display-typography-dirty" 2>/dev/null || true
 if [ "$_fwr_original_present" = true ]; then
     settings --user current put secure font_weight_adjustment "$_fwr_original" >/dev/null 2>&1 || \
         settings put secure font_weight_adjustment "$_fwr_original" >/dev/null 2>&1 || _fwr_defer

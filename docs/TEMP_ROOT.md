@@ -21,9 +21,9 @@
 
 ```sh
 # 仅查询接口，不重启
-sh /data/adb/modules/LuoShu/common/soft_reboot.sh status
+sh /data/adb/modules/ziyu/common/soft_reboot.sh status
 # 请求软重启
-sh /data/adb/modules/LuoShu/common/soft_reboot.sh request
+sh /data/adb/modules/ziyu/common/soft_reboot.sh request
 ```
 
 请求日志写入 `logs/soft-reboot.log`，清理结果写入 `config/temporary-root-soft-reboot.conf` 和 `logs/mount-backend.log`，诊断导出包含以上记录。返回成功只代表请求已发送，不代表重启或挂载完成。

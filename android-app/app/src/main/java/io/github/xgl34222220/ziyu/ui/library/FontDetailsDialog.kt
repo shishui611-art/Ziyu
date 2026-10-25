@@ -339,6 +339,9 @@ internal fun FontDetailsDialogRoute(
                         Spacer(Modifier.width(8.dp))
                         Text("当前正在使用", color = tokens.success, fontWeight = FontWeight.SemiBold)
                     }
+                    Button(onClick = onApply, enabled = font.valid && !busy, modifier = Modifier.fillMaxWidth()) {
+                        Text("重新应用此字体")
+                    }
                 }
             } else {
                 Button(

@@ -64,7 +64,7 @@ APP_PACKAGE=$(read_prop package "$META")
 APP_VERSION_CODE=$(read_prop versionCode "$META")
 APK_SHA256=$(read_prop sha256 "$META")
 
-[ -n "$APP_PACKAGE" ] || APP_PACKAGE="io.github.shishui611_art.ziyu.debug"
+[ -n "$APP_PACKAGE" ] || APP_PACKAGE="io.github.shishui611_art.ziyu"
 case "$APP_PACKAGE" in
     io.github.shishui611_art.ziyu|io.github.shishui611_art.ziyu.debug) ;;
     *)

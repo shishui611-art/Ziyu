@@ -2,6 +2,9 @@
 # Standard partition payloads are migrated into .luoshu-payload during installation.
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .luoshu-runtime.
 common/app_bridge.sh
+common/font_preload_helper.sh
+common/font_preload_state.py
+common/font_preload_module
 common/apatch_boot_prepare.sh
 common/temporary_root_mode.sh
 common/soft_reboot.sh
@@ -19,6 +22,7 @@ common/font_cache_identity.py
 common/font_digest_cache.py
 common/font_update_manifest.py
 common/font_metrics_io.py
+common/font_parallel.py
 common/app_read_batch.py
 common/physical_payload_hashes.py
 common/composite_font.py
@@ -79,6 +83,10 @@ common/font_partition_compat_report.sh
 common/font_scan_profile.py
 common/stock_font_snapshot.py
 common/font_slot_coverage.py
+common/font_slot_compat.py
+common/display_typography.sh
+common/display_config_storage.sh
+common/display_config_storage.py
 common/stock_inventory_scan.py
 common/font_library_cache.sh
 common/font_manager.sh
@@ -225,3 +233,15 @@ common/composite_collection_contract.py
 
 common/composite_collection_build.sh
 common/boot_ota_guard.sh
+
+common/user_storage.sh
+common/user_storage.py
+common/user_storage_dispatch.sh
+common/full_backup.sh
+common/full_backup.py
+
+common/identity_migration.sh
+
+common/font_verity.py
+common/font_verity.sh
+licenses/SukiSU-Ultra-GPL-3.0.txt

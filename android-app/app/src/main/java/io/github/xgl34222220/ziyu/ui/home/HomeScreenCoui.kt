@@ -19,6 +19,8 @@ internal fun HomeScreenCoui(state: HomeUiState, actions: HomeActions, trustConte
         item(key = "header") { HomePageHeader(state.loading, actions) }
         item(key = "connection") { HomeConnectionRow(state.moduleInstalled, state.rootGranted, state.version) }
         item(key = "font") { HomeCurrentFont(UiStyle.COUI, state.currentFont, state.moduleInstalled, state.rootGranted, state.version, nextStepFor(state, actions)) }
+        if (state.typographyVisible) item(key = "typography") { HomeTypographyCard(state, actions) }
+        item(key = "mount") { HomeMountButton(state, actions) }
         if (state.hasTaskNotice) item(key = "task") { HomeTaskNotice(state, actions) }
         item(key = "device") { HomeDevicePanel(state, trustContent) }
         item(key = "navigation") { HomeNavigation(UiStyle.COUI, actions) }

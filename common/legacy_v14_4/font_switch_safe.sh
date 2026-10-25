@@ -17,14 +17,18 @@ else
         if [ -f "${0%/*}/../../module.prop" ]; then
             MODDIR="$(CDPATH= cd -- "${0%/*}/../.." 2>/dev/null && pwd)"
         else
-            MODDIR="/data/adb/modules/LuoShu"
+            MODDIR="/data/adb/modules/ziyu"
         fi
     fi
 fi
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODDIR/config"
 LEGACY_DIR="$MODDIR/common/legacy_v14_4"
-USER_ROOT="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+USER_ROOT="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
 USER_FONTS_DIR="$USER_ROOT/fonts"
 LIVE_PAYLOAD="$MODDIR/.luoshu-payload"
 STAGE_PAYLOAD="$MODDIR/.luoshu-state/tmp/.luoshu-payload-stage.$$"
@@ -155,6 +159,8 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_role_policy.py" \
                          "$MODDIR/common/font_slot_weight.py" \
                          "$MODDIR/common/font_slot_coverage.py" \
+                         "$MODDIR/common/font_slot_compat.py" \
+                         "$MODDIR/common/font_digest_cache.py" \
                          "$MODDIR/common/coloros_global.sh" \
                          "$MODDIR/common/device_font_payload_policy.sh" \
                          "$MODDIR/common/font_role_shadow.py" \
@@ -785,12 +791,21 @@ switch_font() {
     [ -n "$_font" ] || { safe_error '未指定字体'; return 1; }
     _active_label="${LUOSHU_SWITCH_ACTIVE_LABEL:-$_font}"
     [ -n "$_active_label" ] || _active_label="$_font"
+    # A logical composite label must never turn a real default restoration
+    # into a custom-font request at the safety gate or next-boot commit.
+    [ "$_font" != default ] || _active_label=default
     if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
-            allow-apply "$MODDIR" "$_active_label" 2>>"$LOG_FILE" || {
-            safe_error '开机安全保护当前只允许恢复系统默认字体；OTA 期间请先完成原厂扫描'
+            allow-apply "$MODDIR" "$_active_label" 2>>"$LOG_FILE"
+        _safe_guard_rc=$?
+        if [ "$_safe_guard_rc" -ne 0 ]; then
+            case "$_safe_guard_rc" in
+                20) safe_error '开机保护已启用，当前仅允许恢复系统默认字体；请到设置 → 开机保护检查并解除保护' ;;
+                21) safe_error '系统字体基准尚未核验；请到设置 → 开机保护完成原厂字体扫描后再应用' ;;
+                *) safe_error '无法核对开机保护状态，请检查日志；本次没有提交字体负载' ;;
+            esac
             return 1
-        }
+        fi
     fi
     _collection_mix=false
     _collection_cache_hit=false
@@ -876,9 +891,9 @@ switch_font() {
                     return 1
                 }
             elif [ "${IS_COLOROS:-false}" = true ]; then
-                progress 76 '正在按原厂槽位对齐 ColorOS 字体度量'
+                progress 76 '正在生成 ColorOS 兼容字体'
                 stage_coloros_complete || {
-                    safe_error 'ColorOS 字体度量处理失败，请查看字体切换日志'
+                    safe_error 'ColorOS 字体槽位或字符映射处理失败，请查看字体切换日志'
                     return 1
                 }
             else
@@ -908,7 +923,7 @@ switch_font() {
             }
             if [ "$_collection_cache_hit" = true ]; then
                 : # The restored per-face proof is checked immediately before commit.
-            elif ! LUOSHU_REAL_MODDIR="$MODDIR" sh "$_collection_helper" build \
+            elif ! LUOSHU_REAL_MODDIR="$MODDIR" LUOSHU_TASK_SCOPE_TMPDIR="$STAGE_PAYLOAD" sh "$_collection_helper" build \
                 --module "$MODDIR" --payload "$STAGE_PAYLOAD" --source "$_source" \
                 --mix-config "$_collection_config" --request "$_collection_request" \
                 >> "$LOG_FILE" 2>&1; then
@@ -969,24 +984,9 @@ switch_font() {
     fi
     printf '%s\n' "$_active_label" > "$CONFIG_DIR/last_switch_result.conf" 2>/dev/null || true
     date '+%Y-%m-%d %H:%M:%S' > "$CONFIG_DIR/last_switch_time.conf" 2>/dev/null || true
-    progress 99 '正在按当前自挂载方式尝试热切换'
-    ZIYU_LIVE_OWNER_PID="$$" sh "$MODDIR/common/font_live_switch.sh" apply >> "$LOG_FILE" 2>&1
-    _live_rc=$?
-    if [ "$_live_rc" -eq 0 ]; then
-        if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
-            MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
-                record-apply "$MODDIR" "$_active_label" >>"$LOG_FILE" 2>&1 || {
-                safe_error '字体已生成，但开机保护未能确认这一代负载；保护仍保持启用，请查看日志'
-                return 1
-            }
-        fi
-        progress 100 '字体已热挂载，部分界面可能需要重新打开以刷新缓存'
-        printf '{"status":"ok","data":{"font":"%s","rebootRequired":false,"liveApplied":true,"core":"physical-safe-v1","pipeline":"live-mount"}}\n' "$(json_escape "$_active_label")"
-        return 0
-    fi
-    if [ "$_live_rc" -ne 3 ]; then
-        safe_error '热切换或回滚未确认，重启队列已保留，请查看日志'; return 1
-    fi
+    # All new requests remain offline. Recovery/retirement of historical live
+    # transactions is retained above, but this request never changes app mounts.
+    progress 99 '字体负载已校验，等待重启后应用'
     if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
             record-apply "$MODDIR" "$_active_label" >>"$LOG_FILE" 2>&1 || {

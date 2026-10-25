@@ -6,7 +6,7 @@
 set +e
 
 _lhcc_module_dir() {
-    printf '%s\n' "${LUOSHU_REAL_MODDIR:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}}"
+    printf '%s\n' "${LUOSHU_REAL_MODDIR:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}"
 }
 
 _lhcc_payload_root() {

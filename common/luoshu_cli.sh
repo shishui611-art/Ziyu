@@ -2,7 +2,7 @@
 # 洛书 RC2 安全命令行入口。
 set +e
 
-MODDIR="${MODDIR:-/data/adb/modules/LuoShu}"
+MODDIR="${MODDIR:-/data/adb/modules/ziyu}"
 [ -f "${0%/*}/../module.prop" ] && MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
 MANAGER="$MODDIR/common/font_manager.sh"
 SWITCH="$MODDIR/common/font_switch_task.sh"

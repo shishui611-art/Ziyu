@@ -41,7 +41,7 @@ internal data class DiagnosticExportState(
 
 internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
     val command = """
-        MOD=/data/adb/modules/LuoShu
+        MOD=/data/adb/modules/ziyu
         CFG="${'$'}MOD/config"
         LOG="${'$'}MOD/logs/fontswitch.log"
         OUT_DIR=/sdcard/Ziyu/reports
@@ -71,7 +71,7 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
         moduleDirectory=missing
         [ -d "${'$'}MOD" ] && moduleDirectory=present
         pendingModuleDirectory=missing
-        [ -d /data/adb/modules_update/LuoShu ] && pendingModuleDirectory=present
+        [ -d /data/adb/modules_update/ziyu ] && pendingModuleDirectory=present
         postMountScript=missing
         [ -f "${'$'}MOD/post-mount.sh" ] && postMountScript=present
         cachePending=no
@@ -105,8 +105,8 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
             printf 'time=%s\n' "${'$'}(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)"
             printf 'moduleVersion=%s\n' "${'$'}{version:-unknown}"
             printf 'moduleVersionCode=%s\n' "${'$'}{versionCode:-0}"
-            printf 'pendingModuleVersion=%s\n' "${'$'}(read_value /data/adb/modules_update/LuoShu/module.prop version)"
-            printf 'pendingModuleVersionCode=%s\n' "${'$'}(read_value /data/adb/modules_update/LuoShu/module.prop versionCode)"
+            printf 'pendingModuleVersion=%s\n' "${'$'}(read_value /data/adb/modules_update/ziyu/module.prop version)"
+            printf 'pendingModuleVersionCode=%s\n' "${'$'}(read_value /data/adb/modules_update/ziyu/module.prop versionCode)"
             printf 'versionScope=installed and pending metadata; switch runtime version is recorded in CUTOVER log\n'
             printf 'activeFontType=%s\n' "${'$'}activeType"
             printf 'inventory=%s\n' "${'$'}inventory"
@@ -147,6 +147,13 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
             fi
         done
         for relative in config/mount-backend.conf config/mount-backend-verification.json \
+            config/font-preload-arm64-v8a.conf config/font-preload-armeabi-v7a.conf \
+            config/font-preload-arm64-v8a-denylist.conf config/font-preload-armeabi-v7a-denylist.conf \
+            config/font-preload-generation.conf \
+            config/boot-ota-guard.conf config/boot-ota-pending.conf config/boot-safety-mode.conf \
+            config/boot-safety-disable-owner.conf config/boot-safety-current-boot.conf \
+            config/user-storage.conf config/user-storage-next.conf logs/user-storage.log \
+            config/display-typography.conf config/display-config-storage.conf config/display-typography-dirty \
             config/mount-backend-preference.conf config/provider-reload-check.conf config/apatch-pre-mount.conf \
             .ziyu-state/provider-published.conf .ziyu-state/provider-reload.started config/font-payload-manifest.conf \
             config/temporary-root-soft-reboot.conf config/stock-font-snapshot/manifest.json logs/stock-font-snapshot.log \

@@ -18,6 +18,8 @@ fun HomeScreenMaterial(state: HomeUiState, actions: HomeActions, trustContent: @
     ) {
         item(key = "header") { HomePageHeader(state.loading, actions) }
         item(key = "font") { HomeCurrentFont(UiStyle.MATERIAL, state.currentFont, state.moduleInstalled, state.rootGranted, state.version, nextStepFor(state, actions)) }
+        if (state.typographyVisible) item(key = "typography") { HomeTypographyCard(state, actions) }
+        item(key = "mount") { HomeMountButton(state, actions) }
         item(key = "navigation") { HomeNavigation(UiStyle.MATERIAL, actions) }
         if (state.hasTaskNotice) item(key = "task") { HomeTaskNotice(state, actions) }
         item(key = "device") { HomeDevicePanel(state, trustContent) }

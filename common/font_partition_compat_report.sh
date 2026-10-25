@@ -382,6 +382,9 @@ printf '扫描完成：字体 XML %s 个，提取具体字体路由 %s 条。正
     else
         for _name in \
           config/mount-backend.conf config/mount-backend-preference.conf \
+          config/font-preload-arm64-v8a.conf config/font-preload-armeabi-v7a.conf \
+          config/font-preload-arm64-v8a-denylist.conf config/font-preload-armeabi-v7a-denylist.conf \
+          config/font-preload-generation.conf \
           config/device-font-load-verification.conf config/device-font-load-route-verification.json \
           config/self-mount.conf config/active_font.conf config/device-font-engine.conf \
           config/font-payload-manifest.conf config/font-target-coverage.conf \

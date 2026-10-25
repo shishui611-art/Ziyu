@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # LuoShu metamodule compatibility layer.
 #
-# The canonical module tree lives under /data/adb/modules/LuoShu. Some
+# The canonical module tree lives under /data/adb/modules/ziyu. Some
 # metamodules use a second persistent content tree, while others read the
 # canonical tree directly. This file detects that contract, updates payloads
 # transactionally, and verifies every partition after reboot.
@@ -12,7 +12,7 @@ if [ -n "$_lmb_root" ]; then
     [ -f "$_lmb_root/common/root_manager_detection.sh" ] && . "$_lmb_root/common/root_manager_detection.sh"
 fi
 
-LUOSHU_MOUNT_MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+LUOSHU_MOUNT_MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 LUOSHU_MOUNT_LOG="${LUOSHU_MOUNT_LOG:-$LUOSHU_MOUNT_MODDIR/logs/mount_compat.log}"
 LUOSHU_MOUNT_LOCK="$LUOSHU_MOUNT_MODDIR/.mount_compat.lock"
 LUOSHU_MOUNT_TIMEOUT="${LUOSHU_MOUNT_TIMEOUT:-55}"
@@ -512,7 +512,7 @@ luoshu_mount_preflight() {
                     return 1
                 fi
                 luoshu_mountify_module_selected || {
-                    LUOSHU_MOUNT_PREFLIGHT_ERROR='Mountify 白名单未包含 LuoShu'
+                    LUOSHU_MOUNT_PREFLIGHT_ERROR='Mountify 白名单未包含 ziyu'
                     return 1
                 }
             fi
@@ -868,11 +868,11 @@ luoshu_mount_status_json() {
         "${_lmsj_duration:-0}" "${_lmsj_time:-0}"
 }
 
-_luoshu_hyperos_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/hyperos_global.sh"
+_luoshu_hyperos_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/hyperos_global.sh"
 [ -f "$_luoshu_hyperos_helper" ] && . "$_luoshu_hyperos_helper"
-_luoshu_font_config_partitions="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/font_config_partitions.sh"
+_luoshu_font_config_partitions="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/font_config_partitions.sh"
 [ -f "$_luoshu_font_config_partitions" ] && . "$_luoshu_font_config_partitions"
-_luoshu_meta_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/common/meta_mount_detection.sh"
+_luoshu_meta_helper="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/common/meta_mount_detection.sh"
 [ -f "$_luoshu_meta_helper" ] && . "$_luoshu_meta_helper"
 
 if [ "${0##*/}" = mount_compat.sh ]; then

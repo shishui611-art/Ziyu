@@ -12,7 +12,7 @@ LUOSHU_PROVIDER_BACKUP_SUFFIX=".luoshu-bak"
 
 luoshu_provider_log() {
     _lpl_msg="$1"
-    _lpl_mod="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _lpl_mod="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     mkdir -p "$_lpl_mod/logs" 2>/dev/null || true
     printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$_lpl_msg" \
         >> "$_lpl_mod/logs/provider_cache.log" 2>/dev/null || true

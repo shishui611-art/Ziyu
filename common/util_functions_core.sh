@@ -9,12 +9,16 @@ set +e
 
 # ---------- 模块路径定义 ----------
 # 允许外部覆盖（font_manager.sh 会在加载前设置 MODULE_DIR）
-MODULE_DIR="${MODULE_DIR:-/data/adb/modules/LuoShu}"
+MODULE_DIR="${MODULE_DIR:-/data/adb/modules/ziyu}"
 CONFIG_DIR="${MODULE_DIR}/config"
 FONT_DIR="${MODULE_DIR}/fonts"
 LOG_DIR="${MODULE_DIR}/logs"
 LOG_FILE="${LOG_DIR}/fontswitch.log"
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
 USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
 USER_REPORT_DIR="$LUOSHU_PUBLIC_DIR/reports"
 USER_IMPORT_DIR="$LUOSHU_PUBLIC_DIR/import"

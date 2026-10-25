@@ -81,7 +81,7 @@ luoshu_update_config_is_volatile() {
 }
 
 luoshu_update_payload_partitions() {
-    _lup_config_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}}"
+    _lup_config_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
     if type luoshu_private_partitions >/dev/null 2>&1; then
         ( MODULE_DIR="$_lup_config_module"; MODDIR="$MODULE_DIR"; luoshu_private_partitions )
         return

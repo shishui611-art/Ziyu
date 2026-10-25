@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val DETAILS_BRIDGE = "/data/adb/modules/LuoShu/common/font_details.sh"
+private const val DETAILS_BRIDGE = "/data/adb/modules/ziyu/common/font_details.sh"
 
 private data class DetailedFontMetadata(
     val title: String,

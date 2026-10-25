@@ -7,8 +7,18 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
+fi
+# Display configuration reads do not need mount discovery, font engines or
+# user-directory initialization. Keep the cached path independent and short.
+if [ "${1:-}" = display_typography ]; then
+    shift
+    exec sh "$MODDIR/common/display_typography.sh" "$@"
+fi
+if [ "${1:-}" = display_config_storage ]; then
+    shift
+    exec sh "$MODDIR/common/display_typography.sh" storage "$@"
 fi
 [ -f "$MODDIR/common/mount_backend_details.sh" ] && . "$MODDIR/common/mount_backend_details.sh"
 [ -f "$MODDIR/common/root_manager_detection.sh" ] && . "$MODDIR/common/root_manager_detection.sh"
@@ -29,13 +39,18 @@ UNIVERSAL_VERIFY="$MODDIR/common/universal_font_runtime_verify.sh"
 FONT_COVERAGE_LOCATOR="$MODDIR/common/font_coverage_locator.py"
 PYROOT="$MODDIR/common/python"
 PYBIN="$PYROOT/bin/luoshu-python"
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 AXES_TASK_FILE="$MODDIR/config/axes_task.conf"
 SWITCH_TASK_FILE="$MODDIR/config/switch_task.conf"
 TEXT_REBOOT_REQUIRED="$MODDIR/config/text_reboot_required.conf"
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 [ -f "$MODDIR/common/mount_compat.sh" ] && . "$MODDIR/common/mount_compat.sh"
 [ -f "$MODDIR/common/font_boot_state.sh" ] && . "$MODDIR/common/font_boot_state.sh"
+[ -f "$MODDIR/common/font_live_state.sh" ] && . "$MODDIR/common/font_live_state.sh"
 
 json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
@@ -274,11 +289,13 @@ status_json() {
 $_selected
 EOF_TASK_SELECTION
     _task_id=''
+    _task_font=''
     _task_state='idle'
     _task_message='暂无后台任务'
     _task_progress=0
     if [ -n "$_task_file" ]; then
         _task_id="$(read_prop "$_task_file" task)"
+        _task_font="$(read_prop "$_task_file" font)"
         _task_state="$(read_prop "$_task_file" state)"
         _task_message="$(read_prop "$_task_file" message)"
         if [ "$_task_type" = mix ]; then
@@ -303,7 +320,8 @@ EOF_TASK_SELECTION
     if [ "$_rollback_pending" = true ]; then
         _effective_active=unknown
         _font_effect_state=rollback-pending
-    elif ziyu_live_current && [ ! -e "$MODDIR/config/font-live-transaction.conf" ] && \
+    elif type ziyu_live_current >/dev/null 2>&1 && ziyu_live_current && \
+         [ ! -e "$MODDIR/config/font-live-transaction.conf" ] && \
          [ "$_mount_state" != failed ] && { [ "$_verification_state" = verified ] || [ "$_verification_state" = partial ]; }; then
         _effective_active=$_zlc_font
         if [ "$_effective_active" = "$_active" ] && [ "$_reboot_required" = false ]; then
@@ -398,14 +416,14 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         fi
     fi
 
-    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"temporaryRootMode":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s"}}\n' \
+    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskFont":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"temporaryRootMode":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s"}}\n' \
         "$_installed" "$(json_escape "$_version")" "${_version_code:-0}" "$(json_escape "$_active")" \
         "$(json_escape "$_effective_active")" "$(json_escape "$_font_effect_state")" \
         "$(json_escape "$_verification_state")" "$(json_escape "$_verification_grade")" "$(json_escape "$_verification_mode")" \
         "$(json_escape "$_verification_reason")" "$(json_escape "$_mount_state")" "$(json_escape "$_mount_failed")" \
         "$(json_escape "$_cutover_state")" "$(json_escape "$_cutover_decision")" "$(json_escape "$_rollback_state")" "$_rollback_pending" \
         "$(json_escape "$_rollback_target_font")" "$(json_escape "$_rollback_target_mode")" \
-        "$(json_escape "$_task_type")" "$(json_escape "$_task_id")" "$(json_escape "$_task_state")" \
+        "$(json_escape "$_task_type")" "$(json_escape "$_task_id")" "$(json_escape "$_task_font")" "$(json_escape "$_task_state")" \
         "$(json_escape "$_task_message")" "$_task_progress" "$_reboot_required" "$_temporary_root" \
         "$(json_escape "$(root_manager)")" "$(json_escape "$(mount_engine)")" "$(json_escape "$MODDIR")"
 }
@@ -523,10 +541,25 @@ weight_axis_info() {
     export PYTHONHOME="$PYROOT"
     export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
     export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    "$PYBIN" "$AXIS_INFO" "$_src"
+    "$PYBIN" "$AXIS_INFO" "$_src" --cache "$MODDIR/config/font-axis-cache"
 }
 
+# Share the migration lock for mutations; children inherit it until completion.
 case "${1:-status}" in
+    switch_start|mix_start|import_file|delete|delete_many|import_system_fonts|action_undo|storage)
+        if [ "${ZIYU_STORAGE_LOCKED:-0}" != 1 ]; then
+            exec sh "$MODDIR/common/user_storage_dispatch.sh" "$MODDIR" "$@"
+        fi
+        ;;
+esac
+case "${1:-status}" in
+    storage)
+        ziyu_user_storage_command "$MODDIR" "${2:-status}" "${3:-}"
+        ;;
+    display_typography)
+        shift
+        exec sh "$MODDIR/common/display_typography.sh" "$@"
+        ;;
     boot_safety)
         [ "$#" -eq 2 ] || { printf 'status=error\nreason=invalid-arguments\n'; exit 2; }
         case "$2" in status|recover|rescan) ;; *) printf 'status=error\nreason=invalid-action\n'; exit 2 ;; esac
@@ -600,23 +633,23 @@ case "${1:-status}" in
     weight_axis) weight_axis_info "${2:-}" ;;
     source_profile)
         [ -f "$SOURCE_PROFILE" ] || { printf '{"status":"error","message":"源字体 Profile 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" sh "$SOURCE_PROFILE" family "${2:-}"
+        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$SOURCE_PROFILE" family "${2:-}"
         ;;
     universal_plan)
         [ -f "$UNIVERSAL_PLAN" ] || { printf '{"status":"error","message":"Universal FontPlan 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" sh "$UNIVERSAL_PLAN" build "${2:-}"
+        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_PLAN" build "${2:-}"
         ;;
     xml_route_plan)
         [ -f "$MINIMAL_XML_ROUTER" ] || { printf '{"status":"error","message":"Minimal XML Router 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" sh "$MINIMAL_XML_ROUTER" build "${2:-}"
+        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$MINIMAL_XML_ROUTER" build "${2:-}"
         ;;
     font_compile)
         [ -f "$UNIVERSAL_COMPILER" ] || { printf '{"status":"error","message":"Universal Font Compiler 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" sh "$UNIVERSAL_COMPILER" compile "${2:-}"
+        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_COMPILER" compile "${2:-}"
         ;;
     font_deployment)
         [ -f "$UNIVERSAL_DEPLOYMENT" ] || { printf '{"status":"error","message":"Universal Deployment 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" sh "$UNIVERSAL_DEPLOYMENT" prepare "${2:-}"
+        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_DEPLOYMENT" prepare "${2:-}"
         ;;
     font_runtime_verify)
         [ -f "$UNIVERSAL_VERIFY" ] || { printf '{"status":"error","message":"Runtime Verification 组件不可用"}\n'; exit 1; }
@@ -628,7 +661,7 @@ case "${1:-status}" in
         ;;
     prewarm)
         if [ -f "$SAFE_SWITCH" ]; then
-            MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" \
+            MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" \
                 sh "$SAFE_SWITCH" action prewarm-start "${2:-}" >/dev/null 2>&1 || true
             printf '{"status":"ok","data":{"font":"%s","scheduled":true}}\n' "$(json_escape "${2:-}")"
         else
@@ -638,7 +671,7 @@ case "${1:-status}" in
     validate)
         manager_ready || exit 1
         if [ -f "$SAFE_SWITCH" ] && [ -n "${2:-}" ] && [ "${2:-}" != default ]; then
-            MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" \
+            MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" \
                 sh "$SAFE_SWITCH" action prewarm-start "${2:-}" >/dev/null 2>&1 || true
         fi
         sh "$FONT_MANAGER" action validate "${2:-}"
@@ -678,9 +711,6 @@ case "${1:-status}" in
         exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
         ;;
     reboot)
-        if temporary_root_mode; then
-            exec sh "$MODDIR/common/soft_reboot.sh" request
-        fi
         manager_ready || exit 1
         sh "$FONT_MANAGER" action reboot_device
         ;;

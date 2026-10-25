@@ -19,6 +19,7 @@ private val Context.appearanceDataStore by preferencesDataStore(name = "appearan
 class AppearanceRepository(private val context: Context) {
     // Package timestamps survive normal app upgrades even when a user has never changed
     // appearance settings, so those existing installs must not be sent through first-run setup.
+    private val backgroundMutex = kotlinx.coroutines.sync.Mutex()
     private val isUpgradeInstall = context.isUpgradeInstall()
 
     private object Keys {
@@ -27,12 +28,15 @@ class AppearanceRepository(private val context: Context) {
         val setupCompleted = booleanPreferencesKey("setup_completed")
         val seedArgb = intPreferencesKey("theme_seed_argb")
         val kolorStyle = stringPreferencesKey("theme_kolor_style")
+        val colorStandard = stringPreferencesKey("theme_color_standard")
         val monetEnabled = booleanPreferencesKey("theme_monet_enabled")
         val amoledBlack = booleanPreferencesKey("theme_amoled_black")
         val blurEnabled = booleanPreferencesKey("theme_blur_enabled")
         val glassEnabled = booleanPreferencesKey("theme_glass_enabled")
         val floatingDock = booleanPreferencesKey("theme_floating_dock")
+        val backgroundPath = stringPreferencesKey("background_path")
         val highRefreshRate = booleanPreferencesKey("display_high_refresh_rate")
+        val predictiveBack = booleanPreferencesKey("predictive_back")
     }
 
     val settings: Flow<AppearanceSettings> = context.appearanceDataStore.data
@@ -45,12 +49,15 @@ class AppearanceRepository(private val context: Context) {
                 themeMode = ThemeMode.fromStorage(preferences[Keys.themeMode] ?: ThemeMode.SYSTEM.storageValue),
                 seedArgb = preferences[Keys.seedArgb] ?: AccentOptions.first().argb,
                 kolorStyle = KolorStyle.fromStorage(preferences[Keys.kolorStyle]),
+                colorStandard = ColorStandard.fromStorage(preferences[Keys.colorStandard]),
                 monetEnabled = preferences[Keys.monetEnabled] ?: true,
                 amoledBlack = preferences[Keys.amoledBlack] ?: false,
                 blurEnabled = preferences[Keys.blurEnabled] ?: true,
                 glassEnabled = preferences[Keys.glassEnabled] ?: true,
                 floatingDock = preferences[Keys.floatingDock] ?: true,
                 highRefreshRate = preferences[Keys.highRefreshRate] ?: false,
+                predictiveBack = preferences[Keys.predictiveBack] ?: true,
+                backgroundPath = preferences[Keys.backgroundPath].orEmpty(),
             ).normalized()
         }
 
@@ -70,23 +77,42 @@ class AppearanceRepository(private val context: Context) {
     suspend fun setUiStyle(value: UiStyle) = edit { it[Keys.uiStyle] = value.name }
     suspend fun setThemeMode(value: ThemeMode) = edit { it[Keys.themeMode] = value.storageValue }
     suspend fun setSetupCompleted() = edit { it[Keys.setupCompleted] = true }
-    suspend fun setSeedArgb(value: Int) = edit { it[Keys.seedArgb] = accentOptionFor(value).argb }
+    suspend fun setSeedArgb(value: Int) = edit {
+        it[Keys.seedArgb] = accentOptionFor(value).argb
+        it[Keys.monetEnabled] = false
+    }
+    suspend fun setThemeDisplay(mode: ThemeMode, black: Boolean) = edit {
+        it[Keys.themeMode] = mode.storageValue
+        it[Keys.amoledBlack] = black
+    }
+    suspend fun setPredictiveBack(enabled: Boolean) = edit { it[Keys.predictiveBack] = enabled }
     suspend fun setKolorStyle(value: KolorStyle) = edit { it[Keys.kolorStyle] = value.name }
+    suspend fun setColorStandard(value: ColorStandard) = edit { it[Keys.colorStandard] = value.name }
     suspend fun setMonetEnabled(enabled: Boolean) = edit { it[Keys.monetEnabled] = enabled }
     suspend fun setAmoledBlack(enabled: Boolean) = edit { it[Keys.amoledBlack] = enabled }
     suspend fun setBlurEnabled(enabled: Boolean) = edit { preferences ->
-        preferences[Keys.blurEnabled] = enabled && (preferences[Keys.glassEnabled] ?: true)
+        preferences[Keys.blurEnabled] = enabled
     }
 
     suspend fun setGlassEnabled(enabled: Boolean) {
         edit { preferences ->
             preferences[Keys.glassEnabled] = enabled
-            if (!enabled) preferences[Keys.blurEnabled] = false
         }
     }
 
     suspend fun setFloatingDock(enabled: Boolean) = edit { it[Keys.floatingDock] = enabled }
     suspend fun setHighRefreshRate(enabled: Boolean) = edit { it[Keys.highRefreshRate] = enabled }
+
+    suspend fun setBackgroundPath(path: String) {
+        backgroundMutex.lock()
+        try {
+        edit { it[Keys.backgroundPath] = path }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val directory = java.io.File(context.filesDir, "backgrounds")
+            directory.listFiles()?.filter { it.name.startsWith("background-") && it.absolutePath != path }?.forEach { it.delete() }
+        }
+        } finally { backgroundMutex.unlock() }
+    }
 
     private suspend inline fun edit(crossinline block: (MutablePreferences) -> Unit) {
         context.appearanceDataStore.edit { preferences -> block(preferences) }

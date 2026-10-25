@@ -3,7 +3,7 @@
 set +e
 
 _lfbs_module() {
-    printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
 
 _lfbs_value() {

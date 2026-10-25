@@ -25,15 +25,20 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setUiStyle(value: UiStyle) = launch { repository.setUiStyle(value) }
     fun setThemeMode(value: ThemeMode) = launch { repository.setThemeMode(value) }
+    fun setThemeDisplay(mode: ThemeMode, black: Boolean) = launch { repository.setThemeDisplay(mode, black) }
+    fun setPredictiveBack(enabled: Boolean) = launch { repository.setPredictiveBack(enabled) }
     fun completeSetup() = launch { repository.setSetupCompleted() }
     fun setSeedArgb(value: Int) = launch { repository.setSeedArgb(value) }
     fun setKolorStyle(value: KolorStyle) = launch { repository.setKolorStyle(value) }
+    fun setColorStandard(value: ColorStandard) = launch { repository.setColorStandard(value) }
     fun setMonetEnabled(enabled: Boolean) = launch { repository.setMonetEnabled(enabled) }
     fun setAmoledBlack(enabled: Boolean) = launch { repository.setAmoledBlack(enabled) }
     fun setBlurEnabled(enabled: Boolean) = launch { repository.setBlurEnabled(enabled) }
     fun setGlassEnabled(enabled: Boolean) = launch { repository.setGlassEnabled(enabled) }
     fun setFloatingDock(enabled: Boolean) = launch { repository.setFloatingDock(enabled) }
     fun setHighRefreshRate(enabled: Boolean) = launch { repository.setHighRefreshRate(enabled) }
+
+    fun setBackgroundPath(path: String) = launch { repository.setBackgroundPath(path) }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

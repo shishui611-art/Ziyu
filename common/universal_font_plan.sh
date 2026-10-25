@@ -2,7 +2,7 @@
 # LuoShu Phase 4 universal FontPlan bridge. Planning only; never mutates Android fonts.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODDIR/config"
 TOPOLOGY="$CONFIG_DIR/device_font_topology.json"

@@ -21,7 +21,7 @@ luoshu_font_validation_hash() {
 }
 
 luoshu_font_validation_cache_path() {
-    _lfvcp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _lfvcp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     _lfvcp_file="${1:-}"
     if [ -z "$_lfvcp_file" ]; then
         printf '%s/config/font-validation-cache.conf\n' "$_lfvcp_module"

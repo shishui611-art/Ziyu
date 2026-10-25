@@ -47,6 +47,7 @@ internal data class ModuleSnapshot(
     val rollbackTargetMode: String = "",
     val taskType: String = "none",
     val taskId: String = "",
+    val taskFont: String = "",
     val taskState: String = "idle",
     val taskMessage: String = "暂无后台任务",
     val taskProgress: Int = 0,
@@ -190,14 +191,95 @@ private data class FontFingerprint(
 )
 
 internal class ZiyuViewModel(application: Application) : AndroidViewModel(application) {
-    private val bridge = "/data/adb/modules/LuoShu/common/app_bridge.sh"
-    private val fingerprintBridge = "/data/adb/modules/LuoShu/common/font_library_cache.sh"
+    private val bridge = "/data/adb/modules/ziyu/common/app_bridge.sh"
+    private val fingerprintBridge = "/data/adb/modules/ziyu/common/font_library_cache.sh"
     private val fontIndexStore = FontIndexStore(application)
     private val completionPrefs = application.getSharedPreferences("combination-completion", 0)
     private val mixTunePrefs = application.getSharedPreferences("combination-tune", 0)
     private var restartJob: Job? = null
     private var restoredCombinationTask = ""
     private val mountPreferenceMutex = Mutex()
+    private var typographyJob: Job? = null
+    private var typographyModuleRevision = ""
+    private var typographyRequestKey = ""
+    var displayTypography by mutableStateOf(DisplayTypographyState())
+        private set
+
+    fun loadDisplayTypography() = readDisplayTypography(forceSystem = false)
+
+    fun refreshDisplayTypography() = readDisplayTypography(forceSystem = true)
+
+    private fun readDisplayTypography(forceSystem: Boolean) {
+        if (displayTypography.saving) return
+        val fontId = snapshot.activeFont
+        val font = fonts.firstOrNull { it.id == fontId }
+        val revision = font?.sourceRevision.orEmpty()
+        val moduleRevision = "${snapshot.versionCode}:${snapshot.version}"
+        val requestKey = "$moduleRevision|$fontId|$revision"
+        if (!forceSystem && typographyRequestKey == requestKey &&
+            (typographyJob?.isActive == true || displayTypography.values != null && displayTypography.error.isBlank())) return
+        typographyJob?.cancel()
+        val previousValues = displayTypography.values.takeIf { !forceSystem && typographyModuleRevision == moduleRevision }
+        typographyRequestKey = requestKey
+        displayTypography = DisplayTypographyState(fontId = fontId, sourceRevision = revision, values = previousValues)
+        typographyJob = viewModelScope.launch {
+            try {
+                val (values, displayMessage) = if (previousValues != null) previousValues to "" else {
+                    val action = if (forceSystem) "refresh" else "status"
+                    parseDisplayTypography(RootShell.exec(
+                        "sh ${RootShell.quote(bridge)} display_typography $action " +
+                            "${RootShell.quote(android.os.Build.FINGERPRINT)} ${android.os.Build.VERSION.SDK_INT}",
+                        timeoutMs = 15_000L,
+                    ))
+                }
+                var capabilityMessage = ""
+                val multiWeight = if (font?.variable == true) {
+                    val info = resolveFontAxisInfo(font)
+                    if (info.error.isNotBlank()) capabilityMessage = "字重能力尚未确认，粗细暂不显示；可重新读取"
+                    info.error.isBlank() && info.axes.any { it.tag == "wght" && it.min < it.max }
+                } else font != null && io.github.xgl34222220.ziyu.ui.font.fontStaticWeights(font).size > 1
+                if (snapshot.activeFont == fontId && fonts.firstOrNull { it.id == fontId }?.sourceRevision.orEmpty() == revision) {
+                    typographyModuleRevision = moduleRevision
+                    displayTypography = DisplayTypographyState(
+                        fontId = fontId, sourceRevision = revision, loading = false, values = values,
+                        supportsWeight = values.sdk >= 31 && multiWeight,
+                        message = listOf(displayMessage, capabilityMessage).filter { it.isNotBlank() }.joinToString("；"),
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                displayTypography = DisplayTypographyState(fontId = fontId, sourceRevision = revision, loading = false, error = error.message ?: "读取显示设置失败")
+            }
+        }
+    }
+
+    fun applyDisplayTypography(scale: Int, weight: Int?, density: Int) {
+        val current = displayTypography
+        val old = current.values ?: return
+        val font = fonts.firstOrNull { it.id == snapshot.activeFont }
+        if (current.fontId != snapshot.activeFont || current.sourceRevision != font?.sourceRevision.orEmpty() ||
+            current.loading || current.saving || operationBusy || mixState.busy ||
+            snapshot.taskState in setOf("queued", "running") || snapshot.activeFont == "mix" || font?.combination == true) return
+        if (scale !in 50..200 || density !in old.densityMin..old.densityMax ||
+            (weight != null && (!current.supportsWeight || weight !in -1000..1000))) return
+        displayTypography = current.copy(saving = true, error = "", message = "")
+        typographyJob = viewModelScope.launch {
+            try {
+                val command = "sh ${RootShell.quote(bridge)} display_typography apply " +
+                    "${old.user} ${old.scale} ${old.weight} ${old.density} $scale ${weight ?: "keep"} $density " +
+                    "${RootShell.quote(android.os.Build.FINGERPRINT)} ${android.os.Build.VERSION.SDK_INT}"
+                val (values, message) = parseDisplayTypography(RootShell.exec(command, timeoutMs = 25_000L))
+                displayTypography = current.copy(values = values, saving = false, message = message)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                // Keep the failed draft visible; the next explicit read obtains
+                // the real state even if the shell could not confirm rollback.
+                displayTypography = current.copy(saving = false, error = error.message ?: "应用显示设置失败")
+            }
+        }
+    }
     var restartCountdown by mutableStateOf(0)
         private set
     var preparedCombination by mutableStateOf<PreparedCombination?>(null)
@@ -431,8 +513,6 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     private fun scheduleConfirmedRestart() {
         restartJob?.cancel()
         restartJob = viewModelScope.launch {
-            restartCountdown = 10
-            while (restartCountdown > 0) { delay(1_000L); restartCountdown -= 1 }
             rebootDevice()
         }
     }
@@ -530,11 +610,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         val wasOngoing = fontTaskNotification?.ongoing == true
         val spec = FontTaskNotificationSpec(kind, state, message, progress)
         fontTaskNotification = spec
+        // Publish before service creation or Root work so an immediate Home press has a notification.
+        FontTaskNotificationController.notify(getApplication(), spec)
         if (spec.ongoing && !wasOngoing) {
             FontTaskNotificationController.start(getApplication())
-        }
-        if (!FontTaskNotificationController.isServiceExpected()) {
-            FontTaskNotificationController.notify(getApplication(), spec)
         }
     }
 
@@ -1050,8 +1129,32 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    var rebootChoiceVisible by mutableStateOf(false)
+        private set
+    var softRebootSupported by mutableStateOf(false)
+        private set
+    var rebootChoiceMessage by mutableStateOf("")
+        private set
+
     fun rebootDevice() {
-        requestDeviceReboot(snapshot.temporaryRootMode)
+        if (rebootRequestJob?.isActive == true) return
+        viewModelScope.launch {
+            softRebootSupported = false
+            rebootChoiceMessage = "字体在重启后生效。重启会中断当前应用，请先保存工作。"
+            if (fontCacheSoftRebootAvailable) {
+                val result = RootShell.exec("if [ -s /data/adb/modules_update/ziyu/config/identity-migration-full-reboot.conf ]; then printf '%s' '{\"status\":\"error\",\"message\":\"ziyu 标识升级首次需要完整重启\"}'; else sh ${RootShell.quote(bridge)} soft_reboot status; fi", timeoutMs = 8_000L)
+                val reply = runCatching { firstJson(result.stdout) }.getOrNull()
+                softRebootSupported = result.code == 0 && reply?.optJSONObject("data")?.optBoolean("supported") == true
+                if (!softRebootSupported) rebootChoiceMessage += "\n" + (reply?.optString("message")?.takeIf { it.isNotBlank() } ?: "本机未确认可用的 KernelSU 软重启，将使用完整重启。")
+            } else rebootChoiceMessage += "\n当前 Root 管理器请使用完整重启。"
+            rebootChoiceVisible = true
+        }
+    }
+    fun dismissRebootChoice() { rebootChoiceVisible = false }
+    fun confirmReboot(soft: Boolean) {
+        if (soft && !softRebootSupported) return
+        rebootChoiceVisible = false
+        requestDeviceReboot(soft)
     }
 
     private fun requestDeviceReboot(softReboot: Boolean) {
@@ -1080,7 +1183,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         logsJob = viewModelScope.launch {
             val result = RootShell.exec(
                 "if [ -f ${RootShell.quote(bridge)} ]; then sh ${RootShell.quote(bridge)} logs 180; " +
-                    "else tail -n 180 /data/adb/modules/LuoShu/logs/fontswitch.log 2>/dev/null; fi",
+                    "else tail -n 180 /data/adb/modules/ziyu/logs/fontswitch.log 2>/dev/null; fi",
                 timeoutMs = 20_000L,
             )
             logs = when {
@@ -1187,7 +1290,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val applied = result.optString("font", fontId).ifBlank { fontId }
             val reused = result.optBoolean("reused", false)
             val liveApplied = result.optBoolean("liveApplied", false)
-            fontCacheRefreshPrompt = liveApplied && result.optBoolean("uiCacheRefreshRequired", false)
+            fontCacheRefreshPrompt = false
             val nextRebootRequired = when {
                 result.has("rebootRequired") && !result.isNull("rebootRequired") -> result.optBoolean("rebootRequired", true)
                 liveApplied -> false
@@ -1195,8 +1298,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 else -> true
             }
             operationMessage = when {
-                liveApplied -> result.optString("message").ifBlank { "字体已热挂载；部分界面可能需重新打开以刷新缓存" }
-                reused -> "当前字体已验证，无需重新生成或重启"
+                liveApplied -> result.optString("message").ifBlank { "字体已准备完成，请重启后查看结果" }
+                reused -> "当前字体负载已校验，请重启后查看结果"
                 !nextRebootRequired -> result.optString("message").ifBlank { "字体已应用" }
                 snapshot.temporaryRootMode -> "字体已准备完成；请在 KernelSU 管理器中软重启后查看挂载结果"
                 applied == "default" -> "已准备恢复系统字体，重启后生效"
@@ -1216,7 +1319,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             updateFontTaskNotification("switch", "success", operationMessage, 100)
             persistFontIndex(currentFont = applied)
             refreshActionStatus()
-            if (nextRebootRequired && !snapshot.temporaryRootMode && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
+            if (nextRebootRequired && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
@@ -1312,6 +1415,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val visibleAtStart = foreground.value
             val intervalMs = if (visibleAtStart) {
                 taskPollIntervalMs(budget.elapsedMs, unchangedPolls)
+            } else if (FontTaskNotificationController.isServiceExpected()) {
+                4_000L
             } else {
                 BACKGROUND_TASK_POLL_INTERVAL_MS
             }
@@ -1424,6 +1529,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 rollbackTargetMode = data.optString("rollbackTargetMode", ""),
                 taskType = data.optString("taskType", "none"),
                 taskId = data.optString("taskId", ""),
+                taskFont = data.optString("taskFont", ""),
                 taskState = data.optString("taskState", "idle"),
                 taskMessage = data.optString("taskMessage", "暂无后台任务"),
                 taskProgress = data.optInt("taskProgress", 0).coerceIn(0, 100),

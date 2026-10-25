@@ -7,7 +7,7 @@
 set +e
 
 _dfpr_module() {
-    printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
 
 _dfpr_payload_root() {

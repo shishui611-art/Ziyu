@@ -27,8 +27,8 @@ _luoshu_content_root() {
     _lucr_base="${MODULE_CONTENT_DIR:-$LUOSHU_METAMODULE_MNT}"
     _lucr_base=${_lucr_base%/}
     case "$_lucr_base" in
-        */LuoShu) printf '%s\n' "$_lucr_base" ;;
-        *) printf '%s/LuoShu\n' "$_lucr_base" ;;
+        */ziyu) printf '%s\n' "$_lucr_base" ;;
+        *) printf '%s/ziyu\n' "$_lucr_base" ;;
     esac
 }
 
@@ -36,7 +36,7 @@ _luoshu_remove_tree() {
     _lurt_path=${1%/}
     [ -n "$_lurt_path" ] || return 1
     [ "$_lurt_path" != / ] || return 1
-    [ "${_lurt_path##*/}" = LuoShu ] || return 1
+    [ "${_lurt_path##*/}" = ziyu ] || return 1
     rm -rf "$_lurt_path" 2>/dev/null || true
 }
 
@@ -90,7 +90,7 @@ _luoshu_cleanup_self_mount() {
     rmdir "$_lucsm_parent" 2>/dev/null || true
 }
 
-# Only retire a setting still owned by an older LuoShu. Never reset an unrelated
+# Only retire a setting still owned by an older ziyu. Never reset an unrelated
 # user/system preference to zero just because this module is being uninstalled.
 if [ -f "$MODDIR/common/font_weight_retire.sh" ]; then
     sh "$MODDIR/common/font_weight_retire.sh" "$MODDIR" "$MODDIR" flash >/dev/null 2>&1 || true
@@ -143,18 +143,18 @@ rm -f \
     "$LUOSHU_MAGIC_MOUNT_CONFIG.luoshu."* 2>/dev/null || true
 
 # 元模块可能维护独立于 /data/adb/modules 的第二份内容树。卸载时必须同时
-# 删除这份 LuoShu 镜像，否则 meta-overlayfs 仍会看到旧负载文件。
+# 删除这份 ziyu 镜像，否则 meta-overlayfs 仍会看到旧负载文件。
 _luoshu_remove_tree "$(_luoshu_content_root)"
-_luoshu_remove_tree "$LUOSHU_METAMODULE_MNT/LuoShu"
+_luoshu_remove_tree "$LUOSHU_METAMODULE_MNT/ziyu"
 
 # 清理待安装副本和当前模块目录。卸载完成后不再在 MODDIR 内创建 logs，
 # 避免 KernelSU、APatch 或部分元模块在卸载脚本结束后留下一个新目录。
-_luoshu_remove_tree "$LUOSHU_MODULES_UPDATE_DIR/LuoShu"
-_luoshu_remove_tree "$LUOSHU_MODULES_DIR/LuoShu"
+_luoshu_remove_tree "$LUOSHU_MODULES_UPDATE_DIR/ziyu"
+_luoshu_remove_tree "$LUOSHU_MODULES_DIR/ziyu"
 _luoshu_remove_tree "$MODDIR"
 
 # 卸载事件只写入系统日志，不再制造任何持久文件。
 if command -v log >/dev/null 2>&1; then
-    log -t LuoShu "字域 $MODULE_VERSION 已卸载" >/dev/null 2>&1 || true
+    log -t ziyu "字域 $MODULE_VERSION 已卸载" >/dev/null 2>&1 || true
 fi
 exit 0

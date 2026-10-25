@@ -12,6 +12,7 @@ uses byte-verified stock snapshots and the selected, already-instanced mix donor
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import gc
 import hashlib
 import json
@@ -36,6 +37,7 @@ from composite_collection_contract import collection_faces
 import composite_collection_contract
 from composite_font import LATIN_CODEPOINTS, DIGIT_CODEPOINTS, _pick_face, _progress
 import font_inventory as stock_inventory
+import font_parallel
 import font_source_profile
 import stock_font_snapshot
 
@@ -77,16 +79,21 @@ def role(cp):
     return 'cjk' if any(lo <= cp <= hi for lo, hi in CJK_RANGES) else None
 
 
-def protected(font):
+def protected(font, stock_order=None):
     recalc = font.recalcBBoxes
     font.recalcBBoxes = False
     try:
-        return _protected(font)
+        return _protected(font, stock_order)
     finally:
         font.recalcBBoxes = recalc
 
 
-def _protected(font):
+def _protected(font, stock_order=None):
+    order = font.getGlyphOrder()
+    if stock_order is not None:
+        if order[:len(stock_order)] != stock_order:
+            raise ValueError('原厂字形索引顺序在生成时发生变化')
+        order = stock_order
     # Canonical compiled bytes survive a FontTools round trip. Keeping the
     # original glyph order makes the retained layout/UVS indexes meaningful.
     # getTableData returns original bytes for lazy tables, compiled bytes for
@@ -98,12 +105,30 @@ def _protected(font):
     for tag in PROTECTED:
         if tag not in font:
             continue
+        if tag == 'VVAR' and stock_order is not None:
+            # Appended component copies need extra maps, while every original
+            # glyph must keep the same effective row and unchanged delta store.
+            table = font[tag].table
+            store = table.VarStore
+            maps = {}
+            for field in ('AdvHeightMap', 'TsbMap', 'BsbMap', 'VOrgMap'):
+                mapping = getattr(table, field, None)
+                maps[field] = ([mapping.mapping[name] for name in order] if mapping is not None else
+                               list(range(len(order))) if field == 'AdvHeightMap' else None)
+            tables[tag] = canonical({'version': table.Version, 'maps': maps,
+                'storeFormat': store.Format, 'axes': store.VarRegionList.RegionAxisCount,
+                'regions': [[(axis.StartCoord, axis.PeakCoord, axis.EndCoord)
+                             for axis in region.VarRegionAxis]
+                            for region in store.VarRegionList.Region],
+                'data': [(item.VarRegionIndex, item.Item) for item in store.VarData]})
+            continue
         if tag == 'vmtx' and 'glyf' in font:
             # TrueType vertical origins are yMax + top side bearing. A new
             # outline needs a different bearing to keep that same origin.
             glyf = font['glyf']
-            tables[tag] = canonical({name: [advance, getattr(glyf[name], 'yMax', 0) + bearing]
-                                     for name, (advance, bearing) in font['vmtx'].metrics.items()})
+            tables[tag] = canonical({name: [font['vmtx'][name][0],
+                                          getattr(glyf[name], 'yMax', 0) + font['vmtx'][name][1]]
+                                     for name in order})
             continue
         data = font.getTableData(tag)
         # Metric serialization may change its run-length compression count.
@@ -111,7 +136,7 @@ def _protected(font):
         if tag in ('hhea', 'vhea'):
             data = data[:-2]
         tables[tag] = hashlib.sha256(data).hexdigest()
-    return {'tables': tables, 'glyphOrder': canonical(font.getGlyphOrder()),
+    return {'tables': tables, 'glyphOrder': canonical(order),
             'frame': [font['head'].unitsPerEm, font['head'].xMin, font['head'].yMin,
                       font['head'].xMax, font['head'].yMax]}
 
@@ -205,7 +230,6 @@ def retained_vertical_deltas(font, name):
         raise ValueError('可变 TrueType 垂直侧距映射需要独立重编译，不能沿用旧轮廓数据')
     coordinates, controls = font['glyf']._getCoordinatesAndControls(
         name, font['hmtx'].metrics, font['vmtx'].metrics)
-    from copy import deepcopy
     values = []
     for original in font['gvar'].variations.get(name, []):
         variation = deepcopy(original)
@@ -216,7 +240,172 @@ def retained_vertical_deltas(font, name):
     return values
 
 
-def replace_face(font, donor, recordings):
+def _dependency_glyph_contract(font, name, restore_names):
+    """Compare retained outlines, hinting and variations after a font round trip."""
+    glyph = deepcopy(font['glyf'][name])
+    if glyph.isComposite():
+        for component in glyph.components:
+            component.glyphName = restore_names.get(component.glyphName, component.glyphName)
+    variations = []
+    if 'gvar' in font:
+        variations = [(item.axes, item.coordinates)
+                      for item in font['gvar'].variations.get(name, [])]
+    maps = {}
+    index = font.getGlyphID(name)
+    for tag, fields in (('HVAR', ('AdvWidthMap', 'LsbMap', 'RsbMap')),
+                        ('VVAR', ('AdvHeightMap', 'TsbMap', 'BsbMap', 'VOrgMap'))):
+        if tag not in font:
+            continue
+        table = font[tag].table
+        for field in fields:
+            mapping = getattr(table, field, None)
+            maps[tag + '.' + field] = (mapping.mapping[name] if mapping is not None else
+                                      index if field in {'AdvWidthMap', 'AdvHeightMap'} else None)
+    return canonical({'outline': hashlib.sha256(
+        glyph.compile(font['glyf'], recalcBBoxes=False)).hexdigest(),
+        'horizontal': font['hmtx'][name],
+        'vertical': font['vmtx'][name] if 'vmtx' in font else None,
+        'variations': variations, 'maps': maps})
+
+
+def verify_dependency_copies(font, proof):
+    if not proof:
+        return
+    order = font.getGlyphOrder()
+    if len(order) != proof['originalCount'] + len(proof['helpers']):
+        raise ValueError('原厂部件副本的字形清单不一致')
+    # post format 3 does not store glyph names. Bind the proof to stable glyph
+    # IDs so FontTools' names for newly appended, unencoded glyphs may differ.
+    restore = {order[proof['originalCount'] + i]: source
+               for i, source in enumerate(proof['helpers'].values())}
+    for index, expected in proof['contracts'].items():
+        if _dependency_glyph_contract(font, order[int(index)], restore) != expected:
+            raise ValueError('原厂保留字形或部件副本在生成时发生变化')
+
+
+def copy_retained_dependencies(font, mapping):
+    """Keep OEM compounds independent of the slots receiving donor outlines.
+
+    Append private copies; all original glyph IDs, cmap and layout references
+    stay fixed. Copy nested components and their variation/metric mappings too.
+    Only the retained compounds' component references change, never their shape.
+    """
+    glyf = font['glyf']
+    order = list(font.getGlyphOrder())
+    retained = {}
+    for name in order:
+        if name in mapping:
+            continue
+        raw = getattr(glyf.glyphs[name], 'data', None)
+        if raw is not None and (len(raw) < 2 or int.from_bytes(raw[:2], 'big', signed=True) >= 0):
+            continue
+        glyph = glyf[name]
+        if glyph.isComposite() and any(c.glyphName in mapping for c in glyph.components):
+            retained[name] = deepcopy(glyph)
+    if not retained:
+        return None
+    needed, pending = set(), [c.glyphName for glyph in retained.values()
+                              for c in glyph.components if c.glyphName in mapping]
+    while pending:
+        name = pending.pop()
+        if name in needed:
+            continue
+        needed.add(name)
+        glyph = glyf[name]
+        if glyph.isComposite():
+            pending.extend(c.glyphName for c in glyph.components if c.glyphName in mapping)
+    if len(order) + len(needed) > 65535:
+        # A full SFNT has no room for private copies. Retain only the affected
+        # dependency chain, rather than failing this font or the entire switch.
+        users = {}
+        for name in order:
+            glyph = glyf[name]
+            if glyph.isComposite():
+                for component in glyph.components:
+                    users.setdefault(component.glyphName, set()).add(name)
+        pending = [name for name, parents in users.items() if parents.difference(mapping)]
+        while pending:
+            name = pending.pop()
+            if name not in mapping:
+                continue
+            mapping.pop(name)
+            glyph = glyf[name]
+            if glyph.isComposite():
+                pending.extend(c.glyphName for c in glyph.components if c.glyphName in mapping)
+        return {'originalCount': len(order), 'helpers': {}, 'contracts': {},
+                'reason': 'stock-glyph-capacity-preserved'}
+    copies, helpers, visiting = {}, {}, set()
+    expected = {name: _dependency_glyph_contract(font, name, {}) for name in retained}
+
+    def clone(name):
+        if name in visiting:
+            raise ValueError('原厂组合字形部件存在循环引用')
+        if name in copies:
+            return copies[name]
+        if len(order) + len(copies) >= 65535:
+            raise ValueError('原厂字形与保留部件超过 SFNT 字形数限制')
+        visiting.add(name)
+        expected[name] = _dependency_glyph_contract(font, name, {})
+        helper = f'ziyu.stock.{len(copies)}'
+        while helper in glyf or helper in helpers:
+            helper += '_'
+        copies[name] = helper
+        helpers[helper] = name
+        glyph = deepcopy(glyf[name])
+        # A copied compound must never refer back to an original slot which
+        # will receive donor outlines. Unchanged components can still be shared.
+        if glyph.isComposite():
+            for component in glyph.components:
+                if component.glyphName in mapping:
+                    component.glyphName = clone(component.glyphName)
+        glyf[helper] = glyph
+        font['hmtx'][helper] = font['hmtx'][name]
+        if 'vmtx' in font:
+            font['vmtx'][helper] = font['vmtx'][name]
+        if 'gvar' in font:
+            font['gvar'].variations[helper] = deepcopy(font['gvar'].variations.get(name, []))
+        visiting.remove(name)
+        return helper
+
+    for glyph in retained.values():
+        for component in glyph.components:
+            if component.glyphName in mapping:
+                component.glyphName = clone(component.glyphName)
+    font.setGlyphOrder(order + list(helpers))
+    if 'post' in font and font['post'].formatType not in {2.0, 3.0}:
+        # Fixed Macintosh/Unicode name lists cannot describe appended private
+        # glyphs. Format 2 preserves the existing names and font-wide metadata.
+        font['post'].formatType = 2.0
+        font['post'].extraNames = []
+        font['post'].mapping = {}
+    # Implicit advance maps use glyph IDs. New private IDs must explicitly point
+    # to the original component's variation row, rather than past the old store.
+    for tag, fields in (('HVAR', ('AdvWidthMap', 'LsbMap', 'RsbMap')),
+                        ('VVAR', ('AdvHeightMap', 'TsbMap', 'BsbMap', 'VOrgMap'))):
+        if tag not in font:
+            continue
+        table = font[tag].table
+        for field in fields:
+            old = getattr(table, field, None)
+            if old is None and field not in {'AdvWidthMap', 'AdvHeightMap'}:
+                continue
+            original = {name: old.mapping[name] if old is not None else i
+                        for i, name in enumerate(order)}
+            indices = [original[name] for name in order]
+            indices.extend(original[name] for name in helpers.values())
+            setattr(table, field, buildVarIdxMap(indices, font.getGlyphOrder()))
+    for name, glyph in retained.items():
+        glyf[name] = glyph
+    contracts = {font.getGlyphID(name): expected[name] for name in retained}
+    contracts.update({font.getGlyphID(helper): expected[source] for helper, source in helpers.items()})
+    proof = {'originalCount': len(order), 'helpers': helpers,
+             'contracts': contracts}
+    verify_dependency_copies(font, proof)
+    return proof
+
+
+def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependencies=False,
+                 preserve_unsafe=False, outline_cache=None):
     target = face_identity(font)
     donor_info = face_identity(donor)
     donor_info['weight'] = target_weight(donor)
@@ -235,7 +424,45 @@ def replace_face(font, donor, recordings):
         raise ValueError('本机 CJK 集合包含不支持的轮廓')
     cmap, source = font.getBestCmap() or {}, donor.getBestCmap() or {}
     source_glyphs = donor.getGlyphSet()
+    scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
+    converted = {}
+    # Recordings belong to this donor and are not changed by replacement.
+    # Reuse only the raw outline bounds between faces with the same outline kind
+    # and target scale; target-specific scaling and every safety check still run
+    # for each destination slot.
+    if outline_cache is None:
+        outline_bounds = {}
+    else:
+        outline_bounds = outline_cache.setdefault((kind, scale), {})
+
+    def bounds_for(source_name):
+        if source_name not in outline_bounds:
+            if source_name not in recordings:
+                recordings[source_name] = draw_record(source_glyphs, source_name)
+            if kind == 'glyf':
+                # TrueType metrics bind the integer control-point bounding box,
+                # not the tight Bezier bounds. Use the same converted glyph in
+                # preflight and publication, including rounding during cu2qu.
+                pen = TTGlyphPen(None)
+                output = Cu2QuPen(pen, max_err=max(0.5, font['head'].unitsPerEm / 2000),
+                                  reverse_direction='glyf' not in donor)
+                recordings[source_name].replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+                glyph = pen.glyph()
+                glyph.recalcBounds(font['glyf'])
+                converted[(source_name,)] = glyph
+                outline_bounds[source_name] = (
+                    tuple(getattr(glyph, key) / scale for key in ('xMin', 'yMin', 'xMax', 'yMax'))
+                    if glyph.numberOfContours else None)
+            else:
+                pen = BoundsPen(None)
+                recordings[source_name].replay(pen)
+                outline_bounds[source_name] = pen.bounds
+        return outline_bounds[source_name]
+
+
     mapping, counts, uncovered = {}, dict(cjk=0, latin=0, digit=0), 0
+    retained_conflicts = set()
+    shared_conflicts = {}
     for cp, target_name in sorted(cmap.items()):
         category = role(cp)
         if not category:
@@ -251,7 +478,16 @@ def replace_face(font, donor, recordings):
                     recordings[name] = draw_record(source_glyphs, name)
             if (recordings[previous].value != recordings[source_name].value or
                     donor['hmtx'][previous] != donor['hmtx'][source_name]):
-                raise ValueError(f'原厂共享字形 U+{cp:04X} 对应不同来源轮廓，不能安全覆盖')
+                # One OEM glyph cannot carry two different donor outlines or
+                # advances (for example a stock space shared by U+0020 and
+                # U+00A0 when the donor gives them separate glyphs). Keeping
+                # that single OEM slot is the only lossless choice; the rest of
+                # the collection must not be abandoned because of it.
+                retained_conflicts.add(target_name)
+                observed = shared_conflicts.setdefault(target_name, [])
+                if len(observed) < 8:
+                    observed.append(cp)
+                continue
         mapping[target_name] = source_name
         counts[category] += 1
     # A covered character can share its glyph ID with an uncovered character
@@ -259,6 +495,7 @@ def replace_face(font, donor, recordings):
     blocked = {name for table in font['cmap'].tables
                if table.isUnicode() and table.format != 14
                for cp, name in table.cmap.items() if not role(cp) or cp not in source}
+    blocked.update(retained_conflicts)
     # Preserve every UVS target as well as the format-14 table bytes. A default
     # UVS entry points through the base cmap; a non-default entry names its own
     # glyph. Neither glyph may be changed behind the unchanged UVS mapping.
@@ -274,27 +511,64 @@ def replace_face(font, donor, recordings):
     retained_shared = len(blocked.intersection(mapping))
     for name in blocked:
         mapping.pop(name, None)
-    counts = {category: sum(role(cp) == category and name in mapping for cp, name in cmap.items())
-              for category in counts}
-    if not counts['cjk']:
+    retained_unsafe = 0
+    if preserve_unsafe:
+        scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
+        frame, header = font['head'], font['hhea']
+        for name, source_name in list(mapping.items()):
+            bounds = bounds_for(source_name)
+            width, bearing = (round(value * scale) for value in donor['hmtx'][source_name])
+            unsafe = name == '.notdef' or not 0 <= width <= 65535 or not -32768 <= bearing <= 32767
+            if 'gvar' in font and 'vmtx' in font and 'VVAR' in font:
+                unsafe |= getattr(font['VVAR'].table, 'TsbMap', None) is not None
+            outline_width = 0
+            if bounds is None and kind == 'glyf' and 'fvar' in font:
+                unsafe |= bearing != 0
+            if bounds is not None:
+                x0, y0, x1, y1 = (value * scale for value in bounds)
+                outline_width = x1 - x0
+                unsafe |= (x0 < frame.xMin - 1 or y0 < frame.yMin - 1
+                           or x1 > frame.xMax + 1 or y1 > frame.yMax + 1)
+                if kind == 'glyf' and 'fvar' in font:
+                    unsafe |= bearing != round(x0)
+                if kind == 'glyf' and 'vmtx' in font:
+                    old_advance, old_bearing = font['vmtx'][name]
+                    origin = getattr(font['glyf'][name], 'yMax', 0) + old_bearing
+                    new_bearing, height = origin - round(y1), round(y1) - round(y0)
+                    vertical = font['vhea']
+                    unsafe |= (not -32768 <= new_bearing <= 32767
+                               or new_bearing < vertical.minTopSideBearing
+                               or old_advance - new_bearing - height < vertical.minBottomSideBearing
+                               or new_bearing + height > vertical.yMaxExtent)
+            unsafe |= (width > header.advanceWidthMax or bearing < header.minLeftSideBearing
+                       or width - bearing - outline_width < header.minRightSideBearing - 1
+                       or bearing + outline_width > header.xMaxExtent + 1)
+            if unsafe:
+                mapping.pop(name)
+                retained_unsafe += 1
+    dependency_proof = (copy_retained_dependencies(font, mapping)
+                        if preserve_dependencies and 'glyf' in font else None)
+    counts = dict.fromkeys(counts, 0)
+    for cp, name in cmap.items():
+        if name in mapping:
+            category = role(cp)
+            if category in counts:
+                counts[category] += 1
+    if (not counts['cjk'] if require_cjk else not any(counts.values())):
         return {'mode': 'retained-no-cjk-match', 'replaced': counts, 'uncovered': uncovered,
                 **donor_report, 'targetStylePreserved': True}
     if '.notdef' in mapping:
         raise ValueError('原厂编码映射指向缺字槽，不能覆盖 .notdef')
-    guard_retained_components(font, mapping)
     scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
     frame = font['head']
-    converted = {}
+    conversion_retained, failed_sources = [], set()
     for target_name, source_name in mapping.items():
-        if source_name not in recordings:
-            recordings[source_name] = draw_record(source_glyphs, source_name)
+        bounds = bounds_for(source_name)
         recording = recordings[source_name]
-        bounds = BoundsPen(None)
-        recording.replay(bounds)
         # Keep the stock line frame. A donor outside it fails before publication;
         # arbitrary per-glyph shrinking would change the requested typeface.
-        if bounds.bounds is not None:
-            x0, y0, x1, y1 = (coordinate * scale for coordinate in bounds.bounds)
+        if bounds is not None:
+            x0, y0, x1, y1 = (coordinate * scale for coordinate in bounds)
             if x0 < frame.xMin - 1 or y0 < frame.yMin - 1 or x1 > frame.xMax + 1 or y1 > frame.yMax + 1:
                 raise ValueError(f'来源字形 {source_name} 超出本机原厂字体面边界')
         width, bearing = donor['hmtx'][source_name]
@@ -302,7 +576,7 @@ def replace_face(font, donor, recordings):
         if not 0 <= width <= 65535 or not -32768 <= bearing <= 32767:
             raise ValueError('来源水平度量超出 SFNT 范围')
         header = font['hhea']
-        outline_width = 0 if bounds.bounds is None else (bounds.bounds[2] - bounds.bounds[0]) * scale
+        outline_width = 0 if bounds is None else (bounds[2] - bounds[0]) * scale
         if (width > header.advanceWidthMax or bearing < header.minLeftSideBearing or
                 width - bearing - outline_width < header.minRightSideBearing - 1 or
                 bearing + outline_width > header.xMaxExtent + 1):
@@ -310,11 +584,23 @@ def replace_face(font, donor, recordings):
         if kind == 'glyf':
             key = (source_name,)
             if key not in converted:
-                pen = TTGlyphPen(None)
-                output = Cu2QuPen(pen, max_err=max(0.5, frame.unitsPerEm / 2000),
-                                  reverse_direction='glyf' not in donor)
-                recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
-                converted[key] = pen.glyph()
+                if source_name in failed_sources:
+                    conversion_retained.append(target_name)
+                    continue
+                try:
+                    pen = TTGlyphPen(None)
+                    output = Cu2QuPen(pen, max_err=max(0.5, frame.unitsPerEm / 2000),
+                                      reverse_direction='glyf' not in donor)
+                    recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+                    converted[key] = pen.glyph()
+                except NotImplementedError:
+                    # FontTools cannot build this particular outline (for
+                    # example an on-curve-less contour). Keep that OEM glyph.
+                    if not preserve_unsafe:
+                        raise
+                    failed_sources.add(source_name)
+                    conversion_retained.append(target_name)
+                    continue
             glyph = converted[key]
             vertical = retained_vertical_deltas(font, target_name)
             old_origin = None
@@ -358,26 +644,90 @@ def replace_face(font, donor, recordings):
             private = top.FDArray[selector or 0].Private if hasattr(top, 'FDArray') else top.Private
             key = (source_name, selector, width)
             if key not in converted:
+                if source_name in failed_sources:
+                    conversion_retained.append(target_name)
+                    continue
                 encoded_width = None if kind == 'CFF2' or width == private.defaultWidthX else width - private.nominalWidthX
                 pen = T2CharStringPen(encoded_width, None, CFF2=kind == 'CFF2')
                 output = Qu2CuPen(pen, max_err=max(0.5, frame.unitsPerEm / 2000),
                                   all_cubic=True, reverse_direction='glyf' in donor)
-                recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
-                char = pen.getCharString(private=private, globalSubrs=cff.GlobalSubrs)
+                try:
+                    recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+                    char = pen.getCharString(private=private, globalSubrs=cff.GlobalSubrs)
+                except NotImplementedError:
+                    # FontTools cannot build this particular outline (for
+                    # example an on-curve-less contour). Keep that OEM glyph.
+                    if not preserve_unsafe:
+                        raise
+                    failed_sources.add(source_name)
+                    conversion_retained.append(target_name)
+                    continue
                 if selector is not None:
                     char.fdSelectIndex = selector
                 converted[key] = char
             top.CharStrings[target_name] = converted[key]
         font['hmtx'][target_name] = (width, bearing)
+    if conversion_retained:
+        for name in conversion_retained:
+            mapping.pop(name, None)
+    guard_retained_components(font, mapping)
+    if conversion_retained:
+        counts = dict.fromkeys(counts, 0)
+        for cp, name in cmap.items():
+            if name in mapping:
+                category = role(cp)
+                if category in counts:
+                    counts[category] += 1
     freeze_horizontal_variations(font, mapping)
+    verify_dependency_copies(font, dependency_proof)
     for tag in ('DSIG', 'LTSH', 'hdmx', 'VDMX'):
         if tag in font:
             del font[tag]
+    conflict_report = [{'glyph': name, 'codepoints': ['U+%04X' % cp for cp in codepoints]}
+                       for name, codepoints in sorted(shared_conflicts.items())]
     return {'mode': 'compiled', 'replaced': counts, 'uncovered': uncovered,
+            'retainedUnsafeSlots': retained_unsafe,
+            'retainedConversionSlots': len(conversion_retained),
             'retainedSharedSlots': retained_shared, 'retainedUnencodedGlyphs': True,
+            'retainedSharedConflictSlots': len(shared_conflicts),
+            'retainedSharedConflicts': conflict_report[:16],
+            **({'dependencyProof': dependency_proof} if dependency_proof else {}),
             'outline': kind, 'retainedVariationAxes': 'fvar' in font,
             'replacementVariation': 'selected-fixed-weight',
             **donor_report, 'targetStylePreserved': True}
+
+
+def _compile_face_task(task, recordings, outline_cache):
+    """Compile one OEM face in an isolated process or in the caller.
+
+    The returned dict must stay JSON-serialisable: bounded workers hand results
+    back through a private result file, while the caller keeps publication.
+    """
+    index = task['face']
+    with TTFont(task['stock'], fontNumber=index, lazy=True, recalcBBoxes=False,
+                recalcTimestamp=False) as font:
+        original = protected(font)
+        with TTFont(task['donor'], lazy=True, recalcTimestamp=False) as donor:
+            # A real donor may exceed the OEM face's extreme horizontal metrics
+            # for a few glyphs. Keep those individual OEM slots instead of
+            # abandoning the whole collection switch.
+            details = replace_face(font, donor, recordings, preserve_unsafe=True,
+                                   outline_cache=outline_cache)
+        if protected(font) != original:
+            raise ValueError(f'集合面 {index} 的原厂布局契约已变化')
+        output = task['output']
+        if details['mode'] == 'compiled':
+            font.save(output, reorderTables=False)
+        else:
+            # Retained faces need no expensive outline round trip.
+            with TTFont(task['stock'], fontNumber=index, lazy=True, recalcBBoxes=False,
+                        recalcTimestamp=False) as untouched:
+                untouched.save(output, reorderTables=False)
+    with TTFont(output, lazy=True, recalcTimestamp=False) as check:
+        if protected(check) != original:
+            raise ValueError(f'集合面 {index} 序列化后布局契约已变化')
+        verify_dependency_copies(check, details.get('dependencyProof'))
+    return {'index': index, 'contract': original, 'details': details}
 
 
 def inspect_donor(source):
@@ -393,8 +743,14 @@ def inspect_donor(source):
         coverage = font_source_profile._coverage(donor)
         capabilities = font_source_profile._capabilities(
             coverage, tables, axes, font_source_profile._fixed_pitch(donor))
-        if not capabilities.get('globalUiCandidate'):
-            raise ValueError('组合来源能力不足以覆盖通用系统文字槽')
+        # This path replaces supported outlines inside the OEM collection.
+        # Missing donor characters keep their OEM glyphs, unlike a whole-face
+        # global replacement. Keep coverage facts for the report, but do not
+        # reject a saved mix merely for missing punctuation or fewer Han glyphs.
+        if tables['outline'] not in ('glyf', 'CFF', 'CFF2'):
+            raise ValueError('组合来源不包含可用轮廓')
+        if tables['color']:
+            raise ValueError('彩色字体不能作为通用集合轮廓来源')
         return {'face': face_index, 'weight': target_weight(donor), 'axes': axes,
                 'tables': tables, 'capabilities': capabilities}
 
@@ -443,30 +799,36 @@ def build(source, stock, output, workspace, request, target, progress=None,
                 'outline': donor_tables['outline'],
                 'capabilities': donor_capabilities,
             }
-            recordings = {}
-            for index in range(count):
-                _progress(progress, 'collection', f'正在编译本机 CJK 集合面 {index + 1}/{count}', 95)
-                face_path = temporary / f'face-{index}.font'
-                with TTFont(stock, fontNumber=index, lazy=True, recalcBBoxes=False,
-                            recalcTimestamp=False) as font:
-                    original = protected(font)
-                    details = replace_face(font, donor, recordings)
-                    if protected(font) != original:
-                        raise ValueError(f'集合面 {index} 的原厂布局契约已变化')
-                    if details['mode'] == 'compiled':
-                        font.save(face_path, reorderTables=False)
-                    else:
-                        # Retained faces need no expensive outline round trip.
-                        with TTFont(stock, fontNumber=index, lazy=True, recalcBBoxes=False,
-                                    recalcTimestamp=False) as untouched:
-                            untouched.save(face_path, reorderTables=False)
-                with TTFont(face_path, lazy=True, recalcTimestamp=False) as check:
-                    if protected(check) != original:
-                        raise ValueError(f'集合面 {index} 序列化后布局契约已变化')
-                report['faces'].append(dict(index=index, contract=original, **details))
-                face_paths.append(face_path)
-                del font, check
-                gc.collect()
+        # Each face is an independent compile: bounded workers reuse one donor
+        # outline/bounds cache inside their own process. Every safety check,
+        # contract digest, source-change check and publication stays here.
+        budget = font_parallel.worker_budget(count, source.stat().st_size)
+        _progress(progress, 'collection',
+                  f'正在并行编译本机 CJK 集合面（{budget["workers"]} 个进程）', 95)
+        tasks = [{'face': index, 'stock': str(stock), 'donor': str(source),
+                  'output': str(temporary / f'face-{index}.font')}
+                 for index in range(count)]
+
+        def run_batch(items, private, is_child):
+            shared_recordings, shared_bounds = {}, {}
+            return [_compile_face_task(task, shared_recordings, shared_bounds)
+                    for _, task in items]
+
+        batches, _budget = font_parallel.run_batches(
+            tasks, temporary / 'workers', source.stat().st_size, run_batch)
+        compiled = sorted((face for batch in batches for face in batch),
+                          key=lambda item: item['index'])
+        if [item['index'] for item in compiled] != list(range(count)):
+            raise ValueError('集合逐面编译结果与原厂面索引不一致')
+        for item in compiled:
+            report['faces'].append(dict(index=item['index'],
+                                        contract=item['contract'], **item['details']))
+        for index in range(count):
+            face_path = temporary / f'face-{index}.font'
+            if not face_path.is_file() or face_path.stat().st_size <= 0:
+                raise ValueError(f'集合面 {index} 的输出缺失或为空')
+            face_paths.append(face_path)
+        gc.collect()
         if not any(face['mode'] == 'compiled' for face in report['faces']):
             # The requested alias may already contain a generated single-face
             # font from the ROM mapper. Preserve the real OEM collection there
@@ -564,8 +926,9 @@ def _snapshot_digest(module, logical, stock):
 def owned_workspace():
     """Scratch space inside the finite supervisor's own task directory.
 
-    The supervisor removes LUOSHU_TASK_SCOPE_TMPDIR when the task ends, so a
-    killed build cannot leave a resident or orphaned workspace behind.
+    The caller binds this to its own offline stage. Its cleanup trap and
+    next-request stale-stage cleanup after a hard kill own that whole stage.
+    Normal completion removes the scratch child here.
     """
     raw = os.environ.get('LUOSHU_TASK_SCOPE_TMPDIR', '')
     scope = Path(raw)
@@ -734,6 +1097,7 @@ def _parser():
     validate_parser.add_argument('--module', type=Path, required=True)
     validate_parser.add_argument('--payload', type=Path, required=True)
     validate_parser.add_argument('--request', required=True)
+    validate_parser.add_argument('--source', type=Path)
     validate_parser.add_argument('--require-proof', action='store_true')
     validate_parser.add_argument('--cleanup-proofs', action='store_true')
     return parser
@@ -750,8 +1114,10 @@ def main():
         else:
             contract = composite_collection_contract.validate(
                 args.payload, args.request, args.module,
-                require_proof=args.require_proof)
+                require_proof=args.require_proof, source=args.source)
             if contract['result'] != 'PASS':
+                for error in contract['errors']:
+                    print('[MIX] 集合格式核查失败：' + error['path'] + '：' + error['reason'], flush=True)
                 raise ValueError('字体集合输出契约校验失败')
             result = contract
             if args.cleanup_proofs:

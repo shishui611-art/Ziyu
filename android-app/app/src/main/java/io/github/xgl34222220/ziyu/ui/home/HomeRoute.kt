@@ -1,17 +1,28 @@
 package io.github.xgl34222220.ziyu.ui.home
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Layers
+import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon
+import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
-import io.github.xgl34222220.ziyu.ui.design.ZiyuRadioButton as RadioButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
 import androidx.compose.runtime.Composable
@@ -27,6 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import kotlinx.coroutines.delay
@@ -34,13 +47,13 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private const val STOCK_SCAN_COMMAND =
-    "sh /data/adb/modules/LuoShu/common/font_manager.sh action stock_scan"
+    "sh /data/adb/modules/ziyu/common/font_manager.sh action stock_scan"
 
 private fun mountModeLabel(mode: String): String = when (mode) {
     "magic" -> "Magic Mount"
     "overlayfs" -> "OverlayFS"
     "self_mount" -> "字域自挂载"
-    else -> "元模块自动挂载"
+    else -> "自动挂载"
 }
 
 private fun stockScanResultMessage(stdout: String, stderr: String, code: Int): String {
@@ -71,6 +84,7 @@ fun HomeRoute(
     var trustState by remember { mutableStateOf(DeviceTrustState()) }
     var showTrustDetails by remember { mutableStateOf(false) }
     var showMountSettings by remember { mutableStateOf(false) }
+    var showAdvancedMount by remember { mutableStateOf(false) }
     var showUndo by remember { mutableStateOf(false) }
     var showAcceptanceGuide by remember { mutableStateOf(false) }
     var showTemporaryRootGuide by remember { mutableStateOf(false) }
@@ -79,7 +93,17 @@ fun HomeRoute(
     var stockScanMessage by remember { mutableStateOf("") }
     var stockScanError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val visibleActions = if (state.temporaryRootMode) actions.copy(reboot = { showTemporaryRootGuide = true }) else actions
+    val visibleActions = actions.copy(
+        reboot = if (state.temporaryRootMode) ({ showTemporaryRootGuide = true }) else actions.reboot,
+        mountSettings = { actions.mountSettings(); showMountSettings = true },
+    )
+
+    LaunchedEffect(state.typographyVisible, state.currentFontId, state.currentFontRevision, state.loading) {
+        if (state.typographyVisible && state.moduleInstalled && state.rootGranted && !state.loading) actions.loadTypography()
+    }
+    LaunchedEffect(showMountSettings, state.mountPreferenceLoaded) {
+        if (showMountSettings && state.mountPreferenceLoaded) showAdvancedMount = state.mountBackendPreference != "auto"
+    }
 
     LaunchedEffect(state.mountBackendRebootPrompt) {
         if (state.mountBackendRebootPrompt != null) showMountSettings = false
@@ -111,9 +135,6 @@ fun HomeRoute(
     val trustContent: @Composable () -> Unit = {
         if (state.moduleInstalled) {
             Column(Modifier.fillMaxWidth()) {
-                TextButton(onClick = { actions.mountSettings(); showMountSettings = true }, enabled = !state.taskRunning, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (state.mountPreferenceLoaded) "挂载方式：${mountModeLabel(state.mountBackendPreference)}" else "挂载方式：读取中…")
-                }
                 if (state.taskRunning) {
                     TextButton(onClick = actions.cancelTask, modifier = Modifier.fillMaxWidth()) { Text("终止当前字体任务") }
                 }
@@ -173,7 +194,25 @@ fun HomeRoute(
             onDismissRequest = { showMountSettings = false },
             title = { Text("字体挂载方式") },
             text = {
-                Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+                Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MountModeOption(
+                        title = "自动挂载 · 推荐",
+                        description = "自动选择可用挂载方式，失败时尝试字域自挂载。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "auto",
+                        onClick = { actions.setMountBackend("auto") },
+                    )
+                    ZiyuOutlinedButton(onClick = { showAdvancedMount = !showAdvancedMount }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (showAdvancedMount) "收起高级选项" else "高级选项")
+                    }
+                    if (showAdvancedMount) {
+                    MountModeOption(
+                        title = "字域自挂载",
+                        description = "优先 OverlayFS，不可用时使用 bind。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "self_mount",
+                        onClick = { actions.setMountBackend("self_mount") },
+                    )
                     MountModeOption(
                         title = "OverlayFS",
                         description = "仅使用 OverlayFS；内核不支持时显示失败原因。",
@@ -183,27 +222,14 @@ fun HomeRoute(
                     )
                     MountModeOption(
                         title = "Magic Mount",
-                        description = "由字域执行 bind；字体别名冲突时使用目录镜像 bind。",
+                        description = "使用 bind 挂载，适合 OverlayFS 不兼容时选择。",
                         enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
                         selected = state.mountPreferenceLoaded && state.mountBackendPreference == "magic",
                         onClick = { actions.setMountBackend("magic") },
                     )
-                    MountModeOption(
-                        title = "元模块自动挂载",
-                        description = "交给当前可用的元模块或管理器内置挂载；失败时显示原因。",
-                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
-                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "auto",
-                        onClick = { actions.setMountBackend("auto") },
-                    )
-                    MountModeOption(
-                        title = "字域自挂载",
-                        description = "由字域执行 OverlayFS / bind；遇到别名冲突使用目录镜像。",
-                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
-                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "self_mount",
-                        onClick = { actions.setMountBackend("self_mount") },
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    if (state.mountPreferences.isNotBlank()) Text(state.mountPreferences)
+                    }
+                    if (state.mountPreferenceSaving) Text("正在保存挂载选择…")
+                    if (!state.mountPreferenceLoaded && state.mountPreferences.isNotBlank()) Text(state.mountPreferences)
                     Text(if (state.temporaryRootMode) "切换模式后需通过 KernelSU 软重启验证。" else "切换模式后需完整重启验证。")
                 }
             },
@@ -274,14 +300,38 @@ private fun MountModeOption(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
+    val scheme = MaterialTheme.colorScheme
+    val palette = LocalZiyuPaletteTokens.current
+    ZiyuButton(
+        onClick = onClick, enabled = enabled,
+        modifier = Modifier.fillMaxWidth().semantics { this.selected = selected },
+        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) scheme.primary else scheme.outlineVariant),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) scheme.primaryContainer else palette.cardBackground,
+            contentColor = if (selected) scheme.onPrimaryContainer else palette.textPrimary,
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
     ) {
-        RadioButton(selected = selected, onClick = onClick, enabled = enabled)
-        Column {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(description, style = MaterialTheme.typography.bodySmall)
         }
+        Spacer(Modifier.width(12.dp))
+        if (selected) ZiyuIcon(Icons.Rounded.CheckCircle, contentDescription = "已选择")
+    }
+}
+
+@Composable
+internal fun HomeMountButton(state: HomeUiState, actions: HomeActions) {
+    ZiyuOutlinedButton(
+        onClick = actions.mountSettings, enabled = !state.taskRunning && state.moduleInstalled && state.rootGranted,
+        modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+    ) {
+        ZiyuIcon(Icons.Rounded.Layers, contentDescription = null)
+        Spacer(Modifier.width(10.dp))
+        Text("挂载方式", modifier = Modifier.weight(1f))
+        Text(mountModeLabel(state.mountBackendPreference), style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.width(8.dp))
+        ZiyuIcon(Icons.Rounded.ChevronRight, contentDescription = null)
     }
 }

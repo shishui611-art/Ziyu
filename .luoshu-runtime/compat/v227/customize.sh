@@ -16,7 +16,7 @@ LUOSHU_PAYLOAD_SCHEMA_CURRENT=device-template-v2-baseline-v9-rolegraph-v2
 if type ensure_public_storage >/dev/null 2>&1; then
     ensure_public_storage
 else
-    mkdir -p /sdcard/LuoShu/fonts /sdcard/LuoShu/import /sdcard/LuoShu/reports 2>/dev/null || true
+    mkdir -p "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts" "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/import" "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/reports" 2>/dev/null || true
 fi
 type check_coloros >/dev/null 2>&1 && check_coloros
 type check_hyperos >/dev/null 2>&1 && check_hyperos
@@ -42,7 +42,7 @@ type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager >/
 ui_print "✓ Root：$ROOT_MANAGER"
 ui_print "✓ 挂载：字域私有自挂载"
 
-OLD_MOD="${LUOSHU_OLD_MOD:-/data/adb/modules/LuoShu}"
+OLD_MOD="${LUOSHU_OLD_MOD:-/data/adb/modules/ziyu}"
 mkdir -p "$MODPATH/system/fonts" "$MODPATH/system/bin" "$MODPATH/config" "$MODPATH/logs" 2>/dev/null || true
 
 # Flashing LuoShu is an explicit enable action. Root managers install updates into MODPATH while
@@ -207,10 +207,10 @@ if [ ! -f "$MODPATH/config/stock_inventory_scan_pending" ] && \
 fi
 type luoshu_install_step >/dev/null 2>&1 && luoshu_install_step 3 "安装模块与 App"
 # 安装安全 CLI，不暴露上一字体回滚、热刷新或重启 SystemUI 命令。
-cp -f "$MODPATH/common/luoshu_cli.sh" "$MODPATH/system/bin/洛书" 2>/dev/null || true
+cp -f "$MODPATH/common/luoshu_cli.sh" "$MODPATH/system/bin/ziyu" 2>/dev/null || true
 chmod 0755 "$MODPATH"/*.sh "$MODPATH/common"/*.sh 2>/dev/null || true
 chmod 0644 "$MODPATH/common"/*.py 2>/dev/null || true
-chmod 0755 "$MODPATH/common/python/bin/luoshu-python" "$MODPATH/system/bin/洛书" 2>/dev/null || true
+chmod 0755 "$MODPATH/common/python/bin/luoshu-python" "$MODPATH/system/bin/ziyu" 2>/dev/null || true
 [ ! -f "$MODPATH/system/bin/luoshud" ] || chmod 0755 "$MODPATH/system/bin/luoshud" 2>/dev/null || true
 find "$MODPATH/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
 chmod 0755 "$MODPATH/system/fonts" "$MODPATH/system/bin" "$MODPATH/config" "$MODPATH/logs" 2>/dev/null || true

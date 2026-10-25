@@ -8,7 +8,7 @@ _lmp_load_state_reader() {
     [ -f "$_lmp_state_helper" ] || _lmp_state_helper="$_lmp_source_common/mount_backend_state.sh"
     . "$_lmp_state_helper" || return 1
 }
-_lmp_module() { printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"; }
+_lmp_module() { printf '%s\n' "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"; }
 _lmp_value() {
     if type ziyu_mount_conf_value >/dev/null 2>&1; then
         ziyu_mount_conf_value "$1" "$2"

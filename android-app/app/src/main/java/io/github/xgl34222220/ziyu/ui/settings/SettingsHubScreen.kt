@@ -3,6 +3,11 @@ package io.github.xgl34222220.ziyu.ui.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import io.github.xgl34222220.ziyu.ui.navigation.rememberPredictiveBack
+import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackMotion
+import io.github.xgl34222220.ziyu.ui.navigation.backDestinationPreview
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -128,15 +133,19 @@ data class AppearanceActions(
     val setThemeMode: (ThemeMode) -> Unit,
     val setSeedArgb: (Int) -> Unit,
     val setKolorStyle: (KolorStyle) -> Unit,
+    val setColorStandard: (io.github.xgl34222220.ziyu.ui.appearance.ColorStandard) -> Unit = {},
     val setMonetEnabled: (Boolean) -> Unit,
     val setAmoledBlack: (Boolean) -> Unit,
     val setBlurEnabled: (Boolean) -> Unit,
     val setGlassEnabled: (Boolean) -> Unit,
     val setFloatingDock: (Boolean) -> Unit,
     val setHighRefreshRate: (Boolean) -> Unit,
+    val setBackgroundPath: (String) -> Unit = {},
+    val setThemeDisplay: (ThemeMode, Boolean) -> Unit = { _, _ -> },
+    val setPredictiveBack: (Boolean) -> Unit = {},
 )
 
-private enum class SettingsSection(
+internal enum class SettingsSection(
     val label: String,
     val description: String,
     val icon: ImageVector,
@@ -144,10 +153,12 @@ private enum class SettingsSection(
 ) {
     OVERVIEW("字域状态", "版本、Root、挂载与当前字体", Icons.Rounded.Settings, .94f),
     APPEARANCE("外观与主题", "颜色、深色模式与界面效果", Icons.Rounded.Palette, 1.00f),
+    NOTIFICATIONS("通知与实时活动", "授权状态、进度通知与预览", Icons.Rounded.Info, 1.00f),
     SAFETY("安全与维护", "字体加载检查、冲突与安全清理", Icons.Rounded.Security, .96f),
     BOOT_SAFETY("开机保护", "查看保护状态与解除保护", Icons.Rounded.Security, .96f),
     APP_COVERAGE("应用字体诊断", "按应用检查字体来源，扫描未覆盖项", Icons.Rounded.Search, .98f),
     GOOGLE("Google 字体兼容", "谷歌英数回退处理、状态与中文说明", Icons.Rounded.Build, .96f),
+    STORAGE("文件与配置位置", "用户文件和显示参数配置的保存目录", Icons.Rounded.Backup, 1.08f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
     UPDATE("模块更新", "GitHub 正式版模块与更新说明", Icons.Rounded.SystemUpdate, 1.03f),
 }
@@ -159,8 +170,9 @@ fun AppearanceSettingsRoute(
     onOpenTasks: () -> Unit = {},
     onDetailChanged: (Boolean) -> Unit = {},
     onTemporaryRootChanged: () -> Unit = {},
+    active: Boolean = true,
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active)
 }
 
 @Composable
@@ -170,6 +182,7 @@ internal fun SettingsHubRoute(
     onOpenTasks: () -> Unit,
     onDetailChanged: (Boolean) -> Unit,
     onTemporaryRootChanged: () -> Unit,
+    active: Boolean,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -178,21 +191,32 @@ internal fun SettingsHubRoute(
         model.refreshHealth()
         model.checkUpdate()
     }
-    LaunchedEffect(section) { onDetailChanged(section != null) }
-    BackHandler(enabled = section != null) { sectionName = null }
+    LaunchedEffect(section, active) { onDetailChanged(active && section != null) }
+    var skipBackTransition by remember { mutableStateOf(false) }
+    val back = rememberPredictiveBack(active && section != null, settings.predictiveBack) { gesture ->
+        skipBackTransition = gesture
+        sectionName = null
+    }
 
     fun openSection(item: SettingsSection) {
+        skipBackTransition = false
         sectionName = item.name
         if (item == SettingsSection.SAFETY) model.refreshHealth()
         if (item == SettingsSection.UPDATE) model.checkUpdate()
     }
 
+    Box(Modifier.fillMaxSize()) {
+    if (back.active) Box(Modifier.fillMaxSize().backDestinationPreview()) {
+        SettingsHome(model, {}, {})
+    }
     AnimatedContent(
         targetState = section,
-        modifier = Modifier.fillMaxSize().background(LocalZiyuPaletteTokens.current.pageBackground).clipToBounds(),
+        modifier = Modifier.fillMaxSize().predictiveBackMotion(back).background(LocalZiyuPaletteTokens.current.pageBackground).clipToBounds(),
         transitionSpec = {
             val slide = tween<androidx.compose.ui.unit.IntOffset>(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing)
-            (if (targetState != null) {
+            (if (skipBackTransition && targetState == null) {
+                EnterTransition.None.togetherWith(ExitTransition.None)
+            } else if (targetState != null) {
                 slideInHorizontally(slide) { it }
                     .togetherWith(slideOutHorizontally(slide) { -it / 4 })
                     .apply { targetContentZIndex = 1f }
@@ -222,10 +246,15 @@ internal fun SettingsHubRoute(
                     when (target) {
                         SettingsSection.OVERVIEW -> OverviewPage(model)
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
+                        SettingsSection.NOTIFICATIONS -> pageList { item { io.github.xgl34222220.ziyu.NotificationAccessCard() } }
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
                         SettingsSection.BOOT_SAFETY -> BootSafetyPage()
                         SettingsSection.APP_COVERAGE -> UncoveredAppsPage()
                         SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()
+                        SettingsSection.STORAGE -> pageList {
+                            item { UserStorageCard() }
+                            item { DisplayConfigStorageCard() }
+                        }
                         SettingsSection.BACKUP -> pageList { item { FullBackupCard(settings, actions) } }
                         SettingsSection.UPDATE -> UpdatePage(model)
                     }
@@ -233,10 +262,11 @@ internal fun SettingsHubRoute(
             }
         }
     }
+    }
 }
 
 @Composable
-private fun SettingsHome(
+internal fun SettingsHome(
     model: SystemCenterViewModel,
     onOpenSection: (SettingsSection) -> Unit,
     onOpenTasks: () -> Unit,
@@ -277,6 +307,7 @@ private fun SettingsHome(
             }
         }
         item { SettingsSectionLabel("管理与维护") }
+        item { SettingsGroup { SettingsNavigationRow(section = SettingsSection.NOTIFICATIONS, onClick = { onOpenSection(SettingsSection.NOTIFICATIONS) }) } }
         item {
             SettingsGroup {
                 SettingsNavigationRow(
@@ -297,6 +328,11 @@ private fun SettingsHome(
                 SettingsNavigationRow(
                     section = SettingsSection.GOOGLE,
                     onClick = { onOpenSection(SettingsSection.GOOGLE) },
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    section = SettingsSection.STORAGE,
+                    onClick = { onOpenSection(SettingsSection.STORAGE) },
                 )
                 SettingsDivider()
                 SettingsNavigationRow(
@@ -551,170 +587,39 @@ private fun OverviewPage(model: SystemCenterViewModel) = pageList {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActions) {
-    var showThemePicker by rememberSaveable { mutableStateOf(false) }
     pageList {
         item {
             SettingCard("界面风格") {
                 Text("让文字更悦目", color = LocalZiyuPaletteTokens.current.textPrimary, style = MaterialTheme.typography.headlineSmall)
-                Text("Aa 0123456789 · 字域", color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodyMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("当前样式", color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.width(8.dp))
-                    Text(settings.uiStyle.label, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                }
+                Text(when (settings.uiStyle) {
+                    UiStyle.MATERIAL -> "Material 3 Expressive · 圆角与灵动色彩"
+                    UiStyle.MIUIX -> "Miuix · 原生控件与液态玻璃"
+                    UiStyle.COUI -> "COUI · 熟悉的 ColorOS 风格"
+                }, color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(12.dp))
                 ChoiceRow(UiStyle.entries, settings.uiStyle, { it.label }, actions.setUiStyle)
             }
         }
-        item {
-            SettingCard("颜色与模式") {
-                Surface(
-                    onClick = { showThemePicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ZiyuShapeTokens.Medium,
-                    color = Color.Transparent,
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 60.dp)
-                            .padding(horizontal = 4.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("深色模式", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                            Text("跟随系统、浅色或深色", color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text(settings.themeMode.label, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.width(5.dp))
-                        ZiyuGlyph(Icons.Rounded.ChevronRight, null, ZiyuIconTokens.TrailingGlyph, tint = LocalZiyuPaletteTokens.current.textSecondary)
-                    }
-                }
-                SettingsContentDivider()
-                Text("取色风格", color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.labelLarge)
-                ChoiceRow(KolorStyle.entries, settings.kolorStyle, { it.label }, actions.setKolorStyle)
-            }
-        }
-        item {
-            SettingCard("主题色") {
-                Text(
-                    if (settings.monetEnabled) "已跟随壁纸取色；关闭动态取色后可选择主题色。" else "为界面选择一种喜欢的颜色。",
-                    color = LocalZiyuPaletteTokens.current.textSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    AccentOptions.forEach { option ->
-                        val active = settings.seedArgb == option.argb
-                        val muted = settings.monetEnabled
-                        Column(
-                            Modifier.clip(RoundedCornerShape(15.dp)).selectable(
-                                selected = active,
-                                enabled = !settings.monetEnabled,
-                                role = Role.RadioButton,
-                                onClick = { actions.setSeedArgb(option.argb) },
-                            ).padding(horizontal = 4.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(40.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(option.argb).copy(alpha = if (muted) .35f else 1f),
-                                border = BorderStroke(
-                                    if (active) 2.dp else .75.dp,
-                                    if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f),
-                                ),
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    if (active) {
-                                        Surface(
-                                            modifier = Modifier.size(22.dp),
-                                            shape = RoundedCornerShape(50),
-                                            color = Color.White,
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(17.dp))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Text(
-                                option.label,
-                                color = if (active) LocalZiyuPaletteTokens.current.textPrimary else LocalZiyuPaletteTokens.current.textSecondary,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        item { AppearanceModePreview(settings, actions) }
         item {
             SettingCard("视觉与显示") {
                 ToggleLine("Monet 动态取色", "跟随系统壁纸强调色", settings.monetEnabled, actions.setMonetEnabled)
                 SettingsContentDivider()
-                ToggleLine("纯黑深色模式", "深色模式下使用 AMOLED 纯黑背景，浅色模式不受影响", settings.amoledBlack, actions.setAmoledBlack)
-                SettingsContentDivider()
-                ToggleLine("液态玻璃", "为当前主题的悬浮底栏启用半透明与折射效果", settings.glassEnabled, actions.setGlassEnabled, settings.floatingDock)
-                SettingsContentDivider()
-                ToggleLine("背景模糊", "可单独关闭模糊，保留玻璃的半透明与折射效果", settings.blurEnabled, actions.setBlurEnabled, settings.glassEnabled && settings.floatingDock)
-                SettingsContentDivider()
                 ToggleLine("悬浮底栏", "关闭后使用贴合屏幕底部的常规导航栏", settings.floatingDock, actions.setFloatingDock)
                 SettingsContentDivider()
+                ToggleLine("液态玻璃", "悬浮底栏使用半透明、折射与可拖动的选中指示器", settings.glassEnabled, actions.setGlassEnabled, settings.floatingDock)
+                SettingsContentDivider()
+                ToggleLine("背景模糊", "关闭后保留玻璃的半透明与折射效果", settings.blurEnabled, actions.setBlurEnabled, settings.glassEnabled && settings.floatingDock)
+                SettingsContentDivider()
                 ToggleLine("高刷新率", "优先同分辨率高刷新模式", settings.highRefreshRate, actions.setHighRefreshRate)
+                SettingsContentDivider()
+                ToggleLine("预测性返回", if (android.os.Build.VERSION.SDK_INT >= 34) "返回时预览上一页，取消手势即可留在当前页" else "当前系统使用普通返回", settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34, actions.setPredictiveBack, android.os.Build.VERSION.SDK_INT >= 34)
             }
         }
-    }
-    if (showThemePicker) {
-        ModalBottomSheet(
-            onDismissRequest = { showThemePicker = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
-        ) {
-            Column(
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp).padding(bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("深色模式", style = MaterialTheme.typography.titleLarge)
-                Text("选择界面的明暗显示方式", color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(8.dp))
-                Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ThemeMode.entries.forEach { mode ->
-                        val selected = mode == settings.themeMode
-                        val description = when (mode) {
-                            ThemeMode.SYSTEM -> "随设备设置自动切换"
-                            ThemeMode.LIGHT -> "始终使用浅色界面"
-                            ThemeMode.DARK -> "始终使用深色界面"
-                        }
-                        Row(
-                            Modifier.fillMaxWidth().clip(ZiyuShapeTokens.Medium)
-                                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                .then(if (selected) Modifier.border(1.dp, MaterialTheme.colorScheme.primary, ZiyuShapeTokens.Medium) else Modifier)
-                                .selectable(selected = selected, role = Role.RadioButton) {
-                                    actions.setThemeMode(mode)
-                                    showThemePicker = false
-                                }
-                                .heightIn(min = 62.dp)
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(mode.label, style = MaterialTheme.typography.titleSmall, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
-                                Text(description, color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodySmall)
-                            }
-                            RadioButton(selected = selected, onClick = null, enabled = true)
-                        }
-                    }
-                }
-            }
-        }
+        item { AppearancePaletteCard(settings, actions) }
+        item { BackgroundImageCard(settings, actions.setBackgroundPath) }
     }
 }
 
@@ -730,7 +635,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
     val ksuAvailable = h.rootManager == "KernelSU" || h.rootManager == "SukiSU Ultra"
     LaunchedEffect(ksuAvailable) {
         if (ksuAvailable) {
-            val result = RootShell.exec("sh /data/adb/modules/LuoShu/common/app_bridge.sh temporary_root status", 8_000L)
+            val result = RootShell.exec("sh /data/adb/modules/ziyu/common/app_bridge.sh temporary_root status", 8_000L)
             runCatching { JSONObject(result.stdout.trim()).optJSONObject("data")?.optBoolean("enabled") }
                 .getOrNull()?.let { temporaryRootEnabled = it }
         }
@@ -747,7 +652,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
                         scope.launch {
                             temporaryRootBusy = true
                             val action = if (enabled) "enable" else "disable"
-                            val result = RootShell.exec("sh /data/adb/modules/LuoShu/common/app_bridge.sh temporary_root $action", 8_000L)
+                            val result = RootShell.exec("sh /data/adb/modules/ziyu/common/app_bridge.sh temporary_root $action", 8_000L)
                             val response = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
                             if (result.code == 0 && response?.optString("status") == "ok") {
                                 temporaryRootEnabled = response.optJSONObject("data")?.optBoolean("enabled") == true
@@ -937,14 +842,14 @@ private fun ToggleLine(title: String, description: String, checked: Boolean, onC
 }
 
 @Composable
-private fun SettingCard(title: String, content: @Composable () -> Unit) {
+internal fun SettingCard(title: String, content: @Composable () -> Unit) {
     val tokens = LocalZiyuPaletteTokens.current
     val layout = LocalZiyuThemeTokens.current.layout
     if (LocalUiStyle.current == UiStyle.MATERIAL) {
         Card(
-            shape = ZiyuShapeTokens.Card,
+            shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                containerColor = tokens.cardBackground,
                 contentColor = tokens.textPrimary,
             ),
         ) {

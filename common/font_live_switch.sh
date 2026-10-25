@@ -218,7 +218,7 @@ if [ "$NEEDS_NAMESPACE" = 1 ] && [ "$(readlink /proc/self/ns/mnt)" != "$(readlin
     exit 3
 fi
 case "$ACTION" in
-    apply) live_apply; exit $? ;;
+    apply) live_defer live-switch-removed-reboot-required; exit 3 ;;
     recover) live_recover; exit $? ;;
     retire)
         live_python "$LIVE_PY" "$MODDIR" preserve-undo "$BOOT" >> "$LIVE_LOG" 2>&1 || {

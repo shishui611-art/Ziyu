@@ -19,7 +19,7 @@ APK 随模块 ZIP 内置，不作为正式 Release 单独附件。用户下载�
 
 正式发布必须使用仓库已有固定签名。CI 从受保护的 Actions Secrets 注入签名数据，并校验证书指纹；不得把密钥、密码、导出数据或本机凭据路径写入仓库。签名配置缺失、证书指纹不符、APK 包名不符或 ZIP 内 APK 与 Release 构建产物不一致均阻断发布，不替换正式密钥、不回退旧 ZIP。
 
-正式 applicationId 为 `io.github.shishui611_art.ziyu`。提供正式签名配置的 Debug 构建可用同一包名和证书覆盖正式 App，显示版本带 `-debug`；无签名配置的本地 Debug 使用 `io.github.shishui611_art.ziyu.debug`，不能覆盖正式版。独立 `.debug` 旧包不自动删除。
+正式 applicationId 为 `io.github.shishui611_art.ziyu`。提供正式签名配置的 Debug 构建可用同一包名和证书覆盖正式 App，显示版本带 `-debug`；无正式签名配置的本地 Debug 也使用同一包名，仍由已有 Android Debug 证书签名，不能覆盖不同证书的正式版，也无法让之后正式版覆盖本地 Debug 证书的安装。需要互相覆盖时，Debug 和正式包都必须使用现有固定正式签名。独立 `.debug` 旧包不自动删除。
 
 ## 自动发布
 
@@ -30,6 +30,8 @@ APK 随模块 ZIP 内置，不作为正式 Release 单独附件。用户下载�
 发布成功后 `sync-update-metadata.yml` 根据实际 GitHub Release 同步更新清单、备用预发行通道和 `config/stable_version_policy.json`。发布前不得预先把 `update.json` 指向未发布版本。
 
 ## 每次发布前核对
+
+v1.4.7 起，字体预加载库由 `scripts/build_font_preload.py --ndk <已安装NDK>` 构建；提交源码与 `common/font_preload_module` 的小型库及哈希记录。主/Debug 打包器均执行 `--verify`，拒绝源码、固定公共 API 头或库哈希不匹配。配套模块的包内版本由主 `module.prop` 同步；原生编译和哈希一致性不代表真机排除场景通过。
 
 1. 同步 `module.prop`、`config/version_notes.conf`、主变更日志与 `更新日志/RELEASE_NOTES_ziyu-vX.Y.Z.md`。
 2. 发布说明分列新增、修复和优化，并按上一个稳定版本说明用户可见变化；不要将历史设备观察描述为本次真机验收。

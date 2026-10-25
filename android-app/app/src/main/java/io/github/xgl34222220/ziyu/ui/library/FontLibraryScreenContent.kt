@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Warning
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import io.github.xgl34222220.ziyu.ui.design.ZiyuDropdownMenu as DropdownMenu
 import io.github.xgl34222220.ziyu.ui.design.ZiyuDropdownMenuItem as DropdownMenuItem
 import io.github.xgl34222220.ziyu.ui.design.ZiyuFilledTonalButton as FilledTonalButton
@@ -406,36 +407,26 @@ private fun LibraryFontCard(
                 horizontalArrangement = Arrangement.End,
             ) {
                 val deleteEnabled = !busy && !active
-                TextButton(
+                Button(
                     onClick = onDelete,
                     enabled = deleteEnabled,
-                    modifier = Modifier.widthIn(min = 88.dp).heightIn(min = 40.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = scheme.errorContainer,
+                        contentColor = scheme.onErrorContainer,
+                    ),
                 ) {
-                    Text("删除", fontSize = 13.sp, color = scheme.error.copy(alpha = if (deleteEnabled) 1f else .38f))
+                    Icon(Icons.Rounded.Delete, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("删除", fontSize = 13.sp)
                 }
                 Spacer(Modifier.width(8.dp))
-                if (active) {
-                    TextButton(onClick = onDetails, modifier = Modifier.widthIn(min = 104.dp).heightIn(min = 40.dp)) {
-                        Text("查看详情", fontSize = 13.sp)
-                    }
-                } else {
-                    when (style) {
-                        UiStyle.MATERIAL -> Button(
-                            onClick = onApply,
-                            enabled = font.valid && !busy,
-                            modifier = Modifier.widthIn(min = 104.dp).heightIn(min = 40.dp),
-                        ) { Text("应用字体") }
-                        UiStyle.MIUIX -> FilledTonalButton(
-                            onClick = onApply,
-                            enabled = font.valid && !busy,
-                            modifier = Modifier.widthIn(min = 104.dp).heightIn(min = 40.dp),
-                        ) { Text("应用") }
-                        UiStyle.COUI -> TextButton(
-                            onClick = onApply,
-                            enabled = font.valid && !busy,
-                            modifier = Modifier.widthIn(min = 104.dp).heightIn(min = 40.dp),
-                        ) { Text("应用字体") }
-                    }
+                Button(
+                    onClick = onApply,
+                    enabled = font.valid && !busy,
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                ) {
+                    Text(if (active) "重新应用" else "应用字体", fontSize = 13.sp)
                 }
             }
         }

@@ -31,7 +31,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
-private const val APP_BRIDGE = "/data/adb/modules/LuoShu/common/app_bridge.sh"
+private const val APP_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
 private const val PREVIEW_CACHE_MAX_FILES = 32
 private const val PREVIEW_CACHE_MAX_BYTES = 384L * 1024L * 1024L
 private const val PREVIEW_MEMORY_MAX_ENTRIES = 24

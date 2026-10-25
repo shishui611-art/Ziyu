@@ -3,7 +3,7 @@
 # Compiles private artifacts only. Never publishes or mounts them.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
 COMPILER="$MODDIR/common/universal_font_compiler.py"

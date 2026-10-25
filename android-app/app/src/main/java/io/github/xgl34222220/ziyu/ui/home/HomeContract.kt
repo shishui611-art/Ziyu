@@ -2,6 +2,7 @@ package io.github.xgl34222220.ziyu.ui.home
 
 import androidx.compose.runtime.Immutable
 import io.github.xgl34222220.ziyu.ModuleSnapshot
+import io.github.xgl34222220.ziyu.DisplayTypographyState
 
 @Immutable
 data class HomeUiState(
@@ -26,6 +27,10 @@ data class HomeUiState(
     val mountPreferenceSaving: Boolean = false,
     val mountPreferenceLoaded: Boolean = false,
     val undoAvailable: Boolean = false,
+    val currentFontId: String = "default",
+    val currentFontRevision: String = "",
+    val typographyVisible: Boolean = false,
+    val typography: DisplayTypographyState = DisplayTypographyState(),
 )
 
 @Immutable
@@ -43,6 +48,9 @@ data class HomeActions(
     val cancelMountChange: () -> Unit = {},
     val undoApply: () -> Unit = {},
     val cancelTask: () -> Unit = {},
+    val loadTypography: () -> Unit = {},
+    val refreshTypography: () -> Unit = {},
+    val applyTypography: (Int, Int?, Int) -> Unit = { _, _, _ -> },
 )
 
 internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
@@ -51,6 +59,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
         loading = loading,
         version = version,
         currentFont = effectiveLabel,
+        currentFontId = activeFont,
         rootGranted = rootGranted,
         rootManager = rootManager,
         moduleInstalled = installed,

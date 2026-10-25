@@ -382,6 +382,15 @@ class Collector:
                 correction = item.get("bitmapBaselineCorrection")
                 if type(correction) is int and 0 <= correction <= 32767:
                     result[item["slot"]]["bitmapBaselineCorrection"] = correction
+                for key in ('retainedComponentCopies', 'unsafeGlyphsRetained', 'stockOnlyCharactersRetained'):
+                    value = item.get(key)
+                    if type(value) is int and 0 <= value <= 0x110000:
+                        result[item["slot"]][key] = value
+                replacements = item.get('replacedCharacters')
+                if isinstance(replacements, dict):
+                    result[item["slot"]]['replacedCharacters'] = {
+                        key: value for key, value in replacements.items()
+                        if key in {'cjk', 'latin', 'digit'} and type(value) is int and 0 <= value <= 0x110000}
             return result
         except Exception:
             return {}

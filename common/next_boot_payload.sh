@@ -6,7 +6,7 @@
 set +e
 
 luoshu_next_boot_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 luoshu_next_boot_value() {

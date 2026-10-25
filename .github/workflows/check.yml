@@ -173,7 +173,7 @@ jobs:
 
           test "$(unzip -p "$module" module.prop | sed -n 's/^version=//p')" = "$LUOSHU_VERSION"
           test "$(unzip -p "$module" module.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_VERSION_CODE"
-          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.shishui611_art.ziyu.debug'
+          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.shishui611_art.ziyu'
           test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_APP_VERSION_CODE"
 
           unzip -p "$module" LICENSE | grep -q 'GNU GENERAL PUBLIC LICENSE'

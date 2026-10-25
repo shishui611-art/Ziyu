@@ -3,7 +3,7 @@
 # Diagnostic only: never changes fonts, XML, mounts or /data/fonts.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODDIR/config"
 PYROOT="$MODDIR/common/python"

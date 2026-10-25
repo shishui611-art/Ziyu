@@ -13,6 +13,18 @@ LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
 V4_SERVICE="$MODDIR/.luoshu-runtime/core/service.sh"
 mkdir -p "$MODDIR/logs" 2>/dev/null || true
 
+
+# User storage changes are committed only after a complete kernel reboot.
+# Migration owns its advisory lock; source data remains available on failure.
+(
+    _zus_wait=0
+    while [ "$(getprop sys.boot_completed 2>/dev/null)" != 1 ] || [ ! -d /storage/emulated/0 ]; do
+        [ "$_zus_wait" -lt 150 ] || exit 0
+        sleep 2; _zus_wait=$((_zus_wait + 1))
+    done
+    . "$MODDIR/common/user_storage.sh" || exit 1
+    ziyu_user_storage_command "$MODDIR" apply >> "$MODDIR/logs/user-storage.log" 2>&1
+) </dev/null >/dev/null 2>&1 &
 # This bounded worker is independent of this module's service callback, which
 # a manager may skip after the early guard writes an owned disable marker.
 if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then

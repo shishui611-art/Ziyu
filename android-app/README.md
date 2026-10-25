@@ -1,7 +1,7 @@
 # 字域 Android App
 
 本目录包含字域的原生 Android 管理端。App 通过 Root 桥接调用已安装模块中的
-`/data/adb/modules/LuoShu/common/app_bridge.sh`；字体扫描、导入、编译、挂载、验证和恢复由模块运行时执行。
+`/data/adb/modules/ziyu/common/app_bridge.sh`；字体扫描、导入、编译、挂载、验证和恢复由模块运行时执行。
 
 ## 当前功能
 

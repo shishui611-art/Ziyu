@@ -4,10 +4,14 @@
 # production switcher without ever rewriting the current boot's live payload.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
-PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
 LEGACY_SWITCH="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"
 DEPLOYMENT="$MODDIR/common/universal_font_deployment.sh"
 PLAN_BRIDGE="$MODDIR/common/universal_font_plan.sh"
@@ -153,10 +157,16 @@ _uc_switch() {
     [ -n "$_uc_font" ] || { printf '{"status":"error","message":"未指定字体"}\n'; return 1; }
     if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
-            allow-apply "$MODDIR" "$_uc_font" >> "$LOG_FILE" 2>&1 || {
-            printf '{"status":"error","message":"开机安全保护当前只允许恢复系统默认字体；OTA 期间请先完成原厂扫描"}\n'
+            allow-apply "$MODDIR" "$_uc_font" >> "$LOG_FILE" 2>&1
+        _uc_guard_rc=$?
+        if [ "$_uc_guard_rc" -ne 0 ]; then
+            case "$_uc_guard_rc" in
+                20) printf '{"status":"error","message":"开机保护已启用，当前仅允许恢复系统默认字体；请到设置 → 开机保护检查并解除保护"}\n' ;;
+                21) printf '{"status":"error","message":"系统字体基准尚未核验；请到设置 → 开机保护完成原厂字体扫描后再应用"}\n' ;;
+                *) printf '{"status":"error","message":"无法核对开机保护状态，请检查日志；本次没有提交字体负载"}\n' ;;
+            esac
             return 1
-        }
+        fi
     fi
     _uc_log "switch runtime version=$(_uc_value "$MODDIR/module.prop" version) boot=$(cat /proc/sys/kernel/random/boot_id) font=$_uc_font"
     if ! _uc_recover_pending; then

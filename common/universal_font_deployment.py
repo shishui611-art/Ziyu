@@ -365,6 +365,8 @@ def build_deployment(
                 str(compiled["sha256"]),
                 stage / source_rel,
             )
+            from font_verity import seal
+            seal(stage / source_rel)
             dynamic_mounts.append({
                 "targetPath": target_text,
                 "sourcePayloadPath": str(source_rel),

@@ -127,7 +127,7 @@ ziyu_provider_payload_publish() (
         fi
     done
     chmod -R u=rwX,go=rX "$_zpp_stage" || return 1
-    chmod 0755 "$_zpp_stage/system/bin/洛书" "$_zpp_stage/system/bin/luoshud" \
+    chmod 0755 "$_zpp_stage/system/bin/ziyu" "$_zpp_stage/system/bin/luoshud" \
         "$_zpp_stage/system/bin/luoshu-history" "$_zpp_stage/system/bin/luoshu-health" \
         "$_zpp_stage/system/bin/luoshu-backup" 2>/dev/null || true
     # One content pass on the final projection proves the copied/hard-linked

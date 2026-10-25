@@ -3,7 +3,7 @@
 # Planning/capture only. Never publishes XML overlays or mounts anything.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
 ROUTER="$MODDIR/common/minimal_xml_router.py"

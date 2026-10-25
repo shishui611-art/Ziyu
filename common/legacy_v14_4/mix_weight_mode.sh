@@ -46,7 +46,7 @@ mix_find_family_source() {
 # 输出 wght 的 fvar 默认值；没有 wght 轴时输出空字符串。
 mix_variable_default_weight() {
     _source="$1"
-    _pyroot="${MODDIR:-/data/adb/modules/LuoShu}/common/python"
+    _pyroot="${MODDIR:-/data/adb/modules/ziyu}/common/python"
     _python="$_pyroot/bin/luoshu-python"
     [ -x "$_python" ] || return 0
     PYTHONHOME="$_pyroot" \

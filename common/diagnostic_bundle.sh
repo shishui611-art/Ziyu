@@ -8,11 +8,13 @@ set +e
 
 MODDIR="${MODDIR:-${MODULE_DIR:-${0%/*}/..}}"
 MODULE_DIR="$MODDIR"
+. "$MODDIR/common/user_storage.sh"
+ziyu_user_storage_environment "$MODDIR"
 _REASON="${1:-manual}"
 
 _diag_stamp() { date '+%Y%m%d-%H%M%S' 2>/dev/null || echo unknown; }
 _diag_boot() { printf '%s\n' "${LUOSHU_DIAG_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"; }
-_diag_public_root() { printf '%s\n' "${LUOSHU_DIAG_PUBLIC_DIR:-/sdcard/Ziyu/reports}"; }
+_diag_public_root() { printf '%s\n' "${LUOSHU_DIAG_PUBLIC_DIR:-$LUOSHU_PUBLIC_DIR/reports}"; }
 _diag_public_ready() {
     if [ -n "${LUOSHU_DIAG_PUBLIC_DIR:-}" ]; then
         [ -d "${LUOSHU_DIAG_PUBLIC_DIR%/*}" ] || mkdir -p "${LUOSHU_DIAG_PUBLIC_DIR%/*}" 2>/dev/null
@@ -119,12 +121,28 @@ _diag_dump_once() {
 
         printf '\n[payload files]\n'
         find "$MODDIR/.luoshu-payload" -type f 2>/dev/null | head -n 60
+        _diag_emit_file 'boot-ota-guard.conf' "$MODDIR/config/boot-ota-guard.conf"
+        _diag_emit_file 'boot-ota-pending.conf' "$MODDIR/config/boot-ota-pending.conf"
+        _diag_emit_file 'boot-safety-mode.conf' "$MODDIR/config/boot-safety-mode.conf"
+        _diag_emit_file 'boot-safety-disable-owner.conf' "$MODDIR/config/boot-safety-disable-owner.conf"
+        _diag_emit_file 'boot-safety-current-boot.conf' "$MODDIR/config/boot-safety-current-boot.conf"
+        _diag_emit_file 'user-storage.conf' "$MODDIR/config/user-storage.conf"
+        _diag_emit_file 'user-storage-next.conf' "$MODDIR/config/user-storage-next.conf"
         _diag_emit_file 'payload manifest' "$MODDIR/config/font-payload-manifest.conf"
     } > "$_diag_tmp" 2>/dev/null
 
     # Config and log sections appended separately: none of these may abort the dump.
     {
         _diag_emit_file 'mount-backend.conf' "$MODDIR/config/mount-backend.conf"
+        _diag_emit_file 'font preload arm64 callback' "$MODDIR/config/font-preload-arm64-v8a.conf"
+        _diag_emit_file 'font preload arm64 denylist callback' "$MODDIR/config/font-preload-arm64-v8a-denylist.conf"
+        _diag_emit_file 'font preload arm32 denylist callback' "$MODDIR/config/font-preload-armeabi-v7a-denylist.conf"
+        _diag_emit_file 'font preload generation' "$MODDIR/config/font-preload-generation.conf"
+        _diag_emit_file 'font preload preparation log' "$MODDIR/logs/font-preload.log" 100
+        _diag_emit_file 'font preload arm32 callback' "$MODDIR/config/font-preload-armeabi-v7a.conf"
+        _diag_emit_file 'font preload companion metadata' /data/adb/modules/ziyu-font-preload/module.prop
+        printf '\n[font preload companion markers]\n'
+        ls -ld /data/adb/modules/ziyu-font-preload/disable /data/adb/modules/ziyu-font-preload/remove 2>&1
         _diag_emit_file 'APatch pre-mount preparation' "$MODDIR/config/apatch-pre-mount.conf"
         _diag_emit_file 'NoMount native boot log' /data/adb/nomount/nomount.log 160
         _diag_emit_file 'provider publication receipt' "$MODDIR/.ziyu-state/provider-published.conf"
@@ -142,6 +160,8 @@ _diag_dump_once() {
         _diag_emit_file 'self mount journal boot' "$_diag_self_root/boot-id"
         _diag_emit_file 'self mount journal' "$_diag_self_root/mounts.list" 400
         _diag_emit_file 'active_font.conf' "$MODDIR/config/active_font.conf"
+        _diag_emit_file 'display parameter local configuration' "$MODDIR/config/display-typography.conf"
+        _diag_emit_file 'display parameter storage directory' "$MODDIR/config/display-config-storage.conf"
         _diag_emit_file 'font-payload-next.conf' "$MODDIR/config/font-payload-next.conf"
         _diag_emit_file 'live font pointer' "$MODDIR/config/font-live.conf"
         _diag_emit_file 'live font previous' "$MODDIR/config/font-live-previous.conf"
@@ -157,7 +177,7 @@ _diag_dump_once() {
         _diag_emit_file 'switch task' "$MODDIR/config/switch_task.conf"
         _diag_emit_file 'switch cleanup proof' "$MODDIR/config/switch_task_worker.pid.cleanup.json"
         _diag_emit_file 'next transaction journal' "$MODDIR/.luoshu-state/backup/next-transaction/journal.conf"
-        _diag_emit_file 'pending module metadata' '/data/adb/modules_update/LuoShu/module.prop'
+        _diag_emit_file 'pending module metadata' '/data/adb/modules_update/ziyu/module.prop'
         _diag_emit_file 'device-font-engine.conf' "$MODDIR/config/device-font-engine.conf"
         _diag_emit_file 'font-runtime legacy conf' "$MODDIR/config/font_runtime_legacy_v14_4.conf"
         _diag_emit_file 'mount-backend-verification.json' "$MODDIR/config/mount-backend-verification.json"

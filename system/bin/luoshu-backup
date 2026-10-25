@@ -2,7 +2,7 @@
 # Root-facing full-backup helper. It only stages user font files and a strict
 # whitelist of portable LuoShu configuration; it never exports payload, locks or logs.
 set +e
-MODDIR="${MODDIR:-/data/adb/modules/LuoShu}"
+MODDIR="${MODDIR:-/data/adb/modules/ziyu}"
 PUBLIC_ROOT="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
 FONT_ROOT="$PUBLIC_ROOT/fonts"
 CONFIG_DIR="$MODDIR/config"

@@ -61,6 +61,7 @@ internal fun TaskCenterHost() {
     }
 
     ZiyuTheme(appearance) {
+        if (setupRequired == false) NotificationPermissionOnboarding()
         val pageBackground = if (appearance.uiStyle != UiStyle.MATERIAL) {
             LocalZiyuPaletteTokens.current.pageBackground
         } else {

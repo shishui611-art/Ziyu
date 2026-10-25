@@ -2,7 +2,7 @@
 # Read-only details. Provider identity belongs to this boot, never redetect/switch it here.
 _mbd_value() { ziyu_mount_conf_value "$1" "$2"; }
 luoshu_mount_backend_details() {
-    _mbd_module="${MODDIR:-/data/adb/modules/LuoShu}"
+    _mbd_module="${MODDIR:-/data/adb/modules/ziyu}"
     _mbd_file="$_mbd_module/config/mount-backend.conf"
     MOUNT_PROVIDER_NAME='尚未确认'
     MOUNT_PROVIDER_VERSION=''

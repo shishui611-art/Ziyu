@@ -9,7 +9,7 @@ _lmcl_module="${MODULE_DIR:-${MODDIR:-}}"
 if [ -z "$_lmcl_module" ]; then
     _lmcl_module=$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)
 fi
-[ -n "$_lmcl_module" ] || _lmcl_module=/data/adb/modules/LuoShu
+[ -n "$_lmcl_module" ] || _lmcl_module=/data/adb/modules/ziyu
 _lmcl_base="$_lmcl_module/common/mount_compat_base.sh"
 _lmcl_fallback="$_lmcl_module/common/mount_self_fallback.sh"
 _lmcl_policy="$_lmcl_module/common/mount_compat_policy.sh"

@@ -56,7 +56,7 @@ def load(module: Path):
 
 
 def resolve(logical: str, module: Path | None = None, digest_cache=None) -> Path | None:
-    module = module or Path(os.environ.get('MODDIR', os.environ.get('MODULE_DIR', '/data/adb/modules/LuoShu')))
+    module = module or Path(os.environ.get('MODDIR', os.environ.get('MODULE_DIR', '/data/adb/modules/ziyu')))
     data = load(module)
     entry = data.get('files', {}).get(logical)
     if not isinstance(entry, dict):
@@ -89,8 +89,6 @@ def resolve(logical: str, module: Path | None = None, digest_cache=None) -> Path
 
 
 def capture(module: Path) -> dict:
-    # Lazy import avoids circular loading when the compiler consults this cache.
-    from universal_font_compiler import _stock_views
     build, fingerprint, _ = build_identity()
     if build == 'unknown' or not fingerprint:
         return {'state': 'deferred', 'reason': 'unknown-build'}
@@ -113,6 +111,9 @@ def capture(module: Path) -> dict:
             and all((root / 'files' / (e['sha256'] + '.font')).is_file()
                     for e in existing['files'].values())):
         return {'state': 'reused', 'count': len(existing['files'])}
+    # Reused snapshots do not need to import the font compiler and its graph.
+    # Keep the original source/build/hash checks for any actual capture/use.
+    from universal_font_compiler import _stock_views
     views = _stock_views()
     if not views:
         return {'state': 'deferred', 'reason': 'no-verified-stock-view',

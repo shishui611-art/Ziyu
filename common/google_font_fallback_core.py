@@ -25,7 +25,7 @@ GMS = 'com.google.android.gms'
 PROVIDER = GMS + '.fonts.provider.FontsProvider'
 COMPONENT = GMS + '/' + PROVIDER
 STORE = Path('/data/adb/luoshu-google-font-fallback')
-MODULE = Path('/data/adb/modules/LuoShu')
+MODULE = Path('/data/adb/modules/ziyu')
 SCHEMA = 'luoshu-google-font-fallback-v1'
 
 
@@ -281,7 +281,7 @@ def enable(backend: Android, journal: Journal) -> dict:
 
 def module_ready(module: Path) -> bool:
     try:
-        return ('id=LuoShu' in (module / 'module.prop').read_text().splitlines()
+        return (any(value in (module / 'module.prop').read_text(encoding='utf-8').splitlines() for value in ('id=ziyu', 'id=LuoShu'))
                 and not any((module / flag).exists() for flag in ('disable', 'remove'))
                 and (module / 'config/active_font.conf').read_text().strip() not in ('', 'default'))
     except OSError:

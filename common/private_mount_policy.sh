@@ -2,7 +2,7 @@
 # All system injection is routed through this one guarded entry.
 set +e
 luoshu_private_self_mount_ensure() {
-    _lpmp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _lpmp_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     [ ! -f "$_lpmp_module/common/skip_mount_ownership.sh" ] || . "$_lpmp_module/common/skip_mount_ownership.sh"
     if type ziyu_foreign_skip_mount_present >/dev/null 2>&1 && ziyu_foreign_skip_mount_present "$_lpmp_module"; then
         return 90

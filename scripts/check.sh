@@ -128,7 +128,7 @@ while IFS= read -r payload || [ -n "$payload" ]; do
   test -e "$ROOT/$payload"
 done < "$PAYLOAD_MANIFEST"
 find "$ROOT/common" -maxdepth 1 -type f -printf 'common/%f\n' | sort > /tmp/luoshu-common-files.txt
-grep '^common/' "$PAYLOAD_MANIFEST" | grep -v '^common/python$' | grep -v '^common/legacy_v14_4$' | sort > /tmp/luoshu-manifest-common.txt
+grep '^common/' "$PAYLOAD_MANIFEST" | grep -v '^common/font_preload_module$' | grep -v '^common/python$' | grep -v '^common/legacy_v14_4$' | sort > /tmp/luoshu-manifest-common.txt
 cmp -s /tmp/luoshu-common-files.txt /tmp/luoshu-manifest-common.txt
 
 # 活跃运行时代码不得再出现历史开发版本头、WebUI 函数或未使用的报告脚本。
@@ -148,7 +148,8 @@ grep -q 'bundled/Ziyu-App.apk' "$ROOT/scripts/build.sh"
 ! grep -RIn 'LUOSHU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
 
 # 安装与运行时只面向原生 App，不得重新创建或依赖 webroot。
-grep -q 'luoshu_cli.sh.*system/bin/洛书' "$ROOT/customize.sh"
+grep -Fq 'cp -f "$MODPATH/common/luoshu_cli.sh" "$MODPATH/system/bin/ziyu"' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
+grep -Fq 'chmod 0755 "$MODPATH/common/python/bin/luoshu-python" "$MODPATH/system/bin/ziyu"' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
 ! grep -q 'pm install' "$ROOT/customize.sh"
 ! grep -q 'pkill' "$ROOT/customize.sh"
 for runtime in customize.sh post-fs-data.sh service.sh action.sh common/font_manager.sh common/app_bridge.sh; do
@@ -306,6 +307,7 @@ sh "$ROOT/scripts/installer_payload_preserve_test.sh"
 sh "$ROOT/scripts/mountinfo_procfs_test.sh"
 bash "$ROOT/scripts/hybrid_meta_detection_test.sh"
 python3 "$ROOT/scripts/font_route_verify_test.py"
+python3 "$ROOT/scripts/font_preload_state_test.py"
 python3 "$ROOT/scripts/hybrid_mount_runtime_test.py"
 bash "$ROOT/scripts/hybrid_mount_unload_test.sh"
 sh "$ROOT/scripts/hyperos_global_mapping_test.sh"

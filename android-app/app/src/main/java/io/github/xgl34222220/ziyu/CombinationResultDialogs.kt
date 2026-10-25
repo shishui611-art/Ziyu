@@ -1,28 +1,54 @@
 package io.github.xgl34222220.ziyu
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
+import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedTextField
+import io.github.xgl34222220.ziyu.ui.design.ZiyuText
+import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
 
+/**
+ * Preparation/reboot dialogs stay on the project design entry points so all three
+ * UI styles render the same button hierarchy: filled primary, outlined secondary,
+ * text-only dismiss. Actions are stacked full-width instead of raw Material text
+ * buttons, which looked like plain labels under the Miuix and COUI styles.
+ */
 @Composable
 internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
-    if (viewModel.fontCacheRefreshPrompt) {
+    if (viewModel.rebootChoiceVisible) {
         AlertDialog(
-            onDismissRequest = viewModel::dismissFontCacheRefresh,
-            title = { Text("系统界面仍使用旧字体") },
-            text = { Text(if (viewModel.fontCacheSoftRebootAvailable)
-                "新字体已热挂载，但状态栏、下拉面板和通知栏仍保留旧字体缓存。是否通过 KernelSU 软重启刷新？软重启会中断当前应用，完成后返回查看结果。也可以稍后处理。"
-                else "新字体已热挂载，但系统界面仍保留旧字体缓存，需要重启刷新。当前未确认支持 KernelSU 软重启，可稍后手动重启。") },
+            onDismissRequest = viewModel::dismissRebootChoice,
+            title = { ZiyuText("重启应用字体") },
+            text = { ZiyuText(viewModel.rebootChoiceMessage) },
             confirmButton = {
-                if (viewModel.fontCacheSoftRebootAvailable) {
-                    TextButton(onClick = viewModel::confirmFontCacheRefresh) { Text("软重启刷新") }
-                } else {
-                    TextButton(onClick = viewModel::dismissFontCacheRefresh) { Text("知道了") }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ZiyuButton(
+                        onClick = { viewModel.confirmReboot(false) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { ZiyuText("完整重启") }
+                    if (viewModel.softRebootSupported) {
+                        ZiyuOutlinedButton(
+                            onClick = { viewModel.confirmReboot(true) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { ZiyuText("KernelSU 软重启") }
+                    }
+                    ZiyuTextButton(
+                        onClick = viewModel::dismissRebootChoice,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { ZiyuText("稍后") }
                 }
             },
-            dismissButton = { TextButton(onClick = viewModel::dismissFontCacheRefresh) { Text("稍后处理") } },
+            dismissButton = null,
         )
     }
     viewModel.preparedCombination?.let { result ->
@@ -34,29 +60,55 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
         )
         AlertDialog(
             onDismissRequest = viewModel::dismissPreparedCombination,
-            title = { Text("「${result.name}」已生成") },
+            title = { ZiyuText("「${result.name}」已生成") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("组合已保存到字体库。预览实际生成的中文、英文和数字后，再决定是否应用。")
+                    ZiyuText("组合已保存到字体库。预览实际生成的中文、英文和数字后，再决定是否应用。")
                     NativeFontPreview(font, sample, maxLines = 4, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp), onReady = { ready = it })
-                    OutlinedTextField(sample, { sample = it.take(200) }, label = { Text("自定义样例") }, maxLines = 3)
+                    ZiyuOutlinedTextField(
+                        value = sample,
+                        onValueChange = { sample = it.take(200) },
+                        label = { ZiyuText("自定义样例") },
+                        maxLines = 3,
+                    )
                 }
             },
             confirmButton = {
-                Column {
-                    TextButton(enabled = ready, onClick = { viewModel.applyPreparedCombination(true) }) { Text("应用并重启") }
-                    TextButton(enabled = ready, onClick = { viewModel.applyPreparedCombination(false) }) { Text("应用，稍后重启") }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ZiyuButton(
+                        enabled = ready,
+                        onClick = { viewModel.applyPreparedCombination(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { ZiyuText("应用并重启") }
+                    ZiyuOutlinedButton(
+                        enabled = ready,
+                        onClick = { viewModel.applyPreparedCombination(false) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { ZiyuText("应用，稍后重启") }
+                    ZiyuTextButton(
+                        onClick = viewModel::dismissPreparedCombination,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { ZiyuText("仅保存") }
                 }
             },
-            dismissButton = { TextButton(onClick = viewModel::dismissPreparedCombination) { Text("仅保存") } },
+            dismissButton = null,
         )
     }
     if (viewModel.restartCountdown > 0) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("${viewModel.restartCountdown} 秒后完整重启") },
-            text = { Text("字体已准备完成。现在改变主意，可以取消重启并恢复上一次字体。重启后也可在首页回退。") },
-            confirmButton = { TextButton(onClick = viewModel::undoFontApplication) { Text("取消并回退") } },
+            title = { ZiyuText("${viewModel.restartCountdown} 秒后完整重启") },
+            text = { ZiyuText("字体已准备完成。现在改变主意，可以取消重启并恢复上一次字体。重启后也可在首页回退。") },
+            confirmButton = {
+                ZiyuButton(
+                    onClick = viewModel::undoFontApplication,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { ZiyuText("取消并回退") }
+            },
+            dismissButton = null,
         )
     }
 }

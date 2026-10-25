@@ -31,10 +31,35 @@ _luoshu_root_value() {
     printf '%s\n' "$_lrd_value"
 }
 
+# Query the su actually selected by this shell. Old manager directories may
+# coexist, but a labelled response from the current su is stronger evidence.
+# This is a bounded version query, never a manager control operation.
+_luoshu_root_su_identity() {
+    _lrd_su=$(command -v su 2>/dev/null) || return 1
+    _lrd_timeout=$(command -v timeout 2>/dev/null)
+    [ -n "$_lrd_timeout" ] || return 1
+    _lrd_su_version=$("$_lrd_timeout" 2 "$_lrd_su" -v 2>/dev/null) || return 1
+    [ "${#_lrd_su_version}" -le 256 ] || return 1
+    _lrd_su_label=$(printf '%s' "$_lrd_su_version" | tr '[:upper:]' '[:lower:]')
+    case "$_lrd_su_label" in
+        *sukisu*) ROOT_MANAGER='SukiSU Ultra' ;;
+        *apatch*) ROOT_MANAGER=APatch ;;
+        *kernelsu*) ROOT_MANAGER=KernelSU ;;
+        *magisk*) ROOT_MANAGER=Magisk ;;
+        *) return 1 ;;
+    esac
+    # Never infer a manager from a bare numeric or generic su version.
+    ROOT_VERSION=$(_luoshu_root_value "$_lrd_su_version")
+    _lrd_su_code=$("$_lrd_timeout" 2 "$_lrd_su" -V 2>/dev/null)
+    case "$_lrd_su_code" in ''|*[!0-9]*) ROOT_VERSION_CODE=0 ;; *) ROOT_VERSION_CODE=$_lrd_su_code ;; esac
+    ROOT_DETECTION_SOURCE=su-version
+    return 0
+}
+
 # App su shells often omit the manager environment present in boot hooks. Only
 # reuse an explicit hook identity from this boot, never an old directory guess.
 luoshu_current_boot_backend_state() {
-    _lrd_state="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}/config/mount-backend.conf"
+    _lrd_state="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/config/mount-backend.conf"
     [ -r "$_lrd_state" ] || return 1
     _lrd_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
     [ -n "$_lrd_boot" ] || return 1
@@ -48,7 +73,7 @@ luoshu_current_boot_backend_state() {
 
 _luoshu_root_boot_identity() {
     _lrd_state=$(luoshu_current_boot_backend_state) || return 1
-    case "$(sed -n 's/^root_detection_source=//p' "$_lrd_state" | head -n1)" in env|current-boot-hook) ;; *) return 1 ;; esac
+    case "$(sed -n 's/^root_detection_source=//p' "$_lrd_state" | head -n1)" in env|current-boot-hook|su-version) ;; *) return 1 ;; esac
     _lrd_manager=$(sed -n 's/^root_manager=//p' "$_lrd_state" | head -n1)
     case "$_lrd_manager" in Magisk|KernelSU|SukiSU\ Ultra|APatch) ;; *) return 1 ;; esac
     ROOT_MANAGER=$_lrd_manager
@@ -88,6 +113,8 @@ luoshu_root_manager_detect() {
         ROOT_VERSION_CODE=$(_luoshu_root_value "${MAGISK_VER_CODE:-0}")
         ROOT_DETECTION_SOURCE=env
     elif _luoshu_root_boot_identity; then
+        :
+    elif _luoshu_root_su_identity; then
         :
     else
         _lrd_ap=$(_luoshu_root_path /data/adb/ap)

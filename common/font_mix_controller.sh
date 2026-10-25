@@ -6,7 +6,7 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR=/data/adb/modules/LuoShu
+        MODDIR=/data/adb/modules/ziyu
     fi
 fi
 export MODDIR
@@ -15,7 +15,7 @@ case "${1:-config}" in
     start)
         if [ -f "$MODDIR/common/boot_ota_guard.sh" ] && ! MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
             sh "$MODDIR/common/boot_ota_guard.sh" allow-apply "$MODDIR" mix >/dev/null 2>&1; then
-            printf '{"status":"error","message":"开机安全保护当前只允许恢复系统默认字体；OTA 期间请先完成原厂扫描"}\n'
+            printf '{"status":"error","message":"开机保护暂未解除，请在开机保护页面核对原因并完成原厂字体扫描"}\n'
             exit 1
         fi
         if [ -f "$LEGACY_V14_MIX" ]; then

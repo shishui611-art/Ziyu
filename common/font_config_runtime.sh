@@ -3,7 +3,7 @@
 set +e
 
 _luoshu_font_config_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 # Font/config overlays live in the canonical private payload when that layout is enabled. The App

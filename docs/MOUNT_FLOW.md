@@ -1,5 +1,11 @@
 # 当前字体挂载流程
 
+## v1.4.4 自动回退候选
+
+刷入时保存用户挂载偏好并显示后续启动计划，不对安装器临时模块目录做实时挂载。自动模式继续优先使用确认可用的元模块或 Magisk/APatch 内置挂载；提供者不可用时，已识别管理器尝试字域自挂载。无法识别 Root 管理器时，自动回退明确选择字域 Magic Mount / bind，在 `post-fs-data` 尝试并由 service 复核；管理器身份仍记录为 unknown，不调用未确认的 Magisk 控制接口。相同策略函数用于刷入提示和启动回退。
+
+回退模式和原因写入本次启动记录，不把自动偏好永久改为 magic 或 self_mount；后续阶段复用本次选择，下一启动重新检测提供者。手动模式、外部排除标记、开机/OTA 保护、负载验证、PID 1 内容与路由校验和回滚继续有效。没有实际启动入口或权限时，仅选择 bind 不能使模块生效。代码和打包检查不代表未知管理器已经完成设备验收，也不等于应用隔离后的方框问题已解决。
+
 ## APatch 的扫描前准备
 
 APatch 的 common `post-fs-data.d` 脚本先于 `modules_update` 迁移、元模块 `metamount.sh` 扫描和模块自己的 `post-fs-data.sh`。字域安装时登记自己持有的 `/data/adb/post-fs-data.d/ziyu-apatch-pre-mount.sh`，仅在确认 APatch 环境与 PID 1 挂载命名空间后执行准备。待升级时优先使用 `modules_update/LuoShu` 内的新运行代码，在管理器迁移前激活已提交字体、校验并发布普通扫描树；模块移动和 NoMount 规则加载仍由 APatch 执行。
@@ -8,14 +14,9 @@ APatch 的 common `post-fs-data.d` 脚本先于 `modules_update` 迁移、元模
 
 调度依据：[APatch event.rs](https://github.com/bmax121/APatch/blob/main/apd/src/event.rs)、[APatch module.rs](https://github.com/bmax121/APatch/blob/main/apd/src/module.rs)、[NoMount v2.1.0 扫描脚本](https://github.com/maxsteeel/nomount/blob/v2.1.0/module/metamount.sh)。2026-10-14 的 OnePlus PJZ110 / Android 17（API 37）、APatch 115357、NoMount v2.1.0 诊断记录了 v1.4.1 升级后首次启动与同一字体再次应用后的完整重启成功，并验证 14 个 PID 1 字体目标；换字体、恢复默认和应用实际显示仍待测，设备矩阵保持待测。没有同条件耗时测量，不宣称实测加速。
 
-## 当前启动的热切换
+## v1.4.8：重启应用
 
-v1.2.40 对已经验证的物理自挂载接入连续字体热挂载，保留本次启动确定的挂载方式。
-字体生成仍先提交下一启动队列，再复制独立字体代、创建独立工作目录并在 PID 1 挂载校验。
-失败恢复旧字体；元模块等不支持运行时更新的后端仍保留重启队列。
-成功显示“已热挂载”，部分界面可能需要重新打开应用或手动软重启刷新缓存。
-当前启动使用过的字体代和工作文件保留到内核完整重启。
-详细流程与限制见 [字体热切换](FONT_LIVE_SWITCH.md)。
+所有新请求离线生成、校验并提交下一启动负载，不再调用 live apply。保留旧热事务恢复清理。KSU 满足 daemon 和提供者要求时可选软重启，其他管理器完整重启，首次标识升级完整重启。
 
 ## 启动时只做一次选择
 
@@ -47,7 +48,7 @@ KernelSU 软重启由 App 确认后通过内置 `common/soft_reboot.sh` 请求�
 | post-fs-data | 激活代次、识别提供者、发布扫描目录、固定选择 |
 | post-mount | KernelSU / SukiSU / APatch 执行用户选择的自挂载，或验证元模块挂载 |
 | service / boot-completed | 复核已有选择；不改写用户偏好；自动模式确认外部失败后可尝试自挂载；独立字体部分生效写 partial，全部未生效或安全异常写 failed |
-| App 准备字体 | 写待应用负载；已验证物理自挂载尝试独立字体代热挂载；元模块等待重启 |
+| App 准备字体 | 离线生成并验证下一启动负载，等待用户确认重启 |
 
 KernelSU 开机后加载时由 `late-load.sh` 代替 `post-fs-data.sh` 完成早期选择。启用临时 Root 软重启流程时，`emulated-soft-reboot.sh` 先回收字域自己的旧挂载并撤销本次内核启动的旧后端记录，随后 KernelSU 重新执行 `post-fs-data.sh`、元模块挂载、`post-mount.sh` 和验证。具体识别与限制见 `docs/TEMP_ROOT.md`。
 
@@ -110,3 +111,9 @@ OverlayFS 使用只读多 lower 层。根据本机公开的 OverlayFS 参数入�
 logs/mount-diagnostics.log 保留每步命令、退出码及原始输出，记录本机文件系统、空间、SELinux 标签、命名空间和 OverlayFS 参数；关键失败追加相关内核历史快照。诊断导出包含该日志及上一份尾部、self-mount.log、两份挂载表、self-mount-required.conf 和 /data/adb/luoshu/self-mount 下账本。组件验证失败明确指向具体文件，不再只留下 visibility-mismatch。日志缺失、空文件、不可读分别说明。独立分区检测脚本只读收集这些证据，不尝试挂载。
 
 语法和包检查不能证明手机兼容；失败后导出本次日志，先区分 lower 准备、参数拒绝、内容或 PID 1 不匹配、回滚失败，再结合内核错误判断。
+
+## v1.4.6：恢复识别与修正保护闭环
+
+首次安装/跨版升级缺少旧观察基准不等于 OTA；安装时初始化真实构建版本、设备与 SDK 基准，仅展示指纹变化不触发停用。迁移无已准备恢复代次的旧推断保护，只释放字域自己的匹配停用令牌。已确认构建变化、开机循环保护与用户停用继续保留。扫描完成以当前 ROM、可信回执和待扫描标记共同核对，已结束观察任务不再阻止独立扫描恢复。
+
+保护门禁阻止负载激活和挂载，仍保留只读 Root 与元模块识别结果。当前 su 的带超时版本查询补足 App su shell 缺少启动变量的情况；已确认的选择器可独立证明标准元模块身份。无选择器时，元模块发现改为单次模块目录遍历加候选复核，保留模式优先级、停用/删除检查与每次检测重新读取。手动模式也保留识别结果。所有实际挂载继续执行来源、输出、PID 1 和回滚验证；未实测耗时改善。

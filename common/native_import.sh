@@ -8,12 +8,16 @@ if [ -z "$MODDIR" ]; then
     if [ -f "${0%/*}/../module.prop" ]; then
         MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
     else
-        MODDIR="/data/adb/modules/LuoShu"
+        MODDIR="/data/adb/modules/ziyu"
     fi
 fi
 MODULE_DIR="$MODDIR"
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/fonts"
-USER_IMPORT_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}/import"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_IMPORT_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/import"
 PYROOT="$MODDIR/common/python"
 PYBIN="$PYROOT/bin/luoshu-python"
 WEB_CONVERTER="$MODDIR/common/font_web_convert.py"
@@ -80,7 +84,7 @@ schedule_font_prewarm() {
     [ -n "$_sfp_family" ] || return 0
     _sfp_switch="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"
     [ -f "$_sfp_switch" ] || return 0
-    MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}" \
+    MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" \
         sh "$_sfp_switch" action prewarm-start "$_sfp_family" >/dev/null 2>&1 || true
     return 0
 }
@@ -155,7 +159,7 @@ import_font_file() {
     if [ -e "$_target" ]; then
         _target="$USER_FONTS_DIR/${_stem}-$(printf '%s' "$_hash" | cut -c1-10).${_ext}"
     fi
-    cp -f "$_src" "$_target" 2>/dev/null || { fail_json "无法复制字体到 /sdcard/LuoShu/fonts"; return; }
+    cp -f "$_src" "$_target" 2>/dev/null || { fail_json "无法复制字体到用户字体目录"; return; }
     chmod 0644 "$_target" 2>/dev/null || true
     [ "$_format" = TTC ] && remove_stale_ttc_faces "$(printf '%s' "$_hash" | cut -c1-10)"
     invalidate_font_cache

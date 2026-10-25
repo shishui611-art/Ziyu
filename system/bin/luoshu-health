@@ -3,7 +3,7 @@
 # 只读 report 不修改任何字体状态；repair-stale 仅清理已确认失效的锁/PID 文件。
 set +e
 
-MOD="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MOD="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 ADB_ROOT="${LUOSHU_ADB_ROOT:-/data/adb}"
 MODULES_ROOT="${LUOSHU_MODULES_ROOT:-$ADB_ROOT/modules}"
 ACTION="${1:-report}"
@@ -60,7 +60,7 @@ TARGETS
 module_enabled_for_conflict_scan() {
     _mecs_dir="$1"
     [ -d "$_mecs_dir" ] || return 1
-    [ "${_mecs_dir##*/}" != LuoShu ] || return 1
+    [ "${_mecs_dir##*/}" != ziyu ] || return 1
     [ ! -e "$_mecs_dir/disable" ] || return 1
     [ ! -e "$_mecs_dir/remove" ] || return 1
     return 0
@@ -230,7 +230,7 @@ report() {
     _r_module=false
     [ -f "$MOD/module.prop" ] && _r_module=true
     _r_pending=false
-    [ -d "${LUOSHU_MODULES_UPDATE_ROOT:-$ADB_ROOT/modules_update}/LuoShu" ] && _r_pending=true
+    [ -d "${LUOSHU_MODULES_UPDATE_ROOT:-$ADB_ROOT/modules_update}/ziyu" ] && _r_pending=true
     _r_alignment=$(read_value "$MOD/config/device-font-load-verification.conf" state)
     _r_alignment_mode=$(read_value "$MOD/config/device-font-load-verification.conf" mode)
     _r_self_state=$(read_value "$MOD/config/self-mount.conf" state)

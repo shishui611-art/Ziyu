@@ -45,7 +45,7 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-private const val SWITCH_HISTORY_TOOL = "/data/adb/modules/LuoShu/system/bin/luoshu-history"
+private const val SWITCH_HISTORY_TOOL = "/data/adb/modules/ziyu/system/bin/luoshu-history"
 
 internal data class SwitchHistoryEntry(
     val id: String,

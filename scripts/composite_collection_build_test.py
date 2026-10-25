@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 import sys
 import tempfile
@@ -272,6 +274,60 @@ class CompositeCollectionBuildTest(unittest.TestCase):
 
     def test_color_glyph_faces_are_retained(self):
         self.assertTrue(builder.specialized({'COLR': object()}))
+
+    def test_partial_mix_keeps_uncovered_oem_glyphs_and_passes_contract(self):
+        with TTFont(self.source, recalcTimestamp=False) as donor:
+            allowed = ASCII | {ord('中'), ord('家')}
+            for table in donor['cmap'].tables:
+                if table.isUnicode() and table.format != 14:
+                    table.cmap = {cp: name for cp, name in table.cmap.items() if cp in allowed}
+            donor.save(self.source)
+        facts = builder.inspect_donor(self.source)
+        self.assertFalse(facts['capabilities']['globalUiCandidate'])
+        result, verified = self.run_payload_build()
+        self.assertEqual(result['result'], 'PASS')
+        self.assertEqual(verified['result'], 'PASS', verified['errors'])
+        with TTFont(self.target_path, fontNumber=0, lazy=True) as generated:
+            self.assertEqual(bounds(generated, '家')[0], 70)
+            self.assertEqual(bounds(generated, '龘')[0], 20)
+            self.assertEqual(bounds(generated, '.')[0], 20)
+
+    def test_validate_cli_binds_actual_source_and_rejects_changed_donor(self):
+        self.run_payload_build()
+        arguments = ['composite_collection_build.py', 'validate',
+                     '--module', str(self.module), '--payload', str(self.payload),
+                     '--request', 'mix-fixture-123', '--require-proof',
+                     '--source', str(self.source)]
+
+        def run_cli():
+            output = StringIO()
+            with patch.object(sys, 'argv', arguments), \
+                 patch.object(builder.stock_inventory, 'load_inventory', return_value=self.inventory), \
+                 patch.object(builder.stock_font_snapshot, 'resolve',
+                              side_effect=lambda logical, module: self.targets.get(logical)), \
+                 redirect_stdout(output):
+                return builder.main(), output.getvalue()
+
+        code, output = run_cli()
+        self.assertEqual(code, 0, output)
+        with TTFont(self.source, recalcTimestamp=False) as donor:
+            donor['OS/2'].usWeightClass = 500
+            donor.save(self.source)
+        code, output = run_cli()
+        self.assertEqual(code, 1, output)
+        self.assertIn('组合来源哈希已变化', output)
+
+    def test_collection_donor_still_rejects_color_outline_inputs(self):
+        original = builder.font_source_profile._table_contract
+
+        def color_tables(font):
+            result = original(font)
+            result['color'] = ['COLR']
+            return result
+
+        with patch.object(builder.font_source_profile, '_table_contract', side_effect=color_tables):
+            with self.assertRaisesRegex(ValueError, '彩色字体'):
+                builder.inspect_donor(self.source)
 
     def test_source_change_aborts_before_replacing_previous_alias(self):
         output = self.root / 'previous.ttc'

@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.BottomSheetDefaults
@@ -183,7 +184,7 @@ private fun NativeZiyuBottomSheet(
     // meaning of sheetGesturesEnabled (drag control) while keeping Back usable.
     BackHandler(enabled = !sheetGesturesEnabled, onBack = onDismissRequest)
     val onContent: @Composable () -> Unit = {
-        Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().heightIn(max = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * .9f)) {
             if (customHandle != null) {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

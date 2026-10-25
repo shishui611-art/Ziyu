@@ -49,13 +49,20 @@ internal data class TaskCenterItem(
 private val structuredLog = Regex("^\\[([^]]+)]\\s+\\[([^]]+)]\\s+(.*)$")
 private val percentPattern = Regex("(?:^|\\D)(\\d{1,3})%(?:\\D|$)")
 private val internalMixTelemetry = Regex("^\\[[^]]+]\\s+mix\\s+(?:stage=|start:)", RegexOption.IGNORE_CASE)
+private val defaultFontTarget = Regex("(?:^|\\s)font=default(?:\\s|$)")
 
-internal fun taskKindFor(message: String, type: String = ""): TaskKind {
+internal fun taskKindFor(message: String, type: String = "", fontId: String = ""): TaskKind {
     val normalized = "$type $message".lowercase()
+    // A failure that says "only restoring the default is allowed" describes
+    // a blocked custom-font request, not a failed default restore.
+    if (type == "switch") return if (fontId == "default" ||
+        defaultFontTarget.containsMatchIn(message)) TaskKind.RESTORE else TaskKind.APPLY
+    if (type == "mix") return TaskKind.MIX
     return when {
-        type == "mix" || "复合" in normalized || "组合" in normalized || " mix" in normalized -> TaskKind.MIX
-        type == "switch" && ("default" in normalized || "恢复" in normalized) -> TaskKind.RESTORE
-        type == "switch" || "应用" in normalized || "切换" in normalized || "switch" in normalized -> TaskKind.APPLY
+        "开机安全保护" in normalized || "开机保护已启用" in normalized || "ota 保护" in normalized -> TaskKind.APPLY
+        "复合" in normalized || "组合" in normalized || " mix" in normalized -> TaskKind.MIX
+        defaultFontTarget.containsMatchIn(message) -> TaskKind.RESTORE
+        "应用" in normalized || "切换" in normalized || "switch" in normalized -> TaskKind.APPLY
         "恢复" in normalized || "系统字体" in normalized && "默认" in normalized -> TaskKind.RESTORE
         "导入" in normalized || "import" in normalized || "提取字体" in normalized -> TaskKind.IMPORT
         "删除" in normalized || "delete" in normalized -> TaskKind.DELETE

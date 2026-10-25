@@ -24,12 +24,12 @@ _zap_identity() {
     [ -n "$_zap_ns" ] && [ "$(readlink /proc/self/ns/mnt 2>/dev/null)" = "$_zap_ns" ]
 }
 _zap_module_safe() {
-    case "$1" in /data/adb/modules/LuoShu|/data/adb/modules_update/LuoShu) ;; *) return 1 ;; esac
+    case "$1" in /data/adb/modules/ziyu|/data/adb/modules_update/ziyu) ;; *) return 1 ;; esac
     [ -d "$1" ] && [ ! -L "$1" ] && [ "$(readlink -f "$1")" = "$1" ] || return 1
     for _zap_child in common config logs .ziyu-state; do
         [ ! -L "$1/$_zap_child" ] || return 1
     done
-    [ "$(_zap_value "$1/module.prop" id)" = LuoShu ]
+    [ "$(_zap_value "$1/module.prop" id)" = ziyu ]
 }
 _zap_log() {
     mkdir -p "$1/logs" || return 1
@@ -53,7 +53,7 @@ ziyu_apatch_hook_install() (
 # ziyu-owned-apatch-pre-mount-v1
 # APatch calls this before moving modules_update and scanning provider files.
 case "${APATCH:-}" in true|1) ;; *) exit 0 ;; esac
-for _ziyu_boot_module in /data/adb/modules_update/LuoShu /data/adb/modules/LuoShu; do
+for _ziyu_boot_module in /data/adb/modules_update/ziyu /data/adb/modules/ziyu; do
     [ -d "$_ziyu_boot_module" ] || continue
     [ -f "$_ziyu_boot_module/common/apatch_boot_prepare.sh" ] || exit 0
     exec sh "$_ziyu_boot_module/common/apatch_boot_prepare.sh" prepare "$_ziyu_boot_module"
@@ -79,13 +79,13 @@ ziyu_apatch_hook_remove() {
 # APatch itself moves the staged directory; we do not install or move modules.
 _zap_rebase() (
     _zap_from="$1"
-    [ "$_zap_from" = /data/adb/modules_update/LuoShu ] || return 0
+    [ "$_zap_from" = /data/adb/modules_update/ziyu ] || return 0
     for _zap_name in mount-backend.conf font-payload-activated.conf \
         universal-font-activated.conf font-undo.conf font-live-boot-previous.conf; do
         _zap_file="$_zap_from/config/$_zap_name"
         [ -e "$_zap_file" ] || continue
         [ -f "$_zap_file" ] && [ ! -L "$_zap_file" ] || return 1
-        awk -v src="$_zap_from" -v dst=/data/adb/modules/LuoShu '
+        awk -v src="$_zap_from" -v dst=/data/adb/modules/ziyu '
             /^(retired|source|provider_content_root)=/ {
                 eq=index($0,"="); value=substr($0,eq+1)
                 if (value==src || index(value,src "/")==1)
@@ -98,7 +98,7 @@ _zap_rebase() (
     _zap_file="$_zap_from/.ziyu-state/provider-publish.journal"
     [ -e "$_zap_file" ] || return 0
     [ -f "$_zap_file" ] && [ ! -L "$_zap_file" ] || return 1
-    awk -F '|' -v OFS='|' -v src="$_zap_from" -v dst=/data/adb/modules/LuoShu '
+    awk -F '|' -v OFS='|' -v src="$_zap_from" -v dst=/data/adb/modules/ziyu '
         {for(i=1;i<=3;i++) if($i==src || index($i,src "/")==1) $i=dst substr($i,length(src)+1); print}
     ' "$_zap_file" > "$_zap_file.tmp.$$" && chmod 0600 "$_zap_file.tmp.$$" && \
         mv -f "$_zap_file.tmp.$$" "$_zap_file"
@@ -113,7 +113,7 @@ ziyu_apatch_boot_ready() (
     _zap_receipt="$_zap_ready_module/config/apatch-pre-mount.conf"
     [ "$(_zap_value "$_zap_receipt" state)" = prepared ] && \
         [ "$(_zap_value "$_zap_receipt" boot_id)" = "$_zap_ready_boot" ] && \
-        [ "$(_zap_value "$_zap_receipt" module_destination)" = /data/adb/modules/LuoShu ] || return 1
+        [ "$(_zap_value "$_zap_receipt" module_destination)" = /data/adb/modules/ziyu ] || return 1
     _zap_entry_sha=$(_zap_hash "$_zap_ready_module/post-fs-data.sh") || return 1
     _zap_runtime_sha=$(_zap_hash "$_zap_ready_module/common/mount_backend_runtime.sh") || return 1
     _zap_manifest_sha=$(_zap_manifest_hash "$_zap_ready_module") || return 1
@@ -144,7 +144,7 @@ ziyu_apatch_boot_prepare() (
     _zap_identity && _zap_module_safe "$_zap_prepare_module" || return 1
     # APatch carries active disable/remove flags into the pending installation.
     # Respect them here too, before that manager-owned move has happened.
-    for _zap_exclusion_module in /data/adb/modules/LuoShu "$_zap_prepare_module"; do
+    for _zap_exclusion_module in /data/adb/modules/ziyu "$_zap_prepare_module"; do
         [ ! -e "$_zap_exclusion_module/disable" ] && [ ! -e "$_zap_exclusion_module/remove" ] || return 0
         . "$_zap_prepare_module/common/skip_mount_ownership.sh" || return 1
         ziyu_foreign_skip_mount_present "$_zap_exclusion_module" && return 0
@@ -170,7 +170,7 @@ ziyu_apatch_boot_prepare() (
     _zap_manifest_sha=$(_zap_manifest_hash "$_zap_prepare_module") || return 1
     {
         printf 'schema=ziyu-apatch-pre-mount-v1\nstate=prepared\nboot_id=%s\n' "$_zap_boot"
-        printf 'module_destination=/data/adb/modules/LuoShu\n'
+        printf 'module_destination=/data/adb/modules/ziyu\n'
         printf 'entry_sha256=%s\n' "$_zap_entry_sha"
         printf 'runtime_sha256=%s\n' "$_zap_runtime_sha"
         printf 'manifest_sha256=%s\n' "$_zap_manifest_sha"

@@ -35,8 +35,8 @@ rm -rf "$PYLIB/sqlite3"
 rm -f "$DYN"/_zstd.*.so
 rm -rf "$PYLIB/compression/zstd"
 
-# The on-device tools are synchronous, offline command-line programs. Remove networking, servers,
-# multiprocessing and interpreter-debugging components that are unrelated to font parsing. The
+# The on-device tools are offline command-line programs; bounded font workers use os.fork/signal.
+# Remove networking, servers, unused multiprocessing and interpreter-debugging components. The
 # retained runtime still includes threading, subprocess, XML, zlib/bz2/lzma and all codecs needed by
 # font name tables and FontTools.
 rm -rf \

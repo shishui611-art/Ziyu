@@ -62,7 +62,7 @@ MODULE_DIR="$MODDIR"
     find "$MODDIR/common" -maxdepth 1 -type f -exec chmod 0755 {} \; 2>/dev/null || true
     chmod 0644 "$MODDIR/common/font_instance.py" "$MODDIR/common/composite_font.py" "$MODDIR/common/font_metrics_normalize.py" 2>/dev/null || true
     chmod 0755 "$MODDIR/common/python/bin/luoshu-python" 2>/dev/null || true
-    chmod 0755 "$MODDIR/system/bin/洛书" "$MODDIR/system/bin/luoshud" 2>/dev/null || true
+    chmod 0755 "$MODDIR/system/bin/ziyu" "$MODDIR/system/bin/luoshud" 2>/dev/null || true
 
     # The sanitized /data/fonts config is only an early-boot input to FontManagerService.
     # Once Android reports boot complete, release LuoShu's verified bind so future provider

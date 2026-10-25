@@ -100,7 +100,7 @@ internal data class DeviceTrustState(
 
 internal suspend fun loadDeviceTrustState(): DeviceTrustState {
     val command = """
-        MOD=/data/adb/modules/LuoShu
+        MOD=/data/adb/modules/ziyu
         CFG="${'$'}MOD/config"
         read_value() {
             sed -n "s/^${'$'}2=//p" "${'$'}1" 2>/dev/null | head -n1 | tr -d '\r\n'

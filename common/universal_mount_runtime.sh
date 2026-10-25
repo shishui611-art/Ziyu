@@ -3,7 +3,7 @@
 # One payload, one transaction; Root manager changes only the hook stage.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
 PAYLOAD="$MODDIR/.luoshu-payload"
@@ -183,8 +183,10 @@ _ufmr_apply_dynamic() {
         _ufmr_actual_target=$(_ufmr_real_target "$_ufmr_actual_target")
         [ -f "$_ufmr_actual_target" ] || return 1
         [ "$(_ufmr_hash "$_ufmr_source")" = "$_ufmr_expected" ] || return 1
+        _ufmr_verity=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_verity.sh" check "$_ufmr_source" 2>> "$MODDIR/logs/universal-mount.log") || return 1
         if _ufmr_is_mounted "$_ufmr_actual_target"; then
             [ "$(_ufmr_hash "$_ufmr_actual_target")" = "$_ufmr_expected" ] || return 1
+            [ "$(MODDIR="$MODDIR" sh "$MODDIR/common/font_verity.sh" check "$_ufmr_actual_target" 2>/dev/null)" = "$_ufmr_verity" ] || return 1
             printf '%s\n' "$_ufmr_actual_target" >> "$DYNAMIC_LIST"
             continue
         fi
@@ -192,15 +194,19 @@ _ufmr_apply_dynamic() {
             _ufmr_mount -o bind "$_ufmr_source" "$_ufmr_actual_target" >/dev/null 2>&1 || return 1
         _ufmr_mount -o remount,bind,ro "$_ufmr_actual_target" >/dev/null 2>&1 || \
             _ufmr_mount -o bind,remount,ro "$_ufmr_actual_target" >/dev/null 2>&1 || {
-                _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || true
+                _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || printf '%s\n' "$_ufmr_actual_target" >> "$DYNAMIC_LIST"
                 return 1
             }
         if ! _ufmr_is_readonly "$_ufmr_actual_target"; then
-            _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || true
+            _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || printf '%s\n' "$_ufmr_actual_target" >> "$DYNAMIC_LIST"
             return 1
         fi
         [ "$(_ufmr_hash "$_ufmr_actual_target")" = "$_ufmr_expected" ] || {
-            _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || true
+            _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || printf '%s\n' "$_ufmr_actual_target" >> "$DYNAMIC_LIST"
+            return 1
+        }
+        [ "$(MODDIR="$MODDIR" sh "$MODDIR/common/font_verity.sh" check "$_ufmr_actual_target" 2>> "$MODDIR/logs/universal-mount.log")" = "$_ufmr_verity" ] || {
+            _ufmr_umount "$_ufmr_actual_target" >/dev/null 2>&1 || printf '%s\n' "$_ufmr_actual_target" >> "$DYNAMIC_LIST"
             return 1
         }
         printf '%s\n' "$_ufmr_actual_target" >> "$DYNAMIC_LIST" || return 1

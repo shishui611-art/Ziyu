@@ -8,7 +8,7 @@ _device_font_report_module() {
     if type _luoshu_safety_module >/dev/null 2>&1; then
         _luoshu_safety_module
     else
-        printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+        printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     fi
 }
 
@@ -21,7 +21,11 @@ _device_font_report_root() {
 }
 
 _device_font_report_public_root() {
-    printf '%s/reports/v2.2-runtime-latest\n' "${LUOSHU_PUBLIC_DIR:-/sdcard/LuoShu}"
+[ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
+    . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
+    ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+}
+    printf '%s/reports/v2.2-runtime-latest\n' "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
 }
 
 _device_font_report_log() {

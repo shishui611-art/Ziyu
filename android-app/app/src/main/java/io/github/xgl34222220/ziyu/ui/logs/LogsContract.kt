@@ -123,7 +123,7 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
             if (currentRebootRequired) TaskPhase.WAITING_REBOOT else TaskPhase.SUCCESS
         } else taskPhaseFor("", snapshot.taskMessage, snapshot.taskState)
         if (!snapshot.effectFailed && snapshot.taskState != "idle" && snapshot.taskType != "none") {
-            val kind = taskKindFor(snapshot.taskMessage, snapshot.taskType)
+            val kind = taskKindFor(snapshot.taskMessage, snapshot.taskType, snapshot.taskFont)
             add(
                 TaskCenterItem(
                     id = snapshot.taskId.ifBlank { "current-${snapshot.taskType}" },

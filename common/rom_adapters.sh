@@ -58,7 +58,7 @@ _font_store_reset() {
 LUOSHU_NORMALIZER_VERSION="6"
 
 _font_inventory_cache_token() {
-    _fict_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _fict_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     _fict_inventory="$_fict_module/config/device_font_inventory.json"
     _fict_current=''
     if command -v getprop >/dev/null 2>&1; then
@@ -107,7 +107,7 @@ _font_source_identity() {
 _font_source_digest() {
     _fsd_src="$1"
     command -v sha256sum >/dev/null 2>&1 || return 1
-    _fsd_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    _fsd_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     _fsd_memo="${LUOSHU_DIGEST_MEMO:-$_fsd_module/config/.font-digest-memo}"
     _fsd_id=$(_font_source_identity "$_fsd_src" 2>/dev/null)
     if [ -n "$_fsd_id" ] && [ -f "$_fsd_memo" ]; then
@@ -133,7 +133,7 @@ _font_anchor_cache_lookup() {
     [ -n "$_facl_sha" ] || return 1
     _facl_inventory=$(_font_inventory_cache_token)
     [ -n "$_facl_inventory" ] || _facl_inventory=fallback
-    _facl_cache="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}/config/metrics_cache"
+    _facl_cache="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/config/metrics_cache"
     _facl_hit="$_facl_cache/${_facl_sha}_${_facl_key}_v${LUOSHU_NORMALIZER_VERSION}_${_facl_inventory}.font"
     [ -f "$_facl_hit" ] || return 1
     printf '%s\n' "$_facl_hit"
@@ -145,7 +145,7 @@ _font_anchor() {
     dest_dir="$2"
     key="$3"
     anchor="$dest_dir/.luoshu-font-store/${key}.font"
-    module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     normalizer="$module/common/font_metrics_normalize.py"
     rm -f "$anchor" 2>/dev/null || true
 
@@ -229,7 +229,7 @@ _rom_exact_target_exists() {
 }
 
 _device_font_inventory_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 _device_font_inventory_exec() {

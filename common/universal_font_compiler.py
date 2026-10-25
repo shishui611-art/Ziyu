@@ -57,6 +57,7 @@ import minimal_xml_router
 import universal_font_plan
 import fontTools
 from font_digest_cache import FontDigestCache, file_identity
+from font_parallel import run_batches
 from font_space_compat import ensure_space_glyphs
 from legacy_v14_4.composite_layout import (
     clear_imported_metric_variations,
@@ -64,7 +65,7 @@ from legacy_v14_4.composite_layout import (
 )
 
 SCHEMA = "universal-font-artifacts-v1"
-COMPILER_REVISION = 3
+COMPILER_REVISION = 4
 FONT_PLAN_SCHEMA = "universal-font-plan-v1"
 ROUTE_SCHEMA = "minimal-xml-route-plan-v1"
 ROUTABLE_ACTIONS = {"replace", "compile", "compile-specialized"}
@@ -1863,6 +1864,19 @@ def _compile_unit(
         else:
             report = _compile_stock_shell(target, artifact, stock, output, temp_root)
 
+        if target_path.startswith('/data/fonts/'):
+            # Android serializes revision and PostScript identity beside hasVerity.
+            # Keep the target identity while retaining the compiled glyph/axis data.
+            with TTFont(stock, fontNumber=stock_face, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as expected, TTFont(output, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as prepared:
+                from google_font_provider_patch import copy_target_names
+                copy_target_names(prepared, expected)
+                prepared['head'].fontRevision = expected['head'].fontRevision
+                _save_font(prepared, output)
+            _validate_compiled_file(output, expected_collection=False)
+            with TTFont(output, lazy=True) as check:
+                required_ps = str(artifact.get('requiredPostScriptName') or '')
+                if required_ps and required_ps not in template_engine.font_names(check):
+                    raise CompilerError('protected update metadata differs from the artifact name contract')
         result.update(
             status="ready",
             output=str(output),
@@ -1977,10 +1991,74 @@ def _compile_all(font_plan, route_plan, stock_paths, output_dir, allow_live_stoc
         if blockers:
             detail = "；".join(blockers[:8])
             raise CompilerError(f"通用编译预检未通过：{len(blockers)} 个目标不可部署；{detail}")
-    artifacts = [
-        _compile_unit(unit, stock_paths, output_dir, allow_live_stock)
-        for unit in units
-    ]
+    # Keep repeated source/weight instances in one worker so prepared-font reuse is retained.
+    groups = {}
+    for index, unit in enumerate(units):
+        source = unit['target'].get('source') or {}
+        artifact = unit['artifact']
+        key = (str(source.get('fileUid') or ''), _int(source.get('faceIndex'), 0),
+               _artifact_weight(artifact, unit['target']),
+               json.dumps(artifact.get('requiredAxes'), sort_keys=True))
+        groups.setdefault(key, []).append((index, unit))
+    reuse_counts = _SESSION['reuseCounts'].copy()
+    source_bytes = max((_int((unit['target'].get('source') or {}).get('bytes'), 0)
+                        for unit in units), default=0)
+    # Plans from older versions may omit source byte counts. Use the largest
+    # input on disk as the memory estimate rather than assuming a tiny font.
+    for unit in units:
+        source = unit['target'].get('source') or {}
+        path = source.get('path') or source.get('file') or source.get('sourcePath')
+        if path:
+            try:
+                source_bytes = max(source_bytes, Path(path).stat().st_size)
+            except OSError:
+                pass
+    largest_stock = 0
+    for unit in units:
+        logical = str(unit['target'].get('path') or '')
+        stock_path = stock_paths.get(logical)
+        if stock_path is None and allow_live_stock:
+            stock_path = Path(logical)
+        if stock_path is not None:
+            try:
+                largest_stock = max(largest_stock, Path(stock_path).stat().st_size)
+            except OSError:
+                pass
+    source_bytes += largest_stock
+    parallel_root = Path(tempfile.mkdtemp(prefix='.parallel-', dir=output_dir))
+
+    def compile_batch(indexed_groups, private, isolated):
+        global _SESSION
+        if isolated:
+            _SESSION = None
+        with _compile_session(private):
+            _SESSION['reuseCounts'].update(reuse_counts if isolated else {})
+            values = []
+            for _group_index, group in indexed_groups:
+                for index, unit in group:
+                    values.append([index, _compile_unit(unit, stock_paths, output_dir, allow_live_stock)])
+            return {'artifacts': values,
+                    'inputs': [[str(path), list(expected)] for path, expected in _SESSION['inputs'].items()],
+                    'cache': {'preparedEntries': len(_SESSION['prepared']),
+                              'preparedHits': _SESSION['hits'], 'temporaryBytes': _SESSION['bytes']}}
+
+    try:
+        batches, execution = run_batches(list(groups.values()), parallel_root, source_bytes, compile_batch)
+        indexed_artifacts = []
+        batch_cache = {'preparedEntries': 0, 'preparedHits': 0, 'temporaryBytes': 0}
+        for batch in batches:
+            indexed_artifacts.extend(batch['artifacts'])
+            for path_string, expected in batch['inputs']:
+                path, expected = Path(path_string), tuple(expected)
+                if file_identity(path.stat()) != expected or _SESSION['inputs'].setdefault(path, expected) != expected:
+                    raise CompilerError(f'并行编译期间输入文件发生变化：{path.name}')
+            for key, value in batch['cache'].items():
+                batch_cache[key] += value
+        artifacts = [value for _, value in sorted(indexed_artifacts, key=lambda entry: entry[0])]
+        if len(artifacts) != len(units):
+            raise CompilerError('并行字体编译结果不完整')
+    finally:
+        shutil.rmtree(parallel_root, ignore_errors=True)
     ready = sum(item["status"] == "ready" for item in artifacts)
     blocked = sum(item["status"] == "blocked" for item in artifacts)
     deferred = list(route_plan.get("deferredDynamicTargets") or [])
@@ -2019,8 +2097,8 @@ def _compile_all(font_plan, route_plan, stock_paths, output_dir, allow_live_stoc
         "schema": SCHEMA,
         "compilerRevision": COMPILER_REVISION,
         "reuseContext": _reuse_context(allow_live_stock),
-        "batchCache": {"preparedEntries": len(_SESSION['prepared']),
-                       "preparedHits": _SESSION['hits'], "temporaryBytes": _SESSION['bytes']},
+        "batchCache": batch_cache,
+        "execution": execution,
         "state": "compiled" if blocked == 0 else "partial",
         "mutatesSystem": False,
         "generatedAt": int(time.time()),

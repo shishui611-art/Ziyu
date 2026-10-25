@@ -3,7 +3,7 @@
 # Load after ROM adapters, font_config_runtime, weight preparation and final hotfixes.
 set +e
 
-_dfpb_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/LuoShu}}"
+_dfpb_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 [ -f "$_dfpb_module/common/device_font_payload_runtime.sh" ] && . "$_dfpb_module/common/device_font_payload_runtime.sh"
 
 # Schema upgrades preserve the current payload and require one explicit foreground apply.

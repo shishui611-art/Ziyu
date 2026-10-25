@@ -5,7 +5,7 @@
 # already trusted template for the same ROM, but can never refresh it.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 PYROOT="$MODDIR/common/python"
 PYTHON="$PYROOT/bin/luoshu-python"
 ENGINE="$MODDIR/common/device_font_template.py"

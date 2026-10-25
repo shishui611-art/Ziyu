@@ -5,7 +5,7 @@
 set +e
 
 ziyu_mount_provider_detect() {
-    _zpd_module="${1:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}}"
+    _zpd_module="${1:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}"
     PROVIDER_STATE=unknown
     PROVIDER_ID=unknown
     PROVIDER_LAYOUT=unknown
@@ -20,13 +20,6 @@ ziyu_mount_provider_detect() {
         case "$PROVIDER_STATE" in available|absent|unknown|excluded) return 0 ;; *) PROVIDER_STATE=unknown; PROVIDER_REASON=invalid-test-state; return 0 ;; esac
     fi
 
-    case "${ROOT_MANAGER:-unknown}:${ROOT_DETECTION_SOURCE:-unknown}" in
-        unknown:*|*ambiguous*|*'|ambiguous'*)
-            PROVIDER_REASON="root-identity-${ROOT_DETECTION_SOURCE:-unknown}"
-            return 0
-            ;;
-    esac
-
     # A declared selector with unreadable/unknown metadata is not an absence.
     _zpd_selector="${LUOSHU_META_DETECT_ROOT:-/data/adb}/metamodule"
     if [ -z "${META_ACTIVE_DIR:-}" ] && \
@@ -38,7 +31,9 @@ ziyu_mount_provider_detect() {
     # A confirmed active metamodule takes priority even when the root manager
     # also supplies native mounting. META_READY means its boot hook can scan a
     # standard tree; META_USABLE remains the legacy self-failover capability.
-    if [ "${META_ENGINE:-none}" != none ] && [ "${META_ENABLED:-0}" = 1 ]; then
+    if [ "${META_ENGINE:-none}" != none ] && [ "${META_ENABLED:-0}" = 1 ] &&
+       { [ -n "${META_ACTIVE_DIR:-}" ] ||
+         { [ "${ROOT_MANAGER:-}" = Magisk ] && [ "${META_ENGINE:-}" = mountify ]; }; }; then
         case "${META_USABLE_REASON:-}" in
             *module-excluded*) PROVIDER_STATE=excluded; PROVIDER_REASON=module-excluded; return 0 ;;
         esac
@@ -92,6 +87,15 @@ ziyu_mount_provider_detect() {
         return 0
     fi
 
+    # A real active selector and validated standard hook above prove the meta
+    # provider independently of the su shell's manager environment. Native
+    # manager mounting below still requires an identified manager.
+    case "${ROOT_MANAGER:-unknown}:${ROOT_DETECTION_SOURCE:-unknown}" in
+        unknown:*|*ambiguous*|*'|ambiguous'*)
+            PROVIDER_REASON="root-identity-${ROOT_DETECTION_SOURCE:-unknown}"
+            return 0
+            ;;
+    esac
     case "${ROOT_MANAGER:-unknown}" in
         Magisk)
             PROVIDER_STATE=available

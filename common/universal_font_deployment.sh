@@ -3,7 +3,7 @@
 # Phase 9 may stage an already validated prepared payload for the official next boot.
 set +e
 
-MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/LuoShu}}"
+MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
 DEPLOYER="$MODDIR/common/universal_font_deployment.py"

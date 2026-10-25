@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val IMPORT_BRIDGE = "/data/adb/modules/LuoShu/common/app_bridge.sh"
+private const val IMPORT_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
 private const val MAX_IMPORT_BYTES = 268_435_456L
 private val ALLOWED_IMPORT_EXTENSIONS = setOf("ttf", "otf", "ttc", "woff", "woff2", "zip")
 

@@ -15,6 +15,10 @@ _sr_detect() {
     [ "$(id -u 2>/dev/null)" = 0 ] || _sr_error '软重启需要 Root 权限，请为字域授权。'
     [ -f "$MODDIR/module.prop" ] || _sr_error '字域模块目录不存在，请安装匹配模块。'
     . "$MODDIR/common/root_manager_detection.sh" || _sr_error 'Root 管理器检测脚本不可用。'
+    if [ -f "$MODDIR/config/identity-migration-full-reboot.conf" ] &&
+       [ "$(sed -n 's/^bootId=//p' "$MODDIR/config/identity-migration-full-reboot.conf")" = "$(cat /proc/sys/kernel/random/boot_id)" ]; then
+        _sr_error 'ziyu 标识升级首次需要完整重启，完成后可恢复使用 KernelSU 软重启。'
+    fi
     _sr_manager=$(luoshu_detect_root_manager)
     case "$_sr_manager" in
         KernelSU|SukiSU\ Ultra) ;;

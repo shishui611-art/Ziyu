@@ -153,7 +153,7 @@ internal fun isNewerZiyuVersion(candidate: String, candidateCode: Int, current: 
 
 internal class SystemCenterViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
-    private val healthScript = "/data/adb/modules/LuoShu/.luoshu-payload/system/bin/luoshu-health"
+    private val healthScript = "/data/adb/modules/ziyu/.luoshu-payload/system/bin/luoshu-health"
     private val updater = ModuleReleaseUpdater(context)
     var moduleUpdate by mutableStateOf(ModuleUpdateState())
         private set
@@ -214,7 +214,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         health = health.copy(loading = true, error = "")
         healthJob = viewModelScope.launch {
             val result = RootShell.exec(
-                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/LuoShu/system/bin/luoshu-health; sh \"${'$'}script\" report",
+                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/ziyu/system/bin/luoshu-health; sh \"${'$'}script\" report",
                 timeoutMs = 25_000L,
             )
             health = if (result.code == 0) {
@@ -235,7 +235,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         if (maintenance.busy || moduleUpdate.busy) return
         maintenance = MaintenanceState(busy = true, message = "正在忽略当前警告…")
         viewModelScope.launch {
-            val result = RootShell.exec("sh /data/adb/modules/LuoShu/common/app_bridge.sh log_review ignore-warnings", timeoutMs = 20_000L)
+            val result = RootShell.exec("sh /data/adb/modules/ziyu/common/app_bridge.sh log_review ignore-warnings", timeoutMs = 20_000L)
             val response = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
             maintenance = if (result.code == 0 && response?.optString("status") == "ok") {
                 MaintenanceState(message = response.optJSONObject("data")?.optString("message").orEmpty())
@@ -249,7 +249,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         maintenance = MaintenanceState(busy = true, message = "正在清理失效锁与残留 PID…")
         viewModelScope.launch {
             val result = RootShell.exec(
-                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/LuoShu/system/bin/luoshu-health; sh \"${'$'}script\" repair-stale",
+                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/ziyu/system/bin/luoshu-health; sh \"${'$'}script\" repair-stale",
                 timeoutMs = 20_000L,
             )
             maintenance = if (result.code == 0 && result.stdout.lineSequence().any { it == "status=ok" }) {
@@ -271,7 +271,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         maintenance = MaintenanceState(busy = true, message = "正在准备恢复系统默认字体…")
         viewModelScope.launch {
             val result = RootShell.exec(
-                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/LuoShu/system/bin/luoshu-health; sh \"${'$'}script\" restore-default",
+                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/ziyu/system/bin/luoshu-health; sh \"${'$'}script\" restore-default",
                 timeoutMs = 120_000L,
             )
             val restored = result.code == 0 && result.stdout.lineSequence().any { line ->
