@@ -11,12 +11,12 @@ CONTENT_BASE="$TMP/content"
 MAGIC_CONFIG="$TMP/magic_mount/config.toml"
 SELF_STATE="$TMP/luoshu/self-mount"
 PRIVATE_STATE="$TMP/luoshu/private-payload"
-MODDIR="$MODULES/LuoShu"
+MODDIR="$MODULES/ziyu"
 
 mkdir -p \
   "$MODDIR/logs" "$MODDIR/config" "$MODDIR/common" "$MODDIR/.luoshu-runtime/compat/v227" \
-  "$MODULES/OtherModule" "$MODULES_UPDATE/LuoShu/system/fonts" \
-  "$META_MNT/LuoShu/product/fonts" "$CONTENT_BASE/LuoShu/system/fonts" \
+  "$MODULES/OtherModule" "$MODULES_UPDATE/ziyu/system/fonts" \
+  "$META_MNT/ziyu/product/fonts" "$CONTENT_BASE/ziyu/system/fonts" \
   "$SELF_STATE/lower/system-fonts" "$PRIVATE_STATE" "${MAGIC_CONFIG%/*}"
 
 cp "$ROOT/uninstall.sh" "$MODDIR/uninstall.sh"
@@ -45,9 +45,9 @@ MODULE_CONTENT_DIR="$CONTENT_BASE" \
 sh "$MODDIR/uninstall.sh"
 
 [ ! -e "$MODDIR" ]
-[ ! -e "$MODULES_UPDATE/LuoShu" ]
-[ ! -e "$META_MNT/LuoShu" ]
-[ ! -e "$CONTENT_BASE/LuoShu" ]
+[ ! -e "$MODULES_UPDATE/ziyu" ]
+[ ! -e "$META_MNT/ziyu" ]
+[ ! -e "$CONTENT_BASE/ziyu" ]
 [ ! -e "$SELF_STATE" ]
 [ -f "$MODULES/OtherModule/module.prop" ]
 [ -f "$MAGIC_CONFIG" ]
@@ -55,5 +55,5 @@ sh "$MODDIR/uninstall.sh"
 [ ! -e "$MAGIC_CONFIG.luoshu.lock" ]
 [ ! -e "$MAGIC_CONFIG.luoshu.123" ]
 grep -q 'partitions = \["system", "product"\]' "$MAGIC_CONFIG"
-[ ! -d "$MODULES/LuoShu/logs" ]
-echo 'LuoShu uninstall cleanup checks passed.'
+[ ! -d "$MODULES/ziyu/logs" ]
+echo 'ziyu uninstall cleanup checks passed.'
