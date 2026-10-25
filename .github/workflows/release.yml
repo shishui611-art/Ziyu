@@ -32,6 +32,7 @@ on:
       - 'scripts/switch_provider_regression_test.py'
       - 'scripts/self_mount_atomic_test.sh'
       - 'scripts/self_mount_test.sh'
+      - 'scripts/uninstall_cleanup_test.sh'
       - 'scripts/originos_stage_complete_test.py'
       - 'scripts/stock_metric_contract_test.py'
       - 'scripts/mount_backend_preferences_test.sh'
