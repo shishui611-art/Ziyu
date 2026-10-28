@@ -1,6 +1,7 @@
 package io.github.xgl34222220.ziyu
 
 import android.app.Notification
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -32,6 +33,11 @@ private const val FONT_TASK_DATA_SYNC_TIMEOUT_NOTICE =
 
 internal fun supportsPromotedOngoingApi(sdkIntFull: Int): Boolean =
     sdkIntFull >= Build.VERSION_CODES_FULL.BAKLAVA_1
+
+@SuppressLint("NewApi")
+private fun Notification.Builder.requestPromotedOngoing(shortText: String) {
+    setRequestPromotedOngoing(true).setShortCriticalText(shortText)
+}
 
 internal fun fontTaskDetachedNotice(
     spec: FontTaskNotificationSpec,
@@ -165,7 +171,7 @@ internal object FontTaskNotificationController {
                 // A few OEM API 36 builds expose ProgressStyle before the promotion methods.
                 if (supportsPromotedOngoingApi(Build.VERSION.SDK_INT_FULL)) {
                     runCatching {
-                        builder.setRequestPromotedOngoing(true).setShortCriticalText(spec.chipText)
+                        builder.requestPromotedOngoing(spec.chipText)
                     }.onFailure { Log.d("ZiyuFontTask", "Compact live-update API unavailable", it) }
                 }
             } else {
