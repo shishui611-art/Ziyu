@@ -33,6 +33,8 @@ on:
       - 'scripts/hybrid_mount_unload_test.sh'
       - 'scripts/check.sh'
       - 'scripts/build.sh'
+      - 'scripts/source_check_receipt.py'
+      - 'scripts/source_check_receipt_test.py'
       - 'scripts/build_debug_fast.sh'
       - 'scripts/module_payload_manifest.txt'
       - 'scripts/font_switch_lock_test.sh'
@@ -74,37 +76,30 @@ on:
         type: boolean
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: luoshu-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  prepare:
+    name: Resolve immutable release source
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      mode: ${{ steps.version.outputs.mode }}
+      version: ${{ steps.version.outputs.version }}
+      release_title: ${{ steps.version.outputs.release_title }}
+      artifact_version: ${{ steps.version.outputs.artifact_version }}
+      notes_file: ${{ steps.version.outputs.notes_file }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      source_sha: ${{ steps.version.outputs.source_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - uses: android-actions/setup-android@v4
-        with:
-          packages: ''
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.5.0'
 
       - name: Read and verify release version
         id: version
@@ -133,6 +128,10 @@ jobs:
           elif [[ "${GITHUB_REF_TYPE}" == 'branch' ]]; then
             [[ "${GITHUB_REF_NAME}" == 'main' ]] || { echo "Stable branch publishing only supports main" >&2; exit 2; }
             tag="$expected_tag"
+            [[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]] || {
+              echo "A newer main commit is already queued; refusing this stale candidate." >&2
+              exit 4
+            }
             tag_sha="$(git rev-list -n1 "$tag" 2>/dev/null || true)"
             if [[ -z "$tag_sha" ]]; then
               mode="create-tag"
@@ -165,9 +164,6 @@ jobs:
           }
           notes_file="$LUOSHU_RELEASE_NOTES"
           [[ -s "$notes_file" ]] || { echo "Missing release notes: $notes_file" >&2; exit 2; }
-          notes_temp="$RUNNER_TEMP/$notes_file"
-          mkdir -p "$(dirname "$notes_temp")"
-          cp -f "$notes_file" "$notes_temp"
           prerelease="${INPUT_PRERELEASE:-false}"
           if grep -q '<!-- prerelease -->' "$notes_file"; then
             prerelease="true"
@@ -177,7 +173,7 @@ jobs:
           echo "version=$LUOSHU_VERSION" >> "$GITHUB_OUTPUT"
           echo "release_title=$LUOSHU_RELEASE_TITLE" >> "$GITHUB_OUTPUT"
           echo "artifact_version=$LUOSHU_ARTIFACT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "notes_file=$notes_temp" >> "$GITHUB_OUTPUT"
+          echo "notes_file=$notes_file" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
 
@@ -185,27 +181,36 @@ jobs:
             git checkout --detach "$source_sha"
           fi
 
-      - name: Require signing secrets
-        shell: bash
-        env:
-          KEYSTORE_BASE64: ${{ secrets.LUOSHU_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          for value in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
-            [[ -n "${!value}" ]] || { echo "Missing repository secret: LUOSHU_${value}" >&2; exit 3; }
-          done
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/luoshu-release.jks"
-          keytool -list -keystore "$RUNNER_TEMP/luoshu-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+  source:
+    name: Full source regression checks
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact_name: ${{ steps.checks.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
 
       - name: Install module build dependencies
+        shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends curl unzip zip file python3-venv fonts-noto-cjk fonts-dejavu-core >/dev/null
+          set -euo pipefail
+          missing=()
+          for package in curl unzip zip file python3-venv fonts-noto-cjk fonts-dejavu-core; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then
+              missing+=("$package")
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends "${missing[@]}" >/dev/null
+          fi
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: runtime-cache
         with:
           path: |
             common/python
@@ -221,12 +226,24 @@ jobs:
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
+      - name: Save prepared runtime before later checks
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            common/python
+            .luoshu-runtime/bin/woff2_decompress
+            licenses/WOFF2-LICENSE.txt
+            licenses/Brotli-LICENSE.txt
+          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+
       - name: Run source regression checks
+        id: checks
         shell: bash
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/ziyu-release-source-check.log"
-          if ! sh -x ./scripts/check.sh >"$log" 2>&1; then
+          if ! python3 scripts/source_check_receipt.py run --receipt "$RUNNER_TEMP/ziyu-source-check.json" >"$log" 2>&1; then
             tail -n 160 "$log" >&2
             failed_command="$(grep -E '^\+ (python3|sh|bash|PYTHONPATH)' "$log" | tail -n 1 | tr '\r\n' ' ' | cut -c1-500 || true)"
             failure_detail="$(grep -aE '^(FAIL:|ERROR:|Traceback|[[:space:]]+File |AssertionError:|[[:alnum:]_]+Error:|FAILED \(|Ran [0-9]+ tests?)' "$log" | tail -n 24 | tr '\r\n' '  ' | cut -c1-4500 || true)"
@@ -250,6 +267,67 @@ jobs:
           fi
           tail -n 100 "$log"
 
+          echo "artifact_name=ziyu-source-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve source-check receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.checks.outputs.artifact_name }}
+          path: ${{ runner.temp }}/ziyu-source-check.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve failing source-check log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ziyu-source-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ziyu-release-source-check.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  app:
+    name: Lint, test and sign Android App
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      artifact_name: ${{ steps.signed-app.outputs.artifact_name }}
+      apk_sha256: ${{ steps.signed-app.outputs.apk_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Require signing secrets
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LUOSHU_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [[ -n "${!value}" ]] || { echo "Missing repository secret: LUOSHU_${value}" >&2; exit 3; }
+          done
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/luoshu-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/luoshu-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
       - name: Lint, test and build signed release App
         working-directory: android-app
         env:
@@ -260,6 +338,7 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:lintRelease :app:testDebugUnitTest :app:assembleRelease
 
       - name: Verify APK signature certificate
+        id: signed-app
         shell: bash
         env:
           EXPECTED_CERT_SHA256: ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468
@@ -282,6 +361,111 @@ jobs:
             exit 3
           }
 
+          echo "artifact_name=ziyu-signed-apk-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+          echo "apk_sha256=$(sha256sum "$apk" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve verified signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.signed-app.outputs.artifact_name }}
+          path: android-app/app/build/outputs/apk/release/app-release.apk
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve failing Android diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ziyu-android-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            android-app/app/build/reports
+            android-app/app/build/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    name: Verify package and publish release
+    needs: [prepare, source, app]
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - name: Install module build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for package in curl unzip zip file python3-venv; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then
+              missing+=("$package")
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends "${missing[@]}" >/dev/null
+          fi
+
+      - uses: actions/cache/restore@v4
+        id: runtime-cache
+        with:
+          path: |
+            common/python
+            .luoshu-runtime/bin/woff2_decompress
+            licenses/WOFF2-LICENSE.txt
+            licenses/Brotli-LICENSE.txt
+          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+
+      - name: Prepare ARM64 composite runtime
+        shell: bash
+        run: |
+          if [[ ! -x common/python/bin/luoshu-python || ! -x .luoshu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
+            sh ./scripts/prepare_composite_runtime.sh
+          fi
+
+      - name: Download verified signed APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.app.outputs.artifact_name }}
+          path: android-app/app/build/outputs/apk/release
+
+      - name: Download source-check receipt
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.source.outputs.artifact_name }}
+          path: ${{ runner.temp }}
+
+      - name: Verify downloaded APK matches signed build
+        shell: bash
+        env:
+          EXPECTED_APK_SHA256: ${{ needs.app.outputs.apk_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_APK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$EXPECTED_APK_SHA256" android-app/app/build/outputs/apk/release/app-release.apk | sha256sum -c -
+
+      - name: Restore verified release notes
+        shell: bash
+        env:
+          NOTES_FILE: ${{ needs.prepare.outputs.notes_file }}
+        run: git show "$GITHUB_SHA:$NOTES_FILE" > "$RUNNER_TEMP/ziyu-release-notes.md"
+
       - name: Build App and single module package
         shell: bash
         run: |
@@ -293,7 +477,8 @@ jobs:
           app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
-          LUOSHU_APP_APK="$apk" sh ./scripts/build.sh
+          LUOSHU_SOURCE_CHECK_RECEIPT="$RUNNER_TEMP/ziyu-source-check.json" \
+            LUOSHU_APP_APK="$apk" sh ./scripts/build.sh
           module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
           test -s "$module"
           unzip -t "$module" >/dev/null
@@ -307,8 +492,8 @@ jobs:
       - name: Enforce release readiness
         shell: bash
         env:
-          VERSION: ${{ steps.version.outputs.version }}
-          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           set -euo pipefail
           args=(--target "$VERSION" --enforce)
@@ -332,25 +517,26 @@ jobs:
       - name: Preserve verified release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: Ziyu-${{ steps.version.outputs.artifact_version }}-verified-release
+          name: Ziyu-${{ needs.prepare.outputs.artifact_version }}-verified-release
           path: |
-            dist/Ziyu-${{ steps.version.outputs.artifact_version }}.zip
-            dist/Ziyu-${{ steps.version.outputs.artifact_version }}.zip.sha256
+            dist/Ziyu-${{ needs.prepare.outputs.artifact_version }}.zip
+            dist/Ziyu-${{ needs.prepare.outputs.artifact_version }}.zip.sha256
             dist/pre-release-readiness/
           if-no-files-found: error
+          compression-level: 0
           retention-days: 14
 
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
-          MODE: ${{ steps.version.outputs.mode }}
-          VERSION: ${{ steps.version.outputs.version }}
-          ARTIFACT_VERSION: ${{ steps.version.outputs.artifact_version }}
-          NOTES_FILE: ${{ steps.version.outputs.notes_file }}
-          PRERELEASE: ${{ steps.version.outputs.prerelease }}
-          SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
-          RELEASE_TITLE: ${{ steps.version.outputs.release_title }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          MODE: ${{ needs.prepare.outputs.mode }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          ARTIFACT_VERSION: ${{ needs.prepare.outputs.artifact_version }}
+          NOTES_FILE: ${{ runner.temp }}/ziyu-release-notes.md
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          RELEASE_TITLE: ${{ needs.prepare.outputs.release_title }}
         shell: bash
         run: |
           set -euo pipefail
