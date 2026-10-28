@@ -32,7 +32,8 @@ class DiagnosticExportTest(unittest.TestCase):
             props.chmod(0o755)
             kotlin = (ROOT / "android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/DiagnosticExportUi.kt").read_text(encoding="utf-8")
             command = textwrap.dedent(kotlin.split('val command = """', 1)[1].split('""".trimIndent()', 1)[0]).replace("${'$'}", "$")
-            command = command.replace("MOD=/data/adb/modules/LuoShu", 'MOD="$TEST_ROOT/module"')
+            self.assertEqual(command.count("MOD=/data/adb/modules/ziyu"), 1)
+            command = command.replace("MOD=/data/adb/modules/ziyu", 'MOD="$TEST_ROOT/module"')
             command = command.replace("OUT_DIR=/sdcard/Ziyu/reports", 'OUT_DIR="$TEST_ROOT/reports"')
             script = root / "export.sh"
             script.write_text('cd "$TEST_ROOT"\nPATH="$PWD:$PATH"\n' + command, encoding="utf-8")
