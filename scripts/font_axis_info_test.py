@@ -114,13 +114,13 @@ class FontAxisInfoTest(unittest.TestCase):
 
     def test_source_changed_during_read_is_rejected(self):
         fixture(self.path, [('wght', 100, 400, 900, 'Weight')])
-        from font_axis_info import font_axes
+        from font_metadata import axes as font_axes
         def change_source(font):
             result = font_axes(font)
             with self.path.open('ab') as stream:
                 stream.write(b'changed')
             return result
-        with patch('font_axis_info.font_axes', side_effect=change_source):
+        with patch('font_metadata.axes', side_effect=change_source):
             with self.assertRaisesRegex(ValueError, '源字体已变化'):
                 read_axis_info(self.path)
 
