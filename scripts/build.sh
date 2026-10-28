@@ -17,7 +17,13 @@ MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-13631488}"
 
 python3 "$ROOT/scripts/build_font_preload.py" --verify
 python3 "$ROOT/scripts/build_font_instance.py" --verify
-sh "$ROOT/scripts/check.sh"
+if [ -n "${LUOSHU_SOURCE_CHECK_RECEIPT:-}" ]; then
+  # The required CI source job already ran the complete suite on these inputs.
+  # Reject missing/stale receipts; standalone builds still run all checks.
+  python3 "$ROOT/scripts/source_check_receipt.py" verify --receipt "$LUOSHU_SOURCE_CHECK_RECEIPT"
+else
+  sh "$ROOT/scripts/check.sh"
+fi
 [ -n "$APP_APK" ] || {
   echo 'LUOSHU_APP_APK is required for the App-only module.' >&2
   exit 65

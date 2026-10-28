@@ -61,6 +61,8 @@ python3 -m py_compile \
   "$ROOT/common/font_inventory.py" \
   "$ROOT/common/system_font_library.py"
 
+python3 "$ROOT/scripts/source_check_receipt_test.py"
+
 # App-only 活跃源码清单。WebUI 前端及其准备脚本必须彻底不存在。
 for file in \
   module.prop customize.sh post-fs-data.sh post-mount.sh boot-completed.sh service.sh uninstall.sh action.sh \
