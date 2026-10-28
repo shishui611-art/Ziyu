@@ -17,6 +17,7 @@ on:
       - 'scripts/sync_update_metadata_test.py'
       - 'common/font_space_compat.py'
       - 'common/universal_font_compiler.py'
+      - 'scripts/universal_font_deployment_test.py'
       - 'scripts/font_instance_gvar_recovery_test.py'
       - 'scripts/font_library_ui_layout_test.sh'
       - 'scripts/stability_test.sh'
