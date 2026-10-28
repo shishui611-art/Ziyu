@@ -1,5 +1,5 @@
 """Targeted boot/OTA state and cleanup fixtures; no mounts or device changes."""
-import os, pathlib, shutil, subprocess, tempfile
+import hashlib, os, pathlib, shutil, subprocess, tempfile
 
 root=pathlib.Path(__file__).resolve().parents[1]
 shell=shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
@@ -48,6 +48,16 @@ with tempfile.TemporaryDirectory() as directory:
         print(action,boot,'rc',result.returncode,flush=True)
         assert result.returncode==expected,(result.stdout,result.stderr,expected)
         return result.stdout
+    # Legacy property-only metadata establishes a baseline, not an OTA hold.
+    call('hook','bootstrap',0)
+    assert not (config/'boot-ota-pending.conf').exists()
+    assert not (module/'disable').exists()
+    assert (payload/'sentinel').read_text()=='keep-old-generation'
+    # An actual transition requires a previously observed system-file identity.
+    prior_identity='system-file-v2:'+hashlib.sha256(b'rom-a\n').hexdigest()
+    (config/'boot-ota-guard.conf').write_text(
+        'schema=ziyu-boot-ota-guard-v1\nunfinished_boots=0\nfingerprint=rom-a\n'
+        f'rom_identity={prior_identity}\n')
     call('hook',expected=12)
     assert (payload/'sentinel').read_text()=='keep-old-generation'
     call('allow-apply', 'ota-1',21,'Demo')
