@@ -12,6 +12,7 @@ cp "$ROOT/common/font_switch_task.sh" "$MODULE/common/font_switch_task.sh"
 cp "$ROOT/common/font_mix_controller.sh" "$MODULE/common/font_mix_controller.sh"
 cp "$ROOT/common/legacy_v14_4/mix_router.sh" "$MODULE/common/legacy_v14_4/mix_router.sh"
 cp "$ROOT/common/composite_tune.sh" "$MODULE/common/composite_tune.sh"
+cp "$ROOT/common/user_storage.sh" "$MODULE/common/user_storage.sh"
 cp "$ROOT/common/font_mix.sh" "$MODULE/common/font_mix.sh"
 cp "$ROOT/module.prop" "$MODULE/module.prop"
 

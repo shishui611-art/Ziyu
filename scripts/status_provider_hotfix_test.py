@@ -45,6 +45,7 @@ class HotfixTest(unittest.TestCase):
     def test_mix_reconcile_never_rewrites_live_runtime_or_payload(self):
         self.copy('legacy_v14_4/mix_router.sh')
         self.copy('composite_tune.sh')
+        self.copy('user_storage.sh')
         self.run_shell(self.common / 'legacy_v14_4/mix_router.sh', 'reconcile')
         self.assertFalse((self.module / '.legacy-v14-runtime').exists())
         self.assertFalse((self.module / '.luoshu-payload').exists())
