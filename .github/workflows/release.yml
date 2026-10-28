@@ -13,6 +13,7 @@ on:
       - '更新日志/**'
       - 'docs/MOUNT_PROVIDER_FIRST_DESIGN.md'
       - 'android-app/app/src/test/**'
+      - 'android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontTaskForegroundService.kt'
       - 'scripts/release_version_policy_test.py'
       - 'scripts/sync_update_metadata_test.py'
       - 'common/font_space_compat.py'
