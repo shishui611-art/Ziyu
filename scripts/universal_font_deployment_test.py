@@ -141,6 +141,7 @@ def main() -> int:
             (payload_root.parent.resolve(), f".{payload_root.name}.")
         }
         sealed_sources: list[Path] = []
+        sealed_digests: list[str] = []
         test_font_verity = ModuleType("font_verity")
 
         def assert_staged_dynamic_source(path: Path) -> Path:
@@ -155,7 +156,9 @@ def main() -> int:
             return staged_path
 
         def seal_staged_dynamic_source(path: Path) -> str:
-            sealed_sources.append(assert_staged_dynamic_source(path))
+            staged_path = assert_staged_dynamic_source(path)
+            sealed_sources.append(staged_path)
+            sealed_digests.append(deployment._sha256(staged_path))
             return "test-only-fsverity-digest"
 
         test_font_verity.seal = seal_staged_dynamic_source
@@ -212,7 +215,13 @@ def main() -> int:
         assert dynamic["readOnly"] is True
         dynamic_source = payload_root / dynamic["sourcePayloadPath"]
         assert dynamic_source.is_file()
-        assert sealed_sources[0] == dynamic_source.resolve()
+        # Publication renames the verified stage into payload_root. Check that
+        # the sealed file's relative path and bytes survive that transaction.
+        assert sealed_sources[0].relative_to(sealed_sources[0].parent.parent) == Path(
+            dynamic["sourcePayloadPath"]
+        )
+        assert not sealed_sources[0].parent.parent.exists()
+        assert sealed_digests[0] == deployment._sha256(dynamic_source) == dynamic["sha256"]
         runtime_conf = payload_root / ".luoshu-runtime/deployment/dynamic-mounts.conf"
         assert runtime_conf.is_file()
         assert dynamic_logical in runtime_conf.read_text(encoding="utf-8")
@@ -227,10 +236,14 @@ def main() -> int:
                 font_plan, route_plan, artifact_manifest, second_root
             )
         assert len(sealed_sources) == 2
-        assert sealed_sources[1].parent.parent == second_root.resolve()
-        assert sealed_sources[1] == (
-            second_root / second["dynamicMounts"][0]["sourcePayloadPath"]
-        ).resolve()
+        second_dynamic = second["dynamicMounts"][0]
+        assert sealed_sources[1].relative_to(sealed_sources[1].parent.parent) == Path(
+            second_dynamic["sourcePayloadPath"]
+        )
+        assert not sealed_sources[1].parent.parent.exists()
+        assert sealed_digests[1] == deployment._sha256(
+            second_root / second_dynamic["sourcePayloadPath"]
+        ) == second_dynamic["sha256"]
         assert Path.cwd().is_dir()
         assert (ROOT / ".git").exists() or (ROOT / "scripts").is_dir()
         assert second["payloadDigest"] == manifest["payloadDigest"]
