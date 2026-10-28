@@ -5,8 +5,17 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MOD="$TMP/module"
 VISIBLE="$TMP/visible"
-mkdir -p "$MOD/common" "$MOD/config" "$MOD/.luoshu-payload/.luoshu-runtime/deployment" "$MOD/.luoshu-payload/.luoshu-dynamic" "$MOD/.luoshu-payload/system/fonts" "$VISIBLE/data/fonts/files"
+mkdir -p "$MOD/common" "$MOD/config" "$MOD/logs" "$MOD/.luoshu-payload/.luoshu-runtime/deployment" "$MOD/.luoshu-payload/.luoshu-dynamic" "$MOD/.luoshu-payload/system/fonts" "$VISIBLE/data/fonts/files"
 cp "$ROOT/common/universal_mount_runtime.sh" "$MOD/common/"
+# The fake mount copies ordinary files on the host filesystem. Model verity
+# checks here; the real seal implementation has its own tests and requires a
+# supporting kernel/filesystem. Never make the production check optional.
+cat > "$MOD/common/font_verity.sh" <<'SH'
+#!/bin/sh
+[ "$1" = check ] && [ -f "$2" ] || exit 1
+[ "${FAIL_VERITY:-0}" != 1 ] || exit 1
+printf 'fixture-verity-%s\n' "$(sha256sum "$2" | awk '{print $1}')"
+SH
 printf 'system-font-content\n' > "$MOD/.luoshu-payload/system/fonts/Fake.ttf"
 printf '{}\n' > "$MOD/.luoshu-payload/.luoshu-runtime/deployment/deployment.json"
 cat > "$MOD/common/universal_font_deployment.py" <<'PY'
@@ -119,12 +128,16 @@ cmp -s "$MOD/.luoshu-payload/.luoshu-dynamic/test.ttf" "$VISIBLE/data/fonts/file
 mkdir -p "$MOD/.luoshu-payload/system/fonts"
 printf 'system-font-content\n' > "$MOD/.luoshu-payload/system/fonts/Fake.ttf"
 
-echo "PHASE7_MOUNT rollback"
-# Dynamic failure must roll back the system payload transaction.
+for failure in dynamic verity; do
+echo "PHASE7_MOUNT rollback-$failure"
+# A dynamic mount failure or rejected verity check must roll back the system
+# payload transaction. An unsupported verifier never authorizes a bind mount.
 rm -f "$TMP/system-rollback"
 printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
+fail_dynamic=0; fail_verity=0
+case "$failure" in dynamic) fail_dynamic=1 ;; verity) fail_verity=1 ;; esac
 set +e
-FAIL_DYNAMIC=1 MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
+FAIL_DYNAMIC="$fail_dynamic" FAIL_VERITY="$fail_verity" MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
   LUOSHU_UNIVERSAL_TEST_MANAGER=Magisk \
   LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
   LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
@@ -140,5 +153,7 @@ test "$RC" -eq 1
 test -s "$TMP/system-rollback"
 grep -q '^state=failed$' "$MOD/config/universal-font-mount.conf"
 grep -q '^error=dynamic-mount-failed$' "$MOD/config/universal-font-mount.conf"
+test "$(cat "$VISIBLE/data/fonts/files/runtime.ttf")" = stock
+done
 
 echo "universal_mount_runtime_test: PASS"

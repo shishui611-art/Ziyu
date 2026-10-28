@@ -18,6 +18,7 @@ on:
       - 'common/font_space_compat.py'
       - 'common/universal_font_compiler.py'
       - 'scripts/universal_font_deployment_test.py'
+      - 'scripts/universal_mount_runtime_test.sh'
       - 'scripts/font_instance_gvar_recovery_test.py'
       - 'scripts/font_library_ui_layout_test.sh'
       - 'scripts/stability_test.sh'
