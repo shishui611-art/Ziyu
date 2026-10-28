@@ -1,5 +1,7 @@
 package io.github.xgl34222220.ziyu.ui.design
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator as MaterialCircularProgressIndicator
 import androidx.compose.material3.DividerDefaults as MaterialDividerDefaults
 import androidx.compose.material3.HorizontalDivider as MaterialHorizontalDivider
@@ -7,6 +9,7 @@ import androidx.compose.material3.LinearProgressIndicator as MaterialLinearProgr
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -50,24 +53,44 @@ fun ZiyuCircularProgressIndicator(
                 color = resolvedColor, trackColor = resolvedTrack, strokeWidth = resolvedWidth, strokeCap = strokeCap,
             )
         }
-        UiStyle.MIUIX -> MiuixCircularProgressIndicator(
-            modifier = modifier,
+        UiStyle.MIUIX -> CircularProgressBounds(
+            modifier, MiuixProgressDefaults.DefaultCircularProgressIndicatorSize,
+        ) { diameter -> MiuixCircularProgressIndicator(
+            modifier = Modifier.size(diameter),
+            size = diameter,
             progress = progress?.coerceIn(0f, 1f),
             colors = MiuixProgressDefaults.progressIndicatorColors(
                 foregroundColor = if (color == Color.Unspecified) MiuixTheme.colorScheme.primary else color,
                 backgroundColor = if (trackColor == Color.Unspecified) MiuixTheme.colorScheme.secondaryContainer else trackColor,
             ),
             strokeWidth = strokeWidth ?: MiuixProgressDefaults.DefaultCircularProgressIndicatorStrokeWidth,
-        )
-        UiStyle.COUI -> CouiCircularProgressIndicator(
-            modifier = modifier,
+        ) }
+        UiStyle.COUI -> CircularProgressBounds(
+            modifier, CouiProgressDefaults.DefaultCircularProgressIndicatorSize,
+        ) { diameter -> CouiCircularProgressIndicator(
+            modifier = Modifier.size(diameter),
+            size = diameter,
             progress = progress?.coerceIn(0f, 1f),
             colors = CouiProgressDefaults.circularProgressIndicatorColors(
                 foregroundColor = if (color == Color.Unspecified) COUITheme.colorScheme.onSurfaceContainerHigh else color,
                 backgroundColor = if (trackColor == Color.Unspecified) COUITheme.colorScheme.dividerLine else trackColor,
             ),
             strokeWidth = strokeWidth ?: CouiProgressDefaults.DefaultCircularProgressIndicatorStrokeWidth,
-        )
+        ) }
+    }
+}
+
+@Composable
+private fun CircularProgressBounds(
+    modifier: Modifier,
+    defaultSize: Dp,
+    content: @Composable (Dp) -> Unit,
+) {
+    // These libraries draw from their size argument rather than the Canvas
+    // bounds. A caller's smaller Modifier.size must also resize that geometry.
+    BoxWithConstraints(modifier = modifier.size(defaultSize), contentAlignment = Alignment.Center) {
+        val diameter = minOf(maxWidth, maxHeight)
+        if (diameter > 0.dp) content(diameter)
     }
 }
 

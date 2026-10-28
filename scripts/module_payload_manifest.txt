@@ -3,6 +3,7 @@
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .luoshu-runtime.
 common/app_bridge.sh
 common/font_preload_helper.sh
+common/font_preload_control.sh
 common/font_preload_state.py
 common/font_preload_module
 common/apatch_boot_prepare.sh
@@ -50,6 +51,8 @@ common/device_font_template.py
 common/device_font_template_base.py
 common/device_font_template.sh
 common/font_archive_export.sh
+common/font_ttf_export.sh
+common/font_ttf_export.py
 common/font_active_state.sh
 common/font_boot_state.sh
 common/font_axis_info.py
@@ -70,6 +73,12 @@ common/font_zip_extract.py
 common/font_import_compat.sh
 common/font_import_probe.py
 common/font_instance.py
+common/font_native_instance.py
+common/font-native-instance
+common/font_native_glyphs.py
+common/font_native_instance_build.json
+common/font_face_weight.py
+common/font_gvar_repair.py
 common/font_route_verify.py
 common/nomount_rule_json.py
 common/hybrid_mount_runtime.py
@@ -233,6 +242,8 @@ common/composite_collection_contract.py
 
 common/composite_collection_build.sh
 common/boot_ota_guard.sh
+common/boot_ota_recover.sh
+common/boot_ota_recover_task.sh
 
 common/user_storage.sh
 common/user_storage.py

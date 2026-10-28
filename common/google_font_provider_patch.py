@@ -144,13 +144,29 @@ def patch(source_path: Path, target_path: Path, output_path: Path, weight: int) 
         # Provider Sans fonts use system fallback for CJK. Do not replicate the
         # whole CJK donor per downloaded weight or instantiate its unused glyphs.
         # The CJK filter also handles an old, full-donor clone visible at target.
-        points = set(target.getBestCmap() or {}) & set(source.getBestCmap() or {})
+        source_points = set(source.getBestCmap() or {})
+        points = set(target.getBestCmap() or {}) & source_points
         points = {cp for cp in points if not (
             0x2E80 <= cp <= 0x4DBF or 0x4E00 <= cp <= 0x9FFF or 0xAC00 <= cp <= 0xD7FF or
             0xF900 <= cp <= 0xFAFF or 0x20000 <= cp <= 0x323AF)}
         if not points:
             raise ProviderPatchError("no-shared-provider-characters")
-        if points != set(source.getBestCmap() or {}):
+        axes = {}
+        if 'fvar' in source and 'fvar' not in target:
+            axes = {axis.axisTag: max(float(axis.minValue), min(float(axis.maxValue), float(weight)))
+                    if axis.axisTag == 'wght' else float(axis.defaultValue) for axis in source['fvar'].axes}
+        from font_native_instance import subset_instance
+        from font_instance import check_mix_cancellation
+        if not axes and points == source_points:
+            # No glyphs or axes change. Keep the current source instead of
+            # hashing, copying and reopening an identical native subset.
+            native, engine = None, {'engine': 'source', 'nativeRequired': False}
+        else:
+            native, engine = subset_instance(source, source_path, 0, points, axes, check_mix_cancellation)
+        if native is not None:
+            source.close()
+            source = native
+        elif points != source_points:
             options = subset.Options()
             options.name_IDs = ['*']
             options.name_legacy = True
@@ -161,7 +177,11 @@ def patch(source_path: Path, target_path: Path, output_path: Path, weight: int) 
             subsetter = subset.Subsetter(options=options)
             subsetter.populate(unicodes=points)
             subsetter.subset(source)
-        source = instantiate_for_target(source, target, weight)
+        if native is None:
+            original = source
+            source = instantiate_for_target(source, target, weight)
+            if source is not original:
+                original.close()
         copy_target_names(source, target)
         normalize_weight(source, weight)
         source["head"].fontRevision = target["head"].fontRevision
@@ -175,6 +195,7 @@ def patch(source_path: Path, target_path: Path, output_path: Path, weight: int) 
             "target": str(target_path),
             "output": str(output_path),
             "weight": int(weight),
+            "processingEngine": engine,
             "targetVariable": "fvar" in target,
             "outputVariable": "fvar" in source,
             "variationMode": "native" if "fvar" in source else "static-instance",

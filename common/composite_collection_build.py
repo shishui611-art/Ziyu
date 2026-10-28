@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+from contextlib import nullcontext
 import gc
 import hashlib
 import json
@@ -20,17 +21,21 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import struct
 import tempfile
+import time
 
+from fontTools.misc.psCharStrings import T2CharString
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
 from fontTools.pens.t2CharStringPen import T2CharStringPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.cu2quPen import Cu2QuPen
-from fontTools.pens.qu2cuPen import Qu2CuPen
+from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTCollection, TTFont, TTLibError
 from fontTools.ttLib.tables.TupleVariation import TupleVariation
+from fontTools.ttLib.tables._g_l_y_f import Glyph
 from fontTools.varLib.builder import buildVarData, buildVarIdxMap
 
 from composite_collection_contract import collection_faces
@@ -52,6 +57,26 @@ MAX_COLLECTION_FACE_TOTAL = 512
 MAX_STOCK_FILE_BYTES = 128 * 1024 * 1024
 MAX_MIX_SOURCE_BYTES = 128 * 1024 * 1024
 PROOF_DIRECTORY = '.luoshu-collection-proofs'
+MAX_GLYPH_TEMPLATE_BYTES = 64 * 1024 * 1024
+# Only tables which replace_face does not intentionally mutate. The complete
+# canonical contract is checked before any loaded object is discarded.
+RAW_PRESERVABLE = frozenset(('cmap', 'GSUB', 'GPOS', 'GDEF', 'name', 'OS/2',
+                             'fvar', 'avar', 'STAT', 'MVAR', 'BASE', 'cvar'))
+
+
+class _ExactCubicT2Pen(T2CharStringPen):
+    """Elevate each quadratic exactly before the existing Type 2 rounding.
+
+    BasePen supplies the quadratic-to-cubic degree elevation, including implied
+    points. Avoid Qu2CuPen's costly search for an approximate merged spline.
+    Keep the previous unsupported-outline fallback for off-curve-only paths;
+    broadening supported outlines is separate from this performance change.
+    """
+
+    def qCurveTo(self, *points):
+        if points and points[-1] is None:
+            raise NotImplementedError('off-curve-only contours retain the OEM glyph')
+        super().qCurveTo(*points)
 
 
 def sha(path):
@@ -79,16 +104,16 @@ def role(cp):
     return 'cjk' if any(lo <= cp <= hi for lo, hi in CJK_RANGES) else None
 
 
-def protected(font, stock_order=None):
+def protected(font, stock_order=None, *, skip_tables=()):
     recalc = font.recalcBBoxes
     font.recalcBBoxes = False
     try:
-        return _protected(font, stock_order)
+        return _protected(font, stock_order, skip_tables)
     finally:
         font.recalcBBoxes = recalc
 
 
-def _protected(font, stock_order=None):
+def _protected(font, stock_order=None, skip_tables=()):
     order = font.getGlyphOrder()
     if stock_order is not None:
         if order[:len(stock_order)] != stock_order:
@@ -99,11 +124,11 @@ def _protected(font, stock_order=None):
     # getTableData returns original bytes for lazy tables, compiled bytes for
     # loaded ones. Load every protected table before hashing either snapshot.
     for tag in PROTECTED:
-        if tag in font:
+        if tag not in skip_tables and tag in font:
             font[tag]
     tables = {}
     for tag in PROTECTED:
-        if tag not in font:
+        if tag in skip_tables or tag not in font:
             continue
         if tag == 'VVAR' and stock_order is not None:
             # Appended component copies need extra maps, while every original
@@ -139,6 +164,40 @@ def _protected(font, stock_order=None):
     return {'tables': tables, 'glyphOrder': canonical(order),
             'frame': [font['head'].unitsPerEm, font['head'].xMin, font['head'].yMin,
                       font['head'].xMax, font['head'].yMax]}
+
+
+def raw_table_hashes(font):
+    """Snapshot only known invariant tables from this face's original reader."""
+    if font.reader is None:
+        return {}
+    return {tag: hashlib.sha256(font.reader[tag]).hexdigest()
+            for tag in sorted(RAW_PRESERVABLE) if tag in font.reader}
+
+
+def contract_matches(font, expected, raw_tables=None, stock_order=None):
+    """Compare an unopened output/stock face to a byte-preservation proof.
+
+    A reader still exposes old bytes after an in-memory change. Refuse raw
+    verification for already-loaded proof tables instead of overlooking edits.
+    """
+    if raw_tables is None:
+        raw_tables = {}
+    if (not isinstance(raw_tables, dict) or not set(raw_tables).issubset(RAW_PRESERVABLE)
+            or any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value)
+                   for value in raw_tables.values())):
+        raise ValueError('原始字体表证明无效')
+    if raw_tables:
+        if font.reader is None:
+            return False
+        for tag, digest in raw_tables.items():
+            if (font.isLoaded(tag) or tag not in font.reader
+                    or hashlib.sha256(font.reader[tag]).hexdigest() != digest):
+                return False
+    actual = protected(font, stock_order, skip_tables=raw_tables)
+    trimmed = dict(expected)
+    trimmed['tables'] = {tag: value for tag, value in expected['tables'].items()
+                         if tag not in raw_tables}
+    return actual == trimmed
 
 
 def specialized(font):
@@ -405,7 +464,7 @@ def copy_retained_dependencies(font, mapping):
 
 
 def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependencies=False,
-                 preserve_unsafe=False, outline_cache=None):
+                 preserve_unsafe=False, outline_cache=None, native_source=None):
     target = face_identity(font)
     donor_info = face_identity(donor)
     donor_info['weight'] = target_weight(donor)
@@ -435,20 +494,94 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     else:
         outline_bounds = outline_cache.setdefault((kind, scale), {})
 
+    # Cache immutable, already-rounded simple glyph bytes by source and UPEM
+    # scale. Each target gets its own Glyph object; variation/metric edits never
+    # leak between stock faces. Scope is one donor in one finite worker.
+    templates = (outline_cache.setdefault(('glyf-templates', scale, 'fvar' in font), {})
+                 if outline_cache is not None and kind == 'glyf' else {})
+    cff_templates = (outline_cache.setdefault(('cff-templates', kind, scale), {})
+                     if outline_cache is not None and kind != 'glyf' else {})
+
+    native_cache, native_report = None, {'engine': 'fonttools'}
+    if (kind == 'glyf' and native_source is not None and outline_cache is not None
+            and font['maxp'].numGlyphs >= 512):
+        from font_native_glyphs import prepare as native_glyphs
+        native_key = ('native-glyphs', font['head'].unitsPerEm)
+        if native_key not in outline_cache:
+            remaining = (MAX_GLYPH_TEMPLATE_BYTES - outline_cache.get('nativeGlyphBytes', 0)
+                         - outline_cache.get('templateBytes', 0))
+            outline_cache[native_key] = native_glyphs(donor, native_source, font['head'].unitsPerEm, budget=remaining)
+            if outline_cache[native_key][0] is not None:
+                outline_cache['nativeGlyphBatches'] = outline_cache.get('nativeGlyphBatches', 0) + 1
+                outline_cache['nativeGlyphBytes'] = (outline_cache.get('nativeGlyphBytes', 0)
+                                                     + outline_cache[native_key][0].byte_size)
+        native_cache, native_report = outline_cache[native_key]
+
+    def converted_glyph(source_name):
+        if native_cache is not None:
+            glyph = native_cache.glyph(source_name, font['glyf'])
+            if glyph is not None:
+                if glyph.numberOfContours:
+                    bearing = round(donor['hmtx'][source_name][1] * scale)
+                    shift = bearing - glyph.xMin
+                    if 'fvar' in font and abs(shift) == 1:
+                        glyph.coordinates.translate((shift, 0))
+                        glyph.recalcBounds(font['glyf'])
+                outline_cache['nativeGlyphHits'] = outline_cache.get('nativeGlyphHits', 0) + 1
+                return glyph
+        data = templates.get(source_name)
+        if data is not None:
+            outline_cache['templateHits'] = outline_cache.get('templateHits', 0) + 1
+            glyph = Glyph(data)
+            glyph.expand(font['glyf'])
+            return glyph
+        pen = TTGlyphPen(None)
+        if source_name not in recordings:
+            recordings[source_name] = draw_record(source_glyphs, source_name)
+        output = Cu2QuPen(pen, max_err=max(0.5, font['head'].unitsPerEm / 2000),
+                          reverse_direction='glyf' not in donor)
+        recordings[source_name].replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+        glyph = pen.glyph()
+        glyph.recalcBounds(font['glyf'])
+        if 'fvar' in font and glyph.numberOfContours > 0:
+            # Decomposition and integer rounding can move xMin by one unit
+            # relative to the source advance origin. Variable TrueType needs
+            # xMin == lsb so its phantom points stay stable. Correct only this
+            # rounding discrepancy; larger disagreements remain protected by
+            # the existing per-glyph safety checks below.
+            bearing = round(donor['hmtx'][source_name][1] * scale)
+            shift = bearing - glyph.xMin
+            if abs(shift) == 1:
+                glyph.coordinates.translate((shift, 0))
+                glyph.recalcBounds(font['glyf'])
+        if outline_cache is not None:
+            used = outline_cache.get('templateBytes', 0)
+            limit = MAX_GLYPH_TEMPLATE_BYTES - outline_cache.get('nativeGlyphBytes', 0)
+            if used + len(source_name) * 4 + 256 >= limit:
+                return glyph
+            try:
+                data = glyph.compile(font['glyf'], recalcBBoxes=False)
+            except (ValueError, OverflowError, struct.error, AssertionError, NotImplementedError):
+                # Preflight still needs this glyph's bounds to decide whether
+                # to retain the OEM slot. A cache serialization failure must
+                # not bypass that decision or turn a retained slot into failure.
+                return glyph
+            # Include dictionary/key overhead; keep the worker's extra cache finite.
+            cost = len(data) + len(source_name) * 4 + 256
+            if used + cost <= limit:
+                templates[source_name] = data
+                outline_cache['templateBytes'] = used + cost
+        return glyph
+
     def bounds_for(source_name):
         if source_name not in outline_bounds:
-            if source_name not in recordings:
+            if source_name not in recordings and (kind != 'glyf' or native_cache is None):
                 recordings[source_name] = draw_record(source_glyphs, source_name)
             if kind == 'glyf':
                 # TrueType metrics bind the integer control-point bounding box,
                 # not the tight Bezier bounds. Use the same converted glyph in
                 # preflight and publication, including rounding during cu2qu.
-                pen = TTGlyphPen(None)
-                output = Cu2QuPen(pen, max_err=max(0.5, font['head'].unitsPerEm / 2000),
-                                  reverse_direction='glyf' not in donor)
-                recordings[source_name].replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
-                glyph = pen.glyph()
-                glyph.recalcBounds(font['glyf'])
+                glyph = converted_glyph(source_name)
                 converted[(source_name,)] = glyph
                 outline_bounds[source_name] = (
                     tuple(getattr(glyph, key) / scale for key in ('xMin', 'yMin', 'xMax', 'yMax'))
@@ -496,56 +629,93 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                if table.isUnicode() and table.format != 14
                for cp, name in table.cmap.items() if not role(cp) or cp not in source}
     blocked.update(retained_conflicts)
-    # Preserve every UVS target as well as the format-14 table bytes. A default
-    # UVS entry points through the base cmap; a non-default entry names its own
-    # glyph. Neither glyph may be changed behind the unchanged UVS mapping.
-    base_cmap = font.getBestCmap() or {}
+    # Preserve non-default UVS targets: their format-14 entry names a glyph
+    # directly, and that glyph can be a variant that is not in the base cmap.
+    # Default UVS entries resolve through the base cmap instead, so their glyph
+    # is an ordinary coded glyph: replacing its outline keeps the glyph ID and
+    # the format-14 bytes untouched, and a whole-font transplant is expected to
+    # restyle that glyph. Only a non-default target therefore stays stock.
     for table in font['cmap'].tables:
         if table.format != 14:
             continue
         for entries in getattr(table, 'uvsDict', {}).values():
             for codepoint, glyph_name in entries:
-                resolved = glyph_name or base_cmap.get(codepoint)
-                if resolved:
-                    blocked.add(resolved)
+                if glyph_name:
+                    blocked.add(glyph_name)
     retained_shared = len(blocked.intersection(mapping))
     for name in blocked:
         mapping.pop(name, None)
     retained_unsafe = 0
+    unsafe_details = []
     if preserve_unsafe:
         scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
         frame, header = font['head'], font['hhea']
+        reverse_cmap = None
         for name, source_name in list(mapping.items()):
             bounds = bounds_for(source_name)
             width, bearing = (round(value * scale) for value in donor['hmtx'][source_name])
-            unsafe = name == '.notdef' or not 0 <= width <= 65535 or not -32768 <= bearing <= 32767
+            reasons = []
+            if name == '.notdef':
+                reasons.append('.notdef')
+            if not 0 <= width <= 65535 or not -32768 <= bearing <= 32767:
+                reasons.append('sfnt-range')
             if 'gvar' in font and 'vmtx' in font and 'VVAR' in font:
-                unsafe |= getattr(font['VVAR'].table, 'TsbMap', None) is not None
+                if getattr(font['VVAR'].table, 'TsbMap', None) is not None:
+                    reasons.append('VVAR-TsbMap')
             outline_width = 0
             if bounds is None and kind == 'glyf' and 'fvar' in font:
-                unsafe |= bearing != 0
+                if bearing != 0:
+                    reasons.append('empty-glyph-bearing')
             if bounds is not None:
                 x0, y0, x1, y1 = (value * scale for value in bounds)
                 outline_width = x1 - x0
-                unsafe |= (x0 < frame.xMin - 1 or y0 < frame.yMin - 1
-                           or x1 > frame.xMax + 1 or y1 > frame.yMax + 1)
+                if x0 < frame.xMin - 1:
+                    reasons.append('frame-xMin')
+                if y0 < frame.yMin - 1:
+                    reasons.append('frame-yMin')
+                if x1 > frame.xMax + 1:
+                    reasons.append('frame-xMax')
+                if y1 > frame.yMax + 1:
+                    reasons.append('frame-yMax')
                 if kind == 'glyf' and 'fvar' in font:
-                    unsafe |= bearing != round(x0)
+                    if bearing != round(x0):
+                        reasons.append('xMin-bearing-diff=%d' % (bearing - round(x0)))
                 if kind == 'glyf' and 'vmtx' in font:
                     old_advance, old_bearing = font['vmtx'][name]
                     origin = getattr(font['glyf'][name], 'yMax', 0) + old_bearing
                     new_bearing, height = origin - round(y1), round(y1) - round(y0)
                     vertical = font['vhea']
-                    unsafe |= (not -32768 <= new_bearing <= 32767
-                               or new_bearing < vertical.minTopSideBearing
-                               or old_advance - new_bearing - height < vertical.minBottomSideBearing
-                               or new_bearing + height > vertical.yMaxExtent)
-            unsafe |= (width > header.advanceWidthMax or bearing < header.minLeftSideBearing
-                       or width - bearing - outline_width < header.minRightSideBearing - 1
-                       or bearing + outline_width > header.xMaxExtent + 1)
-            if unsafe:
+                    if not -32768 <= new_bearing <= 32767:
+                        reasons.append('vmtx-range')
+                    if new_bearing < vertical.minTopSideBearing:
+                        reasons.append('vmtx-minTopSideBearing')
+                    if old_advance - new_bearing - height < vertical.minBottomSideBearing:
+                        reasons.append('vmtx-minBottomSideBearing')
+                    if new_bearing + height > vertical.yMaxExtent:
+                        reasons.append('vmtx-yMaxExtent')
+            if width > header.advanceWidthMax:
+                reasons.append('hhea-advanceWidthMax')
+            if bearing < header.minLeftSideBearing:
+                reasons.append('hhea-minLeftSideBearing')
+            if width - bearing - outline_width < header.minRightSideBearing - 1:
+                reasons.append('hhea-minRightSideBearing')
+            if bearing + outline_width > header.xMaxExtent + 1:
+                reasons.append('hhea-xMaxExtent')
+            if reasons:
                 mapping.pop(name)
                 retained_unsafe += 1
+                if len(unsafe_details) < 16:
+                    if reverse_cmap is None:
+                        reverse_cmap = {}
+                        for codepoint, glyph_name in cmap.items():
+                            reverse_cmap.setdefault(glyph_name, []).append(codepoint)
+                    unsafe_details.append({
+                        'glyph': name,
+                        'codepoints': ['U+%04X' % codepoint
+                                       for codepoint in sorted(reverse_cmap.get(name, []))[:8]],
+                        'reasons': reasons, 'width': width, 'bearing': bearing,
+                        'bounds': None if bounds is None
+                        else [round(value * scale, 3) for value in bounds]})
     dependency_proof = (copy_retained_dependencies(font, mapping)
                         if preserve_dependencies and 'glyf' in font else None)
     counts = dict.fromkeys(counts, 0)
@@ -564,7 +734,6 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     conversion_retained, failed_sources = [], set()
     for target_name, source_name in mapping.items():
         bounds = bounds_for(source_name)
-        recording = recordings[source_name]
         # Keep the stock line frame. A donor outside it fails before publication;
         # arbitrary per-glyph shrinking would change the requested typeface.
         if bounds is not None:
@@ -588,11 +757,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     conversion_retained.append(target_name)
                     continue
                 try:
-                    pen = TTGlyphPen(None)
-                    output = Cu2QuPen(pen, max_err=max(0.5, frame.unitsPerEm / 2000),
-                                      reverse_direction='glyf' not in donor)
-                    recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
-                    converted[key] = pen.glyph()
+                    converted[key] = converted_glyph(source_name)
                 except NotImplementedError:
                     # FontTools cannot build this particular outline (for
                     # example an on-curve-less contour). Keep that OEM glyph.
@@ -636,6 +801,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     TupleVariation(axes, [(0, 0)] * (points + 2) + [top, bottom])
                     for axes, top, bottom in vertical]
         else:
+            recording = recordings[source_name]
             if kind == 'CFF2' and 'vmtx' in font and 'VORG' not in font:
                 raise ValueError('CFF2 集合缺少独立垂直原点，不能沿用旧轮廓的垂直侧距')
             cff = font[kind].cff
@@ -648,12 +814,37 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     conversion_retained.append(target_name)
                     continue
                 encoded_width = None if kind == 'CFF2' or width == private.defaultWidthX else width - private.nominalWidthX
-                pen = T2CharStringPen(encoded_width, None, CFF2=kind == 'CFF2')
-                output = Qu2CuPen(pen, max_err=max(0.5, frame.unitsPerEm / 2000),
-                                  all_cubic=True, reverse_direction='glyf' in donor)
+                # Generated Type 2 programs contain only explicit outlines and
+                # the encoded width: no hints, subroutine calls or blend state.
+                # Reuse immutable bytes, never another face's Private/FDArray
+                # or mutable CharString. CFF1 width encoding is part of the key.
+                template_key = (source_name, encoded_width)
+                data = cff_templates.get(template_key)
                 try:
-                    recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
-                    char = pen.getCharString(private=private, globalSubrs=cff.GlobalSubrs)
+                    if data is not None:
+                        char = T2CharString(bytecode=data, private=private,
+                                            globalSubrs=cff.GlobalSubrs)
+                        outline_cache['cffTemplateHits'] = outline_cache.get('cffTemplateHits', 0) + 1
+                    else:
+                        pen = _ExactCubicT2Pen(encoded_width, None, CFF2=kind == 'CFF2')
+                        # TrueType and PostScript contours use opposite winding.
+                        # Degree elevation preserves the curve; retain the same
+                        # scaling, integer rounding and Type 2 specialization.
+                        output = ReverseContourPen(pen) if 'glyf' in donor else pen
+                        recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+                        char = pen.getCharString(private=private, globalSubrs=cff.GlobalSubrs)
+                        if outline_cache is not None:
+                            outline_cache['cffConversions'] = outline_cache.get('cffConversions', 0) + 1
+                            used = outline_cache.get('templateBytes', 0)
+                            overhead = len(source_name) * 4 + 320
+                            limit = MAX_GLYPH_TEMPLATE_BYTES - outline_cache.get('nativeGlyphBytes', 0)
+                            if used + overhead < limit:
+                                char.compile(isCFF2=kind == 'CFF2')
+                                data = char.bytecode
+                                cost = len(data) + overhead
+                                if used + cost <= limit:
+                                    cff_templates[template_key] = data
+                                    outline_cache['templateBytes'] = used + cost
                 except NotImplementedError:
                     # FontTools cannot build this particular outline (for
                     # example an on-curve-less contour). Keep that OEM glyph.
@@ -686,7 +877,9 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     conflict_report = [{'glyph': name, 'codepoints': ['U+%04X' % cp for cp in codepoints]}
                        for name, codepoints in sorted(shared_conflicts.items())]
     return {'mode': 'compiled', 'replaced': counts, 'uncovered': uncovered,
+            'outlineEngine': native_report,
             'retainedUnsafeSlots': retained_unsafe,
+            'retainedUnsafeGlyphs': unsafe_details,
             'retainedConversionSlots': len(conversion_retained),
             'retainedSharedSlots': retained_shared, 'retainedUnencodedGlyphs': True,
             'retainedSharedConflictSlots': len(shared_conflicts),
@@ -697,37 +890,65 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             **donor_report, 'targetStylePreserved': True}
 
 
-def _compile_face_task(task, recordings, outline_cache):
+def _compile_face_task(task, recordings, outline_cache, donor=None):
     """Compile one OEM face in an isolated process or in the caller.
 
     The returned dict must stay JSON-serialisable: bounded workers hand results
     back through a private result file, while the caller keeps publication.
     """
     index = task['face']
+    started = time.monotonic()
+    hits_before = outline_cache.get('cffTemplateHits', 0)
+    conversions_before = outline_cache.get('cffConversions', 0)
     with TTFont(task['stock'], fontNumber=index, lazy=True, recalcBBoxes=False,
                 recalcTimestamp=False) as font:
         original = protected(font)
-        with TTFont(task['donor'], lazy=True, recalcTimestamp=False) as donor:
+        raw_tables = raw_table_hashes(font)
+        context = nullcontext(donor) if donor is not None else TTFont(
+            task['donor'], lazy=True, recalcTimestamp=False)
+        with context as donor:
             # A real donor may exceed the OEM face's extreme horizontal metrics
             # for a few glyphs. Keep those individual OEM slots instead of
             # abandoning the whole collection switch.
             details = replace_face(font, donor, recordings, preserve_unsafe=True,
-                                   outline_cache=outline_cache)
+                                   outline_cache=outline_cache, native_source=task['donor'])
         if protected(font) != original:
             raise ValueError(f'集合面 {index} 的原厂布局契约已变化')
+        compiled_at = time.monotonic()
         output = task['output']
         if details['mode'] == 'compiled':
+            # The complete in-memory contract was just verified. Keep all
+            # mutable/unknown tables loaded; release only explicitly invariant
+            # ones so FontTools can copy their original bytes from the reader.
+            for tag in raw_tables:
+                font.tables.pop(tag, None)
             font.save(output, reorderTables=False)
         else:
             # Retained faces need no expensive outline round trip.
             with TTFont(task['stock'], fontNumber=index, lazy=True, recalcBBoxes=False,
                         recalcTimestamp=False) as untouched:
                 untouched.save(output, reorderTables=False)
+    saved_at = time.monotonic()
     with TTFont(output, lazy=True, recalcTimestamp=False) as check:
-        if protected(check) != original:
+        # A dependency may cause FontTools to recompile a table after it was
+        # released. In that case retain the original canonical validation path.
+        matched = contract_matches(check, original, raw_tables)
+        if raw_tables and not matched:
+            raw_tables = {}
+            matched = contract_matches(check, original)
+        if not matched:
             raise ValueError(f'集合面 {index} 序列化后布局契约已变化')
         verify_dependency_copies(check, details.get('dependencyProof'))
-    return {'index': index, 'contract': original, 'details': details}
+    details['performance'] = {
+        'compileSeconds': round(compiled_at - started, 3),
+        'saveSeconds': round(saved_at - compiled_at, 3),
+        'verifySeconds': round(time.monotonic() - saved_at, 3),
+        'cffConversions': outline_cache.get('cffConversions', 0) - conversions_before,
+        'cffTemplateHits': outline_cache.get('cffTemplateHits', 0) - hits_before,
+        'workerTemplateBytes': outline_cache.get('templateBytes', 0),
+    }
+    return {'index': index, 'contract': original, 'details': details,
+            'rawTables': raw_tables}
 
 
 def inspect_donor(source):
@@ -809,20 +1030,49 @@ def build(source, stock, output, workspace, request, target, progress=None,
                   'output': str(temporary / f'face-{index}.font')}
                  for index in range(count)]
 
+        last_completed = -1
+        next_progress_poll = 0.0
+
+        def report_faces(force=False):
+            nonlocal last_completed, next_progress_poll
+            now = time.monotonic()
+            if not force and now < next_progress_poll:
+                return
+            next_progress_poll = now + 1.0
+            completed = sum((temporary / f'completed-{index}').is_file() for index in range(count))
+            if completed != last_completed:
+                last_completed = completed
+                _progress(progress, 'collection-faces', f'本机 CJK 集合已编译 {completed}/{count} 面',
+                          95 + completed * 2 // max(count, 1))
+
         def run_batch(items, private, is_child):
             shared_recordings, shared_bounds = {}, {}
-            return [_compile_face_task(task, shared_recordings, shared_bounds)
-                    for _, task in items]
+            with TTFont(source, lazy=True, recalcTimestamp=False, **kwargs) as donor:
+                results = []
+                for _, task in items:
+                    results.append(_compile_face_task(task, shared_recordings, shared_bounds, donor))
+                    (temporary / f'completed-{task["face"]}').touch()
+                    if not is_child:
+                        report_faces(force=True)
+                return results
 
+        compile_started = time.monotonic()
         batches, _budget = font_parallel.run_batches(
-            tasks, temporary / 'workers', source.stat().st_size, run_batch)
+            tasks, temporary / 'workers', source.stat().st_size, run_batch, progress_poll=report_faces)
+        report_faces(force=True)
+        report['performance'] = {'execution': _budget,
+                                 'facesWallSeconds': round(time.monotonic() - compile_started, 3)}
         compiled = sorted((face for batch in batches for face in batch),
                           key=lambda item: item['index'])
         if [item['index'] for item in compiled] != list(range(count)):
             raise ValueError('集合逐面编译结果与原厂面索引不一致')
         for item in compiled:
             report['faces'].append(dict(index=item['index'],
-                                        contract=item['contract'], **item['details']))
+                                        contract=item['contract'], rawTables=item['rawTables'],
+                                        **item['details']))
+        for field in ('cffConversions', 'cffTemplateHits'):
+            report['performance'][field] = sum(item['details']['performance'][field] for item in compiled)
+        merge_started = time.monotonic()
         for index in range(count):
             face_path = temporary / f'face-{index}.font'
             if not face_path.is_file() or face_path.stat().st_size <= 0:
@@ -844,6 +1094,7 @@ def build(source, stock, output, workspace, request, target, progress=None,
                                                           verify_source_hash=verify_source_hash))
             return report
         collection = TTCollection()
+        _progress(progress, 'collection-merge', '正在合并本机 CJK 集合', 97)
         collection.fonts = [TTFont(path, lazy=True, recalcBBoxes=False, recalcTimestamp=False)
                             for path in face_paths]
         staged = temporary / 'compiled.ttc'
@@ -851,11 +1102,14 @@ def build(source, stock, output, workspace, request, target, progress=None,
             collection.save(staged, shareTables=True)
         finally:
             collection.close()
+        report['performance']['mergeSeconds'] = round(time.monotonic() - merge_started, 3)
+        verify_started = time.monotonic()
+        _progress(progress, 'collection-verify', '正在校验并提交本机 CJK 集合', 98)
         if collection_faces(staged) != count:
             raise ValueError('生成后的集合面数量变化')
         for index, face in enumerate(report['faces']):
             with TTFont(staged, fontNumber=index, lazy=True, recalcTimestamp=False) as check:
-                if protected(check) != face['contract']:
+                if not contract_matches(check, face['contract'], face.get('rawTables')):
                     raise ValueError(f'集合面 {index} 合集后布局契约已变化')
         if staged.stat().st_size > MAX_STOCK_FILE_BYTES:
             raise ValueError('生成后的字体集合超出单文件大小限制')
@@ -869,6 +1123,7 @@ def build(source, stock, output, workspace, request, target, progress=None,
                      precommit=lambda: _check_sources(source, stock, before,
                                                       source_hash, stock_hash,
                                                       verify_source_hash=verify_source_hash))
+        report['performance']['verifyAndPublishSeconds'] = round(time.monotonic() - verify_started, 3)
     return report
 
 
@@ -1067,7 +1322,7 @@ def build_payload(module, payload, source, request, task_workspace, mix_config):
         output = _payload_output(payload, logical)
         relative = output.relative_to(payload).as_posix()
         result = build(source, stock, output, workspace, request, logical,
-                       str(module / 'config/composite_progress.json'),
+                       os.environ.get('LUOSHU_COLLECTION_PROGRESS_FILE') or str(module / 'config/composite_progress.json'),
                        source_identity=source_before, source_sha256=source_hash,
                        stock_sha256=_snapshot_digest(module, logical, stock),
                        verify_source_hash=False, donor_facts=donor_facts)
@@ -1078,6 +1333,7 @@ def build_payload(module, payload, source, request, task_workspace, mix_config):
         report['built'].append({'path': relative, 'faces': result['stockFaces'],
                                 'outputSha256': result['outputSha256'],
                                 'mode': result.get('mode', 'compiled-or-retained'),
+                                'performance': result.get('performance', {}),
                                 'donor': result.get('donor', {})})
     if identity(source) != source_before or sha(source) != source_hash:
         raise ValueError('组合字体在集合生成期间发生变化')

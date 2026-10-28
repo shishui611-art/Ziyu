@@ -160,6 +160,9 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_slot_weight.py" \
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
+                         "$MODDIR/common/font_native_glyphs.py" \
+                         "$MODDIR/common/font_native_instance.py" \
+                         "$MODDIR/common/font-native-instance" \
                          "$MODDIR/common/font_digest_cache.py" \
                          "$MODDIR/common/coloros_global.sh" \
                          "$MODDIR/common/device_font_payload_policy.sh" \
@@ -798,10 +801,22 @@ switch_font() {
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
             allow-apply "$MODDIR" "$_active_label" 2>>"$LOG_FILE"
         _safe_guard_rc=$?
+        if [ "$_safe_guard_rc" -eq 21 ] && [ -f "$MODDIR/common/boot_ota_recover.sh" ]; then
+            # A ROM update makes the previous OEM baseline stale; refresh it for
+            # the current build and retry once instead of asking the user to
+            # leave the flow and open the boot-safety page.
+            progress 4 '系统更新后正在重新核验原厂字体'
+            . "$MODDIR/common/boot_ota_recover.sh"
+            if ziyu_boot_ota_refresh "$MODDIR" 240 2>>"$LOG_FILE"; then
+                MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
+                    allow-apply "$MODDIR" "$_active_label" 2>>"$LOG_FILE"
+                _safe_guard_rc=$?
+            fi
+        fi
         if [ "$_safe_guard_rc" -ne 0 ]; then
             case "$_safe_guard_rc" in
                 20) safe_error '开机保护已启用，当前仅允许恢复系统默认字体；请到设置 → 开机保护检查并解除保护' ;;
-                21) safe_error '系统字体基准尚未核验；请到设置 → 开机保护完成原厂字体扫描后再应用' ;;
+                21) safe_error '系统字体基准尚未核验，原厂字体扫描未完成；请到设置 → 开机保护查看原因后再应用' ;;
                 *) safe_error '无法核对开机保护状态，请检查日志；本次没有提交字体负载' ;;
             esac
             return 1
@@ -921,6 +936,7 @@ switch_font() {
             [ -f "$_collection_helper" ] || {
                 safe_error '组合字体集合逐面生成组件缺失'; return 1;
             }
+            progress 88 '正在生成原厂 CJK 字体集合'
             if [ "$_collection_cache_hit" = true ]; then
                 : # The restored per-face proof is checked immediately before commit.
             elif ! LUOSHU_REAL_MODDIR="$MODDIR" LUOSHU_TASK_SCOPE_TMPDIR="$STAGE_PAYLOAD" sh "$_collection_helper" build \
@@ -933,6 +949,7 @@ switch_font() {
                 safe_error '组合字体集合生成期间源字体或字重文件已变化'; return 1;
             }
         fi
+        progress 90 '正在核验字体负载与原厂布局契约'
         stage_verify "$_font" || { safe_error '新字体负载校验失败，当前启动字体未被改动'; return 1; }
         safe_switch_sources_unchanged || {
             safe_error '校验期间源字体或字重文件已变化，请重新切换'; return 1;

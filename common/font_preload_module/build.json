@@ -1,6 +1,6 @@
 {
   "schema": "ziyu-font-preload-build-v1",
-  "version": "v1.4.19",
+  "version": "v1.4.26",
   "ndk": "Pkg.Desc = Android NDK\nPkg.Revision = 28.2.13676358\nPkg.BaseRevision = 28.2.13676358\nPkg.ReleaseName = r28c\n",
   "sourceSha256": "105a37a71b914690a2e2dfa20f4d6842f90f1da9d1d15cd2c7b3e2784a49a65a",
   "builderSha256": "1e5d792f580f05b27159ef5c0574deee5e2ef173962254a1c53b3069b95a6208",

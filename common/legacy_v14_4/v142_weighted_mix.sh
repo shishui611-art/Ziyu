@@ -557,6 +557,8 @@ worker() {
             _base_percent=0
             if [ -s "$PROGRESS_FILE" ]; then
                 _base_percent=$(sed -n 's/^.*"percent":\([0-9][0-9]*\).*$/\1/p' "$PROGRESS_FILE" 2>/dev/null | head -n1)
+                _progress_message=$(sed -n 's/^.*"message":"\([^"]*\)".*$/\1/p' "$PROGRESS_FILE" 2>/dev/null | head -n1)
+                [ -z "$_progress_message" ] || _base_message="$_progress_message"
             fi
             case "$_base_percent" in ''|*[!0-9]*) _base_percent=0 ;; esac
             _mapped=$((36 + (_base_percent * 64 / 100)))

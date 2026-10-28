@@ -13,10 +13,22 @@ export MODDIR
 LEGACY_V14_MIX="$MODDIR/common/legacy_v14_4/mix_router.sh"
 case "${1:-config}" in
     start)
-        if [ -f "$MODDIR/common/boot_ota_guard.sh" ] && ! MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-            sh "$MODDIR/common/boot_ota_guard.sh" allow-apply "$MODDIR" mix >/dev/null 2>&1; then
-            printf '{"status":"error","message":"开机保护暂未解除，请在开机保护页面核对原因并完成原厂字体扫描"}\n'
-            exit 1
+        if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
+            MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+                sh "$MODDIR/common/boot_ota_guard.sh" allow-apply "$MODDIR" mix >/dev/null 2>&1
+            _fmc_guard_rc=$?
+            if [ "$_fmc_guard_rc" = 21 ] && [ -f "$MODDIR/common/boot_ota_recover.sh" ]; then
+                . "$MODDIR/common/boot_ota_recover.sh"
+                if ziyu_boot_ota_refresh "$MODDIR" 240 >>"$MODDIR/logs/mix.log" 2>&1; then
+                    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+                        sh "$MODDIR/common/boot_ota_guard.sh" allow-apply "$MODDIR" mix >/dev/null 2>&1
+                    _fmc_guard_rc=$?
+                fi
+            fi
+            if [ "$_fmc_guard_rc" -ne 0 ]; then
+                printf '{"status":"error","message":"开机保护暂未解除，请在开机保护页面核对原因并完成原厂字体扫描"}\n'
+                exit 1
+            fi
         fi
         if [ -f "$LEGACY_V14_MIX" ]; then
             exec sh "$LEGACY_V14_MIX" "$@"

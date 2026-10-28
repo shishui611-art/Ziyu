@@ -149,6 +149,7 @@ internal fun FontLibraryRoute(
             style = style,
             fonts = state.allFonts,
             activeFontId = state.activeFontId,
+            activeFontPending = state.activeFontPending,
             operationBusy = state.operationBusy,
             collections = collections,
             conflicts = conflicts,
@@ -177,6 +178,7 @@ internal fun FontLibraryRoute(
             style = style,
             font = font,
             active = state.activeFontId == font.id,
+            pending = state.activeFontPending,
             busy = state.operationBusy,
             onDismiss = { detailFont = null },
             onApply = {

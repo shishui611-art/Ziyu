@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Restore stock ColorOS layout metrics on existing isolated payload aliases.
+"""Prepare existing isolated ColorOS aliases with their OEM layout contract.
 
-The legacy mapper chooses the font and weight for each alias. This pass retains
-those choices and touches only metrics; it does not add slots or rebuild glyphs.
+The mapper's font/weight choices stay intact. Verified stock slots use checked
+outline transplantation; other slots keep the established metrics-only writer.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from font_metrics_io import FontMetricsIO
 from font_digest_cache import file_identity
 from font_parallel import run_batches
 from font_slot_compat import SlotCompat
+import stock_font_snapshot
 from hyperos_metrics_batch import (bitmap_bottom_slot, contract_for_slot, link_copy,
                                   read_inventory, write_metrics)
 
@@ -132,32 +133,78 @@ def build(module: Path, stage: Path) -> dict:
 
         def prepare_batch(indexed_groups, private, _isolated):
             metrics_io = FontMetricsIO()
-            slot_compat = SlotCompat(module, private)
             results = []
-            for index, (key, aliases) in indexed_groups:
-                contract, align_bottom = key[-2:]
-                output = private / f'metrics-{index}.font'
-                write_started = time.perf_counter()
-                details = write_metrics(aliases[0][0], output, contract,
+            metrics_cache = {}
+            with SlotCompat(module, private) as slot_compat:
+                for index, (key, aliases) in indexed_groups:
+                    contract, align_bottom = key[-2:]
+                    output = private / f'metrics-{index}.font'
+                    metrics_details = None
+                    for source, original_report in aliases:
+                        report = dict(original_report)
+                        report['slotWorker'] = private.name
+                        compatible = None
+                        compatibility_report = {}
+                        compat_started = time.perf_counter()
+                        # A verified stock-contract transplant already supplies
+                        # the final OEM metrics. Patching the donor's headers
+                        # first created disposable files and defeated reuse
+                        # between aliases of the same immutable weight source.
+                        if not source.is_symlink():
+                            candidate, candidate_report = slot_compat.prepare(source, report['slot'])
+                            if candidate_report.get('slotCompatibility') in (
+                                    'stock-contract-preserved', 'stock-preserved'):
+                                compatible, compatibility_report = candidate, candidate_report
+                        if compatible is None:
+                            # Keep the established metrics-only path for missing
+                            # snapshots, variable/color donors, unsupported stock
+                            # outlines, and legacy symlink aliases.
+                            if metrics_details is None:
+                                cached = metrics_cache.get(key)
+                                if cached is not None:
+                                    output, metrics_details = cached
+                                else:
+                                    write_started = time.perf_counter()
+                                    metrics_details = write_metrics(
+                                        aliases[0][0], output, contract,
                                         align_bitmap_bottom=align_bottom, metrics_io=metrics_io)
-                details['metricsWriteSeconds'] = round(time.perf_counter() - write_started, 3)
-                for source, original_report in aliases:
-                    report = dict(original_report)
-                    report.update({'metricsSource': 'stock', 'referenceUpem': contract[0],
-                                   'hhea': list(contract[1:4]), 'typo': list(contract[4:7]),
-                                   'win': list(contract[7:9]), 'useTypoMetrics': contract[9], **details})
-                    compatible, compatibility_report = slot_compat.prepare(output, report['slot'])
-                    report.update(compatibility_report)
-                    if 'outputUpem' in compatibility_report:
-                        report['layoutBoundsDifferFromSource'] = any(
-                            abs(old / report['sourceUpem'] - new / report['outputUpem']) > 1e-6
-                            for old, new in zip(report['sourceHead'], report['outputHead']))
-                    results.append({'source': str(source), 'output': str(compatible), 'report': report})
-            return {'results': results, 'metrics': metrics_io.stats()}
+                                    metrics_details['metricsWriteSeconds'] = round(
+                                        time.perf_counter() - write_started, 3)
+                                    metrics_cache[key] = (output, metrics_details)
+                            details = metrics_details
+                            compatible, compatibility_report = slot_compat.prepare(output, report['slot'])
+                        else:
+                            details = {'metricsWriteSeconds': 0, 'metricsWriteSkipped': True,
+                                       'removedCjkMappings': 0}
+                        report.update({'metricsSource': 'stock', 'referenceUpem': contract[0],
+                                       'hhea': list(contract[1:4]), 'typo': list(contract[4:7]),
+                                       'win': list(contract[7:9]), 'useTypoMetrics': contract[9], **details})
+                        report.update(compatibility_report)
+                        report['slotCompatibilitySeconds'] = round(time.perf_counter() - compat_started, 3)
+                        if 'outputUpem' in compatibility_report:
+                            report['layoutBoundsDifferFromSource'] = any(
+                                abs(old / report['sourceUpem'] - new / report['outputUpem']) > 1e-6
+                                for old, new in zip(report['sourceHead'], report['outputHead']))
+                        results.append({'source': str(source), 'output': str(compatible), 'report': report})
+                stats = {**metrics_io.stats(), **slot_compat.stats()}
+            return {'results': results, 'metrics': stats}
 
-        batches, execution = run_batches(list(groups.items()), outputs,
+        # Equal donor/line metrics do not mean equal OEM glyph/layout contracts.
+        # In particular Hans and Hant can share a metrics group while requiring
+        # two large, independent transplants. Do not serialize both in one worker.
+        # Snapshot sizes are scheduling hints only; SlotCompat still resolves and
+        # byte-verifies every actual stock input in the selected worker.
+        snapshot_files = stock_font_snapshot.load(module).get('files', {})
+        slot_jobs, costs = [], []
+        for key, aliases in groups.items():
+            for source, report in aliases:
+                slot_jobs.append((key, [(source, report)]))
+                entry = snapshot_files.get(report['slot'], {})
+                size = entry.get('size', 1) if isinstance(entry, dict) else 1
+                costs.append(max(1, min(size, 128 * 1024 * 1024)) if type(size) is int else 1)
+        batches, execution = run_batches(slot_jobs, outputs,
                                          max((s.stat().st_size for s, _, _ in jobs), default=0),
-                                         prepare_batch)
+                                         prepare_batch, item_costs=costs)
         by_slot = {report['slot']: report for report in reports}
         for batch in batches:
             for key, value in batch['metrics'].items():

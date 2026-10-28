@@ -991,6 +991,53 @@ def validate_plan(
         raise UniversalPlanError("Universal FontPlan planId 完整性校验失败")
 
 
+def static_weight_compatibility(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """Choose the existing slot compiler when an exact static weight is absent.
+
+    This is a routing decision, never approval of a font or a compiled output.
+    The compatibility engine independently validates sources, stock contracts,
+    outputs and the pending transaction before it can report success.
+    """
+    mismatches: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, bool]] = set()
+    for path, target in plan["targets"].items():
+        if target.get("action") not in {"replace", "compile", "compile-specialized"}:
+            continue
+        refs = target.get("xmlRefs") or []
+        candidates = [target_for_route(target, ref.get("weight"), ref.get("style"), ref.get("axes"))
+                      for ref in refs if isinstance(ref, dict)] if refs else [target]
+        for candidate in candidates:
+            source = candidate.get("source") or {}
+            selection = candidate.get("selection") or {}
+            if (candidate.get("status") == "blocked"
+                    or "static-weight-fallback" not in (candidate.get("risks") or [])
+                    or source.get("variable") is not False
+                    or selection.get("weightMode") != "static"):
+                continue
+            source_weight = _int(source.get("weight"))
+            target_weight = _int(selection.get("targetWeight"))
+            if (source_weight is None or target_weight is None
+                    or not 1 <= source_weight <= 1000 or not 1 <= target_weight <= 1000
+                    or source_weight == target_weight):
+                continue
+            key = (path, target_weight, selection.get("targetItalic") is True)
+            if key in seen:
+                continue
+            seen.add(key)
+            mismatches.append({"path": path, "sourceWeight": source_weight,
+                               "requestedWeight": target_weight})
+    if not mismatches:
+        return None
+    return {
+        "status": "compatibility-required",
+        "reason": "static-weight-compatibility",
+        "message": "静态字体缺少部分精确字重，已选择字体槽兼容引擎；完成校验后提交待生效负载",
+        "planId": plan["planId"],
+        "weightMismatchCount": len(mismatches),
+        "examples": mismatches[:8],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--topology", required=True, type=Path)
@@ -998,6 +1045,7 @@ def main() -> int:
     parser.add_argument("--source-profile", required=True, type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--validate", type=Path)
+    parser.add_argument("--select-engine", action="store_true")
     args = parser.parse_args()
 
     try:
@@ -1020,6 +1068,11 @@ def main() -> int:
             plan = build_plan(topology, roles, profile)
             if args.output is not None:
                 _atomic_write(args.output, plan)
+        if args.select_engine and args.validate is None:
+            decision = static_weight_compatibility(plan)
+            if decision is not None:
+                print(json.dumps(decision, ensure_ascii=False, separators=(",", ":")))
+                return 3
     except (UniversalPlanError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "error", "message": str(error)}, ensure_ascii=False))
         return 1

@@ -95,7 +95,7 @@ _uc_recover_pending() (
 _uc_legacy() {
     _ucl_font="$1"; _ucl_reason="$2"
     case "$_ucl_reason" in
-        default-font|composite-runtime|composite-family|physical-continuous-switch)
+        default-font|composite-runtime|composite-family|physical-continuous-switch|static-weight-compatibility)
             _uc_log "INFO compatibility path selected font=$_ucl_font reason=$_ucl_reason"
             ;;
         *)
@@ -224,6 +224,13 @@ _uc_switch() {
     _uc_log "universal prepare finished font=$_uc_font rc=$_uc_prepare_rc budget=${_uc_prepare_budget}s"
     printf '%s\n' "$_uc_prepare_output" | tail -c 12000 >> "$LOG_FILE" 2>/dev/null || true
     case "$_uc_prepare_rc" in
+        3)
+            if printf '%s\n' "$_uc_prepare_output" | grep -Fq '"status":"compatibility-required"' &&
+               printf '%s\n' "$_uc_prepare_output" | grep -Fq '"reason":"static-weight-compatibility"'; then
+                _uc_legacy "$_uc_font" static-weight-compatibility
+                return $?
+            fi
+            ;;
         125|129|130|143)
             _uc_write_state failed "$_uc_font" universal "prepare-not-clean-rc-$_uc_prepare_rc"
             printf '{"status":"error","message":"通用字体任务取消或清理未确认，当前字体及待应用选择保持原样"}\n'

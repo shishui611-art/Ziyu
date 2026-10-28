@@ -167,11 +167,32 @@ def main() -> int:
             if interrupted or time.monotonic() >= ready_deadline:
                 return 128 + interrupted if interrupted else 126
             time.sleep(0.02)
+    # Share the supervisor's suspend-excluding clock with shell workers.
+    # /proc/uptime includes suspend and must not be mixed with monotonic deadlines.
+    clock_file = Path(args.pid_file + f'.clock.{os.getpid()}') if args.pid_file else None
+    clock_failed = False
+    def publish_clock(elapsed):
+        nonlocal clock_failed
+        if clock_file is None or clock_failed:
+            return
+        temporary = clock_file.with_name(clock_file.name + '.tmp')
+        try:
+            temporary.write_text(str(int(elapsed)) + '\n', encoding='ascii')
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, clock_file)
+        except OSError as error:
+            clock_failed = True
+            print(f'字域：任务计时状态写入失败，监督器仍保留总时限：{error}', file=sys.stderr)
+
     env = dict(os.environ)
     env['LUOSHU_TASK_SCOPE_PID'] = str(os.getpid())
     env['LUOSHU_TASK_SCOPE_PID_FILE'] = args.pid_file
     env['LUOSHU_TASK_SCOPE_TASK'] = args.task
     started = time.monotonic()
+    if clock_file is not None:
+        env['LUOSHU_TASK_CLOCK_FILE'] = str(clock_file)
+        publish_clock(0)
+    clock_tick = 0
     proc = None
     result = 126
     timed_out = False
@@ -185,7 +206,11 @@ def main() -> int:
             if interrupted:
                 result = 128 + interrupted
                 break
-            if time.monotonic() - started >= args.timeout:
+            elapsed = time.monotonic() - started
+            if int(elapsed) > clock_tick:
+                publish_clock(elapsed)
+                clock_tick = int(elapsed)
+            if elapsed >= args.timeout:
                 timed_out = True
                 result = 124
                 break
@@ -208,6 +233,12 @@ def main() -> int:
                   'terminationSignal': interrupted, 'terminated': terminated,
                   'reaped': reaped, 'leftoverPids': leftovers,
                   'durationSeconds': round(time.monotonic() - started, 3)}
+        if clock_file is not None:
+            for path in (clock_file, clock_file.with_name(clock_file.name + '.tmp')):
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
         release_pid(args.pid_file, args.task, report)
         print('[TASK-CLEANUP] ' + json.dumps(report, ensure_ascii=False), file=sys.stderr)
     return result

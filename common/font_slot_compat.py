@@ -8,6 +8,7 @@ layout, axes and line metrics remain unchanged; uncovered characters stay OEM.
 """
 from __future__ import annotations
 
+import gc
 import os
 from pathlib import Path
 
@@ -29,6 +30,56 @@ class SlotCompat:
         self.workspace = workspace
         self.digests = FontDigestCache()
         self.outputs = {}
+        self._donor = None
+        self._donor_identity = None
+        self._recordings = {}
+        self._outline_cache = {}
+        self._donor_loads = 0
+        self._donor_reuses = 0
+        self._template_hits = 0
+        self._template_peak = 0
+        self._native_batches = self._native_hits = self._native_bytes = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exception):
+        self.close()
+
+    def close(self):
+        if self._donor is not None:
+            self._donor.close()
+            self._donor = None
+            self._donor_identity = None
+            self._template_hits += self._outline_cache.get('templateHits', 0)
+            self._template_peak = max(self._template_peak, self._outline_cache.get('templateBytes', 0))
+            self._native_batches += self._outline_cache.get('nativeGlyphBatches', 0)
+            self._native_hits += self._outline_cache.get('nativeGlyphHits', 0)
+            self._native_bytes = max(self._native_bytes, self._outline_cache.get('nativeGlyphBytes', 0))
+            self._recordings.clear()
+            self._outline_cache.clear()
+            # Release FontTools table/glyph cycles before loading another
+            # weight source, rather than accumulating graphs inside a worker.
+            gc.collect()
+
+    def _source(self, path, expected):
+        if self._donor_identity != expected:
+            self.close()
+            self._donor = TTFont(path, lazy=True, recalcBBoxes=False, recalcTimestamp=False)
+            self._donor_identity = expected
+            self._donor_loads += 1
+        else:
+            self._donor_reuses += 1
+        return self._donor
+
+    def stats(self):
+        return {'compatDonorLoads': self._donor_loads,
+                'compatDonorReuses': self._donor_reuses,
+                'glyphTemplateHits': self._template_hits + self._outline_cache.get('templateHits', 0),
+                'glyphTemplatePeakBytes': max(self._template_peak, self._outline_cache.get('templateBytes', 0)),
+                'nativeGlyphBatches': self._native_batches + self._outline_cache.get('nativeGlyphBatches', 0),
+                'nativeGlyphHits': self._native_hits + self._outline_cache.get('nativeGlyphHits', 0),
+                'nativeGlyphBytes': max(self._native_bytes, self._outline_cache.get('nativeGlyphBytes', 0))}
 
     def prepare(self, donor: Path, logical: str) -> tuple[Path, dict]:
         if donor.is_symlink():
@@ -60,8 +111,8 @@ class SlotCompat:
                            'compatibilityReason': 'collection-requires-per-face-pipeline'}
         output = self.workspace / f'stock-slot-{len(self.outputs)}.font'
         try:
-            with TTFont(stock, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as base, \
-                    TTFont(donor, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as source:
+            source = self._source(donor, before)
+            with TTFont(stock, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as base:
                 # Keep variable/color sources on their established path. Freezing
                 # them here would lose the user's axis/bitmap/color behaviour.
                 if 'fvar' in source or any(tag in source for tag in font_source_profile.COLOR_TABLES):
@@ -70,14 +121,23 @@ class SlotCompat:
                 if 'glyf' not in base:
                     return donor, {'slotCompatibility': 'unverified',
                                    'compatibilityReason': 'non-truetype-stock-outline-preserved'}
+                if any(tag not in source for tag in ('head', 'hhea', 'OS/2')):
+                    raise ValueError('字体来源缺少必要的布局度量表')
+                source['hhea']
+                source['OS/2']
                 stock_order = list(base.getGlyphOrder())
                 original = protected(base, stock_order)
+                source_upem = int(source['head'].unitsPerEm)
+                if not 16 <= source_upem <= 16384:
+                    raise ValueError('源字体 unitsPerEm 无效')
+                source_head = [int(source['head'].yMin), int(source['head'].yMax)]
                 output_upem = int(base['head'].unitsPerEm)
                 output_head = [int(base['head'].yMin), int(base['head'].yMax)]
                 source_points = set((source.getBestCmap() or {}).keys())
                 stock_points = set((base.getBestCmap() or {}).keys())
-                details = replace_face(base, source, {}, require_cjk=False,
-                                       preserve_dependencies=True, preserve_unsafe=True)
+                details = replace_face(base, source, self._recordings, require_cjk=False,
+                                       preserve_dependencies=True, preserve_unsafe=True,
+                                       outline_cache=self._outline_cache, native_source=donor)
                 if protected(base, stock_order) != original:
                     raise ValueError('原厂字符映射或字体槽契约在生成时发生变化')
                 if details['mode'] != 'compiled':
@@ -85,6 +145,11 @@ class SlotCompat:
                         raise ValueError('字体来源或原厂快照在字体槽生成期间发生变化')
                     return stock, {'slotCompatibility': 'stock-preserved',
                                    'compatibilityReason': details['mode'],
+                                   'sourceUpem': source_upem, 'sourceHead': source_head,
+                                   'outputUpem': output_upem, 'outputHead': output_head,
+                                   'layoutBoundsSource': 'stock',
+                                   'bitmapBaselineCorrection': 0,
+                                   'bitmapBaselineReason': 'stock-preserved',
                                    'replacedCharacters': details.get('replaced', {})}
                 base.save(output, reorderTables=False)
             with TTFont(output, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as check:
@@ -99,13 +164,16 @@ class SlotCompat:
                 raise ValueError('字体来源或原厂快照在字体槽生成期间发生变化')
             os.chmod(output, 0o644)
             report = {'slotCompatibility': 'stock-contract-preserved',
+                      'outlineEngine': details.get('outlineEngine', {'engine': 'fonttools'}),
                       'stockOnlyCharactersRetained': len(stock_points - source_points),
                       'unsafeGlyphsRetained': details['retainedUnsafeSlots'],
+                      'unsafeGlyphs': details.get('retainedUnsafeGlyphs', []),
                       'retainedComponentCopies': len((details.get('dependencyProof') or {}).get('helpers', {})),
                       'dependencyCompatibilityReason': (details.get('dependencyProof') or {}).get('reason', 'isolated-stock-components'),
                       'replacedCharacters': details['replaced'],
                       'stockGlyphIdsPreserved': True, 'stockCmapPreserved': True,
                       'stockLayoutPreserved': True, 'stockAxesPreserved': True,
+                      'sourceUpem': source_upem, 'sourceHead': source_head,
                       'outputUpem': output_upem, 'outputHead': output_head,
                       'layoutBoundsSource': 'stock', 'bitmapBaselineCorrection': 0,
                       'bitmapBaselineReason': 'stock-preserved',

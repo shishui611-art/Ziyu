@@ -11,7 +11,10 @@ mkdir -p "$MOD/common" "$MOD/config" "$MOD/logs" "$TMP/bin" \
     "$MOD/.luoshu-payload/system/fonts" "$MOD/.luoshu-payload/system/etc"
 cp "$ROOT/service.sh" "$MOD/service.sh"
 cp "$ROOT/common/device_font_load_verify.sh" "$ROOT/common/font_route_verify.py" \
+    "$ROOT/common/font_digest_cache.py" "$ROOT/common/font_live_payload.py" \
     "$ROOT/common/font_switch_lock.sh" "$MOD/common/"
+# The verifier imports the inventory modules lazily when checking real routes.
+cp "$ROOT/common/"*.py "$MOD/common/"
 printf 'mix\n' > "$MOD/config/active_font.conf"
 printf 'font=mix\n' > "$MOD/config/font_runtime_legacy_v14_4.conf"
 printf 'state=mounted\n' > "$MOD/config/self-mount.conf"
@@ -37,7 +40,11 @@ export PATH="$TMP/bin:$PATH" MODDIR="$MOD" MODULE_DIR="$MOD"
 export LUOSHU_BACKEND_TEST_BOOT_ID=test-boot LUOSHU_PYTHON=python3
 export LUOSHU_FONT_VERIFY_VISIBLE_ROOT="$PID1" LUOSHU_FONT_VERIFY_MOUNTINFO="$TMP/mountinfo"
 export LUOSHU_VISIBLE_ROOT="$SU_VIEW"
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+fail() {
+    printf 'FAIL: %s\n' "$*" >&2
+    [ ! -f "$MOD/logs/device-font-load-verify.log" ] || tail -n 8 "$MOD/logs/device-font-load-verify.log" >&2
+    exit 1
+}
 backend() {
     printf 'schema=ziyu-mount-backend-v1\nboot_id=%s\nactive_backend=%s\nverification=%s\nlast_error=%s\n' \
         "$1" "$2" "$3" "$4" > "$MOD/config/mount-backend.conf"
@@ -126,6 +133,27 @@ grep -q 'font load confirmed' "$MOD/logs/service-legacy-v14.4.log" || fail 'PID 
 assert_reason backend-pid1-route-verified:self
 [ ! -f "$MOD/config/text_reboot_required.conf" ] || fail 'verified boot retained reboot marker'
 printf 'PASS actual legacy service confirms only after successful PID 1 readback\n'
+
+# A newly selected offline transaction must not relabel or erase the proof for
+# the font mounted this boot, and must not consume its reboot marker.
+cp "$ROOT/common/font_live_state.sh" "$ROOT/common/font_boot_state.sh" "$MOD/common/"
+mkdir -p "$MOD/.luoshu-payload-next"
+printf 'NextFont\n' > "$MOD/config/active_font.conf"
+printf 'state=prepared\nfont=NextFont\npreviousFont=mix\nrequestId=req-1\n' > "$MOD/config/font-payload-next.conf"
+printf 'schema=luoshu-next-payload-v1\nfont=NextFont\nrequestId=req-1\n' > "$MOD/.luoshu-payload-next/.luoshu-next-transaction.conf"
+printf 'font=NextFont\nbootId=test-boot\n' > "$MOD/config/text_reboot_required.conf"
+: > "$MOD/logs/service-legacy-v14.4.log"
+sh "$MOD/service.sh"
+attempt=0
+while [ "$attempt" -lt 100 ]; do
+    grep -q 'physical compatibility service complete' "$MOD/logs/service-legacy-v14.4.log" 2>/dev/null && break
+    sleep 0.1; attempt=$((attempt + 1))
+done
+grep -q '^activeFont=mix$' "$MOD/config/device-font-load-verification.conf" || fail 'service relabelled old proof as queued font'
+[ -s "$MOD/config/text_reboot_required.conf" ] || fail 'service consumed queued reboot marker'
+printf 'PASS service keeps the mounted generation separate from the queued font\n'
+rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/text_reboot_required.conf"
+printf 'mix\n' > "$MOD/config/active_font.conf"
 printf 'boot_id=test-boot\nactive_backend=self\nverification=passed\n' > "$MOD/config/mount-backend.conf"
 verify_rc verify 1
 assert_reason backend-state-invalid-schema

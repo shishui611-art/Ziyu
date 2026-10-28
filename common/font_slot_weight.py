@@ -97,21 +97,41 @@ def prepare(source: Path, output: Path, weight: int, keep_variable: bool,
                   'actualWeight': original, 'weightAction': 'static-preserved',
                   'weightFallback': original != weight, 'sourceFace': face,
                   'variableTarget': keep_variable}
-        if axes and (keep_variable or 'SVG ' in font):
-            report.update(weightAction=('variable-container-preserved' if keep_variable
-                                       else 'svg-variable-preserved'),
-                          weightFallback=(not keep_variable and original != weight))
+        if axes and keep_variable:
+            report.update(weightAction='variable-container-preserved', weightFallback=False)
         elif axes:
             limits = {tag: (max(axis.minValue, min(axis.maxValue, weight))
                             if tag == 'wght' else axis.defaultValue)
                       for tag, axis in axes.items()}
-            # All axes pinned, without introducing native dependencies.
-            instantiateVariableFont(font, limits, inplace=True, optimize=False)
+            from font_native_instance import attempt
+            from font_instance import check_mix_cancellation
+            native, engine = attempt(font, source, face, limits, 'cjk', check_mix_cancellation)
+            recovered = []
+            if native is None and engine.get('nativeFallback') in ('native-exit-69', 'native-exit-70'):
+                from font_gvar_repair import repair_and_instance
+                native, repaired_info, recovered = repair_and_instance(font, source, face, limits, 'cjk', check_mix_cancellation)
+                if native is not None:
+                    engine = repaired_info
+            if native is None and 'SVG ' in font:
+                # Preserve the old SVG behavior if the verified native route is unavailable.
+                report.update(weightAction='svg-variable-preserved', weightFallback=original != weight, instancing=engine)
+                if collection:
+                    font.save(output, reorderTables=False)
+                    return output, report
+                return source, report
+            instance = native if native is not None else font
+            if native is None:
+                instantiateVariableFont(font, limits, inplace=True, optimize=False)
             actual = int(round(limits.get('wght', original)))
-            font['OS/2'].usWeightClass = actual
             report.update(actualWeight=actual, weightAction='variable-instanced',
-                          weightFallback=actual != weight, instanceLocation=limits)
-            font.save(output, reorderTables=False)
+                          weightFallback=actual != weight, instanceLocation=limits, instancing=engine,
+                          variationFallbacks=recovered)
+            try:
+                instance['OS/2'].usWeightClass = actual
+                instance.save(output, reorderTables=False)
+            finally:
+                if native is not None:
+                    native.close()
             return output, report
         if collection:
             font.save(output, reorderTables=False)

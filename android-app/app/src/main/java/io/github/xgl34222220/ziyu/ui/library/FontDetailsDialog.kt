@@ -76,6 +76,7 @@ internal fun FontDetailsDialogRoute(
     style: UiStyle,
     font: FontItem,
     active: Boolean,
+    pending: Boolean,
     busy: Boolean,
     onDismiss: () -> Unit,
     onApply: () -> Unit,
@@ -152,6 +153,7 @@ internal fun FontDetailsDialogRoute(
                     Spacer(Modifier.height(6.dp))
                     FontStateBadge(
                         text = when {
+                            active && pending -> "已准备，等待重启"
                             active -> "当前正在使用"
                             font.valid -> "字体检查通过"
                             else -> "字体需要检查"
@@ -337,7 +339,7 @@ internal fun FontDetailsDialogRoute(
                     ) {
                         Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = tokens.success)
                         Spacer(Modifier.width(8.dp))
-                        Text("当前正在使用", color = tokens.success, fontWeight = FontWeight.SemiBold)
+                        Text(if (pending) "已准备，等待重启" else "当前正在使用", color = tokens.success, fontWeight = FontWeight.SemiBold)
                     }
                     Button(onClick = onApply, enabled = font.valid && !busy, modifier = Modifier.fillMaxWidth()) {
                         Text("重新应用此字体")

@@ -312,6 +312,11 @@ EOF_TASK_SELECTION
 
     _reboot_required=false
     [ -f "$TEXT_REBOOT_REQUIRED" ] && _reboot_required=true
+    _physical_pending=false
+    if type ziyu_pending_physical >/dev/null 2>&1 && ziyu_pending_physical "$MODDIR"; then
+        _physical_pending=true
+        _reboot_required=true
+    fi
     _temporary_root=false
     temporary_root_mode && _temporary_root=true
 
@@ -333,6 +338,15 @@ EOF_TASK_SELECTION
     elif [ -e "$MODDIR/config/font-live-transaction.conf" ]; then
         _font_effect_state=failed
         _verification_reason=live-transaction-recovery-required
+    elif [ "$_physical_pending" = true ]; then
+        _font_effect_state=pending-reboot
+        _verification_state=pending; _verification_grade=PENDING
+        _verification_reason=next-boot-payload-prepared
+        _pending_previous=$(read_prop "$MODDIR/config/font-payload-next.conf" previousFont)
+        if [ -n "$_backend_current" ] && [ "$(read_prop "$_backend_current" verification)" = passed ] &&
+           [ "$(read_prop "$_backend_current" payload_font)" = "$_pending_previous" ] && [ -n "$_pending_previous" ]; then
+            _effective_active="$_pending_previous"
+        fi
     elif [ "$_active" = default ]; then
         _effective_active=default
         _font_effect_state=system

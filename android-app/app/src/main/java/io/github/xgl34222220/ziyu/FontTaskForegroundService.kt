@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.os.IBinder
 import android.util.Log
 import androidx.compose.runtime.snapshotFlow
@@ -218,6 +219,26 @@ internal object FontTaskNotificationController {
 internal class FontTaskForegroundService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var observer: Job? = null
+    private var taskWakeLock: PowerManager.WakeLock? = null
+
+    private fun holdTaskCpu() {
+        if (taskWakeLock?.isHeld == true) return
+        runCatching {
+            taskWakeLock = getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ziyu:FontTask")
+                .apply {
+                    setReferenceCounted(false)
+                    // Finite fallback if state polling stops; normal completion
+                    // releases immediately. Does not keep the display on.
+                    acquire(16 * 60 * 1_000L)
+                }
+        }.onFailure { Log.w("ZiyuFontTask", "Unable to keep font task CPU awake", it) }
+    }
+
+    private fun releaseTaskCpu() {
+        taskWakeLock?.let { lock -> if (lock.isHeld) lock.release() }
+        taskWakeLock = null
+    }
     private val model: ZiyuViewModel get() = (application as ZiyuApplication).ziyuViewModel
 
     override fun onCreate() {
@@ -242,15 +263,22 @@ internal class FontTaskForegroundService : Service() {
             stopSelfResult(startId)
             return START_NOT_STICKY
         }
+        if (current.ongoing) holdTaskCpu()
         FontTaskNotificationController.markServiceAttached()
         observer?.cancel()
         observer = scope.launch {
             snapshotFlow { model.fontTaskNotification }
                 .distinctUntilChanged()
                 .collect { spec ->
-                    if (spec == null) return@collect
+                    if (spec == null) {
+                        releaseTaskCpu()
+                        stopForeground(STOP_FOREGROUND_DETACH)
+                        stopSelfResult(startId)
+                        return@collect
+                    }
                     FontTaskNotificationController.notify(this@FontTaskForegroundService, spec)
                     if (!spec.ongoing) {
+                        releaseTaskCpu()
                         stopForeground(STOP_FOREGROUND_DETACH)
                         stopSelfResult(startId)
                     }
@@ -260,6 +288,7 @@ internal class FontTaskForegroundService : Service() {
     }
 
     override fun onTimeout(startId: Int, fgsType: Int) {
+        releaseTaskCpu()
         observer?.cancel()
         FontTaskNotificationController.markServiceDetached(FONT_TASK_DATA_SYNC_TIMEOUT_NOTICE)
         model.fontTaskNotification?.let { FontTaskNotificationController.notify(this, it) }
@@ -268,6 +297,7 @@ internal class FontTaskForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        releaseTaskCpu()
         observer?.cancel()
         scope.cancel()
         FontTaskNotificationController.markServiceStopped()

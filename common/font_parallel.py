@@ -44,7 +44,8 @@ def worker_budget(job_count, source_bytes=0):
     except (AttributeError, OSError):
         cpus = (getattr(os, 'process_cpu_count', os.cpu_count)() or 1)
     available = _available_memory()
-    per_worker = max(768 * MIB, max(0, source_bytes) * 24)
+    # Include the bounded immutable outline-template cache used by transplants.
+    per_worker = max(768 * MIB, max(0, source_bytes) * 24) + 64 * MIB
     memory_workers = max(1, (available - 1024 * MIB) // per_worker)
     workers = max(1, min(3, cpus // 2, job_count, memory_workers))
     if not hasattr(os, 'fork') or not hasattr(signal, 'pthread_sigmask'):
@@ -67,7 +68,7 @@ def _stop_children(children):
             pass
 
 
-def run_batches(items, workspace, source_bytes, run_batch):
+def run_batches(items, workspace, source_bytes, run_batch, *, item_costs=None, progress_poll=None):
     """Return ordered child batches and the chosen resource budget.
 
     run_batch receives indexed items, a private directory, and whether it is in
@@ -80,10 +81,27 @@ def run_batches(items, workspace, source_bytes, run_batch):
     if not items:
         return [], {**budget, 'workers': 0}
     indexed = list(enumerate(items))
+    if item_costs is not None:
+        if (len(item_costs) != len(items)
+                or any(type(cost) is not int or cost < 1 for cost in item_costs)):
+            raise ValueError('字体任务调度估算无效')
+        partitions = [[] for _ in range(budget['workers'])]
+        loads = [0] * budget['workers']
+        # Longest estimated jobs first; preserve the original item indices.
+        # Costs affect scheduling only, never validation or publication.
+        for item in sorted(indexed, key=lambda pair: (-item_costs[pair[0]], pair[0])):
+            worker = min(range(len(loads)), key=lambda index: (loads[index], index))
+            partitions[worker].append(item)
+            loads[worker] += item_costs[item[0]]
+        budget['scheduling'] = 'estimated-cost-balanced'
+        budget['estimatedBatchCosts'] = loads
+        budget['batchItemCounts'] = [len(batch) for batch in partitions]
+    else:
+        partitions = [indexed[index::budget['workers']] for index in range(budget['workers'])]
     if budget['workers'] == 1:
         private = workspace / 'worker-0'
         private.mkdir()
-        return [run_batch(indexed, private, False)], budget
+        return [run_batch(partitions[0], private, False)], budget
 
     pending = {}
     completed = {}
@@ -99,7 +117,7 @@ def run_batches(items, workspace, source_bytes, run_batch):
             private = workspace / f'worker-{index}'
             private.mkdir()
             result_file = private / 'result.json'
-            batch = indexed[index::budget['workers']]
+            batch = partitions[index]
             # Register ownership before an interrupt can arrive between fork() and pending[pid].
             previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, set(previous_handlers))
             try:
@@ -134,6 +152,8 @@ def run_batches(items, workspace, source_bytes, run_batch):
             pending[pid] = (index, result_file)
             signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         while pending:
+            if progress_poll is not None:
+                progress_poll()
             progressed = False
             for pid in list(pending):
                 found, status = os.waitpid(pid, os.WNOHANG)

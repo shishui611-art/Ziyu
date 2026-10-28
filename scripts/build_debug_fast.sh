@@ -15,7 +15,7 @@ SIZE_REPORT="$OUT/Ziyu-${LUOSHU_ARTIFACT_VERSION}-size.txt"
 APP_APK="${LUOSHU_APP_APK:-}"
 ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
-MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-12582912}"
+MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-13631488}"
 
 [ -s "$APP_APK" ] || { echo 'LUOSHU_APP_APK is required.' >&2; exit 65; }
 APP_PACKAGE="${LUOSHU_APP_PACKAGE:-}"
@@ -34,6 +34,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE" "$OUT"
 PAYLOAD_MANIFEST="$ROOT/scripts/module_payload_manifest.txt"
 python3 "$ROOT/scripts/build_font_preload.py" --verify
+python3 "$ROOT/scripts/build_font_instance.py" --verify
 test -s "$PAYLOAD_MANIFEST"
 while IFS= read -r path || [ -n "$path" ]; do
   case "$path" in ''|\#*) continue ;; esac

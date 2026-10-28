@@ -68,6 +68,20 @@ assert_status unknown pending stale-verification
 touch "$CONFIG/text_reboot_required.conf"
 assert_status unknown pending-reboot ''
 
+# A valid prepared transaction remains pending even if a prior service version
+# accidentally removed the reboot marker and relabelled the old boot proof.
+mkdir -p "$MODULE/common" "$MODULE/.luoshu-payload-next"
+cp "$ROOT/common/font_live_state.sh" "$MODULE/common/"
+rm -f "$CONFIG/text_reboot_required.conf"
+printf 'NextFont\n' > "$CONFIG/active_font.conf"
+printf 'state=prepared\nfont=NextFont\npreviousFont=DemoFont\nrequestId=req-1\n' > "$CONFIG/font-payload-next.conf"
+printf 'schema=luoshu-next-payload-v1\nfont=NextFont\nrequestId=req-1\n' > "$MODULE/.luoshu-payload-next/.luoshu-next-transaction.conf"
+printf 'state=verified\nmode=mount-verified\nactiveFont=NextFont\n' > "$CONFIG/device-font-load-verification.conf"
+assert_status unknown pending-reboot next-boot-payload-prepared
+_output=$(MODDIR="$MODULE" sh "$ROOT/common/app_bridge.sh" status)
+printf '%s' "$_output" | python3 -c 'import json,sys; assert json.load(sys.stdin)["data"]["rebootRequired"] is True'
+rm -f "$CONFIG/font-payload-next.conf"
+
 # Universal production mode consumes Phase 8 grade and exposes Phase 9 rollback state.
 rm -f "$CONFIG/text_reboot_required.conf" "$CONFIG/device-font-load-verification.conf"
 printf 'UniversalFont\n' >"$CONFIG/active_font.conf"

@@ -41,8 +41,12 @@ case "$dest" in
 esac
 
 [ -d "$USER_FONTS_DIR" ] || fail "字体库目录不存在"
+[ ! -L "$dest" ] && [ ! -L "${dest%/*}" ] || fail "归档缓存不能是符号链接"
+owner=$(stat -c '%u:%g' "${dest%/*}" 2>/dev/null)
+case "$owner" in ''|*[!0-9:]*) fail "无法读取应用缓存权限" ;; esac
 rm -rf "$dest" 2>/dev/null || fail "无法清理归档缓存"
 mkdir -p "$dest" 2>/dev/null || fail "无法创建归档缓存"
+chown "$owner" "$dest" 2>/dev/null || fail "无法设置归档缓存所有者"
 chmod 0700 "$dest" 2>/dev/null || true
 
 count=0
@@ -72,10 +76,12 @@ for file in "$USER_FONTS_DIR"/*.ttf "$USER_FONTS_DIR"/*.otf "$USER_FONTS_DIR"/*.
     ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
     target="$dest/$(printf '%03d' "$count").$ext"
     cp -f "$file" "$target" 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "复制字体文件失败"; }
+    chown "$owner" "$target" 2>/dev/null || fail "无法设置字体导出文件权限"
     chmod 0644 "$target" 2>/dev/null || true
 done
 
 [ "$count" -gt 0 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "找不到指定 Family 的字体文件"; }
+[ ! -x /system/bin/restorecon ] || /system/bin/restorecon -RF "$dest" >/dev/null 2>&1 || fail "无法恢复导出文件访问标签"
 printf '{"status":"ok","data":{"family":"%s","count":%s,"bytes":%s}}\n' \
     "$(json_escape "$family")" "$count" "$total"
 exit 0

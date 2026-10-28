@@ -74,6 +74,8 @@ if ! luoshu_private_install_migrate "$MODPATH"; then
     abort '字域私有挂载树部署失败'
     return 1 2>/dev/null || exit 1
 fi
+# Some root managers extract regular files without retaining ZIP executable bits.
+[ ! -f "$MODPATH/common/font-native-instance" ] || chmod 0755 "$MODPATH/common/font-native-instance" 2>/dev/null || true
 # Establish the build baseline during a module upgrade, before a guard-owned
 # stale disable token can prevent the new boot hook from running at all.
 if [ -f "$MODPATH/common/boot_ota_guard.sh" ]; then

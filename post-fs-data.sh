@@ -45,6 +45,22 @@ fi
 
 _soft_stage="$MODDIR/config/temporary-root-soft-reboot.conf"
 _soft_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+# An update may replace the module only after the old v1.4.38 cleanup hook has
+# already failed. Resume a deferred cleanup (or that exact legacy failure) with
+# the new full cleanup hook after `stop`, before activating any generation.
+_soft_saved_state=$(sed -n 's/^state=//p' "$_soft_stage" 2>/dev/null | head -n1)
+_soft_saved_reason=$(sed -n 's/^reason=//p' "$_soft_stage" 2>/dev/null | head -n1)
+if [ -n "$_soft_boot" ] &&
+   [ "$(sed -n 's/^boot_id=//p' "$_soft_stage" 2>/dev/null | head -n1)" = "$_soft_boot" ] &&
+   { [ "$_soft_saved_state" = nomount-cleanup-pending ] ||
+     { [ "$_soft_saved_state" = failed ] && [ "$_soft_saved_reason" = nomount-still-routes-luoshu-payload ]; }; } &&
+   [ -f "$MODDIR/common/mount_nomount_backend.sh" ] && [ -f "$MODDIR/emulated-soft-reboot.sh" ]; then
+    printf '[TEMP-ROOT] retrying legacy NoMount cleanup with updated hook before activation\n' >> "$MODDIR/logs/mount-backend.log"
+    ZIYU_KSU_POST_STOP_RELOAD=1 sh "$MODDIR/emulated-soft-reboot.sh" >> "$MODDIR/logs/mount-backend.log" 2>&1
+    _soft_retry_rc=$?
+    [ "$_soft_retry_rc" -eq 0 ] &&
+        [ "$(sed -n 's/^state=//p' "$_soft_stage" 2>/dev/null | head -n1)" = ready ] || exit 1
+fi
 if [ -n "$_soft_boot" ] &&
    [ "$(sed -n 's/^boot_id=//p' "$_soft_stage" 2>/dev/null | head -n1)" = "$_soft_boot" ] &&
    [ "$(sed -n 's/^state=//p' "$_soft_stage" 2>/dev/null | head -n1)" = failed ]; then

@@ -48,6 +48,8 @@ internal data class NativeImportState(
     val resultVisible: Boolean = false,
     val refreshToken: Long = 0L,
     val recovered: Boolean = false,
+    // Process-local history marker; never persisted as a new task event.
+    val restoredFromDisk: Boolean = false,
 ) {
     val busy: Boolean
         get() = phase == NativeImportPhase.QUEUED || phase == NativeImportPhase.RUNNING
@@ -254,6 +256,7 @@ internal class NativeImportViewModel(application: Application) : AndroidViewMode
                     saved.phase == NativeImportPhase.SUCCESS ||
                         saved.phase == NativeImportPhase.FAILED ||
                         saved.phase == NativeImportPhase.CANCELLED -> state = saved.toUiState(resultVisible = false)
+                            .copy(restoredFromDisk = true)
                     saved.unfinished -> runQueue(saved.forResume())
                     else -> state = saved.toUiState(resultVisible = false)
                 }

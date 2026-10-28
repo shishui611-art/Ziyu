@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import errno
 import json
 import sys
 import tempfile
+from types import ModuleType
+from unittest import mock
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -134,9 +137,24 @@ def main() -> int:
         assert dynamic_logical in artifact_manifest["dynamicTargetMap"]
 
         payload_root = temp / "payload"
-        manifest = deployment.build_deployment(
-            font_plan, route_plan, artifact_manifest, payload_root
-        )
+        expected_seal_roots = {payload_root.resolve()}
+        sealed_sources: list[Path] = []
+        test_font_verity = ModuleType("font_verity")
+
+        def seal_staged_dynamic_source(path: Path) -> str:
+            staged_path = Path(path).resolve()
+            assert staged_path.is_file()
+            assert staged_path.parent.name == ".luoshu-dynamic"
+            assert staged_path.parent.parent in expected_seal_roots
+            sealed_sources.append(staged_path)
+            return "test-only-fsverity-digest"
+
+        test_font_verity.seal = seal_staged_dynamic_source
+        with mock.patch.dict(sys.modules, {"font_verity": test_font_verity}):
+            manifest = deployment.build_deployment(
+                font_plan, route_plan, artifact_manifest, payload_root
+            )
+        assert len(sealed_sources) == 1
         assert Path.cwd().is_dir()
         assert (ROOT / "scripts/universal_font_deployment_bridge_test.sh").is_file()
         deployment.validate_deployment(
@@ -185,15 +203,23 @@ def main() -> int:
         assert dynamic["readOnly"] is True
         dynamic_source = payload_root / dynamic["sourcePayloadPath"]
         assert dynamic_source.is_file()
+        assert sealed_sources[0] == dynamic_source.resolve()
         runtime_conf = payload_root / ".luoshu-runtime/deployment/dynamic-mounts.conf"
         assert runtime_conf.is_file()
         assert dynamic_logical in runtime_conf.read_text(encoding="utf-8")
 
         # Payload identity must not depend on where the prepared directory lives.
         second_root = temp / "payload-elsewhere"
-        second = deployment.build_deployment(
-            font_plan, route_plan, artifact_manifest, second_root
-        )
+        expected_seal_roots.add(second_root.resolve())
+        with mock.patch.dict(sys.modules, {"font_verity": test_font_verity}):
+            second = deployment.build_deployment(
+                font_plan, route_plan, artifact_manifest, second_root
+            )
+        assert len(sealed_sources) == 2
+        assert sealed_sources[1].parent.parent == second_root.resolve()
+        assert sealed_sources[1] == (
+            second_root / second["dynamicMounts"][0]["sourcePayloadPath"]
+        ).resolve()
         assert Path.cwd().is_dir()
         assert (ROOT / ".git").exists() or (ROOT / "scripts").is_dir()
         assert second["payloadDigest"] == manifest["payloadDigest"]
@@ -206,6 +232,27 @@ def main() -> int:
         }
         assert len({value[0] for value in identities.values()}) == 1
         assert len({value[1] for value in identities.values()}) == 1
+
+        # An unavailable fs-verity implementation must block deployment. Keep
+        # this failure path deterministic instead of depending on the host FS.
+        rejected_root = temp / "payload-without-fsverity"
+        unavailable_verity = ModuleType("font_verity")
+
+        def reject_unsupported_filesystem(path: Path) -> str:
+            raise OSError(errno.EOPNOTSUPP, "fs-verity unsupported by test fixture")
+
+        unavailable_verity.seal = reject_unsupported_filesystem
+        with mock.patch.dict(sys.modules, {"font_verity": unavailable_verity}):
+            try:
+                deployment.build_deployment(
+                    font_plan, route_plan, artifact_manifest, rejected_root
+                )
+            except OSError as error:
+                assert error.errno == errno.EOPNOTSUPP
+            else:
+                raise AssertionError("deployment succeeded without fs-verity")
+        assert not rejected_root.exists()
+        assert not list(temp.glob(".payload-without-fsverity.*"))
 
         # Tampering with a frozen verification contract is rejected before next boot.
         original_plan_snapshot = plan_snapshot.read_bytes()

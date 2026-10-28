@@ -58,6 +58,11 @@ import universal_font_plan
 import fontTools
 from font_digest_cache import FontDigestCache, file_identity
 from font_parallel import run_batches
+from font_native_instance import (
+    HELPER as NATIVE_INSTANCE_HELPER,
+    attempt as native_instance,
+    engine_identity as native_engine_identity,
+)
 from font_space_compat import ensure_space_glyphs
 from legacy_v14_4.composite_layout import (
     clear_imported_metric_variations,
@@ -65,7 +70,7 @@ from legacy_v14_4.composite_layout import (
 )
 
 SCHEMA = "universal-font-artifacts-v1"
-COMPILER_REVISION = 4
+COMPILER_REVISION = 6
 FONT_PLAN_SCHEMA = "universal-font-plan-v1"
 ROUTE_SCHEMA = "minimal-xml-route-plan-v1"
 ROUTABLE_ACTIONS = {"replace", "compile", "compile-specialized"}
@@ -310,7 +315,11 @@ def _profile_from_font(font: TTFont) -> dict[str, Any]:
     }
 
 
-def _instantiate(font: TTFont, weight: int, axes: dict[str, float]) -> tuple[TTFont, dict[str, float]]:
+def _instantiate(
+    font: TTFont, weight: int, axes: dict[str, float], *,
+    source_path: Path | None = None, face_index: int = 0,
+    instancing: dict[str, Any] | None = None,
+) -> tuple[TTFont, dict[str, float]]:
     if "fvar" not in font:
         if axes:
             unknown = ", ".join(sorted(axes))
@@ -319,6 +328,8 @@ def _instantiate(font: TTFont, weight: int, axes: dict[str, float]) -> tuple[TTF
             actual = int(font["OS/2"].usWeightClass)
             if actual != weight:
                 raise CompilerError(f"静态源字重 {actual} 不能伪装成目标字重 {weight}")
+        if instancing is not None:
+            instancing.update(engine="static", required=False)
         return font, {}
 
     location: dict[str, float] = {}
@@ -338,6 +349,32 @@ def _instantiate(font: TTFont, weight: int, axes: dict[str, float]) -> tuple[TTF
                 f"[{float(axis.minValue):g},{float(axis.maxValue):g}]"
             )
         location[tag] = float(requested)
+    detail: dict[str, Any] = {"engine": "fonttools"}
+    if source_path is not None:
+        # Native instancing preserves every glyph; script/role transformations
+        # still belong to the caller. Reuse the validated bridge before Python.
+        source_identity = file_identity(source_path.stat())
+
+        def source_unchanged() -> None:
+            # A converted input can be temporary. Watch its identity without
+            # enrolling that disposable file in the final persistent-input set.
+            if file_identity(source_path.stat()) != source_identity:
+                raise CompilerError("字体源文件在原生实例化期间发生变化")
+
+        if NATIVE_INSTANCE_HELPER.is_file():
+            _watch_input(NATIVE_INSTANCE_HELPER)
+        native, detail = native_instance(
+            font, source_path, face_index, location, "cjk",
+            source_unchanged,
+        )
+        if instancing is not None:
+            instancing.update(detail)
+        if native is not None:
+            if "OS/2" in native and "wght" in location:
+                native["OS/2"].usWeightClass = int(round(location["wght"]))
+            return native, location
+    if instancing is not None:
+        instancing.update(detail)
     try:
         instance = instantiateVariableFont(font, location, inplace=False, optimize=True)
     except Exception as error:
@@ -384,11 +421,16 @@ def _source_instance(
     original = _open_face(source_path, face_index)
     instance = None
     try:
-        instance, location = _instantiate(original, weight, axes)
+        instancing: dict[str, Any] = {}
+        instance, location = _instantiate(
+            original, weight, axes, source_path=source_path,
+            face_index=face_index, instancing=instancing,
+        )
         report = {
             "inputPath": str(raw), "materializedPath": str(source_path),
             "inputContainer": container, "faceIndex": face_index,
             "variable": bool(location), "location": location, "conversion": converted,
+            "instancing": instancing,
         }
         if instance is original:
             if (_SESSION is not None and
@@ -693,7 +735,10 @@ def _stock_geometry_font(
         requested = max(float(axis.minValue), min(float(axis.maxValue), float(requested)))
         location[tag] = requested
     try:
-        instance = instantiateVariableFont(original, location, inplace=False, optimize=True)
+        detail = {}
+        instance, _ = _instantiate(original, weight, location, source_path=stock,
+                                   face_index=face_index, instancing=detail)
+        instance._ziyu_instancing = detail
     except Exception as error:
         original.close()
         raise CompilerError(f"原厂 variable geometry 实例化失败：{error}") from error
@@ -1428,7 +1473,8 @@ def _probe_alignment(
     }
 
 
-def _instance_for_validation(font: TTFont, weight: int, axes: dict[str, float]) -> TTFont:
+def _instance_for_validation(font: TTFont, weight: int, axes: dict[str, float], *,
+                             source_path: Path | None = None, face_index: int = 0) -> TTFont:
     if "fvar" not in font:
         return font
     known = {str(axis.axisTag): axis for axis in font["fvar"].axes}
@@ -1438,7 +1484,13 @@ def _instance_for_validation(font: TTFont, weight: int, axes: dict[str, float]) 
         if value is None:
             value = weight if tag == "wght" else float(axis.defaultValue)
         location[tag] = max(float(axis.minValue), min(float(axis.maxValue), float(value)))
-    return instantiateVariableFont(font, location, inplace=False, optimize=True)
+    # Only a fresh on-disk output can use the file-based bridge. Modified
+    # in-memory variable fonts must be validated from their current tables.
+    detail = {}
+    instance, _ = _instantiate(font, weight, location, source_path=source_path,
+                              face_index=face_index, instancing=detail)
+    instance._ziyu_instancing = detail
+    return instance
 
 
 def _validate_output_face(
@@ -1459,6 +1511,7 @@ def _validate_output_face(
             raw,
             _artifact_weight(artifact, target),
             geometry_axes,
+            source_path=output, face_index=face_index,
         )
         if instance is raw:
             raw = None
@@ -1490,6 +1543,7 @@ def _validate_output_face(
         if alignment["status"] != "ready":
             raise CompilerError("编译结果字形几何未通过原厂槽位校验：" + ",".join(alignment["issues"]))
         return {
+            "instancing": getattr(instance, '_ziyu_instancing', {'engine': 'static'}),
             "profile": {
                 "metrics": profile["metrics"],
                 "probeSchema": profile["probeSchema"],
@@ -1574,7 +1628,9 @@ def _compile_source_as_base(
             "mode": "source-as-base",
             "sourceContainer": source_container,
             "sourceLocation": source_location,
+            "sourceInstancing": prepared_report["instancing"],
             "stockLocation": stock_location,
+            "stockInstancing": getattr(stock_geometry, '_ziyu_instancing', {'engine': 'static'}),
             "geometry": geometry,
             "transformed": transformed,
             "conversion": conversion,
@@ -1662,7 +1718,9 @@ def _compile_stock_shell(
             "mode": "stock-shell",
             "sourceContainer": source_container,
             "sourceLocation": source_location,
+            "sourceInstancing": prepared_report["instancing"],
             "stockLocation": stock_location,
+            "stockInstancing": getattr(stock_geometry, '_ziyu_instancing', {'engine': 'static'}),
             "geometry": geometry,
             "replaced": replaced,
             "conversion": conversion,
@@ -2128,6 +2186,7 @@ def _reuse_context(allow_live_stock: bool) -> str:
     return _canonical_hash({
         'compilerRevision': COMPILER_REVISION, 'allowLiveStock': allow_live_stock,
         'fontToolsVersion': fontTools.__version__, 'pythonVersion': list(sys.version_info[:3]),
+        'nativeInstance': native_engine_identity(),
         'code': {str(path.relative_to(common)): _watch_input(path) for path in paths},
     })
 
@@ -2165,9 +2224,9 @@ def validate_manifest(
 ) -> None:
     if manifest.get("schema") != SCHEMA:
         raise CompilerError("Universal Font Artifacts manifest 格式无效")
-    # Revision 2 active payloads remain verifiable during an update. Only a
+    # Revision 2/4 active payloads remain verifiable during an update. Only a
     # current reuseContext may authorize cached compilation, never this allowance.
-    if _int(manifest.get("compilerRevision"), 0) not in {2, COMPILER_REVISION}:
+    if _int(manifest.get("compilerRevision"), 0) not in {2, 4, 5, COMPILER_REVISION}:
         raise CompilerError("Universal Font Artifacts compilerRevision 无效")
     if manifest.get("mutatesSystem") is not False:
         raise CompilerError("Phase 6 不得修改系统")

@@ -18,6 +18,10 @@ luoshu_active_payload_verified() {
     _las_active=$(head -n1 "$_las_config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_las_expected" ] && [ "$_las_expected" != default ] || return 1
     [ "$_las_active" = "$_las_expected" ] || return 1
+    if [ -f "$_las_module/common/font_live_state.sh" ]; then
+        . "$_las_module/common/font_live_state.sh"
+        ziyu_pending_physical "$_las_module" && return 1
+    fi
     [ ! -s "$_las_config/text_reboot_required.conf" ] || return 1
     [ ! -s "$_las_config/font-payload-rebuild-pending.conf" ] || return 1
     [ -s "$_las_config/font-payload-manifest.conf" ] || return 1

@@ -30,6 +30,11 @@ TIMEOUT_SECONDS="${LUOSHU_SWITCH_TIMEOUT_SECONDS:-360}"
 case "$TIMEOUT_SECONDS" in ''|*[!0-9]*) TIMEOUT_SECONDS=360 ;; esac
 [ "$TIMEOUT_SECONDS" -ge 30 ] 2>/dev/null || TIMEOUT_SECONDS=30
 [ "$TIMEOUT_SECONDS" -le 900 ] 2>/dev/null || TIMEOUT_SECONDS=900
+# A cold composite switch has two bounded compilation passes. Grant the
+# collection pass once, only when its explicit stage is reached.
+COLLECTION_TIMEOUT_SECONDS=$((TIMEOUT_SECONDS + 360))
+[ "$COLLECTION_TIMEOUT_SECONDS" -le 885 ] || COLLECTION_TIMEOUT_SECONDS=885
+[ "$COLLECTION_TIMEOUT_SECONDS" -ge "$TIMEOUT_SECONDS" ] || COLLECTION_TIMEOUT_SECONDS=$TIMEOUT_SECONDS
 HEARTBEAT_INTERVAL="${LUOSHU_SWITCH_HEARTBEAT_INTERVAL:-2}"
 case "$HEARTBEAT_INTERVAL" in ''|*[!0-9]*) HEARTBEAT_INTERVAL=2 ;; esac
 [ "$HEARTBEAT_INTERVAL" -ge 1 ] 2>/dev/null || HEARTBEAT_INTERVAL=1
@@ -223,23 +228,36 @@ progress_message() {
 
 run_bounded() {
     _font="$1"; _output="$2"; _task="$3"; _started="$4"; _progress_file="$5"
-    LUOSHU_SWITCH_PROGRESS_FILE="$_progress_file" sh "$MANAGER" action switch "$_font" > "$_output" 2>&1 &
+    _collection_progress="${_progress_file}.collection"
+    rm -f "$_collection_progress" 2>/dev/null || true
+    LUOSHU_SWITCH_PROGRESS_FILE="$_progress_file" LUOSHU_COLLECTION_PROGRESS_FILE="$_collection_progress" \
+        sh "$MANAGER" action switch "$_font" > "$_output" 2>&1 &
     _child=$!; _switch_child=$_child; _elapsed=0; _next_heartbeat=0
-    _bounded_started=$(cut -d. -f1 /proc/uptime)
+    _collection_budget_granted=false
+    _collection_last_percent=88
     while pid_alive "$_child"; do
-        _bounded_now=$(cut -d. -f1 /proc/uptime)
-        case "$_bounded_started:$_bounded_now" in
-            *[!0-9:]*|:*|*:) ;; *) _elapsed=$((_bounded_now - _bounded_started)) ;;
-        esac
+        # The owning subreaper publishes CLOCK_MONOTONIC seconds. Without
+        # that sidecar, count loop ticks; the outer supervisor still bounds us.
+        _clock_elapsed=$(head -n1 "${LUOSHU_TASK_CLOCK_FILE:-/dev/null}" 2>/dev/null)
+        case "$_clock_elapsed" in ''|*[!0-9]*) ;; *) _elapsed=$_clock_elapsed ;; esac
+        if [ "$_collection_budget_granted" = false ] &&
+           grep -qx 'percent=88' "$_progress_file" 2>/dev/null; then
+            TIMEOUT_SECONDS=$COLLECTION_TIMEOUT_SECONDS
+            _collection_budget_granted=true
+            printf '[%s] [SWITCH-BUDGET] task=%s collection active-time-limit=%ss\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" "$_task" "$TIMEOUT_SECONDS" >> "$LOG_FILE"
+        fi
         _cancel_task=$(sed -n 's/^task=//p' "$MODDIR/config/switch_task.cancel" 2>/dev/null | head -n1)
         if [ "$_cancel_task" = "$_task" ]; then
             terminate_child_tree "$_child"; wait "$_child" 2>/dev/null || true
             _switch_child=
+            rm -f "$_collection_progress" 2>/dev/null || true
             return 130
         fi
         if [ "$_elapsed" -ge "$TIMEOUT_SECONDS" ]; then
             terminate_child_tree "$_child"; wait "$_child" 2>/dev/null || true
             _switch_child=
+            rm -f "$_collection_progress" 2>/dev/null || true
             return 124
         fi
         if [ "$_elapsed" -ge "$_next_heartbeat" ]; then
@@ -247,6 +265,18 @@ run_bounded() {
             [ "$_fallback" -le 85 ] 2>/dev/null || _fallback=85
             _percent=$(progress_value "$_progress_file" "$_fallback")
             _message=$(progress_message "$_progress_file" '正在准备下一启动字体负载' "$_percent")
+            # The collection builder writes task-specific stages. Do not change
+            # the parent's 88% marker: it grants the bounded collection budget.
+            if [ "$_collection_budget_granted" = true ] && [ "$_percent" -eq 88 ] && [ -s "$_collection_progress" ]; then
+                _collection_stage=$(sed -n 's/^.*"stage":"\([^"]*\)".*$/\1/p' "$_collection_progress" | head -n1)
+                case "$_collection_stage" in collection|collection-faces|collection-merge|collection-verify)
+                    _collection_message=$(sed -n 's/^.*"message":"\([^"]*\)".*$/\1/p' "$_collection_progress" | head -n1 | tr -d '\r\n')
+                    case "$_collection_stage" in collection-merge|collection-verify) _collection_last_percent=89 ;; esac
+                    _percent=$_collection_last_percent
+                    [ -z "$_collection_message" ] || _message="$_percent% · $_collection_message"
+                    ;;
+                esac
+            fi
             write_task "$_task" running "$_font" "$_message" "$_started" '' "$$" \
                 "$(date +%s 2>/dev/null || echo 0)" "$TIMEOUT_SECONDS" "$_elapsed" "$(current_boot_id)" false "$_percent" || true
             _next_heartbeat=$((_elapsed + HEARTBEAT_INTERVAL))
@@ -255,6 +285,7 @@ run_bounded() {
     done
     wait "$_child"
     _switch_rc=$?
+    rm -f "$_collection_progress" 2>/dev/null || true
     _switch_child=
     return "$_switch_rc"
 }
@@ -347,7 +378,7 @@ run_worker() {
     elif [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
         cat "$_output" >> "$LOG_FILE" 2>/dev/null || true
         _last_stage=$(progress_message "$_progress" '正在准备下一启动字体负载' "$(progress_value "$_progress" 0)")
-        write_task "$_task" failed "$_font" "字体切换超过 ${TIMEOUT_SECONDS} 秒，已终止（${_last_stage}）；如发生热切换中断，已尝试恢复上一套字体，请查看日志" \
+        write_task "$_task" failed "$_font" "字体切换达到 ${TIMEOUT_SECONDS} 秒运行时限，已终止（${_last_stage}），当前启动字体未被改动；请查看日志" \
             "$_started" "$_finished" '' '' '' "$TIMEOUT_SECONDS" '' false 100
     else
         [ "$_rc" -ne 0 ] || _rc=1
@@ -403,7 +434,7 @@ start_task() {
     export MODDIR LUOSHU_FONT_MANAGER="$MANAGER" LUOSHU_SWITCH_TASK_FILE="$TASK_FILE" \
         LUOSHU_SWITCH_LOG="$LOG_FILE" LUOSHU_SWITCH_TIMEOUT_SECONDS="$TIMEOUT_SECONDS" \
         LUOSHU_SWITCH_HEARTBEAT_INTERVAL="$HEARTBEAT_INTERVAL" LUOSHU_SWITCH_WORKER_PID_FILE="$WORKER_PID_FILE"
-    LUOSHU_TASK_TIMEOUT_SECONDS=$((TIMEOUT_SECONDS + 15))
+    LUOSHU_TASK_TIMEOUT_SECONDS=$((COLLECTION_TIMEOUT_SECONDS + 15))
     [ "$LUOSHU_TASK_TIMEOUT_SECONDS" -le 900 ] || LUOSHU_TASK_TIMEOUT_SECONDS=900
     export LUOSHU_TASK_TIMEOUT_SECONDS
 

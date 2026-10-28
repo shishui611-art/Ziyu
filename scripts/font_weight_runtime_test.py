@@ -26,6 +26,8 @@ class FontWeightRuntimeTest(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.config.mkdir(parents=True)
         self.common.mkdir()
+        for name in ('util_functions.sh', 'util_functions_core.sh', 'font_switch_lock.sh'):
+            shutil.copyfile(ROOT/'common'/name, self.common/name)
         self.bin.mkdir()
         self.value = self.root / 'setting-value'
         self.value.write_text('null\n')

@@ -53,6 +53,53 @@ case "${1:-request}" in
                 "${PROVIDER_RELOAD_REASON:-provider-reload-check-failed}" >> "$LOG_FILE"
             _sr_error "${PROVIDER_RELOAD_MESSAGE:-无法确认元模块软重启兼容性，已保留待应用字体。}"
         fi
+        # A ROM update blocks mounting until the OEM font baseline is rescanned
+        # for the new build, so a plain soft reboot would land in the same
+        # blocked state every time. Run that recovery in a detached worker and
+        # reboot when it finishes; the App call must return immediately.
+        _sr_ota_recover=0
+        if [ -f "$MODDIR/common/boot_ota_recover.sh" ]; then
+            . "$MODDIR/common/boot_ota_recover.sh"
+            case "$(ziyu_boot_ota_state "$MODDIR")" in
+                pending) _sr_ota_recover=1 ;;
+                complete)
+                    case "$(ziyu_boot_ota_status "$MODDIR")" in
+                        *next_generation_ready=1*) ;;
+                        *) _sr_ota_recover=1 ;;
+                    esac
+                    ;;
+            esac
+        fi
+        if [ "$_sr_ota_recover" = 1 ]; then
+            printf '[%s] [SOFT-REBOOT] deferred: recovering OTA baseline and payload before reboot\n' \
+                "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE" 2>/dev/null
+            if [ -f "$MODDIR/common/boot_ota_recover_task.sh" ] && \
+               [ -f "$MODDIR/common/background_task.sh" ]; then
+                . "$MODDIR/common/background_task.sh"
+                LUOSHU_TASK_TIMEOUT_SECONDS=900 luoshu_start_detached \
+                    "$MODDIR/config/boot-ota-recover.pid" "ziyu-ota-recover-$(date +%s 2>/dev/null || echo 0)" \
+                    "$LOG_FILE" sh "$MODDIR/common/boot_ota_recover_task.sh" "$MODDIR"
+                _sr_task_rc=$?
+                case "$_sr_task_rc" in
+                    0|3) ;;
+                    *)
+                        printf '[%s] [SOFT-REBOOT] deferred worker unavailable rc=%s; running inline\n' \
+                            "$(date '+%Y-%m-%d %H:%M:%S')" "$_sr_task_rc" >> "$LOG_FILE" 2>/dev/null
+                        ziyu_boot_ota_refresh "$MODDIR" 240 &&
+                        ziyu_boot_ota_ensure_generation "$MODDIR" 420 || {
+                            _sr_error '系统更新后需要重新核验原厂字体，恢复未完成。请到设置 → 开机保护查看原因后重试。'
+                        }
+                        "$_sr_ksud" soft-reboot >> "$LOG_FILE" 2>&1
+                        _sr_rc=$?
+                        [ "$_sr_rc" -eq 0 ] || _sr_error "KernelSU 软重启请求失败（返回码 $_sr_rc），请查看 logs/soft-reboot.log。"
+                        printf '{"status":"ok","data":{"requested":true,"message":"已重新核验原厂字体并请求软重启。"}}\n'
+                        exit 0
+                        ;;
+                esac
+            fi
+            printf '{"status":"ok","data":{"requested":true,"deferred":true,"message":"系统更新后正在重新核验原厂字体并重新准备字体，完成后会自动软重启。"}}\n'
+            exit 0
+        fi
         printf '[%s] [SOFT-REBOOT] requesting daemon=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$_sr_ksud" >> "$LOG_FILE" || _sr_error '无法写入软重启日志。'
         # Do not run emulated-soft-reboot.sh here: provider hooks must run first.
         "$_sr_ksud" soft-reboot >> "$LOG_FILE" 2>&1

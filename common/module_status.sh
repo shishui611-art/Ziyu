@@ -33,7 +33,10 @@ case "$ACTIVE" in
 esac
 
 EFFECTIVE_DISPLAY="$DISPLAY"
-if [ "$ACTIVE" != default ]; then
+[ ! -f "$MODDIR/common/font_live_state.sh" ] || . "$MODDIR/common/font_live_state.sh"
+if type ziyu_pending_physical >/dev/null 2>&1 && ziyu_pending_physical "$MODDIR"; then
+    EFFECTIVE_DISPLAY="已配置：$DISPLAY（等待重启）"
+elif [ "$ACTIVE" != default ]; then
     VERIFY="$MODDIR/config/device-font-load-verification.conf"
     VERIFY_STATE=$(sed -n 's/^state=//p' "$VERIFY" 2>/dev/null | head -n1)
     MOUNT_STATE=$(sed -n 's/^state=//p' "$MODDIR/config/self-mount.conf" 2>/dev/null | head -n1)
@@ -52,6 +55,11 @@ fi
 
 DESCRIPTION="Android 全局字体管理，当前字体：$EFFECTIVE_DISPLAY"
 [ -f "$PROP" ] || exit 0
+# Status polling must not rewrite the version/properties file every second.
+if grep -Fxq "description=$DESCRIPTION" "$PROP" 2>/dev/null; then
+    printf '%s\n' "$DESCRIPTION"
+    exit 0
+fi
 TMP="$PROP.tmp.$$"
 awk -v description="$DESCRIPTION" '
 BEGIN { replaced=0 }

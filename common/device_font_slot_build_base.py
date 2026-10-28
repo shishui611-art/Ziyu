@@ -132,7 +132,7 @@ def glyph_probe_map(font: TTFont) -> dict[str, str]:
     return {name: probe for name, (_priority, probe) in choices.items()}
 
 
-def static_instance(font: TTFont, weight: int) -> TTFont:
+def static_instance(font: TTFont, weight: int, source: Path | None = None, face_index: int = -1) -> TTFont:
     if "fvar" not in font:
         return font
     location: dict[str, float] = {}
@@ -142,7 +142,16 @@ def static_instance(font: TTFont, weight: int) -> TTFont:
         else:
             location[axis.axisTag] = float(axis.defaultValue)
     try:
-        return instantiateVariableFont(font, location, inplace=False, optimize=True)
+        if source is not None:
+            from font_native_instance import attempt
+            from font_instance import check_mix_cancellation
+            native, detail = attempt(font, source, face_index, location, 'cjk', check_mix_cancellation)
+            if native is not None:
+                native._ziyu_instancing = detail
+                return native
+        result = instantiateVariableFont(font, location, inplace=False, optimize=True)
+        result._ziyu_instancing = detail if source is not None else {'engine': 'fonttools'}
+        return result
     except Exception as exc:
         raise BuildError(f"可变字体静态实例化失败：{exc}") from exc
 
@@ -159,7 +168,7 @@ def read_source(path: Path, face_index: int, weight: int) -> TTFont:
     if "glyf" not in font:
         font.close()
         raise BuildError("当前阶段仅支持 TrueType glyf 轮廓；CFF/CFF2 不伪装支持")
-    result = static_instance(font, weight)
+    result = static_instance(font, weight, path, face_index if collection else -1)
     if result is not font:
         font.close()
     if "glyf" not in result:
@@ -409,6 +418,7 @@ def build_slot(source: Path, source_index: int, slot: dict[str, Any], output: Pa
         "style": slot.get("style", "normal"),
         "roles": slot.get("roles", []),
         "transformed": transform_report,
+        "instancing": getattr(font, '_ziyu_instancing', {'engine': 'static'}),
         "spaceCompatibility": space_compatibility,
         "checks": checks,
         "bytes": output.stat().st_size,

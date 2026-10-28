@@ -68,6 +68,31 @@ ziyu_live_source() { ziyu_live_current && printf '%s' "$_zlc_source"; }
 ziyu_live_work_root() { ziyu_live_current && printf '%s' "$_zlc_root"; }
 ziyu_live_font() { ziyu_live_current && printf '%s' "$_zlc_font"; }
 
+# A published next-boot payload can outlive a lost reboot marker. Recognize it
+# only when selection, transaction id and the private payload marker agree.
+ziyu_pending_physical() (
+    _zpp_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
+    MODULE_DIR="$_zpp_module"; MODDIR="$_zpp_module"
+    _zpp_state="$_zpp_module/config/font-payload-next.conf"
+    _zpp_root="$_zpp_module/.luoshu-payload-next"
+    _zpp_marker="$_zpp_root/.luoshu-next-transaction.conf"
+    [ -d "$_zpp_root" ] && [ ! -L "$_zpp_root" ] && [ -f "$_zpp_state" ] && [ ! -L "$_zpp_state" ] &&
+        [ -f "$_zpp_marker" ] && [ ! -L "$_zpp_marker" ] || return 1
+    [ "$(ziyu_live_value "$_zpp_state" state)" = prepared ] || return 1
+    _zpp_font=$(ziyu_live_value "$_zpp_state" font)
+    _zpp_request=$(ziyu_live_value "$_zpp_state" requestId)
+    [ -n "$_zpp_font" ] && [ -n "$_zpp_request" ] &&
+        [ "$_zpp_font" = "$(head -n1 "$_zpp_module/config/active_font.conf" | tr -d '\r\n')" ] &&
+        [ "$(ziyu_live_value "$_zpp_marker" schema)" = luoshu-next-payload-v1 ] &&
+        [ "$(ziyu_live_value "$_zpp_marker" font)" = "$_zpp_font" ] &&
+        [ "$(ziyu_live_value "$_zpp_marker" requestId)" = "$_zpp_request" ] || return 1
+    if ziyu_live_current && [ "$_zlc_font" = "$_zpp_font" ] &&
+       [ "$(ziyu_live_value "$_zpp_module/config/font-live.conf" request_id)" = "$_zpp_request" ]; then
+        return 1
+    fi
+    return 0
+)
+
 # active_font.conf is the user's selection and may already name the next queue.
 # Verification must identify the payload being checked, including restore-default.
 ziyu_current_payload_font() {

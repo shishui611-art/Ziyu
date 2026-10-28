@@ -7,6 +7,22 @@ import org.junit.Test
 
 class NativeImportNotificationSpecTest {
     @Test
+    fun terminalHistoryDoesNotNotifyAgainAfterUpgradeOrRestart() {
+        for (phase in listOf(NativeImportPhase.SUCCESS, NativeImportPhase.FAILED, NativeImportPhase.CANCELLED)) {
+            val restored = NativeImportState(phase = phase, restoredFromDisk = true)
+            assertFalse(shouldPublishNativeImportNotification(restored))
+            assertTrue(shouldPublishNativeImportNotification(restored.copy(restoredFromDisk = false)))
+        }
+    }
+
+    @Test
+    fun restoredUnfinishedQueuesKeepTheirProgressAndResumeNotifications() {
+        for (phase in listOf(NativeImportPhase.QUEUED, NativeImportPhase.RUNNING, NativeImportPhase.PAUSED)) {
+            assertTrue(shouldPublishNativeImportNotification(NativeImportState(phase = phase, restoredFromDisk = true)))
+        }
+    }
+
+    @Test
     fun runningNotificationOffersPauseAndCancel() {
         val spec = nativeImportNotificationSpec(
             NativeImportState(

@@ -1,6 +1,6 @@
 id=ziyu-font-preload
 name=ziyu 字体预加载（实验性）
-version=v1.4.19
-versionCode=14019
+version=v1.4.33
+versionCode=14033
 author=字域
 description=配合字域已验证字体负载，在应用撤挂载前准备字体缓存；需要可执行回调的 Zygisk，不修改排除策略。

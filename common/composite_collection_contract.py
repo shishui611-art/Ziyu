@@ -125,7 +125,7 @@ def verify_build_report(payload, path, stock_path, relative, request, count, sto
     # Re-open the final collection and compare every face to its independently
     # recorded protected-table contract. A well-shaped TTC and matching face
     # count alone do not prove that layout, UVS, style, or metric tables survived.
-    from composite_collection_build import protected
+    from composite_collection_build import contract_matches
     from fontTools.ttLib import TTFont
     import font_source_profile
     for index, face in enumerate(proof['faces']):
@@ -134,13 +134,13 @@ def verify_build_report(payload, path, stock_path, relative, request, count, sto
         # to describe an arbitrary output and its matching hash.
         with TTFont(stock_path, fontNumber=index, lazy=True,
                     recalcTimestamp=False) as stock_face:
-            if protected(stock_face) != face['contract']:
+            if not contract_matches(stock_face, face['contract'], face.get('rawTables')):
                 raise ValueError(f'集合面 {index} 的契约与已验证原厂快照不符')
             if (font_source_profile._weight(stock_face) != face['targetWeight']
                     or font_source_profile._best_subfamily(stock_face) != face['targetStyle']):
                 raise ValueError(f'集合面 {index} 的目标字重或样式与原厂快照不符')
         with TTFont(path, fontNumber=index, lazy=True, recalcTimestamp=False) as font:
-            if protected(font) != face['contract']:
+            if not contract_matches(font, face['contract'], face.get('rawTables')):
                 raise ValueError(f'集合面 {index} 与本次原厂布局契约不符')
             if (font_source_profile._weight(font) != face['targetWeight']
                     or font_source_profile._best_subfamily(font) != face['targetStyle']):

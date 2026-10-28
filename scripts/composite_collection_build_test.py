@@ -152,6 +152,29 @@ class CompositeCollectionBuildTest(unittest.TestCase):
         self.target_path.write_bytes(b'old generated single-face alias')
         self.emoji_path.write_bytes(b'old generated single-face alias')
 
+    def test_variable_slot_corrects_only_one_unit_rounding_difference(self):
+        with TTFont(self.stock_faces[0], lazy=False, recalcBBoxes=False) as stock, \
+             TTFont(self.source, lazy=False, recalcBBoxes=False) as donor:
+            FontBuilder(font=stock).setupFvar([('wght', 100, 400, 900, 'Weight')], [])
+            stock_order = list(stock.getGlyphOrder())
+            original = builder.protected(stock, stock_order)
+            name = donor.getBestCmap()[ord('A')]
+            # A stale stored source bound makes the decomposed outline differ
+            # from its side bearing by one unit, as seen on the affected phone.
+            donor['glyf'][name].xMin -= 1
+            larger = donor.getBestCmap()[ord('B')]
+            donor['glyf'][larger].xMin -= 2
+            stock_b = stock.getBestCmap()[ord('B')]
+            original_b_min = stock['glyf'][stock_b].xMin
+            details = builder.replace_face(stock, donor, {}, require_cjk=False,
+                                           preserve_unsafe=True, preserve_dependencies=True)
+            target = stock.getBestCmap()[ord('A')]
+            self.assertEqual(stock['glyf'][target].xMin, donor['hmtx'][name][1])
+            self.assertEqual(stock['glyf'][stock_b].xMin, original_b_min)
+            self.assertGreaterEqual(details['retainedUnsafeSlots'], 1)
+            self.assertEqual(details['mode'], 'compiled')
+            self.assertEqual(builder.protected(stock, stock_order), original)
+
     def run_payload_build(self, request='mix-fixture-123'):
         with patch.object(builder.stock_inventory, 'load_inventory',
                            return_value=self.inventory), \
@@ -176,9 +199,11 @@ class CompositeCollectionBuildTest(unittest.TestCase):
              TTFont(self.stock, fontNumber=0, lazy=True) as original:
             self.assertEqual(bounds(regular, '家')[0], 70)
             self.assertEqual(bounds(original, '家')[0], 20)
-            # The shared slot, UVS default glyph, and uncovered glyph stay stock.
+            # The shared slot and uncovered glyph stay stock. A default UVS
+            # target is an ordinary coded glyph: the transplant restyles it
+            # while the format-14 table bytes stay untouched.
             self.assertEqual(bounds(regular, '中')[0], 20)
-            self.assertEqual(bounds(regular, '国')[0], 20)
+            self.assertEqual(bounds(regular, '国')[0], 70)
             self.assertEqual(bounds(regular, '龘')[0], 20)
             self.assertTrue(any(table.format == 14 for table in regular['cmap'].tables))
         for index, expected_weight in ((1, 700), (2, 300)):
@@ -203,7 +228,7 @@ class CompositeCollectionBuildTest(unittest.TestCase):
                          ['glyf', 'CFF ', 'CFF2', 'glyf'])
         self.assertEqual(face_report['faces'][3]['mode'], 'retained-specialized')
         self.assertGreaterEqual(face_report['faces'][0]['uncovered'], 1)
-        self.assertGreaterEqual(face_report['faces'][0]['retainedSharedSlots'], 2)
+        self.assertGreaterEqual(face_report['faces'][0]['retainedSharedSlots'], 1)
 
         # All-retained collections are real OEM bytes with an explicit proof,
         # replacing any prior generated single-face alias in the staged slot.

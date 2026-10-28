@@ -94,10 +94,11 @@ def _font_weight(font: TTFont) -> int:
 
 
 def _score_face(font: TTFont, role: str, target_weight: int) -> tuple[int, int]:
+    from font_face_weight import weight_distance
     cmap = font.getBestCmap() or {}
     probes = CJK_PROBES if role == "cjk" else LATIN_PROBES if role == "latin" else DIGIT_PROBES
     hits = sum(1 for cp in probes if cp in cmap)
-    return (hits, -abs(_font_weight(font) - target_weight))
+    return (hits, -weight_distance(font, target_weight))
 
 
 def _pick_face(path: Path, role: str, target_weight: int, requested: int | None) -> int:

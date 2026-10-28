@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -28,6 +29,11 @@ val hasReleaseSigning = listOf(
     releaseKeyAlias,
     releaseKeyPassword,
 ).all { !it.isNullOrBlank() }
+val xposedApi = rootProject.file("xposed-api/api-82.jar")
+val xposedApiHash = MessageDigest.getInstance("SHA-256").digest(xposedApi.readBytes()).joinToString("") { "%02x".format(it) }
+check(xposedApiHash == "f48c635f1c7469fdec0e00ad2ea0b7a6b2f5b55065784a35b7ca3a84615e8e25") {
+    "Unexpected Xposed API jar digest"
+}
 
 android {
     namespace = "io.github.xgl34222220.ziyu"
@@ -110,6 +116,8 @@ android {
 }
 
 dependencies {
+    // The framework supplies this API to selected processes; never bundle it in the APK.
+    compileOnly(files(xposedApi))
     val composeBom = platform("androidx.compose:compose-bom:2026.03.00")
     implementation(composeBom)
 

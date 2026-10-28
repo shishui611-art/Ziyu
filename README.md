@@ -7,7 +7,6 @@
 适用于 **Magisk · KernelSU · SukiSU Ultra · APatch**
 
 [![Fork](https://img.shields.io/badge/repository-ColorOS17%20fork-blue)](https://github.com/shishui611-art/Ziyu)
-[![Upstream Release](https://img.shields.io/github/v/release/xgl34222220-ops/LuoShu?display_name=release&label=LuoShu%20上游版本)](https://github.com/xgl34222220-ops/LuoShu/releases/latest)
 [![Build](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml/badge.svg)](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-orange)](LICENSE)
 
@@ -15,7 +14,7 @@
 
 </div>
 
-> **Fork 说明：**本仓库是 [LuoShu 上游项目](https://github.com/xgl34222220-ops/LuoShu) 的独立 fork，项目名为**字域（Ziyu）**，由酷安 **[@柔性体](https://www.coolapk.com/u/28601616)** 维护，重点适配 ColorOS 17，同时兼容其他 Android 系统。上游源码中的版权与许可证声明继续保留。
+> **项目来源：**字域（Ziyu）由 LuoShu 源码发展为独立维护项目，由酷安 **[@柔性体](https://www.coolapk.com/u/28601616)** 维护，重点适配 ColorOS 17，同时兼容其他 Android 系统。必要的历史作者、版权与第三方许可证声明均予以保留，详见 `THIRD_PARTY_NOTICES.md` 和 `licenses/`。
 
 ## 项目简介
 
@@ -23,7 +22,7 @@
 
 它不是简单把一个字体文件复制到几十个系统路径，而是先读取当前设备真实字体配置，再根据中文、英文、数字的角色分别生成和映射字体负载，尽量兼顾覆盖范围、字体度量、系统稳定性和存储占用。
 
-字域在本 fork 中从 **v1.0.0** 开始独立编号。这个编号代表字域 fork 的版本，不等同于 LuoShu 上游的版本；从 1.1.0 起，模块与 App 统一采用新编号，1.1.0 的 versionCode 为 11000。APK 包名改为 Ziyu，首次使用需要重新授予 Root；已有模块字体数据继续兼容。
+字域从 **v1.0.0** 开始独立编号；从 1.1.0 起，模块与 App 统一采用新编号，1.1.0 的 versionCode 为 11000。APK 包名改为 Ziyu，首次使用需要重新授予 Root；已有模块字体数据继续兼容。
 
 ## 主要能力
 
@@ -46,7 +45,13 @@
 
 ## 当前版本与验证状态
 
-当前源码副本的主模块与 App 版本为 **ziyu v1.4.19**（versionCode 14019）。本次说明以 GitHub 上一正式稳定版 v1.4.2 为基线，归并其后本地工作副本的用户可见更新。v1.4.16 修正了组合字体在原厂 CJK 集合上因多个字符共用同一原厂字形（如 U+00A0 与 U+0020）而整体中止的问题；v1.4.17 把原厂集合逐面编译改为按 CPU、可用内存与来源大小有界并行，并将超出原厂极端度量或无法转换的个别字形改为保留原厂；v1.4.18 统一了组合字体结果、重启选择与回退对话框在三种主题下的组件和按钮层级，并把字体任务通知/实时活动的点击目标改为打开主页。v1.4.19 修正组合来源覆盖门槛：保留“中、大小写英文字母、数字”的基础探针及轮廓支持、非彩色检查，不再把全量汉字、常用汉字比例或标点覆盖作为整面替换门槛；单字缺少来源字形时仍由既有逐字保留原厂机制处理。验证 CLI 现在接受一个实际组合来源 `--source` Path 并核验该来源，仍会拒绝校验期间发生身份变化的来源。源变化检查、逐面契约、输出哈希、证明校验与回滚条件保留。预加载仍须有实际可执行的 Zygisk 回调和可见字体路径。十项集合回归已通过；Android Debug 与双 ABI 原生构建、本地 51 项包完整性检查已通过。使用 ADB 只读导出的设备组合与原厂快照，Windows 上的生产 build CLI 已完成五面生成并全部 PASS，随后 `validate --source --require-proof` 退出 0 / PASS。构建与校验分别耗时 278.250 秒和 12.719 秒，属于桌面单进程数据，不代表手机耗时或提速。正式 CI 结果仍待定。本轮没有在手机安装、切换字体、重启或做显示对照验收。设备状态以[真机验证矩阵](docs/TEST_MATRIX.md)为准。源码版本号不表示对应资产已经发布，正式下载请以[最新正式版](https://github.com/shishui611-art/Ziyu/releases/latest)页面的实际资产为准。完整变更见[本版说明](更新日志/RELEASE_NOTES_ziyu-v1.4.19.md)。
+当前工作副本的主模块与 App 版本为 **字域 v1.4.50**（versionCode 14050）。GitHub 当前正式版为 v1.4.2；源码版本号不代表对应资产已经发布，请从[最新正式 Release](https://github.com/shishui611-art/Ziyu/releases/latest)核对实际文件。
+
+相较 v1.4.2，此后版本逐步增加系统字号、字重与 DPI 调整、主题预览、通知和实时活动、运行应用字体来源诊断、TTF 导出、可选的 WebView 字体兼容，以及原厂 TTC/OTC 集合逐面处理。字体处理侧改进了 ColorOS 槽位策略、共享字形和 UVS 处理、有限并行与缓存复用；原生桥只覆盖经过校验的部分路径，其他格式和不适用输入仍由既有实现处理。
+
+v1.4.38 的记录显示：同供体、同简繁体槽位的桌面构建耗时由 90.6056 秒降至 70.3628 秒，44,278 个字形的全部字体表及完整文件字节一致；设备上的临时 ARM64 工具检查涵盖可变字体实例化、裁剪和 51,815 字形缓存，并与 Windows 输出核对一致。这些数据不代表手机完整应用字体的耗时或提速。v1.4.50 修复 Material 浅色主题卡片默认描边未传递、App 恢复已结束的导入历史时重复发布结果通知，以及 SukiSU Ultra + NoMount 软重启时旧外部规则仍指向字域字体负载的问题；完整范围见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.50.md)。
+
+v1.4.50 Kotlin 编译与 Debug assemble 均通过。Windows Gradle 测试 worker 有 ClassNotFound 问题；从 Gradle 导出的原始测试 classpath 直接运行 JUnit 后，`NativeImportNotificationSpecTest` 与 `NativeImportQueueStoreTest` 共 11 项通过。`scripts/mount_nomount_backend_test.sh` 覆盖 pre-stop 延迟、post-stop 规则清理、保留其他模块规则、失败回滚、锁忙及 namespace/目标拒绝，已通过。清理只覆盖 KernelSU 管理的软重启顺序，不限制任意 root/ADB 或第三方后台 CLI。用户规则快照仅做只读规划，识别 22 组字域映射；未在手机删除规则、刷入或执行新软重启 hook。正式 CI 仍待运行，手机新 hook、完整字体应用和视觉验收待完成；设备状态以[真机验证矩阵](docs/TEST_MATRIX.md)为准。
 
 Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更新清单。App 的“模块更新”会直接请求 GitHub Release API、Release 下载地址和 Raw 文件；国内网络可能无法检查或下载。接入国内可直连发布源并完成无代理实测前，不能承诺免代理更新。
 
@@ -204,7 +209,7 @@ Google 字体兼容也不能替换 App 自己打包的字体或网页指定字�
 
 模块与 App 的 versionCode 均为 `major*10000 + minor*1000 + patch`。v1.3.0 为 13000。次版本限制为 0–9，修订号为 0–999。
 
-当前版本号与是否已发布，以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 和模块信息为准；上游 LuoShu 版本号不会代替本 fork 的版本号。
+当前版本号与是否已发布，以 [字域 Releases](https://github.com/shishui611-art/Ziyu/releases) 和模块信息为准；源码版本号不会代替 Release 实际附件状态。
 
 ## 从源码构建
 
@@ -264,3 +269,27 @@ LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 ---
 
 维护者：酷安 [@柔性体](https://www.coolapk.com/u/28601616)。欢迎反馈真机结果或提交改进建议。
+
+本地 v1.4.21 修正休眠时间混入任务超时的问题，字体计算期间持有临时 CPU 唤醒锁，并在进入 CJK 集合阶段后追加一次有限生成预算；保留 v1.4.20 的来源复用和原厂契约、验证、回滚。手机完成情况仍待验证，详见[本地说明](更新日志/RELEASE_NOTES_ziyu-v1.4.21.md)。本轮不上传或触发云端发布。
+
+本地 v1.4.22 在任务内复用同源 TrueType 轮廓转换结果，并在字体库卡片增加“导出 TTF”（支持导入字体与保存的组合、字重和集合面选择）。原有 ZIP 归档继续保留。优化不代表已测得提速，手机与性能验收待完成，见[本地版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.22.md)。
+
+本地 v1.4.23 针对设备五面 CFF2 集合生成阶段，复用同源已编码轮廓，保留全部契约与回滚，记录实际阶段耗时和缓存命中。未完成本版手机性能验收，见[本地说明](更新日志/RELEASE_NOTES_ziyu-v1.4.23.md)。
+
+本地 v1.4.24 将 ColorOS 独立原厂槽位拆开调度，减少简繁体槽位被固定在同一进程串行生成的问题。保留原有资源上限、验证与回滚，待手机性能验收，见[本地说明](更新日志/RELEASE_NOTES_ziyu-v1.4.24.md)。
+
+本地 v1.4.26 对已通过契约检查的 CJK 集合不变排版表复用原厂字节，保留变化表及源、输出和回滚校验。手机验收待完成，见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.26.md)。
+
+本地 v1.4.30 修复部分可变中文槽位取整误差导致的原厂字形混入；手机显示待验收，见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.30.md)。
+
+本地 v1.4.34 修复底栏隐藏时的背景采样和优化预测性返回，手机界面与字体显示待验收，见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.34.md)。
+
+本地 v1.4.35 修复待重启字体被误报为已生效，手机刷入和显示待验收，见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.35.md)。
+
+本地 v1.4.36 修复 Miuix、COUI 小尺寸加载圆环偏移和裁切，手机视觉验收待完成，见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.36.md)。
+
+本地 v1.4.37 修复静态字重引擎选择并为通用源可变字体实例化接入原生桥，手机应用与耗时待验收，见[版本说明](更新日志/RELEASE_NOTES_ziyu-v1.4.37.md)。
+
+本地 v1.4.38 为 TrueType 中文槽位增加原生字形准备，并扩展原生实例化、Google 字体裁剪和 CFF2 导出入口；仍保留 FontTools 回退及原厂验证，手机耗时待验收。见[本版说明](更新日志/RELEASE_NOTES_ziyu-v1.4.38.md)。
+
+本地 v1.4.50 修复 Material 浅色卡片边框丢失和已结束导入历史重启后重复通知；包含既有原生字体处理路径。完整手机字体切换、重启和视觉验收待完成，见[本版说明](更新日志/RELEASE_NOTES_ziyu-v1.4.50.md)。

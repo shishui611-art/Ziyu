@@ -109,6 +109,11 @@ luoshu_text_reboot_reconcile() {
             verified|partial) rm -f "$_lfbs_marker"; return $? ;;
         esac
     fi
+    # A prepared boot transaction is not proven by verifying the older mounted
+    # generation, even if its marker originated in an earlier kernel boot.
+    if type ziyu_pending_physical >/dev/null 2>&1 && ziyu_pending_physical "$_lfbs_module_dir"; then
+        return 2
+    fi
     # Never clear a marker using the previous font that is still mounted in this boot.
     [ -n "$_lfbs_marker_boot" ] && [ "$_lfbs_marker_boot" = "$_lfbs_current_boot" ] && return 2
 

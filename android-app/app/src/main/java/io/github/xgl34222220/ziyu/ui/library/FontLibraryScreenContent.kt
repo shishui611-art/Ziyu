@@ -243,7 +243,7 @@ internal fun FontLibraryPageContent(
         }
         item(key = "system_font") {
             CompactSystemFontRow(
-                active = state.activeFontId == "default", busy = state.operationBusy,
+                active = state.activeFontId == "default", pending = state.activeFontPending, busy = state.operationBusy,
                 cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
                 onRestore = actions.restoreDefault,
                 onImport = actions.importSystemFonts,
@@ -287,7 +287,7 @@ internal fun FontLibraryPageContent(
         }
         items(state.fonts, key = { "font:${it.id}" }, contentType = { "font" }) { font ->
             LibraryFontCard(
-                font = font, active = state.activeFontId == font.id, busy = state.operationBusy,
+                font = font, active = state.activeFontId == font.id, pending = state.activeFontPending, busy = state.operationBusy,
                 cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
                 onDetails = { actions.details(font) }, onApply = { actions.apply(font) },
                 onDelete = { actions.delete(font) }, style = style,
@@ -298,7 +298,7 @@ internal fun FontLibraryPageContent(
 
 @Composable
 private fun CompactSystemFontRow(
-    active: Boolean, busy: Boolean, cardColor: Color,
+    active: Boolean, pending: Boolean, busy: Boolean, cardColor: Color,
     textPrimary: Color, textSecondary: Color, onRestore: () -> Unit, onImport: () -> Unit,
 ) {
     val layout = LocalZiyuThemeTokens.current.layout
@@ -318,7 +318,7 @@ private fun CompactSystemFontRow(
                 Text("恢复手机原有字体", color = textSecondary, fontSize = 12.sp, lineHeight = 18.sp)
             }
             Spacer(Modifier.width(8.dp))
-            if (active) StatusPill("使用中")
+            if (active) StatusPill(if (pending) "待重启" else "使用中")
             else FilledTonalButton(
                 onClick = onRestore, enabled = !busy,
                 modifier = Modifier.heightIn(min = 44.dp), shape = RoundedCornerShape(16.dp),
@@ -336,7 +336,7 @@ private fun CompactSystemFontRow(
 
 @Composable
 private fun LibraryFontCard(
-    font: FontItem, active: Boolean, busy: Boolean, cardColor: Color,
+    font: FontItem, active: Boolean, pending: Boolean, busy: Boolean, cardColor: Color,
     textPrimary: Color, textSecondary: Color,
     onDetails: () -> Unit, onApply: () -> Unit, onDelete: () -> Unit,
     style: UiStyle,
@@ -367,7 +367,7 @@ private fun LibraryFontCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (active) StatusPill("使用中")
+                if (active) StatusPill(if (pending) "待重启" else "使用中")
             }
             if (font.combination) {
                 Text(
@@ -406,6 +406,8 @@ private fun LibraryFontCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End,
             ) {
+                FontTtfExportButton(font = font, enabled = font.valid && !busy)
+                Spacer(Modifier.width(8.dp))
                 val deleteEnabled = !busy && !active
                 Button(
                     onClick = onDelete,

@@ -52,6 +52,9 @@ internal enum class NativeImportDetachReason {
     DATA_SYNC_TIMEOUT,
 }
 
+internal fun shouldPublishNativeImportNotification(state: NativeImportState): Boolean =
+    !state.terminal || !state.restoredFromDisk
+
 internal fun nativeImportNotificationSpec(state: NativeImportState): NativeImportNotificationSpec {
     val actions = when {
         state.busy -> listOf(NativeImportNotificationAction.PAUSE, NativeImportNotificationAction.CANCEL)
@@ -223,6 +226,7 @@ internal object NativeImportNotificationController {
     }
 
     fun notify(context: Context, state: NativeImportState) {
+        if (!shouldPublishNativeImportNotification(state)) return
         notificationManager(context).notify(IMPORT_NOTIFICATION_ID, buildNotification(context, state))
     }
 

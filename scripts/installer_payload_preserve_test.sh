@@ -39,6 +39,33 @@ printf 'font anchor\n' > "$ANCHOR/.luoshu-payload/system/fonts/.luoshu-font-stor
 luoshu_update_has_font_payload "$ANCHOR" "$ANCHOR/.luoshu-payload" || { echo 'FAIL: .font anchor was missed'; exit 1; }
 echo 'PASS: font-store anchors count as an existing private font payload'
 
+# A committed next-boot selection can coexist with an empty stock boot tree.
+# The installer must migrate both states without activating the queued payload.
+PENDING="$TMP/pending"
+PENDING_NEW="$TMP/pending-new"
+mkdir -p "$PENDING/config" "$PENDING/.luoshu-payload/system/fonts" \
+    "$PENDING/.luoshu-payload-next/system/fonts" "$PENDING_NEW/common"
+cp "$ROOT/common/font_switch_lock.sh" "$ROOT/common/physical_payload_manifest.sh" "$PENDING_NEW/common/"
+printf 'id=ziyu\nversionCode=14024\n' > "$PENDING/module.prop"
+printf 'ZiyuMix1424b0da7bfde3f4\n' > "$PENDING/config/active_font.conf"
+printf 'schema=legacy-physical-safe-v1\n' > "$PENDING/config/font-payload-schema.conf"
+printf 'state=prepared\nfont=ZiyuMix1424b0da7bfde3f4\npreviousFont=default\nrequestId=task-1\n' > "$PENDING/config/font-payload-next.conf"
+printf 'schema=luoshu-next-payload-v1\nfont=ZiyuMix1424b0da7bfde3f4\nrequestId=task-1\n' > "$PENDING/.luoshu-payload-next/.luoshu-next-transaction.conf"
+printf 'generated font bytes\n' > "$PENDING/.luoshu-payload-next/system/fonts/SysSans-Hans-Regular.ttf"
+luoshu_migrate_active_install "$PENDING" "$PENDING_NEW" || { echo "FAIL: queued font rejected: $LUOSHU_UPDATE_FAILURE_REASON"; exit 1; }
+cmp "$PENDING/config/font-payload-next.conf" "$PENDING_NEW/config/font-payload-next.conf"
+cmp "$PENDING/.luoshu-payload-next/system/fonts/SysSans-Hans-Regular.ttf" "$PENDING_NEW/.luoshu-payload-next/system/fonts/SysSans-Hans-Regular.ttf"
+test ! -e "$PENDING_NEW/system/fonts/SysSans-Hans-Regular.ttf"
+test ! -e "$PENDING_NEW/config/font-payload-manifest.conf"
+test "$(cat "$PENDING_NEW/config/active_font.conf")" = ZiyuMix1424b0da7bfde3f4
+printf 'schema=luoshu-next-payload-v1\nfont=ZiyuMix1424b0da7bfde3f4\nrequestId=wrong\n' > "$PENDING/.luoshu-payload-next/.luoshu-next-transaction.conf"
+if luoshu_migrate_active_install "$PENDING" "$TMP/pending-bad"; then
+    echo 'FAIL: mismatched pending transaction accepted' >&2; exit 1
+fi
+test "$LUOSHU_UPDATE_FAILURE_REASON" = pending-font-transaction-unconfirmed
+test -s "$PENDING/.luoshu-payload-next/system/fonts/SysSans-Hans-Regular.ttf"
+echo 'PASS: queued physical font migrated only with matching transaction and verified bytes'
+
 mkdir -p "$OLD/.luoshu-payload/.luoshu-runtime/deployment" "$NEW/.luoshu-runtime/core"
 mkdir -p "$OLD/.luoshu-payload/.luoshu-dynamic/target"
 printf 'generated dynamic CJK\n' > "$OLD/.luoshu-payload/.luoshu-dynamic/target/font.ttf"

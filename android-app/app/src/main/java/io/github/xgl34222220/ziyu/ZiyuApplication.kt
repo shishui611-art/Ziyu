@@ -81,10 +81,11 @@ internal class ZiyuApplication : Application(), ViewModelStoreOwner {
                         }
                         lastPassiveSignature = ""
                     }
+                    !shouldPublishNativeImportNotification(state) -> Unit
                     state.phase != NativeImportPhase.IDLE -> {
                         // A running service publishes the transition before it exits.
-                        // Restored paused/terminal records have no service, so the
-                        // application publishes them once.
+                        // A restored paused queue still offers resume controls;
+                        // terminal history must not become a new completion event.
                         val detachReason = NativeImportNotificationController.consumeServiceDetached()
                         if (!NativeImportNotificationController.isServiceExpected() || detachReason != null) {
                             val passiveState = nativeImportDetachedNotice(state, detachReason)

@@ -54,6 +54,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             env = {**os.environ, "MODDIR": module.as_posix(), "SOURCE": source.as_posix(),
                    "HOST_PYTHON": Path(sys.executable).as_posix(),
                    "ENGINE_DIR": (ROOT / "common/legacy_v14_4").as_posix(),
+                   "PYTHONPATH": os.pathsep.join((str(ROOT / "common"), os.environ.get("PYTHONPATH", ""))),
                    "LUOSHU_MIX_PREPARE_ONLY": "true", "LUOSHU_MIX_REQUEST_ID": "prepare-real",
                    "LUOSHU_MIX_MANIFEST": (stage / ".luoshu-mix-generation.conf").as_posix()}
             result = subprocess.run([shell, runner.as_posix()], env=env, capture_output=True,
@@ -79,6 +80,9 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             runtime.mkdir(parents=True)
             shutil.copyfile(ROOT / "common/legacy_v14_4/font_instance.py", legacy / "font_instance.py")
             shutil.copyfile(ROOT / "common/font_prepare_cache.py", common / "font_prepare_cache.py")
+            for name in ("font_native_instance.py", "font_face_weight.py", "font_gvar_repair.py"):
+                shutil.copyfile(ROOT / "common" / name, common / name)
+                (runtime / name).symlink_to(common / name)
             (runtime / "font_instance.py").symlink_to(legacy / "font_instance.py")
             (runtime / "font_prepare_cache.py").symlink_to(common / "font_prepare_cache.py")
             source, output = root / "source.ttf", root / "selected.ttf"
@@ -159,7 +163,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             config.mkdir(parents=True)
             (module / "common").mkdir()
             (module / "logs").mkdir()
-            for name in ("mix_library.py", "font_structure.py", "composite_tune.sh"):
+            for name in ("mix_library.py", "font_structure.py", "composite_tune.sh", "user_storage.sh"):
                 shutil.copyfile(ROOT / "common" / name, module / "common" / name)
             store = module / ".luoshu-mix-stage"
             store.mkdir(parents=True)
@@ -182,7 +186,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
                               'mix_python() { "$HOST_PYTHON" "$@"; }\n'
                               'case "$1" in status) mix_status_json_fast axes-1;; finalize) finalize_mix_stage;; esac\n', encoding="utf-8")
             shell = shutil.which("bash") or r"C:\Program Files\Git\bin\bash.exe"
-            env = {**os.environ, "MODDIR": module.as_posix(), "HOST_PYTHON": Path(sys.executable).as_posix()}
+            env = {**os.environ, "MODDIR": module.as_posix(), "HOST_PYTHON": Path(sys.executable).as_posix(), "PYTHONUTF8": "1"}
             def run(action):
                 result = subprocess.run([shell, str(runner), action], env=env,
                                         capture_output=True, text=True, encoding="utf-8", timeout=25)
@@ -241,6 +245,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             (root / "config").mkdir()
             (root / "common").mkdir()
             shutil.copyfile(ROOT / "common/composite_tune.sh", root / "common/composite_tune.sh")
+            shutil.copyfile(ROOT / "common/user_storage.sh", root / "common/user_storage.sh")
             (root / "config/axes_task.conf").write_text("task=axes-cancelled\nstate=cancelled\npercent=100\nmessage=组合任务已取消\n")
             shell = shutil.which("bash") or r"C:\Program Files\Git\bin\bash.exe"
             result = subprocess.run([shell, (ROOT / "common/legacy_v14_4/mix_router.sh").as_posix(),

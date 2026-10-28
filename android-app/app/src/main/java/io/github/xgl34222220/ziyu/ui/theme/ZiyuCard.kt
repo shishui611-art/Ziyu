@@ -47,6 +47,12 @@ private val DefaultZiyuCardShape: Shape = RoundedCornerShape(0.dp)
 internal object ZiyuCardDefaults {
     @Composable
     fun border(containerColor: Color = LocalZiyuPaletteTokens.current.cardBackground): BorderStroke {
+        if (LocalUiStyle.current == UiStyle.MATERIAL &&
+            MaterialTheme.colorScheme.background.luminance() >= .5f
+        ) {
+            val scheme = MaterialTheme.colorScheme
+            return BorderStroke(1.dp, lerp(scheme.outlineVariant, scheme.outline, .55f))
+        }
         val palette = LocalZiyuPaletteTokens.current
         val background = containerColor.compositeOver(palette.pageBackground)
         val edgeFraction = if (palette.pageBackground.luminance() < .5f) .20f else .14f
@@ -124,6 +130,11 @@ internal fun ZiyuCard(
         return
     }
     val materialShape = if (shape === DefaultZiyuCardShape || shape == ZiyuShapeTokens.Card) MaterialTheme.shapes.large else shape
+    // Material previously discarded the resolved default border. Its light
+    // card/page surfaces can share a tone, so both card variants need the edge.
+    val materialBorder = border ?: resolvedBorder.takeIf {
+        MaterialTheme.colorScheme.background.luminance() >= .5f
+    }
     val elevation = CardDefaults.cardElevation(
         defaultElevation = shadow,
         pressedElevation = shadow,
@@ -137,7 +148,7 @@ internal fun ZiyuCard(
     }
     if (onClick == null) {
         MaterialCard(modifier = modifier, shape = materialShape, colors = colors,
-            elevation = elevation, border = border, content = materialContent)
+            elevation = elevation, border = materialBorder, content = materialContent)
     } else {
         // SukiSU TonalCard uses a spring-driven press scale; reuse Card's own
         // interaction source so keyboard, touch and cancellation stay aligned.
@@ -148,7 +159,7 @@ internal fun ZiyuCard(
         MaterialCard(
             onClick = onClick, modifier = modifier.scale(scale), enabled = enabled,
             shape = materialShape, colors = colors, elevation = elevation,
-            border = border, interactionSource = interactions, content = materialContent,
+            border = materialBorder, interactionSource = interactions, content = materialContent,
         )
     }
 }

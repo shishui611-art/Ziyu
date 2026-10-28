@@ -232,6 +232,36 @@ luoshu_update_has_font_payload() {
     return 1
 }
 
+# A selection may describe a committed next-boot transaction, not the payload
+# currently mounted. Preserve that transaction separately and verify its bytes
+# without rewriting either the running module or its current-payload ledger.
+luoshu_update_copy_pending_physical() (
+    _lupc_old="$1"; _lupc_new="$2"; _lupc_source="$_lupc_old/.luoshu-payload-next"
+    _lupc_dest="$_lupc_new/.luoshu-payload-next"
+    _lupc_check="$_lupc_new/.pending-update-check.$$"
+    [ -d "$_lupc_source" ] && [ ! -L "$_lupc_source" ] && [ ! -e "$_lupc_dest" ] || exit 1
+    mkdir -p "$_lupc_check/config" || exit 1
+    trap 'rm -rf "$_lupc_check"' EXIT HUP INT TERM
+    [ ! -f "$_lupc_old/config/device_font_partitions.conf" ] ||
+        cp -p "$_lupc_old/config/device_font_partitions.conf" "$_lupc_check/config/" || exit 1
+    # Reuse the bundled batch hashers when available; the shell implementation
+    # remains the compatibility fallback for recovery and older environments.
+    if [ -x "$_lupc_new/common/python/bin/luoshu-python" ]; then
+        mkdir -p "$_lupc_check/common" || exit 1
+        ln -s "$_lupc_new/common/python" "$_lupc_check/common/python" || exit 1
+        for _lupc_script in physical_payload_hashes.py font_update_manifest.py font_digest_cache.py; do
+            [ ! -f "$_lupc_new/common/$_lupc_script" ] ||
+                cp -p "$_lupc_new/common/$_lupc_script" "$_lupc_check/common/" || exit 1
+        done
+    fi
+    mkdir -p "$_lupc_check/logs" || exit 1
+    [ -f "$_lupc_new/common/physical_payload_manifest.sh" ] || exit 1
+    . "$_lupc_new/common/physical_payload_manifest.sh" || exit 1
+    luoshu_physical_manifest_build "$_lupc_check" "$_lupc_source" || exit 1
+    luoshu_copy_update_tree "$_lupc_source" "$_lupc_dest" || exit 1
+    luoshu_update_verify_manifest "$_lupc_check" "$_lupc_dest" 0 || exit 1
+)
+
 luoshu_clear_update_volatile() {
     _module="$1"
     if type luoshu_font_lock_force_clear >/dev/null 2>&1; then
@@ -379,7 +409,36 @@ _luoshu_migrate_active_install_locked() {
     LUOSHU_UPDATE_FAILURE_REASON=migration-copy-failed
     _active=$(head -n1 "$_old/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_active" ] || _active=default
-    _lup_payload_root=$(luoshu_update_payload_root "$_old" "$_new" "$_active") || {
+    _lup_current="$_active"
+    _lup_pending=false
+    if [ "$_active" != default ] && [ ! -s "$_old/config/universal-font-next.conf" ] &&
+       { [ -e "$_old/config/font-payload-next.conf" ] || [ -e "$_old/.luoshu-payload-next" ]; }; then
+        _lup_pending_state="$_old/config/font-payload-next.conf"
+        _lup_pending_marker="$_old/.luoshu-payload-next/.luoshu-next-transaction.conf"
+        _lup_pending_request=$(luoshu_update_config_value "$_lup_pending_state" requestId)
+        _lup_pending_previous=$(luoshu_update_config_value "$_lup_pending_state" previousFont)
+        _lup_pending_mode=$(luoshu_update_config_value "$_lup_pending_state" targetMode)
+        if [ -L "$_lup_pending_state" ] || [ -L "$_lup_pending_marker" ] ||
+           [ -e "$_old/.luoshu-state/backup/next-transaction" ] ||
+           [ -s "$_old/config/universal-font-next.conf" ] ||
+           [ "$(luoshu_update_config_value "$_lup_pending_state" undo)" = true ] ||
+           [ "$(luoshu_update_config_value "$_lup_pending_state" state)" != prepared ] ||
+           [ "$(luoshu_update_config_value "$_lup_pending_state" font)" != "$_active" ] ||
+           [ -z "$_lup_pending_previous" ] || [ -z "$_lup_pending_request" ] ||
+           [ "$(luoshu_update_config_value "$_lup_pending_marker" schema)" != luoshu-next-payload-v1 ] ||
+           [ "$(luoshu_update_config_value "$_lup_pending_marker" font)" != "$_active" ] ||
+           [ "$(luoshu_update_config_value "$_lup_pending_marker" requestId)" != "$_lup_pending_request" ]; then
+            LUOSHU_UPDATE_FAILURE_REASON=pending-font-transaction-unconfirmed; return 1
+        fi
+        case "$_lup_pending_mode:$_active" in :default|legacy:default|default:*|classic:*)
+            LUOSHU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
+            :*|legacy:*) ;;
+            *) LUOSHU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
+        esac
+        _lup_pending=true
+        _lup_current="$_lup_pending_previous"
+    fi
+    _lup_payload_root=$(luoshu_update_payload_root "$_old" "$_new" "$_lup_current") || {
         LUOSHU_UPDATE_FAILURE_REASON=live-font-state-unconfirmed-or-pending-switch; return 1;
     }
     _old_schema=$(luoshu_update_payload_schema "$_old")
@@ -401,11 +460,11 @@ _luoshu_migrate_active_install_locked() {
     fi
     # Copying an already generated mix does not need the original recipe or
     # source fonts. Those are only needed for the user's next explicit apply.
-    if [ "$_active" != default ] && ! luoshu_update_has_font_payload "$_old" "$_lup_payload_root"; then
+    if [ "$_lup_current" != default ] && ! luoshu_update_has_font_payload "$_old" "$_lup_payload_root"; then
         LUOSHU_UPDATE_FAILURE_REASON=active-font-payload-missing
         return 1
     fi
-    if [ "$_active" != default ]; then
+    if [ "$_lup_current" != default ]; then
         # Verify the staged bytes against the inherited manifest once below.
         # Re-reading the source beforehand provides no extra content proof.
         if [ -s "$_old/config/universal-font-runtime.conf" ]; then
@@ -426,7 +485,7 @@ _luoshu_migrate_active_install_locked() {
     rm -f "$_new/config/font-live.conf" "$_new/config/font-live-previous.conf" \
         "$_new/config/font-live-attempt.conf" "$_new/config/font-live-boot-previous.conf" \
         "$_new/config/font-ui-cache.json" 2>/dev/null || true
-    if [ "$_lup_payload_root" != "$_old" ] && [ "$_lup_payload_root" != "$_old/.luoshu-payload" ]; then
+    if [ "$_lup_pending" != true ] && [ "$_lup_payload_root" != "$_old" ] && [ "$_lup_payload_root" != "$_old/.luoshu-payload" ]; then
         rm -f "$_new/config/font-payload-next.conf" "$_new/config/universal-font-next.conf" 2>/dev/null || true
     fi
 
@@ -445,7 +504,7 @@ _luoshu_migrate_active_install_locked() {
         mkdir -p "$_new" 2>/dev/null || return 1
         luoshu_copy_update_tree "$_lup_payload_root/$_partition" "$_new/$_partition" || return 1
     done
-    if [ "$_active" != default ] && [ -s "$_old/config/universal-font-runtime.conf" ]; then
+    if [ "$_lup_current" != default ] && [ -s "$_old/config/universal-font-runtime.conf" ]; then
         # Keep deployment artifacts beside the fonts they describe, without
         # overwriting the new release's executable runtime/core.
         luoshu_copy_update_tree "$_lup_payload_root/.luoshu-runtime/deployment" \
@@ -453,7 +512,7 @@ _luoshu_migrate_active_install_locked() {
         luoshu_copy_update_tree "$_lup_payload_root/.luoshu-dynamic" \
             "$_new/.luoshu-payload/.luoshu-dynamic" || return 1
     fi
-    if [ "$_active" != default ]; then
+    if [ "$_lup_current" != default ]; then
         if [ ! -e "$_new/config/font-payload-manifest.conf" ] &&
            [ "$(luoshu_update_config_value "$_new/config/font_runtime_legacy_v14_4.conf" core)" = physical-safe-v1 ] &&
            [ "$(luoshu_update_config_value "$_new/config/font-payload-schema.conf" schema)" = legacy-physical-safe-v1 ]; then
@@ -464,6 +523,13 @@ _luoshu_migrate_active_install_locked() {
                 }
         fi
         luoshu_update_verify_manifest "$_new" "$_new" 1 || return 1
+    fi
+    if [ "$_lup_pending" = true ]; then
+        luoshu_update_copy_pending_physical "$_old" "$_new" || {
+            LUOSHU_UPDATE_FAILURE_REASON=pending-font-payload-verification-failed; return 1;
+        }
+        printf 'pending font=%s request=%s validation=source-and-staged-manifest\n' "$_active" "$_lup_pending_request" \
+            >>"$_new/logs/module-update.log" 2>/dev/null || true
     fi
 
     _schema_compatible=false

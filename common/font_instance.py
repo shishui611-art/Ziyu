@@ -25,6 +25,8 @@ from fontTools import subset
 from fontTools import __version__ as FONTTOOLS_VERSION
 from fontTools.misc.lazyTools import LazyDict
 from fontTools.varLib.instancer import instantiateVariableFont
+from font_face_weight import weight_distance
+from font_native_instance import attempt as native_instance
 
 from font_metrics_normalize import normalize_font_metrics
 from font_space_compat import ensure_space_glyphs
@@ -121,7 +123,7 @@ def face_score(font: TTFont, role: str, weight: int) -> tuple[int, int]:
     cmap = font.getBestCmap() or {}
     probes = CJK_PROBES if role == "cjk" else LATIN_PROBES if role == "latin" else DIGIT_PROBES
     hits = sum(1 for codepoint in probes if codepoint in cmap)
-    return hits, -abs(font_weight(font) - weight)
+    return hits, -weight_distance(font, weight)
 
 
 def pick_face(path: Path, role: str, weight: int) -> int:
@@ -203,9 +205,27 @@ def materialize(
     location: dict[str, float] = {}
     ignored_axes: list[str] = []
     variation_fallbacks = []
+    instancing = {"engine": "static"}
+    native_used = False
     try:
         if variable:
             variation_fallbacks = guard_gvar(font)
+            known_axes = {str(axis.axisTag): axis for axis in font["fvar"].axes}
+            ignored_axes = sorted(tag for tag in requested_axes if tag not in known_axes)
+            for tag, axis in known_axes.items():
+                requested = requested_axes.get(tag, requested_weight if tag == 'wght' else float(axis.defaultValue))
+                location[tag] = float(max(axis.minValue, min(axis.maxValue, requested)))
+            native, instancing = native_instance(font, source, face, location, role, check_mix_cancellation)
+            if native is None and instancing.get('nativeFallback') in ('native-exit-69', 'native-exit-70'):
+                from font_gvar_repair import repair_and_instance
+                native, repaired_info, repaired = repair_and_instance(font, source, face, location, role, check_mix_cancellation)
+                if native is not None:
+                    instancing = repaired_info
+                    variation_fallbacks.extend(repaired)
+            if native is not None:
+                font.close()
+                font = native
+                native_used = True
         if role in ("latin", "digit"):
             latin = (set(range(0x20, 0x30)) | set(range(0x3A, 0x7F))
                      | set(range(0xA0, 0x250)) | set(range(0x300, 0x370))
@@ -225,13 +245,12 @@ def materialize(
             role_subset = subset.Subsetter(options=options)
             role_subset.populate(unicodes=role_codepoints)
             role_subset.subset(font)
+            if native_used and variation_fallbacks:
+                kept = set(font.getGlyphOrder())
+                variation_fallbacks[:] = [item for item in variation_fallbacks if item['glyph'] in kept]
         if variable:
-            known_axes = {str(axis.axisTag): axis for axis in font["fvar"].axes}
-            ignored_axes = sorted(tag for tag in requested_axes if tag not in known_axes)
-            for tag, axis in known_axes.items():
-                requested = requested_axes.get(tag, float(axis.defaultValue))
-                location[tag] = float(max(axis.minValue, min(axis.maxValue, requested)))
-            font = instantiateVariableFont(font, location, inplace=True, optimize=True)
+            if not native_used:
+                font = instantiateVariableFont(font, location, inplace=True, optimize=True)
         elif requested_axes:
             ignored_axes = sorted(tag for tag in requested_axes if tag != "wght")
 
@@ -271,6 +290,7 @@ def materialize(
             "location": location,
             "ignoredAxes": ignored_axes,
             "variationFallbacks": variation_fallbacks,
+            "instancing": instancing,
             "warning": warning,
             "spaceCompatibility": space_compatibility,
             "metrics": metrics,

@@ -9,6 +9,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -86,6 +87,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -365,9 +367,11 @@ internal fun ZiyuAppShell(
             }
         }
         val dockActuallyVisible = showDock && !dockHiddenByScroll
+        val dockVisibility = remember { MutableTransitionState(dockActuallyVisible) }
+        dockVisibility.targetState = dockActuallyVisible
         val liquidBackdrop = rememberLayerBackdrop()
         val liquidGlassSupported = appearance.floatingDock && appearance.glassEnabled &&
-            dockActuallyVisible && Build.VERSION.SDK_INT >= 33 &&
+            (dockVisibility.currentState || dockVisibility.targetState) && Build.VERSION.SDK_INT >= 33 &&
             isRuntimeShaderSupported()
         val navigationBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         // Every primary page owns its scrollable bottom clearance. Keep one inset source so
@@ -392,7 +396,12 @@ internal fun ZiyuAppShell(
             .then(if (liquidGlassSupported) Modifier.layerBackdrop(liquidBackdrop) else Modifier)
 
         Box(Modifier.fillMaxSize()) {
-            if (rootBack.active) Box(Modifier.fillMaxSize().backDestinationPreview()) {
+            val prepareRootPreview = appearance.predictiveBack && Build.VERSION.SDK_INT >= 34 &&
+                page != AppPage.Home && !(page == AppPage.Settings && settingsDetailVisible)
+            if (prepareRootPreview) Box(Modifier.fillMaxSize()
+                .graphicsLayer { alpha = if (rootBack.active) 1f else 0f }
+                .background(LocalZiyuPaletteTokens.current.pageBackground)
+                .backDestinationPreview()) {
                 if (page == AppPage.Logs && logsReturnPage == AppPage.Settings) {
                     io.github.xgl34222220.ziyu.ui.settings.SettingsHome(systemCenter, {}, {})
                 } else {
@@ -537,7 +546,7 @@ internal fun ZiyuAppShell(
                 else -> page
             }
             AnimatedVisibility(
-                visible = dockActuallyVisible,
+                visibleState = dockVisibility,
                 modifier = Modifier.align(Alignment.BottomCenter),
                 enter = fadeIn(tween(180)) + slideInVertically(tween(210, easing = FastOutSlowInEasing)) { it / 2 },
                 exit = fadeOut(tween(150)) + slideOutVertically(tween(190, easing = FastOutSlowInEasing)) { it },

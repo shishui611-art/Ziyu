@@ -1,5 +1,17 @@
 # 第三方组件与许可证
 
+## Xposed API 82（仅用于编译）
+
+`android-app/xposed-api/api-82.jar` 来源为 [Xposed 官方 Maven](https://api.xposed.info/de/robv/android/xposed/api/82/api-82.jar)，SHA-256 为 `f48c635f1c7469fdec0e00ad2ea0b7a6b2f5b55065784a35b7ca3a84615e8e25`，许可证为 [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)。它只作为 compileOnly 使用，不打包到 App；实际 API 由用户安装并启用的兼容框架提供。WebView 字体处理由字域自行实现。
+
+## HarfBuzz 15.0.0 原生字体处理器
+
+- 来源：[HarfBuzz 15.0.0 官方源码](https://github.com/harfbuzz/harfbuzz/tree/15.0.0)，原始源码包 SHA-256 为 `fe4b8bad7afbbae75d61b2095c267c98f4ed04fe4a117680130ed253d2732efe`。
+- `native/font-instance/instance.cpp`、`native/font-instance/glyph-cache.hh` 和构建脚本是字域 GPL-3.0-only 代码；`common/font-native-instance` 静态包含 HarfBuzz，许可证见 [`licenses/HarfBuzz-COPYING.txt`](licenses/HarfBuzz-COPYING.txt) 和 [Microsoft USE MIT 许可](licenses/HarfBuzz-Microsoft-USE-MIT.txt)。构建脚本固定 Android ARM64 API 28、NDK 与二进制哈希记录，打包前校验来源。
+- 原生实例优先覆盖已支持的 TrueType 与 CFF2 可变字体和各角色供体；不支持的表、结果校验失败及运行不可用会走现有 FontTools。手机运行与性能仍须实测。
+
+`common/font_ttf_export.{py,sh}` 与 `FontTtfExport.kt` 为本项目原创 GPL-3.0-only 代码，调用已打包 FontTools 的字体集合、变轴实例与轮廓转换 API，未新增第三方依赖或字体数据。转换文件仅由用户主动导出。轮廓模板复用同样使用现有 FontTools API，无新增原生库；运行文件列入模块清单，项目许可证见 `licenses/Ziyu-GPL-3.0.txt`（随主许可证原文）。
+
 字域当前源码采用 GPL-3.0-only，详见根目录 [`LICENSE`](LICENSE)。历史 MIT 发行版本的许可证文本保存在 [`licenses/LuoShu-MIT-HISTORICAL.txt`](licenses/LuoShu-MIT-HISTORICAL.txt)。
 
 发布包会包含或在构建过程中引入以下第三方组件。它们不因被字域打包而改变原许可证。
@@ -127,3 +139,5 @@ v1.4.13 的通知授权状态、独立预览通知与 `ui/navigation/PredictiveB
 `common/font_verity.{sh,py}` 是项目自有 Linux fs-verity ioctl 封装，UAPI 参数参考 Android NDK `<linux/fsverity.h>`；不引入额外库或证书。新增用户存储、备份与标识迁移同为项目自有代码，保留项目许可证。
 
 `common/font_parallel.py` 与 Android `NotificationAccess.kt` 为项目自有实现，沿用项目许可证。并行处理使用已有 CPython 的 os/signal/json，通知使用 Android 系统 API，未引入第三方库、厂商 SDK、签名密钥或驻留服务。
+
+v1.4.38 的 `common/font_native_glyphs.py`、原生字形缓存协议和 TrueType 分解/缩放代码为本项目原创 GPL-3.0-only 实现；`font_native_instance.py` 的字符裁剪使用上述已固定 HarfBuzz。没有新增外部库或随包字体；运行文件已列入模块清单。

@@ -1,0 +1,31 @@
+{
+  "schema": "ziyu-native-instance-build-v1",
+  "harfbuzz": "15.0.0",
+  "upstream": "https://github.com/harfbuzz/harfbuzz/tree/15.0.0",
+  "upstreamArchiveSha256": "fe4b8bad7afbbae75d61b2095c267c98f4ed04fe4a117680130ed253d2732efe",
+  "abi": "arm64-v8a",
+  "api": 28,
+  "flags": [
+    "--target=aarch64-linux-android28",
+    "-std=c++17",
+    "-Oz",
+    "-DNDEBUG",
+    "-DHB_NO_MT",
+    "-ffunction-sections",
+    "-fdata-sections",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-static-libstdc++",
+    "-Wl,--gc-sections",
+    "-Wl,-s",
+    "-Wl,-z,max-page-size=16384"
+  ],
+  "ndk": "Pkg.Desc = Android NDK\nPkg.Revision = 28.2.13676358\nPkg.BaseRevision = 28.2.13676358\nPkg.ReleaseName = r28c\n",
+  "sourceSha256": "bd80549265c5d4ceedc817ae148c45abbd19e3c00993ccd4fef4280192f6e5b2",
+  "glyphSourceSha256": "489aaec61d70f21d202404f189fe2edfa990083f10ea92a3cdfee34d0f27ba85",
+  "builderSha256": "752b8f517bc4809ae21231658376db427f2e84cd113eb662285c4f728fe79a49",
+  "binarySha256": "e725c3e6ae64be02450ab2f7e5f083a229cc6df69203ff833327a1fd72a55aa5",
+  "licenseSha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+  "msLicenseSha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+  "bytes": 1861472
+}

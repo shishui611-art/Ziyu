@@ -32,3 +32,13 @@ headers, IDLE and ensurepip. The third-party licenses are not changed.
 
 User-supplied fonts, imported module fonts, ROM files and generated composite
 font data are not licensed under LuoShu's MIT License.
+
+Ziyu font_ttf_export.py/.sh and FontTtfExport.kt are original GPL-3.0-only
+code using the existing FontTools runtime APIs. No new external dependency
+or font data is bundled. Project license: licenses/Ziyu-GPL-3.0.txt.
+
+Ziyu v1.4.38 font_native_glyphs.py and native/font-instance/glyph-cache.hh
+are original GPL-3.0-only code. Native subset/instancing uses the already
+bundled HarfBuzz 15.0.0 (HarfBuzz-COPYING.txt and HarfBuzz-Microsoft-USE-MIT.txt).
+No user or ROM font data is distributed. Runtime source and binary provenance
+are checked by scripts/build_font_instance.py.

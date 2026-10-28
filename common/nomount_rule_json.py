@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import PurePosixPath
 from typing import Any
 
 
@@ -80,13 +81,45 @@ def contains_path_under_root(node: Any, root: str) -> bool:
     return isinstance(node, str) and matches(node)
 
 
+def owned_reload_plan(node: Any, root: str) -> list[tuple[str, str]]:
+    """Plan only explicit NoMount file pairs owned by this module's published tree."""
+    root = root.rstrip('/')
+    if not root or not root.startswith('/') or '..' in PurePosixPath(root).parts:
+        raise ValueError('invalid-module-root')
+    rows: dict[str, str] = {}
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            target, source = value.get('virtual'), value.get('real')
+            if isinstance(source, str) and source.startswith(root + '/'):
+                if not isinstance(target, str) or not target.startswith('/'):
+                    raise ValueError('missing-virtual-path')
+                for path in (source, target):
+                    if any(ord(c) < 32 or c in '|\\' for c in path) or str(PurePosixPath(path)) != path or '..' in PurePosixPath(path).parts:
+                        raise ValueError('unsafe-rule-path')
+                if target in rows and rows[target] != source:
+                    raise ValueError('duplicate-rule-target')
+                rows[target] = source
+            for child in value.values():
+                if isinstance(child, (dict, list)):
+                    visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(node)
+    if len(rows) > 4096:
+        raise ValueError('too-many-owned-rules')
+    return sorted(rows.items())
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) not in (2, 3, 4) or argv[1] not in {"target", "pair", "root"}:
-        print("usage: nomount_rule_json.py target | pair | root", file=sys.stderr)
+    if len(argv) not in (2, 3, 4) or argv[1] not in {"target", "pair", "root", "owned-plan"}:
+        print("usage: nomount_rule_json.py target | pair | root | owned-plan", file=sys.stderr)
         return 2
-    if argv[1] == "root" and len(argv) == 3:
+    if argv[1] in {"root", "owned-plan"} and len(argv) == 3:
         root = argv[2]
-    elif argv[1] == "root" and len(argv) == 2:
+    elif argv[1] in {"root", "owned-plan"} and len(argv) == 2:
         root = unquote(os.environ.get("LUOSHU_NOMOUNT_JSON_ROOT", ""))
     elif len(argv) == 2:
         target = unquote(os.environ.get("LUOSHU_NOMOUNT_JSON_TARGET", ""))
@@ -102,7 +135,7 @@ def main(argv: list[str]) -> int:
         source = argv[3]
     else:
         return 2
-    if argv[1] == "root" and not root:
+    if argv[1] in {"root", "owned-plan"} and not root:
         return 2
 
     try:
@@ -112,6 +145,15 @@ def main(argv: list[str]) -> int:
         return 0
     if not isinstance(payload, (dict, list)):
         print("invalid", end="")
+        return 0
+
+    if argv[1] == 'owned-plan':
+        try:
+            rows = owned_reload_plan(payload, root)
+        except ValueError:
+            return 2
+        # Shell transaction plans use literal UTF-8/LF on every host.
+        sys.stdout.buffer.write(''.join(f'{target}|{source}\n' for target, source in rows).encode('utf-8'))
         return 0
 
     if argv[1] == "root":

@@ -267,6 +267,7 @@ internal fun FontLibraryManagementDialog(
     style: UiStyle,
     fonts: List<FontItem>,
     activeFontId: String,
+    activeFontPending: Boolean,
     operationBusy: Boolean,
     collections: FontLibraryCollections,
     conflicts: FontLibraryConflictReport,
@@ -351,6 +352,7 @@ internal fun FontLibraryManagementDialog(
                             ManagementFamilyRow(
                                 font = font,
                                 active = font.id == activeFontId,
+                                pending = activeFontPending,
                                 selected = font.id in selectedIds,
                                 favorite = font.id in collections.favoriteIds,
                                 tags = collections.tags[font.id].orEmpty(),
@@ -504,6 +506,7 @@ private fun ManagementActionPill(
 private fun ManagementFamilyRow(
     font: FontItem,
     active: Boolean,
+    pending: Boolean,
     selected: Boolean,
     favorite: Boolean,
     tags: Set<String>,
@@ -547,7 +550,7 @@ private fun ManagementFamilyRow(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (active) ManagementStatusPill("使用中", MaterialTheme.colorScheme.primary)
+                        if (active) ManagementStatusPill(if (pending) "待重启" else "使用中", MaterialTheme.colorScheme.primary)
                     }
                     Text(
                         familyStructureLabel(font),

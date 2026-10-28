@@ -11,12 +11,12 @@ SIZE_REPORT="$OUT/Ziyu-${VERSION}-size.txt"
 APP_APK="${LUOSHU_APP_APK:-}"
 ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
-# Keep the signed and local builders within the same fixed 12 MiB budget. The three-theme
-# v1.4 candidate measures about 12.2 MB after non-runtime document pruning; preserve all font
-# dependencies and signature checks. The App updater independently caps downloads at 128 MiB.
-MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-12582912}"
+# The bundled HarfBuzz executable needs additional space. Keep both builders
+# within the same 13 MiB budget; preserve all dependencies and signature checks.
+MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-13631488}"
 
 python3 "$ROOT/scripts/build_font_preload.py" --verify
+python3 "$ROOT/scripts/build_font_instance.py" --verify
 sh "$ROOT/scripts/check.sh"
 [ -n "$APP_APK" ] || {
   echo 'LUOSHU_APP_APK is required for the App-only module.' >&2

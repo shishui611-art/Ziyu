@@ -557,6 +557,9 @@ setup_runtime() {
     force_link "$LEGACY/font_mix_runtime.sh" "$RUNTIME/common/font_mix.sh" || return 1
     force_link "$LEGACY/font_mix_engine.sh" "$RUNTIME/common/font_mix_engine.sh" || return 1
     force_link "$LEGACY/font_instance.py" "$RUNTIME/common/font_instance.py" || return 1
+    force_link "$REALMOD/common/font_native_instance.py" "$RUNTIME/common/font_native_instance.py" || return 1
+    force_link "$REALMOD/common/font_face_weight.py" "$RUNTIME/common/font_face_weight.py" || return 1
+    force_link "$REALMOD/common/font_gvar_repair.py" "$RUNTIME/common/font_gvar_repair.py" || return 1
     [ ! -f "$REALMOD/common/font_prepare_cache.py" ] || force_link "$REALMOD/common/font_prepare_cache.py" "$RUNTIME/common/font_prepare_cache.py" || return 1
     force_link "$LEGACY/composite_font.py" "$RUNTIME/common/composite_font.py" || return 1
     force_link "$LEGACY/composite_layout.py" "$RUNTIME/common/composite_layout.py" || return 1
@@ -619,10 +622,25 @@ if [ "$_cmd" = status ]; then
 fi
 case "$_cmd" in
     start)
-        if [ -f "$REALMOD/common/boot_ota_guard.sh" ] && ! MODDIR="$REALMOD" MODULE_DIR="$REALMOD" \
-            sh "$REALMOD/common/boot_ota_guard.sh" allow-apply "$REALMOD" mix >/dev/null 2>&1; then
-            printf '{"status":"error","message":"开机保护暂未解除，请在开机保护页面核对原因并完成原厂字体扫描"}\n'
-            exit 1
+        if [ -f "$REALMOD/common/boot_ota_guard.sh" ]; then
+            MODDIR="$REALMOD" MODULE_DIR="$REALMOD" \
+                sh "$REALMOD/common/boot_ota_guard.sh" allow-apply "$REALMOD" mix >/dev/null 2>&1
+            _mix_guard_rc=$?
+            if [ "$_mix_guard_rc" -ne 0 ] && [ -f "$REALMOD/common/boot_ota_recover.sh" ] && \
+               [ "$(printf '%s\n' "$_mix_guard_rc")" = 21 ]; then
+                # System update: refresh the OEM baseline for this build, then
+                # retry the gate so combination preparation can continue.
+                . "$REALMOD/common/boot_ota_recover.sh"
+                if ziyu_boot_ota_refresh "$REALMOD" 240 >>"$REALMOD/logs/mix.log" 2>&1; then
+                    MODDIR="$REALMOD" MODULE_DIR="$REALMOD" \
+                        sh "$REALMOD/common/boot_ota_guard.sh" allow-apply "$REALMOD" mix >/dev/null 2>&1
+                    _mix_guard_rc=$?
+                fi
+            fi
+            if [ "$_mix_guard_rc" -ne 0 ]; then
+                printf '{"status":"error","message":"开机保护暂未解除，请在开机保护页面核对原因并完成原厂字体扫描"}\n'
+                exit 1
+            fi
         fi
         mkdir -p "$REALMOD/logs" 2>/dev/null || exit 1
         mix_reconcile_fast

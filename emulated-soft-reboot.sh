@@ -47,9 +47,18 @@ _soft_module_mount_remains() {
 
 if [ "$_provider" = nomount ] || [ -e "$MODDIR/.ziyu-state/nomount-rules.current" ]; then
     . "$MODDIR/common/mount_nomount_backend.sh" || _soft_fail 'nomount-cleanup-check-unavailable'
-    # Provider hooks retract their scan rules first. Rescue rules are owned by
-    # Ziyu's ledger and must be removed here even when active_backend=external.
-    luoshu_nomount_cleanup "$MODDIR" || _soft_fail 'nomount-owned-rule-cleanup-unconfirmed'
+    # KernelSU runs this stage before `stop`. Defer NoMount writes until the
+    # post-fs-data callback, after manager/WebUI and Android apps are stopped.
+    if [ "${ZIYU_KSU_POST_STOP_RELOAD:-0}" != 1 ]; then
+        printf 'boot_id=%s\nstate=nomount-cleanup-pending\n' "$_boot" > "${_stage}.tmp.$$" &&
+            mv -f "${_stage}.tmp.$$" "$_stage" || exit 1
+        printf '[TEMP-ROOT] NoMount cleanup deferred until Android services stop\n' >> "$MODDIR/logs/mount-backend.log"
+        exit 0
+    fi
+    luoshu_nomount_reload_window_ready || _soft_fail 'nomount-cleanup-window-not-quiescent'
+    # Rescue and provider pairs share the font-transaction lock in this stage.
+    luoshu_nomount_provider_reload_cleanup "$MODDIR" || \
+        _soft_fail 'nomount-provider-owned-rule-cleanup-unconfirmed'
     _nomount_rules=$(luoshu_nomount_module_rules_state "$MODDIR") || \
         _soft_fail 'nomount-live-rule-state-unknown'
     case "$_nomount_rules" in

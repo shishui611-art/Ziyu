@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
+import kotlin.math.roundToInt
 
 @Stable
 internal class PredictiveBackState {
@@ -52,7 +53,10 @@ internal fun rememberPredictiveBack(
                 state.progress = event.progress.coerceIn(0f, 1f)
             }
             val hadGesture = state.active
-            if (hadGesture) animate(state.progress, 1f, animationSpec = tween(100)) { value, _ -> state.progress = value }
+            if (hadGesture) {
+                val remainingMillis = (100f * (1f - state.progress)).roundToInt().coerceIn(0, 100)
+                animate(state.progress, 1f, animationSpec = tween(remainingMillis)) { value, _ -> state.progress = value }
+            }
             callback(hadGesture)
             state.progress = 0f
             state.active = false

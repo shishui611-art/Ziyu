@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
@@ -25,6 +26,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Ziyu"
         android:usesCleartextTraffic="false">
+
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription" android:value="对用户在 LSPosed 中选择的应用，将系统 WebView 网页文字使用当前系统字体" />
+        <meta-data android:name="xposedminversion" android:value="82" />
 
         <activity
             android:name=".MainActivity"

@@ -110,7 +110,12 @@ fi
     done
     [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ] || exit 0
 
-    _active=$(sed -n '1p' "$MODDIR/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
+    [ ! -f "$MODDIR/common/font_live_state.sh" ] || . "$MODDIR/common/font_live_state.sh"
+    _active=''
+    if type ziyu_current_payload_font >/dev/null 2>&1; then
+        _active=$(ziyu_current_payload_font "$MODDIR")
+    fi
+    [ -n "$_active" ] || _active=$(sed -n '1p' "$MODDIR/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_active" ] || _active=$(sed -n 's/^font=//p' "$LEGACY_MODE" 2>/dev/null | head -n1 | tr -d '\r\n')
     [ -n "$_active" ] || _active=default
     _mount_state=$(sed -n 's/^state=//p' "$MOUNT_STATE_FILE" 2>/dev/null | head -n1 | tr -d '\r\n')
@@ -124,11 +129,13 @@ fi
     _verify_state=pending
     _verify_mode=compatibility
     _verify_reason=awaiting-mount-confirmation
+    _shared_verifier=false
     if [ "$_active" = default ]; then
         _verify_state=not-applicable
         _verify_mode=system
         _verify_reason=default-font
     elif [ -f "$MODDIR/common/device_font_load_verify.sh" ]; then
+        _shared_verifier=true
         # The shared verifier gives the current-boot backend verdict priority and
         # reads the XML/CJK route through PID 1, never a stale self-mount marker.
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/device_font_load_verify.sh" verify >> "$LOG" 2>&1
@@ -136,9 +143,12 @@ fi
         _verify_state=$(sed -n 's/^state=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
         _verify_mode=$(sed -n 's/^mode=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
         _verify_reason=$(sed -n 's/^reason=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
+        _active=$(sed -n 's/^activeFont=//p' "$VERIFY" 2>/dev/null | head -n1 | tr -d '\r\n')
+        [ -n "$_active" ] || _active=unknown
         if [ "$_verify_rc" -ne 0 ] && [ "$_verify_state" = verified ]; then
             _verify_state=failed
             _verify_reason=load-verifier-command-failed
+            _shared_verifier=false
         fi
         [ -n "$_verify_state" ] || _verify_state=pending
         [ -n "$_verify_reason" ] || _verify_reason=load-verifier-evidence-missing
@@ -167,19 +177,28 @@ fi
         esac
     fi
 
-    {
-        printf 'state=%s\n' "$_verify_state"
-        printf 'mode=%s\n' "$_verify_mode"
-        printf 'activeFont=%s\n' "$_active"
-        printf 'reason=%s\n' "$_verify_reason"
-        printf 'bootId=%s\n' "$_boot_id"
-        printf 'time=%s\n' "$_now"
-    } > "${VERIFY}.tmp.$$" 2>/dev/null && mv -f "${VERIFY}.tmp.$$" "$VERIFY" 2>/dev/null || true
+    if [ "$_shared_verifier" != true ]; then
+        {
+            printf 'state=%s\n' "$_verify_state"
+            printf 'mode=%s\n' "$_verify_mode"
+            printf 'activeFont=%s\n' "$_active"
+            printf 'reason=%s\n' "$_verify_reason"
+            printf 'bootId=%s\n' "$_boot_id"
+            printf 'time=%s\n' "$_now"
+        } > "${VERIFY}.tmp.$$" 2>/dev/null && mv -f "${VERIFY}.tmp.$$" "$VERIFY" 2>/dev/null || true
+    fi
     chmod 0644 "$VERIFY" 2>/dev/null || true
 
     case "$_verify_state" in
         verified|not-applicable)
-            rm -f "$MODDIR/config/text_reboot_required.conf" 2>/dev/null || true
+            # Reconcile against the pending transaction and its boot identity;
+            # success for an older mounted font cannot consume the new marker.
+            if [ -f "$MODDIR/common/font_boot_state.sh" ]; then
+                LUOSHU_BOOT_RECONCILE_CACHED_ONLY=1 MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+                    sh "$MODDIR/common/font_boot_state.sh" reconcile >/dev/null 2>&1 || true
+            elif [ ! -s "$MODDIR/config/font-payload-next.conf" ]; then
+                rm -f "$MODDIR/config/text_reboot_required.conf" 2>/dev/null || true
+            fi
             # Keep the previous actual payload for explicit undo across reboots.
             rm -rf "$MODDIR"/.luoshu-payload-stage.* 2>/dev/null || true
             if [ -f "$MODDIR/common/action_control.sh" ]; then
