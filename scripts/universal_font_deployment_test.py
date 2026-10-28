@@ -137,16 +137,25 @@ def main() -> int:
         assert dynamic_logical in artifact_manifest["dynamicTargetMap"]
 
         payload_root = temp / "payload"
-        expected_seal_roots = {payload_root.resolve()}
+        expected_stage_locations = {
+            (payload_root.parent.resolve(), f".{payload_root.name}.")
+        }
         sealed_sources: list[Path] = []
         test_font_verity = ModuleType("font_verity")
 
-        def seal_staged_dynamic_source(path: Path) -> str:
+        def assert_staged_dynamic_source(path: Path) -> Path:
             staged_path = Path(path).resolve()
             assert staged_path.is_file()
             assert staged_path.parent.name == ".luoshu-dynamic"
-            assert staged_path.parent.parent in expected_seal_roots
-            sealed_sources.append(staged_path)
+            stage_root = staged_path.parent.parent
+            assert any(
+                stage_root.parent == parent and stage_root.name.startswith(prefix)
+                for parent, prefix in expected_stage_locations
+            )
+            return staged_path
+
+        def seal_staged_dynamic_source(path: Path) -> str:
+            sealed_sources.append(assert_staged_dynamic_source(path))
             return "test-only-fsverity-digest"
 
         test_font_verity.seal = seal_staged_dynamic_source
@@ -210,7 +219,9 @@ def main() -> int:
 
         # Payload identity must not depend on where the prepared directory lives.
         second_root = temp / "payload-elsewhere"
-        expected_seal_roots.add(second_root.resolve())
+        expected_stage_locations.add(
+            (second_root.parent.resolve(), f".{second_root.name}.")
+        )
         with mock.patch.dict(sys.modules, {"font_verity": test_font_verity}):
             second = deployment.build_deployment(
                 font_plan, route_plan, artifact_manifest, second_root
@@ -236,9 +247,13 @@ def main() -> int:
         # An unavailable fs-verity implementation must block deployment. Keep
         # this failure path deterministic instead of depending on the host FS.
         rejected_root = temp / "payload-without-fsverity"
+        expected_stage_locations.add(
+            (rejected_root.parent.resolve(), f".{rejected_root.name}.")
+        )
         unavailable_verity = ModuleType("font_verity")
 
         def reject_unsupported_filesystem(path: Path) -> str:
+            assert_staged_dynamic_source(path)
             raise OSError(errno.EOPNOTSUPP, "fs-verity unsupported by test fixture")
 
         unavailable_verity.seal = reject_unsupported_filesystem
