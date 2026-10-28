@@ -32,30 +32,32 @@ class AppearanceSettingsTest {
     }
 
     @Test
-    fun legacyKolorNamesAreMappedToCurrentChoices() {
+    fun storedKolorNamesPreserveDistinctPalettes() {
         assertEquals(KolorStyle.SOFT, KolorStyle.fromStorage(null))
-        assertEquals(KolorStyle.NEUTRAL, KolorStyle.fromStorage("monochrome"))
-        assertEquals(KolorStyle.VIBRANT, KolorStyle.fromStorage("expressive"))
-        assertEquals(KolorStyle.VIBRANT, KolorStyle.fromStorage("content"))
+        for (style in KolorStyle.entries) {
+            assertEquals(style, KolorStyle.fromStorage(style.name.lowercase()))
+            assertEquals(style, KolorStyle.fromStorage(style.paletteName))
+        }
     }
 
     @Test
     fun invalidAccentFallsBackToZiyuBlue() {
         val normalized = AppearanceSettings(seedArgb = 0x12345678).normalized()
         assertEquals(AccentOptions.first().argb, normalized.seedArgb)
-        assertEquals("luoshu", normalized.accent.id)
+        assertEquals("ziyu", normalized.accent.id)
         assertFalse(normalized.highRefreshRate)
     }
 
     @Test
-    fun blurCannotRemainEnabledWhenGlassIsDisabled() {
+    fun blurPreferenceIsPreservedWhenGlassIsDisabled() {
         val normalized = AppearanceSettings(
             glassEnabled = false,
             blurEnabled = true,
         ).normalized()
 
         assertFalse(normalized.glassEnabled)
-        assertFalse(normalized.blurEnabled)
+        assertTrue(normalized.blurEnabled)
+        assertTrue(normalized.copy(glassEnabled = true).normalized().blurEnabled)
     }
 
     @Test

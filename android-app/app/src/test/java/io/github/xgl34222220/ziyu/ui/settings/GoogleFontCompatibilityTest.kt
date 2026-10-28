@@ -40,7 +40,7 @@ class GoogleFontCompatibilityTest {
     @Test fun commandsUseOnlyPinnedActionsAndAppUser() {
         val command = googleFontCommand("enable", 10)
         assertTrue(command.contains("enable --user 10 --json"))
-        assertTrue(command.contains("/data/adb/modules/LuoShu/common/google_font_fallback.sh"))
+        assertTrue(command.contains("/data/adb/modules/ziyu/common/google_font_fallback.sh"))
         assertFalse(command.contains("--user all"))
     }
     @Test(expected = IllegalArgumentException::class) fun arbitraryCommandIsRejected() { googleFontCommand("enable;reboot", 0) }
