@@ -59,9 +59,11 @@ done
 
 # Every appearance preset feeds its own whole-page palette and shape system into
 # the shared design adapter. Native headers use their matching component families.
-grep -q 'UiStyle.MATERIAL -> ZiyuMaterialTheme(settings, content)' "$THEME"
-grep -q 'UiStyle.MIUIX -> ZiyuMiuixTheme(settings, content)' "$THEME"
-grep -q 'UiStyle.COUI -> ZiyuCouiTheme(settings, content)' "$THEME"
+grep -q 'rememberUpdatedState(content)' "$THEME"
+grep -Fq 'movableContentOf { latestContent.value() }' "$THEME"
+grep -q 'UiStyle.MATERIAL -> ZiyuMaterialTheme(settings, retainedContent)' "$THEME"
+grep -q 'UiStyle.MIUIX -> ZiyuMiuixTheme(settings, retainedContent)' "$THEME"
+grep -q 'UiStyle.COUI -> ZiyuCouiTheme(settings, retainedContent)' "$THEME"
 grep -q 'ProvideZiyuThemeData(' "$THEME"
 grep -q 'LocalZiyuThemeTokens provides nativeTokens' "$THEME"
 grep -q 'COUITheme.colorScheme' "$THEME"
@@ -212,7 +214,11 @@ grep -q 'val showDock = page != AppPage.Logs' "$SHELL"
 MATERIAL_DOCK=$(sed -n '/private fun MaterialAppDock/,/private fun MiuixAppDock/p' "$SHELL")
 printf '%s\n' "$MATERIAL_DOCK" | grep -q 'dockPages.forEach'
 printf '%s\n' "$MATERIAL_DOCK" | grep -q 'NavigationBarItem('
-! printf '%s\n' "$MATERIAL_DOCK" | grep -q 'modifier = Modifier.weight(1f)'
+# Native navigation items keep their own sizing contract. The expressive
+# floating Row separately weights its animated selected label.
+MATERIAL_NATIVE_ITEM=$(printf '%s\n' "$MATERIAL_DOCK" | sed -n '/MaterialNavigationBarItem(/,/^[[:space:]]*)/p')
+test -n "$MATERIAL_NATIVE_ITEM"
+! printf '%s\n' "$MATERIAL_NATIVE_ITEM" | grep -q 'modifier = Modifier.weight(1f)'
 grep -q 'private fun MiuixAppDock' "$SHELL"
 MIUIX_DOCK=$(sed -n '/private fun MiuixAppDock/,/private fun CouiAppDock/p' "$SHELL")
 printf '%s\n' "$MIUIX_DOCK" | grep -q 'FloatingBottomBar('
@@ -234,8 +240,8 @@ grep -Fq 'key = { dockPages[it] }' "$SHELL"
 
 # Settings follows a grouped home -> detail hierarchy instead of a clipped horizontal tab strip.
 grep -q 'SettingCard("视觉与显示")' "$SETTINGS"
-grep -q 'ToggleLine("液态玻璃", "为当前主题的悬浮底栏启用半透明与折射效果"' "$SETTINGS"
-grep -q 'ToggleLine("背景模糊", "可单独关闭模糊，保留玻璃的半透明与折射效果"' "$SETTINGS"
+grep -Fq 'ToggleLine("液态玻璃", "悬浮底栏使用半透明、折射与可拖动的选中指示器", settings.glassEnabled, actions.setGlassEnabled, settings.floatingDock)' "$SETTINGS"
+grep -Fq 'ToggleLine("背景模糊", "关闭后保留玻璃的半透明与折射效果", settings.blurEnabled, actions.setBlurEnabled, settings.glassEnabled && settings.floatingDock)' "$SETTINGS"
 grep -q 'ToggleLine("悬浮底栏", "关闭后使用贴合屏幕底部的常规导航栏"' "$SETTINGS"
 grep -q 'private fun SettingsGroup' "$SETTINGS"
 grep -q 'private fun SettingsNavigationRow' "$SETTINGS"

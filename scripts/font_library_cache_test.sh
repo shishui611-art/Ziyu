@@ -54,6 +54,7 @@ DIRECT_PUBLIC="$TMP/direct-public"
 PLAN_MARKER="$TMP/plan-called"
 mkdir -p "$DIRECT_MOD/common" "$DIRECT_MOD/config" "$DIRECT_PUBLIC/fonts"
 cp "$ROOT/common/font_library_cache.sh" "$DIRECT_MOD/common/font_library_cache.sh"
+cp "$ROOT/common/user_storage.sh" "$DIRECT_MOD/common/user_storage.sh"
 printf 'One\n' > "$DIRECT_MOD/config/active_font.conf"
 printf 'font-one' > "$DIRECT_PUBLIC/fonts/One-Regular.ttf"
 cat > "$DIRECT_MOD/common/device_font_template.sh" <<'EOF_TEMPLATE'
