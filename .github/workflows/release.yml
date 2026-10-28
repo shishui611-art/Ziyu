@@ -22,6 +22,7 @@ on:
       - 'scripts/font_axis_info_test.py'
       - 'scripts/boot_ota_guard_test.py'
       - 'scripts/diagnostic_export_test.py'
+      - 'common/font_archive_export.sh'
       - 'scripts/font_instance_gvar_recovery_test.py'
       - 'scripts/font_library_ui_layout_test.sh'
       - 'scripts/stability_test.sh'

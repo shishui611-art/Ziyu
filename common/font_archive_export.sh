@@ -21,32 +21,32 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
 }
 
-fail() {
+_fae_fail() {
     printf '{"status":"error","message":"%s"}\n' "$(json_escape "$1")"
     exit 0
 }
 
 family="${1:-}"
 dest="${2:-}"
-[ -n "$family" ] || fail "未指定字体 Family"
-[ -n "$dest" ] || fail "未指定归档缓存目录"
+[ -n "$family" ] || _fae_fail "未指定字体 Family"
+[ -n "$dest" ] || _fae_fail "未指定归档缓存目录"
 
 case "$dest" in
-    *'/../'*|*/..|../*) fail "归档缓存路径无效" ;;
+    *'/../'*|*/..|../*) _fae_fail "归档缓存路径无效" ;;
     /data/user/0/io.github.shishui611_art.ziyu/cache/font_archive/*|\
     /data/data/io.github.shishui611_art.ziyu/cache/font_archive/*|\
     /data/user/0/io.github.shishui611_art.ziyu.debug/cache/font_archive/*|\
     /data/data/io.github.shishui611_art.ziyu.debug/cache/font_archive/*) ;;
-    *) fail "归档目标目录不受信任" ;;
+    *) _fae_fail "归档目标目录不受信任" ;;
 esac
 
-[ -d "$USER_FONTS_DIR" ] || fail "字体库目录不存在"
-[ ! -L "$dest" ] && [ ! -L "${dest%/*}" ] || fail "归档缓存不能是符号链接"
+[ -d "$USER_FONTS_DIR" ] || _fae_fail "字体库目录不存在"
+[ ! -L "$dest" ] && [ ! -L "${dest%/*}" ] || _fae_fail "归档缓存不能是符号链接"
 owner=$(stat -c '%u:%g' "${dest%/*}" 2>/dev/null)
-case "$owner" in ''|*[!0-9:]*) fail "无法读取应用缓存权限" ;; esac
-rm -rf "$dest" 2>/dev/null || fail "无法清理归档缓存"
-mkdir -p "$dest" 2>/dev/null || fail "无法创建归档缓存"
-chown "$owner" "$dest" 2>/dev/null || fail "无法设置归档缓存所有者"
+case "$owner" in ''|*[!0-9:]*) _fae_fail "无法读取应用缓存权限" ;; esac
+rm -rf "$dest" 2>/dev/null || _fae_fail "无法清理归档缓存"
+mkdir -p "$dest" 2>/dev/null || _fae_fail "无法创建归档缓存"
+chown "$owner" "$dest" 2>/dev/null || _fae_fail "无法设置归档缓存所有者"
 chmod 0700 "$dest" 2>/dev/null || true
 
 count=0
@@ -65,23 +65,23 @@ for file in "$USER_FONTS_DIR"/*.ttf "$USER_FONTS_DIR"/*.otf "$USER_FONTS_DIR"/*.
     [ "$detected" = "$family" ] || continue
 
     count=$((count + 1))
-    [ "$count" -le 128 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "单个 Family 超过 128 个字体文件限制"; }
+    [ "$count" -le 128 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; _fae_fail "单个 Family 超过 128 个字体文件限制"; }
     bytes="$(wc -c < "$file" 2>/dev/null | tr -d '[:space:]')"
     case "$bytes" in ''|*[!0-9]*) bytes=0 ;; esac
-    [ "$bytes" -gt 0 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "字体文件为空或无法读取"; }
+    [ "$bytes" -gt 0 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; _fae_fail "字体文件为空或无法读取"; }
     total=$((total + bytes))
-    [ "$total" -le 1073741824 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "单个 Family 归档超过 1 GB 限制"; }
+    [ "$total" -le 1073741824 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; _fae_fail "单个 Family 归档超过 1 GB 限制"; }
 
     ext="${file##*.}"
     ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
     target="$dest/$(printf '%03d' "$count").$ext"
-    cp -f "$file" "$target" 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "复制字体文件失败"; }
-    chown "$owner" "$target" 2>/dev/null || fail "无法设置字体导出文件权限"
+    cp -f "$file" "$target" 2>/dev/null || { rm -rf "$dest" 2>/dev/null; _fae_fail "复制字体文件失败"; }
+    chown "$owner" "$target" 2>/dev/null || _fae_fail "无法设置字体导出文件权限"
     chmod 0644 "$target" 2>/dev/null || true
 done
 
-[ "$count" -gt 0 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; fail "找不到指定 Family 的字体文件"; }
-[ ! -x /system/bin/restorecon ] || /system/bin/restorecon -RF "$dest" >/dev/null 2>&1 || fail "无法恢复导出文件访问标签"
+[ "$count" -gt 0 ] 2>/dev/null || { rm -rf "$dest" 2>/dev/null; _fae_fail "找不到指定 Family 的字体文件"; }
+[ ! -x /system/bin/restorecon ] || /system/bin/restorecon -RF "$dest" >/dev/null 2>&1 || _fae_fail "无法恢复导出文件访问标签"
 printf '{"status":"ok","data":{"family":"%s","count":%s,"bytes":%s}}\n' \
     "$(json_escape "$family")" "$count" "$total"
 exit 0
