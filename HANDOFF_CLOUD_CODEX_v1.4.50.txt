@@ -1,0 +1,82 @@
+字域 v1.4.50 云端 Codex 交接说明
+更新时间：2026-10-28（Asia/Shanghai）
+
+一、要完成的目标
+
+接手后继续修复与发布 v1.4.50 正式版（版本号 1.4.50，versionCode 14050），不要另起版本或从头重复已经完成的工作。发布目标是修复 Material 浅色卡片边框、覆盖模块时重复弹出旧导入通知，以及修正 SukiSU/NoMount 软重启后仍提示需要软重启的挂载状态问题。源代码和文档已经推到 GitHub main；目前正式发布 CI 尚未通过，也没有正式版 Release/tag。
+
+二、仓库与 Git 状态
+
+本地工作副本：
+C:\Users\Admin\Desktop\ColorOS字体管理器\Ziyu-miuix-detail-fix
+
+GitHub 仓库：https://github.com/shishui611-art/Ziyu
+GitHub main 当前提交：c926e266af20aeec8e7a593cab6e6943dd1f76e6
+该提交树 SHA：c323e27352895104ee72cad801270eda7c01b64a
+本地分支：codex/three-native-design-systems
+本地 HEAD：ce2fc4532617b1de5eec0302a7184d0ca49b81ab
+本地 HEAD 与 GitHub main 的文件树相同；提交 SHA 不同是此前通过 GitHub API 安全更新分支造成的。不要强推、不要 reset，也不要用本地旧 origin/main 覆盖远端 main。
+
+工作区有三个用户已有的未跟踪文档，必须保留：
+docs/CLOUD_CODEX_HANDOFF_ziyu-v1.3.0.md
+docs/superpowers/plans/2026-10-11-native-design-systems.md
+docs/superpowers/plans/2026-10-12-ui-visual-correction.md
+
+common/font_archive_export.sh 在 Windows 上显示为 modified，但 git diff 无内容；不要为了清理状态而 reset 或改写它。先检查 git diff 与文件模式。
+
+三、最新 CI 状态与下一步
+
+最新正式发布工作流：
+https://github.com/shishui611-art/Ziyu/actions/runs/40690644660
+Run ID：40690644660，结论：source regression 阶段失败，Android 正式构建未开始。
+
+同一提交的原生引擎 Smoke 工作流：
+https://github.com/shishui611-art/Ziyu/actions/runs/40690644790
+Run ID：40690644790，结论：成功。
+
+正式 CI 的最新失败集中在 scripts/release_v2_retirement_test.py 的 6 个用例。真实错误为：
+common/font_weight_retire.sh: 56: .: cannot open <临时目录>/new/common/util_functions.sh: No such file
+
+测试 setUp 只创建 old/new 的 config 目录，并调用 scripts/host_task_scope_fixture.py 安装任务监督器；new/common/util_functions.sh 与 util_functions_core.sh 未复制进隔离模块。生产脚本确实需要 source util_functions.sh，后者再 source util_functions_core.sh。预计应修复测试夹具：为 new/common 准备这两个真实生产文件（并确认是否还需其直接依赖），之后在 Linux CI 环境重跑稳定性与完整正式工作流。此前“flash 失败后 boot 重试”及状态检查报错很可能也是缺少夹具造成的次生失败。
+
+禁止通过跳过 release_v2_retirement_test、吞掉 source 错误、替换成空函数、放宽生产校验或缩减断言来让 CI 变绿。应让 fixture 提供真实脚本依赖并验证原本行为。新增提交应保留版本 1.4.50，并确保修改路径仍在 .github/workflows/release.yml 的 push paths 列表中（该测试路径当前已列入）。正式 workflow 成功后才会按仓库逻辑创建 ziyu-v1.4.50 标签并发布；不要提前手动创建标签，也不要 dispatch 尚不存在的标签。
+
+四、已修复并验证的内容
+
+1. Material 浅色模式卡片边框：Material 卡片此前计算了默认边框颜色，却没有把边框 modifier 传给 Material 分支。现已让浅色模式 clickable 与普通卡片使用可见的 outlineVariant/outline 混合边框；显式 border 仍有效。暗色与其他主题行为保持既有逻辑。需要手机目测验收。
+
+2. 覆盖刷模块时重弹旧导入通知：恢复出来的终态导入记录会标记 restoredFromDisk，通知发布逻辑忽略这类历史终态，只对当前运行或可恢复任务发布通知。11 个相关 JUnit 用例曾通过本地导出的原始 Gradle classpath 执行；Windows Gradle test worker 本身有 ClassNotFound 问题，因此正式 CI 仍需运行完整 Gradle 测试。
+
+3. SukiSU/NoMount 软重启提示：用户手机当时实际安装模块是 v1.4.38，Root 管理器为 SukiSU Ultra 4.2.1、NoMount 2.0.0(484)。只调用 ksud 返回成功并不代表 NoMount 的模块路径规则已卸载；22 条仍指向旧字体负载的文件规则留在 NoMount 中，造成新字体未激活，应用继续等待完整重启。
+
+代码新增受控的 NoMount 自有规则清理流程：软重启停止前只记录待处理，不改 NoMount；zygote 停止后，在 PID 1 mount namespace、任务锁及分区映射验证通过后，只删除字域自己登记的精确虚拟/真实路径对；失败时回滚并阻止新字体激活。保留 NoMount provider 原本 metamount 顺序，不做全局清空或接管其他模块规则。scripts/mount_nomount_backend_test.sh 本地通过。设备实测尚未进行；用户要先升级模块后才能验证新 hook。请勿自动安装 APK、刷模块、改字体规则或重启手机。
+
+4. 文档已更新：README、用户指南、临时 Root 说明、发布说明和 v1.4.50 更新日志；移除失效 LuoShu 上游用户链接，保留历史来源/许可证说明。
+
+5. CI 中此前发现的 Linux 回归问题已逐个修正，包括 fs-verity 测试环境、mount 回滚夹具、字体轴测试导入点、OTA 旧元数据夹具、诊断导出模块路径、字体任务超时文案与严格 UI 布局测试。最新 CI 仍可能继续暴露后续断言；按每次实际失败修复，不要认定此前全绿。
+
+五、本地 Debug 包与检查范围
+
+当前本地 Debug 交付目录：
+dist/20261028-165402-v1.4.50-ui-import-debug
+
+APK：Ziyu-App-v1.4.50-debug.apk
+模块 ZIP：Ziyu-v1.4.50.zip
+APK SHA-256：a89fdc6ea178dc3130b4b2ffd5069b33946ebd14b17527a88668168318624339
+ZIP SHA-256：8506cc2e56dfd80eb62f0b45601075f15092ca8b0ebdeb455eb7f368c55843e9
+
+Debug APK/ZIP 已通过本地包完整性脚本，独立 APK 与 ZIP 内置 APK SHA-256 一致，包名/版本、模块清单、native 文件摘要及运行脚本一致。该包使用 Android Debug 签名，不是正式签名。包生成时运行代码与当前远端 main 一致；之后仅新增/修改了 UI 布局与缓存回归测试夹具，不改变 APK 或模块运行文件。
+
+本地已通过：Material/主题 UI 严格布局脚本、NoMount 模拟事务回归、stability_test.sh、11 个 Native Import JUnit 测试，以及若干字体轴、OTA、诊断与通用挂载回归。Windows 本地完整字体性能超时集成因 MSYS 无法模拟 Linux /proc PID 生命周期而失败；Linux 正式 CI 的真实 30 秒超时集成已通过。请以 Linux CI 实际结论为准。
+
+六、正式交付完成条件
+
+- 最新 main 的完整 release workflow source regression、Android lint/test、正式签名 APK 构建、签名证书校验、ZIP 构建与发布检查全部成功。
+- 自动发布的 ziyu-v1.4.50 Release 为正式版，Tag 指向通过完整 CI 的 main 提交；签名 SHA-256 应为 ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468。
+- Release workflow 发布 ZIP 与 SHA-256 文件；从 ZIP 提取独立 APK，校验正式签名证书、包名、versionCode 14050、versionName 1.4.50、module.prop 版本、嵌入 APK 与独立 APK 字节一致、运行文件清单及 SHA。
+- 后续同步 update.json / 稳定版元数据的 workflow 成功。
+- 生成新时间戳目录保存正式 APK 与 ZIP，保留已有 Debug 包；最终给用户完整本地路径、GitHub Release 链接、验证范围，以及尚待手机验证的两项（浅色卡片视觉、NoMount 升级后的软重启挂载流程）。
+
+七、权限边界
+
+用户先前已明确授权修复、推送 GitHub main、发布 v1.4.50 正式版和更新 GitHub 文档。此授权不包含自动安装、刷入模块、重启手机、变更手机字体或直接改手机 NoMount 规则。不要上传用户设备日志、字体库或其他本地隐私文件。不要更换正式签名密钥，不要伪造设备验收结论。
