@@ -10,6 +10,8 @@ class RetirementTest(unittest.TestCase):
         self.root=Path(t.name);self.old=self.root/'old';self.new=self.root/'new'
         for p in (self.old,self.new):(p/'config').mkdir(parents=True)
         install_task_scope(self.new)
+        for name in ('util_functions.sh', 'util_functions_core.sh'):
+            shutil.copyfile(ROOT/'common'/name, self.new/'common'/name)
         self.bin=self.root/'bin';self.bin.mkdir()
         self.value=self.root/'value';self.value.write_text('120\n')
         self.calls=self.root/'calls'
