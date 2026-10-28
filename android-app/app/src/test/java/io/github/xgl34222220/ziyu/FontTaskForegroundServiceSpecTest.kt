@@ -7,6 +7,12 @@ import org.junit.Test
 
 class FontTaskForegroundServiceSpecTest {
     @Test
+    fun promotedOngoingApiIsGatedAtAndroid16MinorReleaseOne() {
+        assertFalse(supportsPromotedOngoingApi(Build.VERSION_CODES_FULL.BAKLAVA))
+        assertTrue(supportsPromotedOngoingApi(Build.VERSION_CODES_FULL.BAKLAVA_1))
+    }
+
+    @Test
     fun detachedOngoingTaskKeepsItsProgressAndExplainsThatPollingContinues() {
         val running = FontTaskNotificationSpec("mix", "running", "正在生成组合字体", 42)
 

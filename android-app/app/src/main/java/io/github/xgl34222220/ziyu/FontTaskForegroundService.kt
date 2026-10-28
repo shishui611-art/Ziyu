@@ -30,6 +30,9 @@ private const val FONT_TASK_START_REJECTED_NOTICE =
 private const val FONT_TASK_DATA_SYNC_TIMEOUT_NOTICE =
     "系统已结束字体后台进度服务；任务仍继续，打开字域查看进度。"
 
+internal fun supportsPromotedOngoingApi(sdkIntFull: Int): Boolean =
+    sdkIntFull >= Build.VERSION_CODES_FULL.BAKLAVA_1
+
 internal fun fontTaskDetachedNotice(
     spec: FontTaskNotificationSpec,
     reason: String,
@@ -160,9 +163,11 @@ internal object FontTaskNotificationController {
                     putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, true)
                 })
                 // A few OEM API 36 builds expose ProgressStyle before the promotion methods.
-                runCatching {
-                    builder.setRequestPromotedOngoing(true).setShortCriticalText(spec.chipText)
-                }.onFailure { Log.d("ZiyuFontTask", "Compact live-update API unavailable", it) }
+                if (supportsPromotedOngoingApi(Build.VERSION.SDK_INT_FULL)) {
+                    runCatching {
+                        builder.setRequestPromotedOngoing(true).setShortCriticalText(spec.chipText)
+                    }.onFailure { Log.d("ZiyuFontTask", "Compact live-update API unavailable", it) }
+                }
             } else {
                 builder.setProgress(100, spec.progress?.coerceIn(0, 100) ?: 0, spec.progress == null)
             }
