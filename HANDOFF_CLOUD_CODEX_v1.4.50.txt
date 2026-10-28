@@ -11,12 +11,11 @@
 C:\Users\Admin\Desktop\ColorOS字体管理器\Ziyu-miuix-detail-fix
 
 GitHub 仓库：https://github.com/shishui611-art/Ziyu
-GitHub main 当前提交：b251d4d8cd587c76fcce3f6621dc07a5581c85c4（仅增加本文档）。
 v1.4.50 发布源码提交：c926e266af20aeec8e7a593cab6e6943dd1f76e6
 发布源码树 SHA：c323e27352895104ee72cad801270eda7c01b64a
 本地分支：codex/three-native-design-systems
-本地 HEAD：ce2fc4532617b1de5eec0302a7184d0ca49b81ab
-本地 HEAD 与发布源码提交的文件树相同；当前 GitHub main 只在该源码树上增加了本文档。提交 SHA 不同是此前通过 GitHub API 安全更新分支造成的。不要强推、不要 reset，也不要用本地旧 origin/main 覆盖远端 main。
+本地源码（不含本交接 TXT）的文件树与上述发布源码树相同。GitHub main 在发布源码提交后又加入了本交接文档的提交；这些提交只新增或修订本文档，不改变发布运行代码。接手时请读取 GitHub main 当前分支头，不要依赖本交接文档中的旧分支头 SHA。
+不要强推、不要 reset，也不要用本地旧 origin/main 覆盖远端 main。
 
 工作区有三个用户已有的未跟踪文档，必须保留：
 docs/CLOUD_CODEX_HANDOFF_ziyu-v1.3.0.md
