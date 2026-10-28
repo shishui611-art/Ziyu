@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -ex
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
@@ -113,7 +113,7 @@ wait_state success
 start_output="$(sh "$ROOT/common/font_switch_task.sh" start slow)"
 printf '%s\n' "$start_output" | grep -q '"status":"ok"'
 wait_state failed
-grep -q '超过 30 秒' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q '达到 30 秒运行时限' "$LUOSHU_SWITCH_TASK_FILE"
 grep -q '76% · 正在处理 HyperOS 字体度量' "$LUOSHU_SWITCH_TASK_FILE"
 grep -q '^percent=100$' "$LUOSHU_SWITCH_TASK_FILE"
 
