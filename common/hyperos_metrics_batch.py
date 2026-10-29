@@ -166,6 +166,22 @@ def compact_routed_source(source: Path, output: Path, routing: frozenset[int],
                 points.update(table.cmap)
             else:
                 glyphs.update(table.cmap.values())
+        # The native subsetter takes an unmodified disk source and retains
+        # glyph IDs/layout closure. Use it only for plain Unicode cmaps: UVS
+        # and legacy/symbol mappings need the explicit glyph closure below.
+        # Keep font as the fallback if the native helper cannot prove output.
+        plain_unicode = all(table.format != 14 and table.isUnicode()
+                            for table in font['cmap'].tables)
+        if points and plain_unicode:
+            from font_native_instance import subset_instance
+            from font_instance import check_mix_cancellation
+            native, _engine = subset_instance(font, source, face, points, {}, check_mix_cancellation)
+            if native is not None:
+                try:
+                    native.save(output, reorderTables=False)
+                finally:
+                    native.close()
+                return output, removed
         options = subset.Options()
         options.legacy_cmap = True
         options.symbol_cmap = True

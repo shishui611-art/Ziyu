@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
@@ -35,6 +36,7 @@ internal fun LogsRoute(
     val importState = importViewModel.state
     val displayState = state.withNativeImport(importState)
     val density = LocalDensity.current
+    val context = LocalContext.current.applicationContext
     var importControlsHeight by remember { mutableIntStateOf(0) }
     val hasImportControls = importState.taskId.isNotBlank() && importState.phase != NativeImportPhase.IDLE
     val scope = rememberCoroutineScope()
@@ -45,7 +47,7 @@ internal fun LogsRoute(
         if (!diagnosticState.busy) {
             diagnosticState = DiagnosticExportState(busy = true)
             scope.launch {
-                diagnosticState = exportSanitizedDiagnostic()
+                diagnosticState = exportSanitizedDiagnostic(context)
             }
         }
     }

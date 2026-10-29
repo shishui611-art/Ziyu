@@ -27,6 +27,10 @@ class DiagnosticExportTest(unittest.TestCase):
                        "effectiveWeight": 400, "generatedWeight": "100", "traceback": "materialize\nAssertionError: packed delta count"}
             (module / "logs/font-diagnostics/mix-repro-123-cjk-100.json").write_text(json.dumps(failure), encoding="utf-8")
             (module / "logs/fontswitch.log").write_text("[MIX_PROCESS] task=mix-repro-123 exit_code=13\n", encoding="utf-8")
+            app_updates = root / "app-files/module-update"
+            app_updates.mkdir(parents=True)
+            (app_updates / "check.log").write_text("检查失败：HTTP 429\n", encoding="utf-8")
+            (app_updates / "latest.log").write_text("更新失败：模块 SHA-256 不匹配\n", encoding="utf-8")
             props = root / "getprop"
             props.write_text('#!/bin/sh\ncase "$1" in ro.product.model) echo PLK110;; ro.build.version.sdk) echo 37;; esac\n', encoding="utf-8")
             props.chmod(0o755)
@@ -35,6 +39,9 @@ class DiagnosticExportTest(unittest.TestCase):
             self.assertEqual(command.count("MOD=/data/adb/modules/ziyu"), 1)
             command = command.replace("MOD=/data/adb/modules/ziyu", 'MOD="$TEST_ROOT/module"')
             command = command.replace("OUT_DIR=/sdcard/Ziyu/reports", 'OUT_DIR="$TEST_ROOT/reports"')
+            app_path = 'APP_UPDATES=${RootShell.quote(File(context.filesDir, "module-update").absolutePath)}'
+            self.assertEqual(command.count(app_path), 1)
+            command = command.replace(app_path, 'APP_UPDATES="$TEST_ROOT/app-files/module-update"')
             script = root / "export.sh"
             script.write_text('cd "$TEST_ROOT"\nPATH="$PWD:$PATH"\n' + command, encoding="utf-8")
             environment = os.environ.copy()
@@ -52,6 +59,10 @@ class DiagnosticExportTest(unittest.TestCase):
             self.assertIn("cat /proc/sys/kernel/random/boot_id", command)
             self.assertNotIn("cat /proc/", command.replace("cat /proc/sys/kernel/random/boot_id", ""))
             self.assertIn("font names, paths", report)
+            self.assertIn("[app-module-update:check.log]", report)
+            self.assertIn("检查失败：HTTP 429", report)
+            self.assertIn("[app-module-update:latest.log]", report)
+            self.assertIn("更新失败：模块 SHA-256 不匹配", report)
 
 
 if __name__ == "__main__":

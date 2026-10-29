@@ -803,6 +803,7 @@ private fun UpdatePage(model: SystemCenterViewModel) {
                 info.error.isNotBlank() -> "检查失败"
                 info.pendingVersion.isNotBlank() -> "模块更新等待完整重启"
                 info.hasUpdate -> "发现新模块 ${info.version}"
+                info.available && isNewerZiyuVersion(info.currentVersion, info.currentVersionCode, info.version, info.versionCode) -> "当前模块版本高于线上正式版"
                 info.available -> "没有更新的正式模块版本"
                 else -> "尚未检查"
             }, if (info.error.isNotBlank()) HealthLevel.WARNING else HealthLevel.HEALTHY, info.loading) {

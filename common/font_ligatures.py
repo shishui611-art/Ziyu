@@ -1,7 +1,7 @@
 """Restyle Latin GSUB targets without changing the OEM layout tables or glyph IDs."""
 from collections import ChainMap
 
-from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.boundsPen import BoundsPen, ControlBoundsPen
 from fontTools.pens.transformPen import TransformPen
 
 
@@ -117,7 +117,10 @@ def plan_latin_ligatures(base, donor, replaced, glyphs=None, blocked=()):
             while source in glyphs:
                 source += '_'
             glyph = _JoinedGlyph(glyphs, names)
-            pen = BoundsPen(glyphs)
+            # TrueType xMin describes control points, not the tighter curve
+            # extrema. Using curve bounds here gives joined glyphs a different
+            # LSB from their emitted glyf outline, especially at small UPEM.
+            pen = (ControlBoundsPen if 'glyf' in donor else BoundsPen)(glyphs)
             glyph.draw(pen)
             joined[source] = glyph
             joined_metrics[source] = (glyph.width, pen.bounds[0] if pen.bounds else 0)

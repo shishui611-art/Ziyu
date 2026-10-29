@@ -17,6 +17,7 @@ from contextlib import nullcontext
 import gc
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -36,7 +37,7 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTCollection, TTFont, TTLibError
 from fontTools.ttLib.sfnt import writeTTCHeader
 from fontTools.ttLib.tables.TupleVariation import TupleVariation
-from fontTools.ttLib.tables._g_l_y_f import Glyph
+from font_native_glyphs import packed_glyph
 from fontTools.varLib.builder import buildVarData, buildVarIdxMap
 
 from composite_collection_contract import collection_faces
@@ -51,6 +52,8 @@ import stock_font_snapshot
 SCHEMA = 'composite-collection-build-v1'
 PROTECTED = ('cmap', 'GSUB', 'GPOS', 'GDEF', 'name', 'hhea', 'OS/2', 'vhea', 'vmtx', 'VORG',
              'fvar', 'avar', 'STAT', 'MVAR', 'BASE', 'cvar', 'VVAR')
+METRIC_EXTREMA = {'hhea': ('advanceWidthMax', 'minLeftSideBearing', 'minRightSideBearing', 'xMaxExtent'),
+                  'vhea': ('advanceHeightMax', 'minTopSideBearing', 'minBottomSideBearing', 'yMaxExtent')}
 CJK_RANGES = ((0x2E80, 0x31EF), (0x3400, 0x9FFF), (0xF900, 0xFAFF),
               (0xFF00, 0xFFEF), (0x20000, 0x323AF))
 MAX_COLLECTION_TARGETS = 16
@@ -146,11 +149,12 @@ def role(cp):
     return 'cjk' if any(lo <= cp <= hi for lo, hi in CJK_RANGES) else None
 
 
-def protected(font, stock_order=None, *, skip_tables=()):
+def protected(font, stock_order=None, *, skip_tables=(), capture_bounds=False,
+              bounds_reference=None):
     recalc = font.recalcBBoxes
     font.recalcBBoxes = False
     try:
-        return _protected(font, stock_order, skip_tables)
+        return _protected(font, stock_order, skip_tables, capture_bounds, bounds_reference)
     finally:
         font.recalcBBoxes = recalc
 
@@ -168,7 +172,21 @@ def _glyph_ymax(glyf, name):
     return getattr(glyf[name], 'yMax', 0)
 
 
-def _protected(font, stock_order=None, skip_tables=()):
+def _metric_extrema(font):
+    return {tag: [int(getattr(font[tag], field)) for field in fields]
+            for tag, fields in METRIC_EXTREMA.items() if tag in font}
+
+
+def _extrema_expand(before, after):
+    return (isinstance(before, (list, tuple)) and isinstance(after, (list, tuple))
+            and len(before) == len(after) == 4
+            and all(isinstance(value, int) for value in (*before, *after))
+            and after[0] >= before[0] and after[1] <= before[1]
+            and after[2] <= before[2] and after[3] >= before[3])
+
+
+def _protected(font, stock_order=None, skip_tables=(), capture_bounds=False,
+               bounds_reference=None):
     order = font.getGlyphOrder()
     if stock_order is not None:
         if order[:len(stock_order)] != stock_order:
@@ -181,6 +199,13 @@ def _protected(font, stock_order=None, skip_tables=()):
     for tag in PROTECTED:
         if tag not in skip_tables and tag in font:
             font[tag]
+    extrema = _metric_extrema(font) if capture_bounds or bounds_reference is not None else None
+    if bounds_reference is not None:
+        reference_extrema = bounds_reference.get('metricExtrema')
+        if (not isinstance(reference_extrema, dict) or reference_extrema.keys() != extrema.keys()
+                or any(not _extrema_expand(reference_extrema[tag], values)
+                       for tag, values in extrema.items())):
+            raise ValueError('全局度量统计只能扩展原厂范围')
     tables = {}
     for tag in PROTECTED:
         if tag in skip_tables or tag not in font:
@@ -214,11 +239,25 @@ def _protected(font, stock_order=None, skip_tables=()):
         # Metric serialization may change its run-length compression count.
         # Every other header field still binds the original line metrics.
         if tag in ('hhea', 'vhea'):
+            if bounds_reference is not None:
+                # These four values describe extrema, not ascent/descent or
+                # line spacing. Bind every other header byte to the OEM proof.
+                data = data[:10] + struct.pack('>Hhhh', *reference_extrema[tag]) + data[18:]
             data = data[:-2]
         tables[tag] = hashlib.sha256(data).hexdigest()
-    return {'tables': tables, 'glyphOrder': canonical(order),
-            'frame': [font['head'].unitsPerEm, font['head'].xMin, font['head'].yMin,
-                      font['head'].xMax, font['head'].yMax]}
+    frame = [font['head'].unitsPerEm, font['head'].xMin, font['head'].yMin,
+             font['head'].xMax, font['head'].yMax]
+    if bounds_reference is not None:
+        before = bounds_reference.get('frame')
+        if (not isinstance(before, list) or len(before) != 5 or before[0] != frame[0]
+                or frame[1] > before[1] or frame[2] > before[2]
+                or frame[3] < before[3] or frame[4] < before[4]):
+            raise ValueError('全局轮廓边界只能扩展原厂范围')
+        frame, extrema = before, reference_extrema
+    result = {'tables': tables, 'glyphOrder': canonical(order), 'frame': frame}
+    if extrema is not None:
+        result['metricExtrema'] = extrema
+    return result
 
 
 def raw_table_hashes(font):
@@ -229,7 +268,8 @@ def raw_table_hashes(font):
             for tag in sorted(RAW_PRESERVABLE) if tag in font.reader}
 
 
-def contract_matches(font, expected, raw_tables=None, stock_order=None):
+def contract_matches(font, expected, raw_tables=None, stock_order=None, *,
+                     allow_bounds_expansion=False):
     """Compare an unopened output/stock face to a byte-preservation proof.
 
     A reader still exposes old bytes after an in-memory change. Refuse raw
@@ -248,7 +288,12 @@ def contract_matches(font, expected, raw_tables=None, stock_order=None):
             if (font.isLoaded(tag) or tag not in font.reader
                     or hashlib.sha256(font.reader[tag]).hexdigest() != digest):
                 return False
-    actual = protected(font, stock_order, skip_tables=raw_tables)
+    try:
+        actual = protected(font, stock_order, skip_tables=raw_tables,
+                           capture_bounds='metricExtrema' in expected,
+                           bounds_reference=expected if allow_bounds_expansion else None)
+    except (ValueError, TypeError, struct.error):
+        return False
     trimmed = dict(expected)
     trimmed['tables'] = {tag: value for tag, value in expected['tables'].items()
                          if tag not in raw_tables}
@@ -342,13 +387,33 @@ def retained_vertical_deltas(font, name):
         return []
     if 'VVAR' in font and getattr(font['VVAR'].table, 'TsbMap', None) is not None:
         raise ValueError('可变 TrueType 垂直侧距映射需要独立重编译，不能沿用旧轮廓数据')
-    coordinates, controls = font['glyf']._getCoordinatesAndControls(
-        name, font['hmtx'].metrics, font['vmtx'].metrics)
+    variations = font['gvar'].variations.get(name, [])
+    if not variations:
+        return []
+    glyf = font['glyf']
+    glyph = glyf.glyphs[name]
+    raw = getattr(glyph, 'data', None)
+    if raw is not None and not raw:
+        point_count = 0
+    elif raw is not None and len(raw) >= 10 and struct.unpack_from('>h', raw)[0] >= 0:
+        contours = struct.unpack_from('>h', raw)[0]
+        if len(raw) < 10 + contours * 2:
+            raise ValueError('原厂可变字形端点数据不完整')
+        point_count = struct.unpack_from('>H', raw, 8 + contours * 2)[0] + 1 if contours else 0
+    else:
+        glyph = glyf[name]
+        point_count = (len(glyph.components) if glyph.isComposite()
+                       else len(glyph.getCoordinates(glyf)[0]))
     values = []
-    for original in font['gvar'].variations.get(name, []):
-        variation = deepcopy(original)
-        variation.calcInferredDeltas(coordinates, controls.endPts)
-        top, bottom = variation.coordinates[-2:]
+    for variation in variations:
+        if len(variation.coordinates) != point_count + 4 or variation.getCoordWidth() == 1:
+            raise ValueError('原厂可变字形度量点数量不一致')
+        # IUP treats each of the four phantom points as its own one-point
+        # contour. An omitted metric delta is exactly (0, 0), independent of
+        # every outline coordinate. No deepcopy or outline interpolation is
+        # needed to preserve the two vertical phantom points.
+        top, bottom = (delta if delta is not None else (0, 0)
+                       for delta in variation.coordinates[-2:])
         if any(top) or any(bottom):
             values.append((variation.axes, top, bottom))
     return values
@@ -518,8 +583,58 @@ def copy_retained_dependencies(font, mapping):
     return proof
 
 
+def _grow_output_bounds(font, mapping, cff_bounds):
+    """Extend descriptive bounds; keep line spacing and each vertical origin."""
+    head, horizontal = font['head'], font['hhea']
+    before_frame = [int(head.unitsPerEm), int(head.xMin), int(head.yMin),
+                    int(head.xMax), int(head.yMax)]
+    before_extrema = _metric_extrema(font)
+    vertical = font['vhea'] if 'vhea' in font and 'vmtx' in font else None
+    cff_top = font['CFF '].cff.topDictIndex[0] if 'CFF ' in font else None
+    for name in mapping:
+        width, bearing = font['hmtx'][name]
+        horizontal.advanceWidthMax = max(horizontal.advanceWidthMax, width)
+        if 'glyf' in font:
+            # Imported outlines have a checked header already. __getitem__
+            # expands native bytes even when only this bounding box is needed.
+            glyph = font['glyf'].glyphs[name]
+            bounds = ([glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax]
+                      if glyph.numberOfContours else None)
+        else:
+            bounds = cff_bounds.get(name)
+        if bounds is None:
+            continue
+        x0, y0, x1, y1 = (math.floor(bounds[0]), math.floor(bounds[1]),
+                           math.ceil(bounds[2]), math.ceil(bounds[3]))
+        head.xMin, head.yMin = min(head.xMin, x0), min(head.yMin, y0)
+        head.xMax, head.yMax = max(head.xMax, x1), max(head.yMax, y1)
+        horizontal.minLeftSideBearing = min(horizontal.minLeftSideBearing, bearing)
+        horizontal.minRightSideBearing = min(horizontal.minRightSideBearing, width - bearing - (x1 - x0))
+        horizontal.xMaxExtent = max(horizontal.xMaxExtent, bearing + x1 - x0)
+        if vertical is not None:
+            advance, top = font['vmtx'][name]
+            vertical.advanceHeightMax = max(vertical.advanceHeightMax, advance)
+            vertical.minTopSideBearing = min(vertical.minTopSideBearing, top)
+            vertical.minBottomSideBearing = min(vertical.minBottomSideBearing, advance - top - (y1 - y0))
+            vertical.yMaxExtent = max(vertical.yMaxExtent, top + y1 - y0)
+        if cff_top is not None:
+            bbox = cff_top.FontBBox
+            cff_top.FontBBox = [min(bbox[0], x0), min(bbox[1], y0),
+                               max(bbox[2], x1), max(bbox[3], y1)]
+    after_frame = [int(head.unitsPerEm), int(head.xMin), int(head.yMin), int(head.xMax), int(head.yMax)]
+    after_extrema = _metric_extrema(font)
+    if any(value < -32768 or value > 32767 for value in after_frame[1:]):
+        raise ValueError('替换字形超出全局边界字段范围')
+    for values in after_extrema.values():
+        if not 0 <= values[0] <= 65535 or any(not -32768 <= value <= 32767 for value in values[1:]):
+            raise ValueError('替换字形超出全局度量统计字段范围')
+    return {'fontFrameExpansion': {'before': before_frame, 'after': after_frame},
+            'metricExtremaExpansion': {'before': before_extrema, 'after': after_extrema}}
+
+
 def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependencies=False,
-                 preserve_unsafe=False, outline_cache=None, native_source=None):
+                 preserve_unsafe=False, outline_cache=None, native_source=None,
+                 expand_bounds=False):
     target = face_identity(font)
     donor_info = face_identity(donor)
     donor_info['weight'] = target_weight(donor)
@@ -589,22 +704,22 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
 
     def converted_glyph(source_name):
         if native_cache is not None and source_name in native_cache.ids:
-            glyph = native_cache.glyph(source_name, font['glyf'])
+            glyph = native_cache.packed_glyph(source_name)
             if glyph is not None:
                 if glyph.numberOfContours:
                     bearing = round(donor_metrics[source_name][1] * scale)
                     shift = bearing - glyph.xMin
                     if 'fvar' in font and abs(shift) == 1:
+                        glyph.expand(font['glyf'])
                         glyph.coordinates.translate((shift, 0))
                         glyph.recalcBounds(font['glyf'])
+                        glyph = packed_glyph(glyph.compile(font['glyf'], recalcBBoxes=False))
                 outline_cache['nativeGlyphHits'] = outline_cache.get('nativeGlyphHits', 0) + 1
                 return glyph
         data = templates.get(source_name)
         if data is not None:
             outline_cache['templateHits'] = outline_cache.get('templateHits', 0) + 1
-            glyph = Glyph(data)
-            glyph.expand(font['glyf'])
-            return glyph
+            return packed_glyph(data)
         pen = TTGlyphPen(None)
         if source_name not in recordings:
             recordings[source_name] = draw_record(source_glyphs, source_name)
@@ -641,6 +756,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             if used + cost <= limit:
                 templates[source_name] = data
                 outline_cache['templateBytes'] = used + cost
+                return packed_glyph(data)
         return glyph
 
     def bounds_for(source_name):
@@ -746,37 +862,44 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             if bounds is not None:
                 x0, y0, x1, y1 = (value * scale for value in bounds)
                 outline_width = x1 - x0
-                if x0 < frame.xMin - 1:
+                if expand_bounds and any(value < -32768 or value > 32767 for value in (x0, y0, x1, y1)):
+                    reasons.append('frame-range')
+                if x0 < frame.xMin - 1 and not expand_bounds:
                     reasons.append('frame-xMin')
-                if y0 < frame.yMin - 1:
+                if y0 < frame.yMin - 1 and not expand_bounds:
                     reasons.append('frame-yMin')
-                if x1 > frame.xMax + 1:
+                if x1 > frame.xMax + 1 and not expand_bounds:
                     reasons.append('frame-xMax')
-                if y1 > frame.yMax + 1:
+                if y1 > frame.yMax + 1 and not expand_bounds:
                     reasons.append('frame-yMax')
                 if kind == 'glyf' and 'fvar' in font:
                     if bearing != round(x0):
                         reasons.append('xMin-bearing-diff=%d' % (bearing - round(x0)))
                 if kind == 'glyf' and 'vmtx' in font:
                     old_advance, old_bearing = font['vmtx'][name]
-                    origin = getattr(font['glyf'][name], 'yMax', 0) + old_bearing
+                    origin = _glyph_ymax(font['glyf'], name) + old_bearing
                     new_bearing, height = origin - round(y1), round(y1) - round(y0)
                     vertical = font['vhea']
                     if not -32768 <= new_bearing <= 32767:
                         reasons.append('vmtx-range')
-                    if new_bearing < vertical.minTopSideBearing:
+                    if new_bearing < vertical.minTopSideBearing and not expand_bounds:
                         reasons.append('vmtx-minTopSideBearing')
-                    if old_advance - new_bearing - height < vertical.minBottomSideBearing:
+                    if old_advance - new_bearing - height < vertical.minBottomSideBearing and not expand_bounds:
                         reasons.append('vmtx-minBottomSideBearing')
-                    if new_bearing + height > vertical.yMaxExtent:
+                    if new_bearing + height > vertical.yMaxExtent and not expand_bounds:
                         reasons.append('vmtx-yMaxExtent')
-            if width > header.advanceWidthMax:
+                    if expand_bounds and (old_advance - new_bearing - height < -32768
+                                          or new_bearing + height > 32767):
+                        reasons.append('vhea-range')
+            if expand_bounds and (width - bearing - outline_width < -32768 or bearing + outline_width > 32767):
+                reasons.append('hhea-range')
+            if width > header.advanceWidthMax and not expand_bounds:
                 reasons.append('hhea-advanceWidthMax')
-            if bearing < header.minLeftSideBearing:
+            if bearing < header.minLeftSideBearing and not expand_bounds:
                 reasons.append('hhea-minLeftSideBearing')
-            if width - bearing - outline_width < header.minRightSideBearing - 1:
+            if width - bearing - outline_width < header.minRightSideBearing - 1 and not expand_bounds:
                 reasons.append('hhea-minRightSideBearing')
-            if bearing + outline_width > header.xMaxExtent + 1:
+            if bearing + outline_width > header.xMaxExtent + 1 and not expand_bounds:
                 reasons.append('hhea-xMaxExtent')
             if reasons:
                 mapping.pop(name)
@@ -808,12 +931,19 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
         raise ValueError('原厂编码映射指向缺字槽，不能覆盖 .notdef')
     scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
     frame = font['head']
-    conversion_retained, failed_sources = [], set()
+    conversion_retained, failed_sources, cff_bounds = [], set(), {}
+    # Generated programs have no subroutines/hints/blends. Their rounded
+    # geometry depends on donor/kind/scale, not the target FD or encoded width.
+    # Share these few envelope-outlier bounds between faces under the existing
+    # worker cache budget, without keeping decoded CharString programs alive.
+    converted_cff_bounds = {}
+    shared_cff_bounds = (outline_cache.setdefault(('cff-output-bounds', kind, scale), {})
+                         if outline_cache is not None and kind != 'glyf' else {})
     for target_name, source_name in mapping.items():
         bounds = bounds_for(source_name)
-        # Keep the stock line frame. A donor outside it fails before publication;
-        # arbitrary per-glyph shrinking would change the requested typeface.
-        if bounds is not None:
+        # Descriptive bounds can grow without shrinking individual donor glyphs
+        # or changing the stock ascent, descent, line spacing or vertical origin.
+        if bounds is not None and not expand_bounds:
             x0, y0, x1, y1 = (coordinate * scale for coordinate in bounds)
             if x0 < frame.xMin - 1 or y0 < frame.yMin - 1 or x1 > frame.xMax + 1 or y1 > frame.yMax + 1:
                 raise ValueError(f'来源字形 {source_name} 超出本机原厂字体面边界')
@@ -823,7 +953,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             raise ValueError('来源水平度量超出 SFNT 范围')
         header = font['hhea']
         outline_width = 0 if bounds is None else (bounds[2] - bounds[0]) * scale
-        if (width > header.advanceWidthMax or bearing < header.minLeftSideBearing or
+        if not expand_bounds and (width > header.advanceWidthMax or bearing < header.minLeftSideBearing or
                 width - bearing - outline_width < header.minRightSideBearing - 1 or
                 bearing + outline_width > header.xMaxExtent + 1):
             raise ValueError(f'来源字形 {source_name} 水平度量超出本机原厂字体面边界')
@@ -848,21 +978,23 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             old_origin = None
             if 'vmtx' in font:
                 old_advance, old_bearing = font['vmtx'][target_name]
-                old_origin = getattr(font['glyf'][target_name], 'yMax', 0) + old_bearing
+                old_origin = _glyph_ymax(font['glyf'], target_name) + old_bearing
             # Every target was selected from an existing OEM glyph ID. The
             # table setter linearly scans glyphOrder on each assignment;
             # direct replacement keeps the same IDs without a quadratic scan.
             if target_name not in font['glyf'].glyphs:
                 raise ValueError('替换目标不是原厂已有字形槽')
             font['glyf'].glyphs[target_name] = glyph
-            glyph.recalcBounds(font['glyf'])
             if not hasattr(glyph, 'xMin'):
                 glyph.xMin = glyph.yMin = glyph.xMax = glyph.yMax = 0
             # recalcBBoxes=False keeps the stock frame but also disables maxp
             # recomputation. Retain stock interpreter limits while reserving
             # enough point/contour capacity for the newly imported outlines.
             maxp = font['maxp']
-            maxp.maxPoints = max(maxp.maxPoints, len(glyph.getCoordinates(font['glyf'])[0]))
+            points = getattr(glyph, 'preparedPointCount', None)
+            if points is None:
+                points = len(glyph.getCoordinates(font['glyf'])[0])
+            maxp.maxPoints = max(maxp.maxPoints, points)
             maxp.maxContours = max(maxp.maxContours, glyph.numberOfContours)
             if 'fvar' in font and bearing != glyph.xMin:
                 raise ValueError('可变 TrueType 的来源侧距必须等于轮廓 xMin')
@@ -872,13 +1004,12 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     raise ValueError('原厂垂直原点无法保持在 SFNT 度量范围内')
                 header = font['vhea']
                 height = glyph.yMax - glyph.yMin
-                if (new_bearing < header.minTopSideBearing or
+                if not expand_bounds and (new_bearing < header.minTopSideBearing or
                         old_advance - new_bearing - height < header.minBottomSideBearing or
                         new_bearing + height > header.yMaxExtent):
                     raise ValueError('来源字形垂直度量超出本机原厂字体面边界')
                 font['vmtx'][target_name] = (old_advance, new_bearing)
             if 'gvar' in font:
-                points = len(glyph.getCoordinates(font['glyf'])[0])
                 font['gvar'].variations[target_name] = [
                     TupleVariation(axes, [(0, 0)] * (points + 2) + [top, bottom])
                     for axes, top, bottom in vertical]
@@ -943,6 +1074,47 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     char.fdSelectIndex = selector
                 converted[key] = char
             top.CharStrings[target_name] = converted[key]
+            if expand_bounds and bounds is not None:
+                # Existing source bounds are cached. Decode the emitted CFF
+                # program only when rounding could require a larger envelope.
+                x0, y0, x1, y1 = (value * scale for value in bounds)
+                bbox = top.FontBBox if kind == 'CFF ' else [frame.xMin, frame.yMin, frame.xMax, frame.yMax]
+                vertical_growth = False
+                if 'vhea' in font and 'vmtx' in font:
+                    advance, top_bearing = font['vmtx'][target_name]
+                    vheader = font['vhea']
+                    vertical_growth = (top_bearing < vheader.minTopSideBearing
+                        or advance - top_bearing - (y1 - y0 + 2) < vheader.minBottomSideBearing
+                        or top_bearing + y1 - y0 + 2 > vheader.yMaxExtent)
+                if (x0 - 1 < max(frame.xMin, bbox[0]) or y0 - 1 < max(frame.yMin, bbox[1])
+                        or x1 + 1 > min(frame.xMax, bbox[2]) or y1 + 1 > min(frame.yMax, bbox[3])
+                        or bearing < header.minLeftSideBearing
+                        or width - bearing - (x1 - x0 + 2) < header.minRightSideBearing
+                        or bearing + x1 - x0 + 2 > header.xMaxExtent
+                        or vertical_growth):
+                    if key not in converted_cff_bounds:
+                        if source_name in shared_cff_bounds:
+                            actual = shared_cff_bounds[source_name]
+                        else:
+                            char = converted[key]
+                            data = char.bytecode
+                            try:
+                                actual = char.calcBounds(top.CharStrings)
+                            finally:
+                                # BoundsPen decompiles even native bytecode.
+                                # Restore immutable output instead of compiling
+                                # the same program again during publication.
+                                if data is not None:
+                                    char.setBytecode(data)
+                            if outline_cache is not None:
+                                used = outline_cache.get('templateBytes', 0)
+                                cost = len(source_name) * 4 + 320
+                                limit = MAX_GLYPH_TEMPLATE_BYTES - outline_cache.get('nativeGlyphBytes', 0) - outline_cache.get('nativeCffBytes', 0)
+                                if used + cost <= limit:
+                                    shared_cff_bounds[source_name] = actual
+                                    outline_cache['templateBytes'] = used + cost
+                        converted_cff_bounds[key] = actual
+                    cff_bounds[target_name] = converted_cff_bounds[key]
         font['hmtx'][target_name] = (width, bearing)
     if conversion_retained:
         for name in conversion_retained:
@@ -956,6 +1128,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                 if category in counts:
                     counts[category] += 1
     freeze_horizontal_variations(font, mapping)
+    bounds_report = _grow_output_bounds(font, mapping, cff_bounds) if expand_bounds else {}
     verify_dependency_copies(font, dependency_proof)
     for tag in ('DSIG', 'LTSH', 'hdmx', 'VDMX'):
         if tag in font:
@@ -972,6 +1145,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             'retainedUnencodedGlyphs': True,
             'retainedSharedConflictSlots': len(shared_conflicts),
             'retainedSharedConflicts': conflict_report[:16],
+            'boundsExpansion': expand_bounds, **bounds_report,
             **({'dependencyProof': dependency_proof} if dependency_proof else {}),
             'outline': kind, 'retainedVariationAxes': 'fvar' in font,
             'replacementVariation': 'selected-fixed-weight',
@@ -991,17 +1165,15 @@ def _compile_face_task(task, recordings, outline_cache, donor=None):
     native_cff_before = outline_cache.get('nativeCffHits', 0)
     with TTFont(task['stock'], fontNumber=index, lazy=True, recalcBBoxes=False,
                 recalcTimestamp=False) as font:
-        original = protected(font)
+        original = protected(font, capture_bounds=True)
         raw_tables = raw_table_hashes(font)
         context = nullcontext(donor) if donor is not None else TTFont(
             task['donor'], lazy=True, recalcTimestamp=False)
         with context as donor:
-            # A real donor may exceed the OEM face's extreme horizontal metrics
-            # for a few glyphs. Keep those individual OEM slots instead of
-            # abandoning the whole collection switch.
             details = replace_face(font, donor, recordings, preserve_unsafe=True,
-                                   outline_cache=outline_cache, native_source=task['donor'])
-        if protected(font) != original:
+                                   outline_cache=outline_cache, native_source=task['donor'],
+                                   expand_bounds=True)
+        if protected(font, bounds_reference=original) != original:
             raise ValueError(f'集合面 {index} 的原厂布局契约已变化')
         compiled_at = time.monotonic()
         output = task['output']
@@ -1023,10 +1195,12 @@ def _compile_face_task(task, recordings, outline_cache, donor=None):
     with TTFont(output, lazy=True, recalcTimestamp=False) as check:
         # A dependency may cause FontTools to recompile a table after it was
         # released. In that case retain the original canonical validation path.
-        matched = contract_matches(check, original, raw_tables)
+        matched = contract_matches(check, original, raw_tables,
+                                   allow_bounds_expansion=details.get('boundsExpansion') is True)
         if raw_tables and not matched:
             raw_tables = {}
-            matched = contract_matches(check, original)
+            matched = contract_matches(check, original,
+                                       allow_bounds_expansion=details.get('boundsExpansion') is True)
         if not matched:
             raise ValueError(f'集合面 {index} 序列化后布局契约已变化')
         verify_dependency_copies(check, details.get('dependencyProof'))
@@ -1237,7 +1411,8 @@ def build(source, stock, output, workspace, request, target, progress=None,
             raise ValueError('生成后的集合面数量变化')
         for index, face in enumerate(report['faces']):
             with TTFont(staged, fontNumber=index, lazy=True, recalcTimestamp=False) as check:
-                if not contract_matches(check, face['contract'], face.get('rawTables')):
+                if not contract_matches(check, face['contract'], face.get('rawTables'),
+                                        allow_bounds_expansion=face.get('boundsExpansion') is True):
                     raise ValueError(f'集合面 {index} 合集后布局契约已变化')
         report['outputBytes'] = staged.stat().st_size
         if report['outputBytes'] > output_limit:

@@ -135,7 +135,8 @@ class SlotCompat:
                 source['OS/2']
                 stock_order = list(base.getGlyphOrder())
                 raw_tables = raw_table_hashes(base)
-                original = protected(base, stock_order)
+                original = protected(base, stock_order, capture_bounds=True)
+                original_frame = list(original['frame'])
                 source_upem = int(source['head'].unitsPerEm)
                 if not 16 <= source_upem <= 16384:
                     raise ValueError('源字体 unitsPerEm 无效')
@@ -174,9 +175,15 @@ class SlotCompat:
                     return output, report
                 details = replace_face(base, source, self._recordings, require_cjk=False,
                                        preserve_dependencies=True, preserve_unsafe=True,
-                                       outline_cache=self._outline_cache, native_source=donor)
-                if protected(base, stock_order) != original:
+                                       outline_cache=self._outline_cache, native_source=donor,
+                                       expand_bounds=True)
+                if protected(base, stock_order, bounds_reference=original) != original:
                     raise ValueError('原厂字符映射或字体槽契约在生成时发生变化')
+                updated_frame = [int(base['head'].unitsPerEm), int(base['head'].xMin),
+                                 int(base['head'].yMin), int(base['head'].xMax), int(base['head'].yMax)]
+                output_head = [int(base['head'].yMin), int(base['head'].yMax)]
+                frame_expansion = ({'before': original_frame, 'after': updated_frame}
+                                   if original_frame != updated_frame else None)
                 if details['mode'] != 'compiled':
                     if identity(donor) != before or identity(stock) != stock_before:
                         raise ValueError('字体来源或原厂快照在字体槽生成期间发生变化')
@@ -192,9 +199,11 @@ class SlotCompat:
                     base.tables.pop(tag, None)
                 base.save(output, reorderTables=False)
             with TTFont(output, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as check:
-                matched = contract_matches(check, original, raw_tables, stock_order)
+                matched = contract_matches(check, original, raw_tables, stock_order,
+                                           allow_bounds_expansion=True)
                 if raw_tables and not matched:
-                    matched = contract_matches(check, original, stock_order=stock_order)
+                    matched = contract_matches(check, original, stock_order=stock_order,
+                                               allow_bounds_expansion=True)
                 if not matched:
                     raise ValueError('字体槽输出未保留原厂字符映射、字形索引或布局契约')
                 verify_dependency_copies(check, details.get('dependencyProof'))
@@ -217,6 +226,8 @@ class SlotCompat:
                       'stockLayoutPreserved': True, 'stockAxesPreserved': True,
                       'sourceUpem': source_upem, 'sourceHead': source_head,
                       'outputUpem': output_upem, 'outputHead': output_head,
+                      'fontFrameExpansion': frame_expansion,
+                      'metricExtremaExpansion': details.get('metricExtremaExpansion'),
                       'layoutBoundsSource': 'stock', 'bitmapBaselineCorrection': 0,
                       'bitmapBaselineReason': 'stock-preserved',
                       'replacementVariation': 'selected-fixed-weight',

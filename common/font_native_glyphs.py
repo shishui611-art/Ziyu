@@ -12,6 +12,62 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph
 from font_native_instance import HELPER
 
 
+def packed_glyph(data):
+    """Keep a prepared simple glyph encoded while exposing its checked header.
+
+    FontTools can publish these exact bytes with recalcBBoxes=False. Validate
+    the endpoint/flag/coordinate stream without allocating point arrays; only
+    callers that actually change coordinates need to expand the glyph.
+    """
+    glyph = Glyph(data)
+    if not data:
+        glyph.numberOfContours = 0
+        glyph.xMin = glyph.yMin = glyph.xMax = glyph.yMax = 0
+        glyph.preparedPointCount = 0
+        return glyph
+    if len(data) < 12:
+        raise ValueError('prepared-glyph-header')
+    contours, x0, y0, x1, y1 = struct.unpack_from('>5h', data)
+    if contours < 0 or x0 > x1 or y0 > y1 or len(data) < 12 + contours * 2:
+        raise ValueError('prepared-glyph-outline')
+    previous = -1
+    for at in range(10, 10 + contours * 2, 2):
+        end = struct.unpack_from('>H', data, at)[0]
+        if end <= previous:
+            raise ValueError('prepared-glyph-endpoints')
+        previous = end
+    points = previous + 1
+    at = 10 + contours * 2
+    instructions = struct.unpack_from('>H', data, at)[0]
+    at += 2 + instructions
+    if at > len(data):
+        raise ValueError('prepared-glyph-instructions')
+    seen = coordinate_bytes = 0
+    while seen < points:
+        if at >= len(data):
+            raise ValueError('prepared-glyph-flags')
+        flag = data[at]
+        at += 1
+        repeat = 1
+        if flag & 8:
+            if at >= len(data):
+                raise ValueError('prepared-glyph-repeat')
+            repeat += data[at]
+            at += 1
+        if seen + repeat > points or flag & 0x80:
+            raise ValueError('prepared-glyph-point-count')
+        coordinate_bytes += repeat * ((1 if flag & 2 else 0 if flag & 16 else 2)
+                                      + (1 if flag & 4 else 0 if flag & 32 else 2))
+        seen += repeat
+    tail = at + coordinate_bytes
+    if tail > len(data) or len(data) - tail > 3 or any(data[tail:]):
+        raise ValueError('prepared-glyph-coordinates')
+    glyph.numberOfContours = contours
+    glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax = x0, y0, x1, y1
+    glyph.preparedPointCount = points
+    return glyph
+
+
 def _command(source, output, upem):
     if os.name == 'nt' or platform.machine().lower() not in ('aarch64', 'arm64') or not os.access(HELPER, os.X_OK):
         return None
@@ -44,11 +100,16 @@ class GlyphCache:
         self.ids = font.getReverseGlyphMap()
         self.prepared = sum(value != 0 for value in self.status)
 
-    def glyph(self, name, table):
+    def packed_glyph(self, name):
         gid = self.ids[name]
         if self.status[gid] == 0:
             return None
-        glyph = Glyph(bytes(self.data[self.offsets[gid]:self.offsets[gid + 1]]))
+        return packed_glyph(bytes(self.data[self.offsets[gid]:self.offsets[gid + 1]]))
+
+    def glyph(self, name, table):
+        glyph = self.packed_glyph(name)
+        if glyph is None:
+            return None
         glyph.expand(table)
         if glyph.numberOfContours < 0:
             raise ValueError('native-glyph-composite-output')

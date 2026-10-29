@@ -140,7 +140,8 @@ def verify_build_report(payload, path, stock_path, relative, request, count, sto
                     or font_source_profile._best_subfamily(stock_face) != face['targetStyle']):
                 raise ValueError(f'集合面 {index} 的目标字重或样式与原厂快照不符')
         with TTFont(path, fontNumber=index, lazy=True, recalcTimestamp=False) as font:
-            if not contract_matches(font, face['contract'], face.get('rawTables')):
+            if not contract_matches(font, face['contract'], face.get('rawTables'),
+                                    allow_bounds_expansion=face.get('boundsExpansion') is True):
                 raise ValueError(f'集合面 {index} 与本次原厂布局契约不符')
             if (font_source_profile._weight(font) != face['targetWeight']
                     or font_source_profile._best_subfamily(font) != face['targetStyle']):

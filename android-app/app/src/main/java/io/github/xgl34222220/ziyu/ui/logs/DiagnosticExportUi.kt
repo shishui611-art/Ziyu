@@ -1,5 +1,6 @@
 package io.github.xgl34222220.ziyu.ui.logs
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuHeaderAction
+import java.io.File
 
 internal data class DiagnosticExportState(
     val busy: Boolean = false,
@@ -39,7 +41,7 @@ internal data class DiagnosticExportState(
     val resultVisible: Boolean get() = path.isNotBlank() || error.isNotBlank()
 }
 
-internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
+internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExportState {
     val command = """
         MOD=/data/adb/modules/ziyu
         CFG="${'$'}MOD/config"
@@ -177,6 +179,15 @@ internal suspend fun exportSanitizedDiagnostic(): DiagnosticExportState {
                     *) head -c 16384 "${'$'}path" >> "${'$'}OUT" ;;
                 esac
                 printf '\n' >> "${'$'}OUT"
+            else
+                printf 'unavailable\n' >> "${'$'}OUT"
+            fi
+        done
+        APP_UPDATES=${RootShell.quote(File(context.filesDir, "module-update").absolutePath)}
+        for entry in check.log latest.log; do
+            printf '\n[app-module-update:%s]\n' "${'$'}entry" >> "${'$'}OUT"
+            if [ -r "${'$'}APP_UPDATES/${'$'}entry" ]; then
+                tail -n 200 "${'$'}APP_UPDATES/${'$'}entry" | tail -c 65536 >> "${'$'}OUT"
             else
                 printf 'unavailable\n' >> "${'$'}OUT"
             fi

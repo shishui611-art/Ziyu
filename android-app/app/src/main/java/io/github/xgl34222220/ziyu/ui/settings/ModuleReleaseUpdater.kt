@@ -9,6 +9,7 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipFile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -51,6 +52,19 @@ internal class ModuleReleaseUpdater(private val context: Context) {
     }
 
     suspend fun check(): OnlineUpdateInfo = withContext(Dispatchers.IO) {
+        try {
+            checkRelease().also { info ->
+                writeLog("check.log", "检查完成：已安装 ${info.currentVersion}；正式版 ${info.version}；待重启 ${info.pendingVersion.ifBlank { "无" }}；有更新=${info.hasUpdate}")
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            writeLog("check.log", "检查失败：${error.javaClass.simpleName}: ${error.message.orEmpty()}")
+            throw error
+        }
+    }
+
+    private suspend fun checkRelease(): OnlineUpdateInfo {
         val current = requireNotNull(installed())
         val pending = installed(pending = true)
         val release = JSONObject(text("https://api.github.com/repos/shishui611-art/Ziyu/releases/latest", "application/vnd.github+json"))
@@ -66,13 +80,25 @@ internal class ModuleReleaseUpdater(private val context: Context) {
         val zipUrl = zipAsset.getString("browser_download_url")
         val expected = "$repository/releases/download/$tag/$filename"
         require(zipUrl == expected && zipAsset.getLong("size") in 1..MAX_ZIP_BYTES) { "正式模块下载地址或大小无效" }
-        val shaUrl = asset("$filename.sha256").getString("browser_download_url")
-        require(shaUrl == "$expected.sha256") { "模块校验文件地址无效" }
-        val sha = text(shaUrl).trim().split(Regex("\\s+"), limit = 2).first().lowercase()
-        require(sha.matches(Regex("[0-9a-f]{64}"))) { "正式模块 SHA-256 无效" }
         val remote = identity(text("https://raw.githubusercontent.com/shishui611-art/Ziyu/$tag/module.prop"))
         require(remote.version.removePrefix("v") == version.removePrefix("v")) { "Release 与模块版本不一致" }
-        OnlineUpdateInfo(
+        // Checking an up-to-date/local-newer installation must not depend on
+        // reaching GitHub's asset CDN. New releases already expose the ZIP's
+        // SHA-256 in their official API metadata; older releases use the
+        // existing, URL-verified checksum attachment as a compatibility path.
+        val newer = pending == null && isNewerZiyuVersion(version, remote.code, current.version, current.code)
+        val sha = if (!newer) "" else {
+            val apiDigest = zipAsset.optString("digest").lowercase()
+            if (apiDigest.matches(Regex("sha256:[0-9a-f]{64}"))) apiDigest.removePrefix("sha256:")
+            else {
+                val shaUrl = asset("$filename.sha256").getString("browser_download_url")
+                require(shaUrl == "$expected.sha256") { "模块校验文件地址无效" }
+                text(shaUrl).trim().split(Regex("\\s+"), limit = 2).first().lowercase().also {
+                    require(it.matches(Regex("[0-9a-f]{64}"))) { "正式模块 SHA-256 无效" }
+                }
+            }
+        }
+        return OnlineUpdateInfo(
             version = version, versionCode = remote.code, zipUrl = zipUrl,
             changelogUrl = "$repository/releases/tag/$tag", sha256 = sha,
             currentVersion = current.version, currentVersionCode = current.code,
@@ -82,7 +108,22 @@ internal class ModuleReleaseUpdater(private val context: Context) {
     }
 
     suspend fun install(info: OnlineUpdateInfo, progress: suspend (String) -> Unit) {
+        withContext(Dispatchers.IO) { writeLog("latest.log", "开始模块更新：${info.version}") }
+        try {
+            installVerified(info, progress)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            withContext(NonCancellable + Dispatchers.IO) {
+                writeLog("latest.log", "更新失败：${error.javaClass.simpleName}: ${error.message.orEmpty()}", append = true)
+            }
+            throw error
+        }
+    }
+
+    private suspend fun installVerified(info: OnlineUpdateInfo, progress: suspend (String) -> Unit) {
         require(info.hasUpdate) { "没有需要安装的正式模块更新" }
+        require(info.sha256.matches(Regex("[0-9a-f]{64}")) && info.zipBytes in 1..MAX_ZIP_BYTES) { "模块校验信息不完整，请重新检查更新" }
         require(info.zipUrl.matches(Regex("https://github\\.com/shishui611-art/Ziyu/releases/download/ziyu-v\\d+\\.\\d+\\.\\d+/Ziyu-v\\d+\\.\\d+\\.\\d+\\.zip"))) { "模块下载地址无效" }
         val current = requireNotNull(installed())
         require(isNewerZiyuVersion(info.version, info.versionCode, current.version, current.code)) { "模块版本已变化，请重新检查更新" }
@@ -135,8 +176,7 @@ internal class ModuleReleaseUpdater(private val context: Context) {
                 try {
                     val result = RootShell.exec(installCommand(archive, rootZip, info.sha256), timeoutMs = 600_000L)
                     withContext(Dispatchers.IO) {
-                        File(context.filesDir, "module-update").apply { mkdirs() }
-                            .resolve("latest.log").writeText("exit=${result.code}\n${result.stdout}\n${result.stderr}")
+                        writeLog("latest.log", "管理器返回 exit=${result.code}\n${result.stdout}\n${result.stderr}", append = true)
                     }
                     require(result.code == 0) { result.stderr.ifBlank { result.stdout }.takeLast(1800).ifBlank { "Root 管理器安装模块失败（${result.code}）" } }
                     val staged = installed(pending = true) ?: installed()
@@ -203,6 +243,15 @@ internal class ModuleReleaseUpdater(private val context: Context) {
                 String(bytes, Charsets.UTF_8)
             }
         } finally { connection.disconnect() }
+    }
+
+    private fun writeLog(name: String, message: String, append: Boolean = false) {
+        // Diagnostics must not turn a successful update into an I/O failure.
+        runCatching {
+            val log = File(context.filesDir, "module-update").apply { mkdirs() }.resolve(name)
+            val bounded = message.takeLast(1_048_576) + "\n"
+            if (append && log.length() < 1_048_576L) log.appendText(bounded) else log.writeText(bounded)
+        }
     }
 
     private fun java.io.InputStream.readBytesLimited(limit: Int): ByteArray {
