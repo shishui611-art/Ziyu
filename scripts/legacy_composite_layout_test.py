@@ -117,6 +117,7 @@ class LegacyCompositeLayoutTest(unittest.TestCase):
             common.mkdir(parents=True)
             engine = common / 'composite_font.py'
             engine.symlink_to(LEGACY / 'composite_font.py')
+            (common / 'font_ligatures.py').symlink_to(ROOT / 'common/font_ligatures.py')
             for helper in ('composite_layout.py',):
                 if (LEGACY / helper).exists():
                     (common / helper).symlink_to(LEGACY / helper)

@@ -11,6 +11,7 @@
     "-Oz",
     "-DNDEBUG",
     "-DHB_NO_MT",
+    "-ffp-contract=off",
     "-ffunction-sections",
     "-fdata-sections",
     "-fno-exceptions",
@@ -21,11 +22,12 @@
     "-Wl,-z,max-page-size=16384"
   ],
   "ndk": "Pkg.Desc = Android NDK\nPkg.Revision = 28.2.13676358\nPkg.BaseRevision = 28.2.13676358\nPkg.ReleaseName = r28c\n",
-  "sourceSha256": "bd80549265c5d4ceedc817ae148c45abbd19e3c00993ccd4fef4280192f6e5b2",
+  "sourceSha256": "f8bb51019a7811b799a4f2ca14b068410dba4a29994dfb324a085db78a5abc2f",
   "glyphSourceSha256": "489aaec61d70f21d202404f189fe2edfa990083f10ea92a3cdfee34d0f27ba85",
-  "builderSha256": "752b8f517bc4809ae21231658376db427f2e84cd113eb662285c4f728fe79a49",
-  "binarySha256": "e725c3e6ae64be02450ab2f7e5f083a229cc6df69203ff833327a1fd72a55aa5",
+  "cffSourceSha256": "06b2147bef4f5dddeb7b1d4b7d9d2c2b1accc15c826307e41614dd6268694e35",
+  "builderSha256": "edc37ba1ddf6854dbb4af375b7f365912f1078facd4f924fda9dfb597957c649",
+  "binarySha256": "89582b1fffabda345049ddf79cfe3bcd1eef9a90a7ea333b7dc3ed755edbf45e",
   "licenseSha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
   "msLicenseSha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
-  "bytes": 1861472
+  "bytes": 1871784
 }

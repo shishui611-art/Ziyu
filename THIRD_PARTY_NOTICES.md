@@ -7,7 +7,7 @@
 ## HarfBuzz 15.0.0 原生字体处理器
 
 - 来源：[HarfBuzz 15.0.0 官方源码](https://github.com/harfbuzz/harfbuzz/tree/15.0.0)，原始源码包 SHA-256 为 `fe4b8bad7afbbae75d61b2095c267c98f4ed04fe4a117680130ed253d2732efe`。
-- `native/font-instance/instance.cpp`、`native/font-instance/glyph-cache.hh` 和构建脚本是字域 GPL-3.0-only 代码；`common/font-native-instance` 静态包含 HarfBuzz，许可证见 [`licenses/HarfBuzz-COPYING.txt`](licenses/HarfBuzz-COPYING.txt) 和 [Microsoft USE MIT 许可](licenses/HarfBuzz-Microsoft-USE-MIT.txt)。构建脚本固定 Android ARM64 API 28、NDK 与二进制哈希记录，打包前校验来源。
+- `native/font-instance/instance.cpp`、`native/font-instance/glyph-cache.hh`、`native/font-instance/cff-cache.hh` 和构建脚本是字域 GPL-3.0-only 代码；`common/font-native-instance` 静态包含 HarfBuzz，许可证见 [`licenses/HarfBuzz-COPYING.txt`](licenses/HarfBuzz-COPYING.txt) 和 [Microsoft USE MIT 许可](licenses/HarfBuzz-Microsoft-USE-MIT.txt)。构建脚本固定 Android ARM64 API 28、NDK 与二进制哈希记录，打包前校验来源。
 - 原生实例优先覆盖已支持的 TrueType 与 CFF2 可变字体和各角色供体；不支持的表、结果校验失败及运行不可用会走现有 FontTools。手机运行与性能仍须实测。
 
 `common/font_ttf_export.{py,sh}` 与 `FontTtfExport.kt` 为本项目原创 GPL-3.0-only 代码，调用已打包 FontTools 的字体集合、变轴实例与轮廓转换 API，未新增第三方依赖或字体数据。转换文件仅由用户主动导出。轮廓模板复用同样使用现有 FontTools API，无新增原生库；运行文件列入模块清单，项目许可证见 `licenses/Ziyu-GPL-3.0.txt`（随主许可证原文）。
@@ -141,3 +141,5 @@ v1.4.13 的通知授权状态、独立预览通知与 `ui/navigation/PredictiveB
 `common/font_parallel.py` 与 Android `NotificationAccess.kt` 为项目自有实现，沿用项目许可证。并行处理使用已有 CPython 的 os/signal/json，通知使用 Android 系统 API，未引入第三方库、厂商 SDK、签名密钥或驻留服务。
 
 v1.4.38 的 `common/font_native_glyphs.py`、原生字形缓存协议和 TrueType 分解/缩放代码为本项目原创 GPL-3.0-only 实现；`font_native_instance.py` 的字符裁剪使用上述已固定 HarfBuzz。没有新增外部库或随包字体；运行文件已列入模块清单。
+
+v1.4.53 的 `common/font_native_cff.py`、原生 Type 2 写入器、边界计算和缓存协议为本项目原创 GPL-3.0-only 实现；CFF/CFF2 供体读取使用上述固定版本 HarfBuzz draw API。没有新增外部库。

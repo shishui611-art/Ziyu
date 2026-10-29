@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "glyph-cache.hh"
+#include "cff-cache.hh"
 
 static bool table(hb_face_t *face, hb_tag_t tag) {
   hb_blob_t *blob = hb_face_reference_table(face, tag);
@@ -75,6 +76,7 @@ static int subset_instance(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+  if (argc > 1 && !std::strcmp(argv[1], "--cff-cache")) return ziyu_cff_cache::run(argc, argv);
   if (argc > 1 && !std::strcmp(argv[1], "--glyph-cache")) return ziyu_glyph_cache::run(argc, argv);
   if (argc > 1 && !std::strcmp(argv[1], "--subset")) return subset_instance(argc, argv);
   if (argc == 2 && !std::strcmp(argv[1], "--version")) {

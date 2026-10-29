@@ -13,6 +13,7 @@ VERSION = '15.0.0'
 ARCHIVE_SHA = 'fe4b8bad7afbbae75d61b2095c267c98f4ed04fe4a117680130ed253d2732efe'
 SOURCE = ROOT / 'native/font-instance/instance.cpp'
 GLYPH_SOURCE = ROOT / 'native/font-instance/glyph-cache.hh'
+CFF_SOURCE = ROOT / 'native/font-instance/cff-cache.hh'
 BINARY = ROOT / 'common/font-native-instance'
 RECORD = ROOT / 'common/font_native_instance_build.json'
 LICENSE = ROOT / 'licenses/HarfBuzz-COPYING.txt'
@@ -31,7 +32,7 @@ def main():
     args = parser.parse_args()
     if args.verify:
         record = json.loads(RECORD.read_text(encoding='utf-8'))
-        expected = {'sourceSha256': sha(SOURCE), 'glyphSourceSha256': sha(GLYPH_SOURCE), 'builderSha256': sha(__file__),
+        expected = {'sourceSha256': sha(SOURCE), 'glyphSourceSha256': sha(GLYPH_SOURCE), 'cffSourceSha256': sha(CFF_SOURCE), 'builderSha256': sha(__file__),
                     'binarySha256': sha(BINARY), 'licenseSha256': sha(LICENSE), 'msLicenseSha256': sha(MS_LICENSE),
                     'upstreamArchiveSha256': ARCHIVE_SHA, 'harfbuzz': VERSION,
                     'abi': 'arm64-v8a', 'api': 28}
@@ -47,7 +48,7 @@ def main():
     suffix = '.exe' if platform.system() == 'Windows' else ''
     tools = args.ndk / 'toolchains/llvm/prebuilt' / host / 'bin'
     flags = ['--target=aarch64-linux-android28', '-std=c++17', '-Oz', '-DNDEBUG', '-DHB_NO_MT',
-             '-ffunction-sections', '-fdata-sections', '-fno-exceptions', '-fno-rtti', '-static-libstdc++',
+             '-ffp-contract=off', '-ffunction-sections', '-fdata-sections', '-fno-exceptions', '-fno-rtti', '-static-libstdc++',
              '-Wl,--gc-sections', '-Wl,-s', '-Wl,-z,max-page-size=16384']
     with tempfile.TemporaryDirectory(prefix='ziyu-hb-') as temporary:
         temp = Path(temporary)
@@ -76,7 +77,7 @@ def main():
               'upstream': f'https://github.com/harfbuzz/harfbuzz/tree/{VERSION}',
               'upstreamArchiveSha256': ARCHIVE_SHA, 'abi': 'arm64-v8a', 'api': 28, 'flags': flags,
               'ndk': (args.ndk / 'source.properties').read_text(),
-              'sourceSha256': sha(SOURCE), 'glyphSourceSha256': sha(GLYPH_SOURCE),
+              'sourceSha256': sha(SOURCE), 'glyphSourceSha256': sha(GLYPH_SOURCE), 'cffSourceSha256': sha(CFF_SOURCE),
               'builderSha256': sha(__file__), 'binarySha256': sha(BINARY),
               'licenseSha256': sha(LICENSE), 'msLicenseSha256': sha(MS_LICENSE), 'bytes': BINARY.stat().st_size}
     RECORD.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')

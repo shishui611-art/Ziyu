@@ -25,6 +25,7 @@ from font_instance_svg_test import fixture
 from composite_collection_build_test import make_font
 import font_native_instance as native
 import font_native_glyphs as glyphs
+import font_native_cff as cff_native
 import universal_font_compiler as compiler
 import universal_font_plan as planner
 import google_font_provider_patch as provider
@@ -45,6 +46,47 @@ def contours(glyph, glyf):
 
 @unittest.skipUnless(os.environ.get('ZIYU_NATIVE_TEST_HELPER'), 'real host helper not configured')
 class NativeExpansionTest(unittest.TestCase):
+    def test_cff_bodies_preserve_widths_and_native_collection_reuses_one_batch(self):
+        from fontTools.misc.psCharStrings import T2CharString
+        from fontTools.ttLib import TTCollection
+        import composite_collection_build as collection
+        command = lambda source, output, face, upem: [str(self.helper), '--cff-cache',
+                    str(source), str(output), str(face), str(upem)]
+        donor = self.root/'donor.ttf'
+        make_font(donor, donor=True)
+        faces = []
+        for index, kind in enumerate(('cff', 'cff2')):
+            path = self.root/f'face-{index}.otf'
+            make_font(path, kind=kind)
+            faces.append(TTFont(path))
+        stock = self.root/'stock.ttc'
+        coll = TTCollection(); coll.fonts = faces; coll.save(stock); coll.close()
+        with patch.object(cff_native, '_command', command), patch.object(
+                cff_native, 'prepare', wraps=cff_native.prepare) as prepare:
+            report = collection.build(donor, stock, self.root/'out.ttc', self.root,
+                                      'native-fixture', '/system/fonts/Test.ttc')
+            self.assertEqual(prepare.call_count, 1)
+        self.assertGreater(report['performance']['nativeCffHits'], 0)
+        self.assertEqual(report['performance']['cffConversions'], 0)
+        with TTFont(donor) as font, patch.object(cff_native, '_command', command):
+            cache, info = cff_native.prepare(font, donor, 1000)
+            self.assertEqual(info['engine'], 'native-cff-v1')
+            for width in (None, 0, 620):
+                private = type('Private', (), dict(defaultWidthX=0, nominalWidthX=0, Subrs=[]))()
+                char = T2CharString(bytecode=cache.body(font.getGlyphOrder()[1], width, False),
+                                    private=private, globalSubrs=[])
+                pen = DecomposingRecordingPen(font.getGlyphSet()); char.draw(pen)
+                self.assertEqual(char.width, 0 if width is None else width)
+
+    def test_native_cff_source_change_is_not_downgraded_to_fallback(self):
+        donor = self.root/'donor.ttf'; make_font(donor, donor=True)
+        command = lambda source, output, face, upem: [str(self.helper), '--cff-cache',
+                    str(source), str(output), str(face), str(upem)]
+        with TTFont(donor) as font, patch.object(cff_native, '_command', command), patch.object(
+                cff_native, '_digest', side_effect=['before', 'changed']):
+            with self.assertRaises(RuntimeError):
+                cff_native.prepare(font, donor, 1000)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='ziyu-native-test-')
         self.addCleanup(self.temp.cleanup)

@@ -81,12 +81,17 @@ internal fun rememberPredictiveBack(
 
 internal fun Modifier.predictiveBackMotion(state: PredictiveBackState): Modifier = graphicsLayer {
     val progress = state.progress
-    scaleX = 1f - .08f * progress
-    scaleY = scaleX
-    translationX = state.direction * size.width * .16f * progress
-    alpha = 1f - progress * progress
+    // Keep the current page opaque while exposing the real destination under
+    // its moving edge. Fading a mostly stationary page only dissolves it.
+    translationX = state.direction * size.width * progress
+    alpha = 1f
     shape = RoundedCornerShape(28.dp * progress)
     clip = state.active
+}
+
+internal fun Modifier.predictiveBackPreviewMotion(state: PredictiveBackState): Modifier = graphicsLayer {
+    alpha = if (state.active) 1f else 0f
+    translationX = -state.direction * size.width * .25f * (1f - state.progress)
 }
 
 /** Destination previews are presentation only: neither touch nor accessibility can trigger actions. */

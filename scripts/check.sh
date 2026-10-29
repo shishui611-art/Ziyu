@@ -23,7 +23,11 @@ if [ -d "$LUOSHU_BUNDLED_SITE/fontTools" ]; then
 fi
 
 # 所有 Shell 与 Python 后端必须先通过基础语法检查。
-find "$ROOT" -type f -name '*.sh' -print | while IFS= read -r file; do
+# Check repository shell sources only; dist/, Gradle caches and staged copies
+# are generated outputs, not additional source inputs. The manifest/package
+# gates below still validate the actual payload separately.
+git -C "$ROOT" ls-files -- '*.sh' | while IFS= read -r relative; do
+  file="$ROOT/$relative"
   _syntax_shebang=$(sed -n '1p' "$file" | tr -d '\r')
   case "$_syntax_shebang" in
     *bash*) bash -n "$file" ;;
@@ -34,6 +38,8 @@ done
 [ ! -f "$ROOT/common/wechat_xweb_bridge" ] || sh -n "$ROOT/common/wechat_xweb_bridge"
 python3 -m py_compile \
   "$ROOT/common/composite_font.py" \
+  "$ROOT/common/font_ligatures.py" \
+  "$ROOT/common/font_native_cff.py" \
   "$ROOT/common/font_space_compat.py" \
   "$ROOT/common/font_instance.py" \
   "$ROOT/common/font_prepare_cache.py" \
@@ -369,6 +375,7 @@ sh "$ROOT/scripts/device_font_transaction_guard_test.sh"
 sh "$ROOT/scripts/font_config_variable_weight_test.sh"
 python3 "$ROOT/scripts/font_metrics_normalization_test.py"
 python3 "$ROOT/scripts/legacy_composite_layout_test.py"
+python3 "$ROOT/scripts/font_ligatures_test.py"
 python3 "$ROOT/scripts/hyperos_layout_freetype_test.py"
 python3 "$ROOT/scripts/font_config_monospace_test.py"
 sh "$ROOT/scripts/auto_multiweight_mode_test.sh"

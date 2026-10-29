@@ -18,6 +18,8 @@ import time
 from pathlib import Path
 from typing import Iterable
 
+from font_ligatures import plan_latin_ligatures
+
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.qu2cuPen import Qu2CuPen
@@ -39,6 +41,7 @@ LATIN_CODEPOINTS = (
     | set(range(0x2000, 0x2070))
     | set(range(0x20A0, 0x20D0))
     | set(range(0x2100, 0x2150))
+    | set(range(0xFB00, 0xFB07))
 )
 DIGIT_CODEPOINTS = (
     set(range(0x0030, 0x003A))
@@ -224,6 +227,7 @@ def _replace_codepoints(base: TTFont, src: TTFont, codepoints: Iterable[int], ro
     replaced = 0
     missing: list[int] = []
     already: set[str] = set()
+    imported = {}
     for cp in sorted(codepoints):
         base_name = base_cmap.get(cp)
         src_name = src_cmap.get(cp)
@@ -258,7 +262,21 @@ def _replace_codepoints(base: TTFont, src: TTFont, codepoints: Iterable[int], ro
             continue
         base["hmtx"].metrics[base_name] = (advance, lsb)
         clear_imported_metric_variations(base, base_name)
+        imported[base_name] = src_name
         replaced += 1
+    if role == "latin":
+        ligatures, ligature_glyphs, metrics = plan_latin_ligatures(
+            base, src, imported, src_glyph_set)
+        for base_name, src_name in ligatures.items():
+            advance, lsb = metrics[src_name]
+            advance = round(ligature_glyphs[src_name].width * scale)
+            if base_kind == "glyf":
+                _replace_glyf(base, src, ligature_glyphs, base_name, src_name, scale, y_shift)
+            else:
+                _replace_cff(base, src, ligature_glyphs, base_name, src_name, scale, y_shift, advance)
+            base["hmtx"].metrics[base_name] = (advance, round(lsb * scale))
+            clear_imported_metric_variations(base, base_name)
+            replaced += 1
     return replaced, missing
 
 

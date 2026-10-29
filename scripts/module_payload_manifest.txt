@@ -27,6 +27,7 @@ common/font_parallel.py
 common/app_read_batch.py
 common/physical_payload_hashes.py
 common/composite_font.py
+common/font_ligatures.py
 common/composite_tune.sh
 common/device_font_boot_verify.sh
 common/device_font_cache.sh
@@ -76,6 +77,7 @@ common/font_instance.py
 common/font_native_instance.py
 common/font-native-instance
 common/font_native_glyphs.py
+common/font_native_cff.py
 common/font_native_instance_build.json
 common/font_face_weight.py
 common/font_gvar_repair.py

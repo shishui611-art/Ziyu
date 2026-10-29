@@ -161,6 +161,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
                          "$MODDIR/common/font_native_glyphs.py" \
+                         "$MODDIR/common/font_native_cff.py" \
                          "$MODDIR/common/font_native_instance.py" \
                          "$MODDIR/common/font-native-instance" \
                          "$MODDIR/common/font_digest_cache.py" \
@@ -169,6 +170,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_role_shadow.py" \
                          "$MODDIR/common/universal_font_plan.py" \
                          "$MODDIR/common/composite_collection_build.py" \
+                         "$MODDIR/common/font_ligatures.py" \
                          "$MODDIR/common/composite_collection_build.sh" \
                          "$MODDIR/common/composite_collection_contract.py" \
                          "$MODDIR/common/stock_font_snapshot.py" \

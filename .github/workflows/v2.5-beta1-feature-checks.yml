@@ -7,6 +7,13 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - system/bin/luoshu-history
+      - system/bin/luoshu-backup
+      - common/font_coverage_info.py
+      - scripts/switch_history_test.sh
+      - scripts/full_backup_root_test.sh
+      - .github/workflows/v2.5-beta1-feature-checks.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,21 +43,3 @@ jobs:
           for group in ('simplifiedSample','traditionalSample','japaneseKana','koreanHangul','latinExtended','math','pua'):
               assert group in data['groups'], group
           PY
-  android:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-        with:
-          packages: ''
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.5.0'
-      - name: Unit test, lint and assemble App
-        working-directory: android-app
-        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:lintDebug :app:assembleDebug

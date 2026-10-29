@@ -484,6 +484,23 @@ _luoshu_atomic_rollback() {
         done < "$_lsar_reverse"
     fi
     rm -f "$_lsar_reverse"
+    # A stale child can reject both umount and umount -l, yet disappear when
+    # its owned parent is detached later in this same reverse-order pass.
+    # Reconcile the failures against a fresh PID 1 snapshot before committing
+    # the journal; otherwise the first manager reboot fails and only a second
+    # reboot sees that the child was already detached. A still-present target
+    # (including a foreign replacement) must remain unresolved. Never issue a
+    # second unmount against it or infer success just from an earlier command.
+    if [ -s "$_lsar_remaining" ]; then
+        [ -r "$_lsar_mountinfo" ] || return 1
+        awk 'FILENAME == ARGV[1] { item[++n]=$0; wanted[$0]=1; next }
+             $5 in wanted { present[$5]=1 }
+             END { for (i=1; i<=n; i++) if (present[item[i]]) print item[i] }' \
+            "$_lsar_remaining" "$_lsar_mountinfo" > "$_lsar_reverse" || return 1
+        mv -f "$_lsar_reverse" "$_lsar_remaining" || return 1
+        [ -s "$_lsar_remaining" ] || \
+            _luoshu_self_log '回滚早期失败目标已随父挂载脱离，PID 1 挂载表复核通过'
+    fi
     _lsar_incomplete=0
     [ ! -s "$_lsar_remaining" ] || _lsar_incomplete=1
     # Replace the authoritative journal atomically. A crash before this rename

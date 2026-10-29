@@ -53,7 +53,9 @@ _soft_saved_reason=$(sed -n 's/^reason=//p' "$_soft_stage" 2>/dev/null | head -n
 if [ -n "$_soft_boot" ] &&
    [ "$(sed -n 's/^boot_id=//p' "$_soft_stage" 2>/dev/null | head -n1)" = "$_soft_boot" ] &&
    { [ "$_soft_saved_state" = nomount-cleanup-pending ] ||
-     { [ "$_soft_saved_state" = failed ] && [ "$_soft_saved_reason" = nomount-still-routes-luoshu-payload ]; }; } &&
+     { [ "$_soft_saved_state" = failed ] &&
+       { [ "$_soft_saved_reason" = nomount-still-routes-luoshu-payload ] ||
+         [ "$_soft_saved_reason" = nomount-cleanup-window-not-quiescent ]; }; }; } &&
    [ -f "$MODDIR/common/mount_nomount_backend.sh" ] && [ -f "$MODDIR/emulated-soft-reboot.sh" ]; then
     printf '[TEMP-ROOT] retrying legacy NoMount cleanup with updated hook before activation\n' >> "$MODDIR/logs/mount-backend.log"
     ZIYU_KSU_POST_STOP_RELOAD=1 sh "$MODDIR/emulated-soft-reboot.sh" >> "$MODDIR/logs/mount-backend.log" 2>&1

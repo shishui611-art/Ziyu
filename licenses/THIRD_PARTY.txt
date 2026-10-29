@@ -42,3 +42,7 @@ are original GPL-3.0-only code. Native subset/instancing uses the already
 bundled HarfBuzz 15.0.0 (HarfBuzz-COPYING.txt and HarfBuzz-Microsoft-USE-MIT.txt).
 No user or ROM font data is distributed. Runtime source and binary provenance
 are checked by scripts/build_font_instance.py.
+
+Ziyu v1.4.53 font_native_cff.py and native/font-instance/cff-cache.hh:
+Original GPL-3.0-only Type 2 writer and cache; CFF donor drawing uses the
+already bundled HarfBuzz 15.0.0 under the licenses listed above.

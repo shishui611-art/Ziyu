@@ -300,7 +300,7 @@ composite_hash_file() {
 composite_engine_identity() (
     _cei_layout="$MODDIR/common/composite_layout.py"
     [ -f "$_cei_layout" ] || _cei_layout="$MODDIR/common/legacy_v14_4/composite_layout.py"
-    for _cei_file in "$MODDIR/common/composite_font.py" "$_cei_layout" \
+    for _cei_file in "$MODDIR/common/composite_font.py" "$MODDIR/common/font_ligatures.py" "$_cei_layout" \
         "$MODDIR/common/luoshu_composite.sh" "$MODDIR/common/composite_tune.sh"; do
         [ -s "$_cei_file" ] || return 1
         _cei_hash=$(composite_hash_file "$_cei_file")

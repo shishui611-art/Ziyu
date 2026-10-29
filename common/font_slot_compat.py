@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import gc
 import os
+import shutil
 from pathlib import Path
 
 from fontTools.ttLib import TTFont, TTLibError
 
-from composite_collection_build import identity, protected, replace_face, verify_dependency_copies
+from composite_collection_build import (identity, protected, replace_face, verify_dependency_copies,
+                                       raw_table_hashes, contract_matches)
 from font_digest_cache import FontDigestCache
 import font_source_profile
 import stock_font_snapshot
@@ -39,6 +41,7 @@ class SlotCompat:
         self._template_hits = 0
         self._template_peak = 0
         self._native_batches = self._native_hits = self._native_bytes = 0
+        self._native_cff_hits = self._native_cff_bytes = 0
 
     def __enter__(self):
         return self
@@ -56,6 +59,8 @@ class SlotCompat:
             self._native_batches += self._outline_cache.get('nativeGlyphBatches', 0)
             self._native_hits += self._outline_cache.get('nativeGlyphHits', 0)
             self._native_bytes = max(self._native_bytes, self._outline_cache.get('nativeGlyphBytes', 0))
+            self._native_cff_hits += self._outline_cache.get('nativeCffHits', 0)
+            self._native_cff_bytes = max(self._native_cff_bytes, self._outline_cache.get('nativeCffBytes', 0))
             self._recordings.clear()
             self._outline_cache.clear()
             # Release FontTools table/glyph cycles before loading another
@@ -79,6 +84,8 @@ class SlotCompat:
                 'glyphTemplatePeakBytes': max(self._template_peak, self._outline_cache.get('templateBytes', 0)),
                 'nativeGlyphBatches': self._native_batches + self._outline_cache.get('nativeGlyphBatches', 0),
                 'nativeGlyphHits': self._native_hits + self._outline_cache.get('nativeGlyphHits', 0),
+                'nativeCffHits': self._native_cff_hits + self._outline_cache.get('nativeCffHits', 0),
+                'nativeCffBytes': max(self._native_cff_bytes, self._outline_cache.get('nativeCffBytes', 0)),
                 'nativeGlyphBytes': max(self._native_bytes, self._outline_cache.get('nativeGlyphBytes', 0))}
 
     def prepare(self, donor: Path, logical: str) -> tuple[Path, dict]:
@@ -94,7 +101,8 @@ class SlotCompat:
         stock_before = identity(stock)
         if not 0 < stock_before[2] <= MAX_FONT_BYTES:
             raise ValueError('原厂字体槽快照超出大小限制')
-        key = (before, stock_before, self.digests.sha256(stock))
+        stock_hash = self.digests.sha256(stock)
+        key = (before, stock_before, stock_hash)
         cached = self.outputs.get(key)
         if cached is not None:
             path, report, output_identity, output_hash = cached
@@ -126,6 +134,7 @@ class SlotCompat:
                 source['hhea']
                 source['OS/2']
                 stock_order = list(base.getGlyphOrder())
+                raw_tables = raw_table_hashes(base)
                 original = protected(base, stock_order)
                 source_upem = int(source['head'].unitsPerEm)
                 if not 16 <= source_upem <= 16384:
@@ -135,6 +144,34 @@ class SlotCompat:
                 output_head = [int(base['head'].yMin), int(base['head'].yMax)]
                 source_points = set((source.getBestCmap() or {}).keys())
                 stock_points = set((base.getBestCmap() or {}).keys())
+                if before[2] == stock_before[2] and self.digests.sha256(donor) == stock_hash:
+                    # The complete requested font is already byte-identical to
+                    # this verified snapshot. Return those exact bytes, after
+                    # the normal parse/contract validation; rebuilding all its
+                    # outlines would add work and can only introduce changes.
+                    # Publication chmods staged aliases. Do not hard-link the
+                    # read-only snapshot itself into that writable staging tree.
+                    shutil.copyfile(stock, output)
+                    if (self.digests.sha256(output) != stock_hash
+                            or identity(donor) != before or identity(stock) != stock_before):
+                        raise ValueError('相同字体复用期间来源或快照发生变化')
+                    report = {'slotCompatibility': 'stock-contract-preserved',
+                              'outlineEngine': {'engine': 'identical-source-stock'},
+                              'stockOnlyCharactersRetained': 0,
+                              'unsafeGlyphsRetained': 0, 'unsafeGlyphs': [],
+                              'retainedComponentCopies': 0,
+                              'replacedCharacters': {'cjk': 0, 'latin': 0, 'digit': 0},
+                              'stockGlyphIdsPreserved': True, 'stockCmapPreserved': True,
+                              'stockLayoutPreserved': True, 'stockAxesPreserved': True,
+                              'sourceUpem': source_upem, 'sourceHead': source_head,
+                              'outputUpem': output_upem, 'outputHead': output_head,
+                              'layoutBoundsSource': 'stock', 'bitmapBaselineCorrection': 0,
+                              'bitmapBaselineReason': 'stock-preserved',
+                              'replacementVariation': 'selected-fixed-weight',
+                              'slotCompatibilityReused': True,
+                              'slotCompatibilityReuseReason': 'identical-source-stock-bytes'}
+                    self.outputs[key] = (output, report, identity(output), stock_hash)
+                    return output, report
                 details = replace_face(base, source, self._recordings, require_cjk=False,
                                        preserve_dependencies=True, preserve_unsafe=True,
                                        outline_cache=self._outline_cache, native_source=donor)
@@ -151,9 +188,14 @@ class SlotCompat:
                                    'bitmapBaselineCorrection': 0,
                                    'bitmapBaselineReason': 'stock-preserved',
                                    'replacedCharacters': details.get('replaced', {})}
+                for tag in raw_tables:
+                    base.tables.pop(tag, None)
                 base.save(output, reorderTables=False)
             with TTFont(output, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as check:
-                if protected(check, stock_order) != original:
+                matched = contract_matches(check, original, raw_tables, stock_order)
+                if raw_tables and not matched:
+                    matched = contract_matches(check, original, stock_order=stock_order)
+                if not matched:
                     raise ValueError('字体槽输出未保留原厂字符映射、字形索引或布局契约')
                 verify_dependency_copies(check, details.get('dependencyProof'))
             if output.stat().st_size > MAX_FONT_BYTES:

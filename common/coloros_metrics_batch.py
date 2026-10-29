@@ -195,12 +195,23 @@ def build(module: Path, stage: Path) -> dict:
         # Snapshot sizes are scheduling hints only; SlotCompat still resolves and
         # byte-verifies every actual stock input in the selected worker.
         snapshot_files = stock_font_snapshot.load(module).get('files', {})
-        slot_jobs, costs = [], []
+        slot_jobs, costs, shared_slots = [], [], {}
         for key, aliases in groups.items():
             for source, report in aliases:
-                slot_jobs.append((key, [(source, report)]))
                 entry = snapshot_files.get(report['slot'], {})
                 size = entry.get('size', 1) if isinstance(entry, dict) else 1
+                digest = entry.get('sha256') if isinstance(entry, dict) else None
+                # Group only identical donors/metrics AND the same OEM bytes.
+                # Hans/Hant with different snapshots must remain independent.
+                # Every alias still resolves/verifies its own snapshot inside
+                # SlotCompat; metadata here only affects worker assignment.
+                shared_key = (key, digest) if isinstance(digest, str) and len(digest) == 64 else None
+                if shared_key is not None and shared_key in shared_slots:
+                    slot_jobs[shared_slots[shared_key]][1].append((source, report))
+                    continue
+                if shared_key is not None:
+                    shared_slots[shared_key] = len(slot_jobs)
+                slot_jobs.append((key, [(source, report)]))
                 costs.append(max(1, min(size, 128 * 1024 * 1024)) if type(size) is int else 1)
         batches, execution = run_batches(slot_jobs, outputs,
                                          max((s.stat().st_size for s, _, _ in jobs), default=0),

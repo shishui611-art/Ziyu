@@ -133,7 +133,12 @@ assert_contains "$DB" '/system/fonts/Ziyu Test.ttf|' 'prior-boot cleanup preserv
 # rescue ledger. A managed soft reload retires those exact pairs as well.
 printf 'id=nomount\n' > "$NM/module.prop"
 export ZIYU_KSU_POST_STOP_RELOAD=1
-getprop() { case "$1" in init.svc.zygote*) printf '%s\n' "${NM_TEST_ZYGOTE_STATE:-stopped}" ;; esac; }
+getprop() {
+    case "$1" in
+        init.svc.zygote_next) printf '%s\n' "${NM_TEST_NEXT_STATE:-${NM_TEST_ZYGOTE_STATE:-stopped}}" ;;
+        init.svc.zygote*) printf '%s\n' "${NM_TEST_ZYGOTE_STATE:-stopped}" ;;
+    esac
+}
 pidof() { return 1; }
 readlink() {
     case "$1" in
@@ -149,6 +154,18 @@ printf '/system/fonts/Other.ttf|%s/other-module/system/fonts/Other.ttf\n' "$TMP"
 luoshu_nomount_provider_reload_cleanup "$MOD" || fail 'managed provider cleanup retires published Ziyu rules'
 assert_eq "$(wc -l < "$DB" | tr -d '[:space:]')" 1 'provider cleanup keeps other modules untouched'
 assert_contains "$DB" '/system/fonts/Other.ttf|' 'unrelated provider rule remains'
+
+# ColorOS keeps its Tango translator named zygote across a managed reboot.
+# It is not the init zygote service whose stopped lifecycle authorizes reload.
+pidof() { printf '4102\n'; }
+luoshu_nomount_reload_window_ready || fail 'persistent Tango process name does not block stopped managed zygotes'
+if NM_TEST_NEXT_STATE=running luoshu_nomount_reload_window_ready; then
+    fail 'a running managed zygote_next still blocks reload'
+fi
+if ZIYU_KSU_POST_STOP_RELOAD=0 luoshu_nomount_reload_window_ready; then
+    fail 'stopped services do not authorize cleanup outside manager post-stop'
+fi
+pidof() { return 1; }
 
 # A failed delete must restore all previously retired pairs, retaining history
 # and the pending font rather than claiming that the next generation activated.
@@ -224,6 +241,10 @@ assert_eq "$(cat "$MOD/config/upgrade-stage.calls")" "$(printf 'cleanup\nactivat
 printf 'boot_id=boot-A\nstate=nomount-cleanup-pending\n' > "$MOD/config/temporary-root-soft-reboot.conf"
 sh "$MOD/post-fs-data.sh" || fail 'post-fs resumes the normal deferred cleanup'
 assert_eq "$(cat "$MOD/config/upgrade-stage.calls")" "$(printf 'cleanup\nactivate')" 'deferred cleanup completes before pending activation'
+: > "$MOD/config/upgrade-stage.calls"
+printf 'boot_id=boot-A\nstate=failed\nreason=nomount-cleanup-window-not-quiescent\n' > "$MOD/config/temporary-root-soft-reboot.conf"
+sh "$MOD/post-fs-data.sh" || fail 'upgraded post-fs hook recovers the old Tango name collision'
+assert_eq "$(cat "$MOD/config/upgrade-stage.calls")" "$(printf 'cleanup\nactivate')" 'Tango recovery verifies cleanup before activation'
 : > "$MOD/config/upgrade-stage.calls"
 printf 'boot_id=boot-A\nstate=failed\nreason=nomount-still-routes-luoshu-payload\n' > "$MOD/config/temporary-root-soft-reboot.conf"
 if NM_UPGRADE_RETRY_FAIL=1 sh "$MOD/post-fs-data.sh"; then fail 'failed cleanup retry blocks activation'; fi

@@ -1,7 +1,7 @@
 id=ziyu
 name=ziyu · 字域字体加载器
-version=v1.4.50
-versionCode=14050
+version=v1.4.55
+versionCode=14055
 versionSeries=ziyu
 author=@酷安 柔性体
 description=字域：ColorOS 与 vivo/iQOO 字体适配；内置 App、组合字体、挂载与完整错误诊断

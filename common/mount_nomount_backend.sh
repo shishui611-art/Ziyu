@@ -249,8 +249,14 @@ luoshu_nomount_cleanup() {
 luoshu_nomount_reload_window_ready() {
     [ "${ZIYU_KSU_POST_STOP_RELOAD:-0}" = 1 ] || return 1
     [ "$(getprop init.svc.zygote 2>/dev/null)" = stopped ] || return 1
-    case "$(getprop init.svc.zygote_secondary 2>/dev/null)" in ''|stopped) ;; *) return 1 ;; esac
-    [ -z "$(pidof zygote zygote64 zygote32 2>/dev/null)" ]
+    for _lnm_service in zygote_secondary zygote32 zygote64 zygote_next; do
+        case "$(getprop "init.svc.$_lnm_service" 2>/dev/null)" in ''|stopped) ;; *) return 1 ;; esac
+    done
+    # ColorOS's independent zygote_tango translator keeps argv[0]="zygote"
+    # across KernelSU's stop/start cycle. pidof therefore matches a process
+    # outside the services being reloaded and rejects every managed reload.
+    # Init's service lifecycle is authoritative, as in the manager's stop stage.
+    return 0
 }
 
 luoshu_nomount_provider_reload_cleanup() (

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import io.github.xgl34222220.ziyu.ui.navigation.rememberPredictiveBack
 import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackMotion
+import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackPreviewMotion
 import io.github.xgl34222220.ziyu.ui.navigation.backDestinationPreview
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -212,7 +213,7 @@ internal fun SettingsHubRoute(
 
     Box(Modifier.fillMaxSize()) {
     if (active && section != null && settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34) Box(
-        Modifier.fillMaxSize().graphicsLayer { alpha = if (back.active) 1f else 0f }.backDestinationPreview()
+        Modifier.fillMaxSize().predictiveBackPreviewMotion(back).backDestinationPreview()
     ) {
         SettingsHome(model, {}, {})
     }

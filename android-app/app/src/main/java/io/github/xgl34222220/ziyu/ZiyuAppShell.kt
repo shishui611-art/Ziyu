@@ -3,6 +3,7 @@ package io.github.xgl34222220.ziyu
 import android.os.Build
 import io.github.xgl34222220.ziyu.ui.navigation.rememberPredictiveBack
 import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackMotion
+import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackPreviewMotion
 import io.github.xgl34222220.ziyu.ui.navigation.backDestinationPreview
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -399,7 +400,7 @@ internal fun ZiyuAppShell(
             val prepareRootPreview = appearance.predictiveBack && Build.VERSION.SDK_INT >= 34 &&
                 page != AppPage.Home && !(page == AppPage.Settings && settingsDetailVisible)
             if (prepareRootPreview) Box(Modifier.fillMaxSize()
-                .graphicsLayer { alpha = if (rootBack.active) 1f else 0f }
+                .predictiveBackPreviewMotion(rootBack)
                 .background(LocalZiyuPaletteTokens.current.pageBackground)
                 .backDestinationPreview()) {
                 if (page == AppPage.Logs && logsReturnPage == AppPage.Settings) {

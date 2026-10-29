@@ -1,13 +1,7 @@
 name: Runtime update safety
 
 on:
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'common/**'
-      - 'customize.sh'
-      - 'scripts/**'
-      - '.github/workflows/runtime-update-safety.yml'
+  # Full runtime checks already run in check.yml and signed release source job.
   workflow_dispatch:
 
 permissions:

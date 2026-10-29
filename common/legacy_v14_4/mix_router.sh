@@ -561,6 +561,7 @@ setup_runtime() {
     force_link "$REALMOD/common/font_face_weight.py" "$RUNTIME/common/font_face_weight.py" || return 1
     force_link "$REALMOD/common/font_gvar_repair.py" "$RUNTIME/common/font_gvar_repair.py" || return 1
     [ ! -f "$REALMOD/common/font_prepare_cache.py" ] || force_link "$REALMOD/common/font_prepare_cache.py" "$RUNTIME/common/font_prepare_cache.py" || return 1
+    force_link "$REALMOD/common/font_ligatures.py" "$RUNTIME/common/font_ligatures.py" || return 1
     force_link "$LEGACY/composite_font.py" "$RUNTIME/common/composite_font.py" || return 1
     force_link "$LEGACY/composite_layout.py" "$RUNTIME/common/composite_layout.py" || return 1
     force_link "$REALMOD/common/composite_tune.sh" "$RUNTIME/common/composite_tune.sh" || return 1
