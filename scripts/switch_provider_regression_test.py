@@ -174,7 +174,8 @@ exec "$TEST_REAL_CP" "$@"
         shutil.copyfile(ROOT / 'common/font_switch_lock.sh', self.module / 'common/font_switch_lock.sh')
         for name in ('font_next_transaction.sh', 'font_live_state.sh',
                      'font_live_switch.sh', 'font_live_payload.py',
-                     'originos_stage_complete.py'):
+                     'originos_stage_complete.py', 'font_clipping_compat.sh',
+                     'font_clipping_compat.py'):
             shutil.copyfile(ROOT / 'common' / name, self.module / 'common' / name)
         runtime = self.module / 'common/python/bin/luoshu-python'
         runtime.write_text(
