@@ -216,7 +216,7 @@ internal fun SettingsHubRoute(
         if (item == SettingsSection.UPDATE) model.checkUpdate()
     }
 
-    val transition = updateTransition(section, label = "settingsSection")
+    val transition = updateTransition(section, label = "settingsDetailTransition")
     val homeContent: @Composable () -> Unit = {
         SettingsHome(model, ::openSection, onOpenTasks, currentFontLabel)
     }

@@ -22,8 +22,10 @@ class AppControlsBridgeTest(unittest.TestCase):
             (config / 'active_font.conf').write_text('Demo\n', encoding='utf-8')
             (config / 'device-font-load-verification.conf').write_text(
                 'state=verified\nmode=mount-verified\nactiveFont=Demo\n', encoding='utf-8')
+            boot_path = Path('/proc/sys/kernel/random/boot_id')
+            boot_id = boot_path.read_text(encoding='utf-8').strip() if boot_path.is_file() else ''
             (config / 'boot-safety-current-boot.conf').write_text(
-                'schema=ziyu-boot-safety-current-v1\nstate=blocked\n', encoding='utf-8')
+                f'schema=ziyu-boot-safety-current-v1\nstate=blocked\nboot_id={boot_id}\n', encoding='utf-8')
             shutil.copy2(ROOT / 'common/app_bridge.sh', common / 'app_bridge.sh')
             (common / 'boot_ota_guard.sh').write_text(
                 '#!/bin/sh\nprintf "status=ok\\nsafe_mode=1\\ncurrent_boot_blocked=1\\nreason=boot-safety-safe-mode\\n"\n',
@@ -51,6 +53,24 @@ class AppControlsBridgeTest(unittest.TestCase):
             self.assertEqual('pending-reboot', data['fontEffectState'])
             self.assertEqual('ota-generation-prepared', data['verificationReason'])
             self.assertTrue(data['rebootRequired'])
+
+            # A previous boot's protection must not override a verified current
+            # font, and the bridge must not invoke its guard for that stale record.
+            marker = config / 'guard-status-called'
+            (config / 'boot-safety-current-boot.conf').write_text(
+                'schema=ziyu-boot-safety-current-v1\nstate=blocked\nboot_id=previous-test-boot\n',
+                encoding='utf-8')
+            (common / 'boot_ota_guard.sh').write_text(
+                '#!/bin/sh\ntouch "$2/config/guard-status-called"\n'
+                'printf "status=ok\\ncurrent_boot_blocked=1\\nreason=boot-safety-safe-mode\\n"\n',
+                encoding='utf-8', newline='\n')
+            result = subprocess.run([shell, (common / 'app_bridge.sh').as_posix(), 'status'],
+                                    env=env, capture_output=True, text=True, encoding='utf-8', timeout=15)
+            self.assertEqual(0, result.returncode, result.stderr)
+            data = json.loads(result.stdout)['data']
+            self.assertEqual('Demo', data['effectiveActive'])
+            self.assertEqual('verified', data['fontEffectState'])
+            self.assertFalse(marker.exists())
 
     def test_boot_safety_forwards_only_supported_actions(self):
         with tempfile.TemporaryDirectory() as directory:
