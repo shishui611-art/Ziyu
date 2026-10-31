@@ -17,23 +17,26 @@ internal data class ShellResult(
 )
 
 internal object RootShell {
-    private val moduleMutex = kotlinx.coroutines.sync.Mutex()
     @Volatile private var moduleRoot: String? = null
-    private suspend fun resolveModule(): String {
-        moduleRoot?.let { return it }
-        moduleMutex.lock()
-        try {
-            moduleRoot?.let { return it }
-            val found = executeProcess(listOf("su", "-c", "for p in /data/adb/modules/ziyu /data/adb/modules/LuoShu; do [ -f \"\$p/common/app_bridge.sh\" ] || continue; case \"\$(sed -n 's/^id=//p' \"\$p/module.prop\" | tr -d '\\r')\" in ziyu|LuoShu) printf '%s' \"\$p\"; break ;; esac; done"), 8_000L)
-            val path = found.stdout.trim()
-            if (found.code == 0 && path in setOf("/data/adb/modules/ziyu", "/data/adb/modules/LuoShu")) moduleRoot = path
-            return moduleRoot ?: "/data/adb/modules/ziyu"
-        } finally { moduleMutex.unlock() }
+    fun rememberModule(path: String) {
+        if (path in setOf("/data/adb/modules/ziyu", "/data/adb/modules/LuoShu")) moduleRoot = path
+    }
+
+    private fun resolveCommand(command: String): String {
+        val primary = "/data/adb/modules/ziyu"
+        if (!command.contains(primary)) return command
+        moduleRoot?.let { return command.replace(primary, it) }
+        // Resolve in the same su session. The connection request validates the
+        // module identity; legacy fallback retains its explicit identity check.
+        return "if [ -f '$primary/common/app_bridge.sh' ]; then\n$command\n" +
+            "elif [ -f /data/adb/modules/LuoShu/common/app_bridge.sh ] && " +
+            "sed -n 's/^id=//p' /data/adb/modules/LuoShu/module.prop | tr -d '\\r' | grep -Eq '^(ziyu|LuoShu)\$'; then\n" +
+            command.replace(primary, "/data/adb/modules/LuoShu") + "\nelse\n$command\nfi"
     }
 
     suspend fun exec(command: String, timeoutMs: Long = 600_000L): ShellResult = withContext(Dispatchers.IO) {
         try {
-            executeProcess(listOf("su", "-c", if (command.contains("/data/adb/modules/ziyu")) command.replace("/data/adb/modules/ziyu", resolveModule()) else command), timeoutMs)
+            executeProcess(listOf("su", "-c", resolveCommand(command)), timeoutMs)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (interrupted: InterruptedException) {

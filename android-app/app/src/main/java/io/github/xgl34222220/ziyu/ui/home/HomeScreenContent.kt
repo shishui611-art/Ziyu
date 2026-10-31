@@ -29,7 +29,7 @@ import io.github.xgl34222220.ziyu.ui.theme.*
 
 /** Shared business sections; the three page shells decide their order and presentation. */
 internal val HomeUiState.hasTaskNotice: Boolean
-    get() = taskRunning || rebootRequired || error.isNotBlank()
+    get() = taskRunning || rebootRequired || error.isNotBlank() || romCheckMessage.isNotBlank()
 
 @Composable
 internal fun HomePageHeader(loading: Boolean, actions: HomeActions) {
@@ -139,6 +139,7 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
     val scheme = MaterialTheme.colorScheme
     val palette = LocalZiyuPaletteTokens.current
     val failed = state.error.isNotBlank() && !state.taskRunning
+    val romNotice = state.romCheckMessage.isNotBlank() && !state.taskRunning && !state.rebootRequired && !failed
     ZiyuSurface(
         onClick = actions.openLogs,
         modifier = Modifier.fillMaxWidth(),
@@ -156,7 +157,7 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                     tint = if (failed) scheme.error else scheme.primary,
                 )
                 ZiyuText(
-                    if (state.rebootRequired && !state.taskRunning) "重启后生效" else state.taskTitle,
+                    if (romNotice) "系统字体基准核验" else if (state.rebootRequired && !state.taskRunning) "重启后生效" else state.taskTitle,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
@@ -164,7 +165,7 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                 ZiyuGlyph(Icons.Rounded.ChevronRight, null, ZiyuIconTokens.TrailingGlyph)
             }
             ZiyuText(
-                if (failed) state.error else nextStepFor(state, actions).description,
+                if (failed) state.error else if (romNotice) state.romCheckMessage else nextStepFor(state, actions).description,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (state.taskRunning) ZiyuLinearProgressIndicator(

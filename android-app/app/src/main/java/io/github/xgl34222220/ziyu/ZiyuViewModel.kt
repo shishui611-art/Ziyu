@@ -25,6 +25,7 @@ import kotlin.math.roundToInt
 
 internal data class ModuleSnapshot(
     val loading: Boolean = true,
+    val detailsPending: Boolean = false,
     val rootGranted: Boolean = false,
     val installed: Boolean = false,
     val version: String = "检测中…",
@@ -60,7 +61,7 @@ internal data class ModuleSnapshot(
     // A consumed reboot queue can still be waiting for the bounded boot verifier.
     // Poll that transition only; an unconsumed queue still needs a real reboot.
     val awaitingBootVerification: Boolean
-        get() = rootGranted && installed && error.isBlank() && !loading &&
+        get() = rootGranted && installed && error.isBlank() && !loading && !detailsPending &&
             activeFont !in setOf("", "default") && !rebootRequired && !rollbackPending &&
             taskState !in setOf("queued", "running") &&
             (fontEffectState in setOf("pending", "unverified", "unknown") ||
@@ -82,6 +83,7 @@ internal data class ModuleSnapshot(
 
     val effectiveLabel: String
         get() = when {
+            detailsPending -> "模块已连接，正在读取字体生效状态…"
             verificationReason == "ota-generation-prepared" -> "${activeLabel}（新系统负载已准备，待完整重启）"
             verificationReason in setOf("safe-mode", "boot-safety-safe-mode") -> "${activeLabel}（开机保护暂停加载）"
             verificationReason in setOf("ota-fingerprint", "ota-fingerprint-change") -> "${activeLabel}（系统更新后需重新应用）"
@@ -202,6 +204,9 @@ private data class FontFingerprint(
 internal class ZiyuViewModel(application: Application) : AndroidViewModel(application) {
     private val bridge = "/data/adb/modules/ziyu/common/app_bridge.sh"
     private val fingerprintBridge = "/data/adb/modules/ziyu/common/font_library_cache.sh"
+    private var romCheckSupported = false
+    var romCheckMessage by mutableStateOf("")
+        private set
     private val fontIndexStore = FontIndexStore(application)
     private val completionPrefs = application.getSharedPreferences("combination-completion", 0)
     private val mixTunePrefs = application.getSharedPreferences("combination-tune", 0)
@@ -660,6 +665,31 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         refreshJob?.takeIf { it.isActive }?.let { return it }
         if (includeExtras) snapshot = snapshot.copy(loading = true, error = "")
         refreshJob = viewModelScope.launch {
+            if (!snapshot.rootGranted || !snapshot.installed) {
+                val hello = RootShell.exec(
+                    "if [ -f /data/adb/modules/ziyu/common/app_handshake.sh ]; then " +
+                        "sh ${RootShell.quote(bridge)} handshake; else printf '%s\\n' '{\"status\":\"legacy\"}'; fi",
+                    timeoutMs = 12_000L,
+                )
+                if (hello.code != 0) {
+                    snapshot = ModuleSnapshot(loading = false, error = hello.stderr.ifBlank { "模块握手失败，请检查 Root 授权与模块安装" })
+                    return@launch
+                }
+                val helloJson = runCatching { firstJson(hello.stdout) }.getOrNull()
+                if (helloJson?.optString("schema") == "ziyu-app-handshake-v1") {
+                    val data = helloJson.optJSONObject("data")
+                    if (data == null || !data.optBoolean("root") || !data.optBoolean("installed")) {
+                        snapshot = ModuleSnapshot(loading = false, rootGranted = data?.optBoolean("root") == true,
+                            error = "模块身份未通过握手核对，请检查模块安装")
+                        return@launch
+                    }
+                    if (data != null && data.optBoolean("installed")) {
+                        RootShell.rememberModule(data.optString("moduleDir"))
+                        romCheckSupported = data.optBoolean("romCheck", false)
+                        snapshot = parseSnapshot(hello.stdout).copy(detailsPending = true)
+                    }
+                }
+            }
             val result = RootShell.exec(
                 "if [ -f ${RootShell.quote(bridge)} ]; then sh ${RootShell.quote(bridge)} status; " +
                     "else printf '%s\\n' '{\"status\":\"error\",\"message\":\"请先刷入匹配的字域模块\"}'; fi",
@@ -668,8 +698,11 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             if (result.code != 0) {
                 snapshot = ModuleSnapshot(
                     loading = false,
-                    rootGranted = false,
-                    error = result.stderr.ifBlank { "Root 授权失败或 su 不可用" },
+                    rootGranted = snapshot.rootGranted,
+                    installed = snapshot.installed,
+                    version = snapshot.version,
+                    versionCode = snapshot.versionCode,
+                    error = result.stderr.ifBlank { "模块详细状态读取失败，请重新检测" },
                 )
                 return@launch
             }
@@ -683,6 +716,35 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             if (parsed.installed && includeExtras) requestFontPrewarm()
         }
         return checkNotNull(refreshJob)
+    }
+
+    internal suspend fun checkRomOnForeground() {
+        refreshJob?.join()
+        if (!snapshot.rootGranted || !snapshot.installed || !romCheckSupported) return
+        var action = "check"
+        var polls = 0
+        while (true) {
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} rom_check $action", timeoutMs = 12_000L)
+            val values = result.stdout.lineSequence().mapNotNull { line ->
+                val split = line.indexOf('=')
+                if (split > 0) line.substring(0, split) to line.substring(split + 1).trimEnd('\r') else null
+            }.toMap()
+            if (result.code != 0 || values["status"] != "ok") {
+                romCheckMessage = "ROM 自动检查暂未完成，未请求模块重刷；可到设置 → 开机保护查看状态"
+                return
+            }
+            val state = values["rom_state"].orEmpty()
+            romCheckMessage = if (state in setOf("unchanged", "initialized", "deferred")) "" else values["message"].orEmpty()
+            if (state !in setOf("running", "queued") || polls >= 160) {
+                if (state == "complete") refreshFontRuntime()
+                return
+            }
+            // Only the first request can launch work. Follow-up polls are
+            // read-only, stop with the lifecycle, and never retry a failure.
+            action = "status"
+            polls++
+            delay(4_000L)
+        }
     }
 
     fun ensureFonts(force: Boolean = false) {
@@ -1553,6 +1615,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 )
             }
             val data = root.getJSONObject("data")
+            if (data.optBoolean("installed", false)) RootShell.rememberModule(data.optString("moduleDir"))
             ModuleSnapshot(
                 loading = false,
                 rootGranted = data.optBoolean("root", true),

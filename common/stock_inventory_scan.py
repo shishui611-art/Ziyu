@@ -10,10 +10,12 @@ from font_live_payload import work_root as live_work_root
 
 import font_inventory as inventory
 import font_inventory_scan as scanner
+from stock_readonly_view import StockReadonlyView
 
 
 _ACTIVE_OVERLAY_MODULE: Path | None = None
 _INSTALL_SNAPSHOTS: list[Path] = []
+_READONLY_VIEW = StockReadonlyView()
 
 
 def _dynamic_manifest_partitions(module: Path | None) -> list[str]:
@@ -359,6 +361,10 @@ def _safe_pick_actual_root(logical: Path, explicit: Path | None, overlay_risk: b
         return explicit
     if not overlay_risk:
         return logical
+    if _READONLY_VIEW.views:
+        snapshot = _READONLY_VIEW.pick(logical)
+        if snapshot is not None:
+            return snapshot
     # Overlay risk is per partition, not global. A custom system/fonts payload
     # does not make an untouched vendor/fonts tree unsafe to scan directly.
     if _ACTIVE_OVERLAY_MODULE is not None and not _private_root_overlaid(logical):
@@ -391,6 +397,12 @@ def _safe_pick_actual_root(logical: Path, explicit: Path | None, overlay_risk: b
     if snapshot is not None:
         return snapshot
 
+    # Inode redirection (e.g. NoMount) survives bind snapshots. A separate
+    # read-only block view preserves the provider and the live font namespace.
+    snapshot = _READONLY_VIEW.pick(logical)
+    if snapshot is not None:
+        return snapshot
+
     # A ROM is not required to expose every optional OEM partition. Missing logical
     # roots are harmless; an existing root without a verifiable stock view is not.
     if not logical.exists():
@@ -404,7 +416,10 @@ def main() -> int:
     try:
         return scanner.main()
     finally:
-        _cleanup_install_snapshots()
+        try:
+            _cleanup_install_snapshots()
+        finally:
+            _READONLY_VIEW.close()
 
 
 if __name__ == "__main__":

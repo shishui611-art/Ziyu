@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuMotionTokens
 import androidx.compose.foundation.horizontalScroll
@@ -82,7 +83,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -177,8 +180,9 @@ fun AppearanceSettingsRoute(
     onDetailChanged: (Boolean) -> Unit = {},
     onTemporaryRootChanged: () -> Unit = {},
     active: Boolean = true,
+    currentFontLabel: String = "",
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active, currentFontLabel)
 }
 
 @Composable
@@ -189,6 +193,7 @@ internal fun SettingsHubRoute(
     onDetailChanged: (Boolean) -> Unit,
     onTemporaryRootChanged: () -> Unit,
     active: Boolean,
+    currentFontLabel: String,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -211,14 +216,21 @@ internal fun SettingsHubRoute(
         if (item == SettingsSection.UPDATE) model.checkUpdate()
     }
 
+    val transition = updateTransition(section, label = "settingsSection")
+    val homeContent: @Composable () -> Unit = {
+        SettingsHome(model, ::openSection, onOpenTasks, currentFontLabel)
+    }
+    val latestHome by rememberUpdatedState(homeContent)
+    val movableHome = remember { movableContentOf { latestHome() } }
+    val preparePreview = active && settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34 &&
+        (back.active || section != null && transition.currentState == transition.targetState)
     Box(Modifier.fillMaxSize()) {
-    if (active && section != null && settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34) Box(
+    if (preparePreview) Box(
         Modifier.fillMaxSize().predictiveBackPreviewMotion(back).backDestinationPreview()
     ) {
-        SettingsHome(model, {}, {})
+        movableHome()
     }
-    AnimatedContent(
-        targetState = section,
+    transition.AnimatedContent(
         modifier = Modifier.fillMaxSize().predictiveBackMotion(back).background(LocalZiyuPaletteTokens.current.pageBackground).clipToBounds(),
         transitionSpec = {
             val slide = tween<androidx.compose.ui.unit.IntOffset>(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing)
@@ -234,14 +246,9 @@ internal fun SettingsHubRoute(
                     .apply { targetContentZIndex = 0f }
             }).using(null)
         },
-        label = "settingsDetailTransition",
     ) { target ->
         if (target == null) {
-            SettingsHome(
-                model = model,
-                onOpenSection = ::openSection,
-                onOpenTasks = onOpenTasks,
-            )
+            if (!preparePreview) movableHome()
         } else {
             Column(
                 Modifier
@@ -252,7 +259,7 @@ internal fun SettingsHubRoute(
                 ZiyuDetailBar(title = target.label, onBack = { sectionName = null })
                 Box(Modifier.weight(1f)) {
                     when (target) {
-                        SettingsSection.OVERVIEW -> OverviewPage(model)
+                        SettingsSection.OVERVIEW -> OverviewPage(model, currentFontLabel)
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
                         SettingsSection.NOTIFICATIONS -> pageList { item { io.github.xgl34222220.ziyu.NotificationAccessCard() } }
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
@@ -278,6 +285,7 @@ internal fun SettingsHome(
     model: SystemCenterViewModel,
     onOpenSection: (SettingsSection) -> Unit,
     onOpenTasks: () -> Unit,
+    currentFontLabel: String = "",
 ) {
     val h = model.health
     val layout = LocalZiyuThemeTokens.current.layout
@@ -295,7 +303,7 @@ internal fun SettingsHome(
     ) {
         item { ZiyuTopBar("设置") }
         item {
-            SettingsOverviewCard(h) { onOpenSection(SettingsSection.OVERVIEW) }
+            SettingsOverviewCard(h, currentFontLabel) { onOpenSection(SettingsSection.OVERVIEW) }
         }
         item { SettingsSectionLabel("你的字域", "界面外观与任务记录") }
         item {
@@ -380,7 +388,7 @@ private fun SettingsSectionLabel(title: String, subtitle: String? = null) {
 }
 
 @Composable
-private fun SettingsOverviewCard(health: SystemHealthSnapshot, onClick: () -> Unit) {
+private fun SettingsOverviewCard(health: SystemHealthSnapshot, currentFontLabel: String, onClick: () -> Unit) {
     val tokens = LocalZiyuPaletteTokens.current
     val layout = LocalZiyuThemeTokens.current.layout
     val style = LocalUiStyle.current
@@ -434,7 +442,9 @@ private fun SettingsOverviewCard(health: SystemHealthSnapshot, onClick: () -> Un
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("当前字体", color = tokens.textSecondary, style = MaterialTheme.typography.labelSmall)
                 Text(
-                    if (health.loading) "正在读取…" else if (health.activeFont == "default") "系统默认" else health.activeFont.ifBlank { "尚未选择" },
+                    currentFontLabel.ifBlank {
+                        if (health.loading) "正在读取…" else if (health.activeFont == "default") "系统默认字体" else health.activeFont.ifBlank { "尚未选择" }
+                    },
                     color = tokens.textPrimary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
@@ -571,7 +581,7 @@ private fun pageList(content: androidx.compose.foundation.lazy.LazyListScope.() 
 }
 
 @Composable
-private fun OverviewPage(model: SystemCenterViewModel) = pageList {
+private fun OverviewPage(model: SystemCenterViewModel, currentFontLabel: String) = pageList {
     val h = model.health
     item {
         StatusCard("字域状态", h.summary, h.level, h.loading) {
@@ -579,7 +589,7 @@ private fun OverviewPage(model: SystemCenterViewModel) = pageList {
             InfoLine("模块", h.moduleVersion.ifBlank { if (h.modulePresent) "已安装" else "未检测到" })
             InfoLine("Root", h.rootManager)
             InfoLine("挂载", mountSummary(h))
-            InfoLine("当前字体", if (h.activeFont == "default") "系统默认" else h.activeFont)
+            InfoLine("当前字体", currentFontLabel.ifBlank { if (h.activeFont == "default") "系统默认字体" else h.activeFont })
         }
     }
     item {

@@ -41,9 +41,10 @@ stock_scan_available() {
 }
 
 stock_topology_refresh() {
-    [ -f "$TOPOLOGY_COLLECTOR" ] && [ -s "$STOCK_INVENTORY" ] || return 0
+    [ -f "$TOPOLOGY_COLLECTOR" ] && [ -s "$STOCK_INVENTORY" ] || return 1
     MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-        sh "$TOPOLOGY_COLLECTOR" refresh >>"$MODDIR/logs/font-topology.log" 2>&1 || true
+        sh "$TOPOLOGY_COLLECTOR" refresh >>"$MODDIR/logs/font-topology.log" 2>&1 || return 1
+    [ -s "$MODDIR/config/device_font_topology.json" ]
 }
 
 stock_scan_lock_acquire() {
@@ -84,13 +85,34 @@ stock_scan_lock_release() {
 
 stock_scan_guard_complete() {
     [ -f "$MODDIR/common/boot_ota_guard.sh" ] || return 0
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" scan-complete "$MODDIR" \
-        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1 || \
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" scan-complete "$MODDIR" "$STOCK_SCAN_ROM_IDENTITY" \
+        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1 && return 0
         printf '[%s] [BOOT-OTA-GUARD] fresh stock inventory could not be committed to OTA receipt\n' \
             "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" >> "$MODDIR/logs/boot-ota-guard.log" 2>/dev/null || true
+    return 1
+}
+
+stock_scan_commit() {
+    # Publish the ROM receipt only after inventory AND topology are ready.
+    # A failed receipt must not be silently reported as a completed rescan.
+    if ! stock_topology_refresh && [ "${LUOSHU_REQUIRE_TOPOLOGY:-0}" = 1 ]; then
+        : > "$MODDIR/config/stock_inventory_scan_pending"
+        printf '{"status":"error","message":"原厂字体已读取，但拓扑生成失败；请导出诊断日志"}\n'
+        return 1
+    fi
+    rm -f "$MODDIR/config/stock_inventory_scan_pending" || return 1
+    if ! stock_scan_guard_complete && [ "${LUOSHU_REQUIRE_TOPOLOGY:-0}" = 1 ]; then
+        : > "$MODDIR/config/stock_inventory_scan_pending"
+        printf '{"status":"error","message":"原厂扫描结果与当前 ROM 的核验回执不一致，请重新检测后手动重试"}\n'
+        return 1
+    fi
 }
 
 stock_scan_json() {
+    STOCK_SCAN_ROM_IDENTITY="${LUOSHU_SCAN_ROM_IDENTITY:-}"
+    if [ -z "$STOCK_SCAN_ROM_IDENTITY" ] && [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
+        STOCK_SCAN_ROM_IDENTITY=$(sh "$MODDIR/common/boot_ota_guard.sh" rom-identity "$MODDIR")
+    fi
     if ! stock_scan_available; then
         printf '{"status":"error","message":"%s"}\n' "$(json_escape_router '原厂字体扫描组件不完整')"
         return 1
@@ -112,11 +134,9 @@ stock_scan_json() {
         )
         _stock_rc=$?
         if [ "$_stock_rc" -eq 0 ]; then
-            rm -f "$MODDIR/config/stock_inventory_scan_pending" 2>/dev/null || true
-            stock_scan_guard_complete
+            stock_scan_commit || return 1
             stock_scan_lock_release
             trap - EXIT HUP INT TERM
-            stock_topology_refresh
             printf '%s\n' "$(printf '%s\n' "$_stock_out" | tail -n1)"
             return 0
         fi
@@ -134,11 +154,9 @@ stock_scan_json() {
     _stock_rc=$?
     _stock_last=$(printf '%s\n' "$_stock_out" | tail -n1)
     if [ "$_stock_rc" -eq 0 ] && [ -s "$STOCK_INVENTORY" ]; then
-        rm -f "$MODDIR/config/stock_inventory_scan_pending" 2>/dev/null || true
-        stock_scan_guard_complete
+        stock_scan_commit || return 1
         stock_scan_lock_release
         trap - EXIT HUP INT TERM
-        stock_topology_refresh
         printf '%s\n' "$_stock_last"
         return 0
     fi

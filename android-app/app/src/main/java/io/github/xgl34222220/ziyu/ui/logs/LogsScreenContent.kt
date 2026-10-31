@@ -127,12 +127,12 @@ internal fun LogsPageContent(
 
     Column(Modifier.fillMaxSize()) {
         ZiyuDetailBar(title = "字体刷写", onBack = onBack) {
-            DiagnosticExportButton(style = style, state = diagnosticState, onClick = onDiagnostic)
+            DiagnosticExportButton(state = diagnosticState, onClick = onDiagnostic)
             ZiyuHeaderAction(
                 icon = Icons.Rounded.Refresh,
                 contentDescription = "刷新任务和日志",
                 onClick = actions.refresh,
-                containerColor = tokens.elevatedCardBackground,
+                containerColor = Color.Transparent,
             )
         }
         ZiyuSegmentedTabs(

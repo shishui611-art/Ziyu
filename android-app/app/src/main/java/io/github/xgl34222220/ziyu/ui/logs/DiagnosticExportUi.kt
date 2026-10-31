@@ -24,12 +24,12 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
-import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuHeaderAction
 import java.io.File
 
@@ -154,6 +154,9 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             config/font-preload-generation.conf \
             config/boot-ota-guard.conf config/boot-ota-pending.conf config/boot-safety-mode.conf \
             config/boot-safety-disable-owner.conf config/boot-safety-current-boot.conf \
+            logs/boot-ota-guard.log \
+            config/app-rom-observed.conf config/stock-rom-auto-attempt.conf config/stock-rom-scan.conf \
+            logs/font-inventory.log logs/font-topology.log \
             config/user-storage.conf config/user-storage-next.conf logs/user-storage.log \
             config/display-typography.conf config/display-config-storage.conf config/display-typography-dirty \
             config/mount-backend-preference.conf config/provider-reload-check.conf config/apatch-pre-mount.conf \
@@ -182,6 +185,12 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             else
                 printf 'unavailable\n' >> "${'$'}OUT"
             fi
+        done
+        for path in /data/adb/.ziyu-luoshu-stock-rescan.lock/state \
+            /data/adb/.ziyu-luoshu-stock-rescan.lock/worker.pid.cleanup.json; do
+            printf '\n[stock-rescan:%s]\n' "${'$'}path" >> "${'$'}OUT"
+            if [ -r "${'$'}path" ]; then head -c 8192 "${'$'}path" >> "${'$'}OUT"
+            else printf 'unavailable\n' >> "${'$'}OUT"; fi
         done
         APP_UPDATES=${RootShell.quote(File(context.filesDir, "module-update").absolutePath)}
         for entry in check.log latest.log; do
@@ -257,7 +266,6 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
 
 @Composable
 internal fun DiagnosticExportButton(
-    style: UiStyle,
     state: DiagnosticExportState,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -268,13 +276,8 @@ internal fun DiagnosticExportButton(
         onClick = onClick,
         enabled = !state.busy,
         loading = state.busy,
-        containerColor = if (style == UiStyle.MIUIX) {
-            LocalZiyuPaletteTokens.current.elevatedCardBackground
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        },
+        containerColor = Color.Transparent,
         modifier = modifier,
-        opticalScale = .96f,
     )
 }
 

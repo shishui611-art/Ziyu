@@ -311,10 +311,13 @@ _zbg_write_ota_apply_ready() {
 }
 
 _zbg_set_scan_complete() {
-    local _zbg_boot _zbg_candidate _zbg_current _zbg_failed_boot _zbg_failed_reason _zbg_file _zbg_mod _zbg_rc _zbg_state _zbg_tmp
+    local _zbg_boot _zbg_candidate _zbg_current _zbg_failed_boot _zbg_failed_reason _zbg_file _zbg_mod _zbg_rc _zbg_state _zbg_tmp _zbg_rom _zbg_inventory_fp
     _zbg_mod="$1"
+    _zbg_rom=$(_zbg_rom_identity)
+    [ -n "$_zbg_rom" ] && { [ -z "$2" ] || [ "$2" = "$_zbg_rom" ]; } || return 1
     _zbg_current=$(_zbg_fingerprint)
-    [ -n "$_zbg_current" ] && [ "$(_zbg_stock_inventory_fingerprint "$_zbg_mod")" = "$_zbg_current" ] || return 1
+    _zbg_inventory_fp=$(sed -n 's/.*"buildFingerprint"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_zbg_mod/config/device_font_inventory.json" 2>/dev/null | head -n1)
+    [ -n "$_zbg_current" ] && [ "$_zbg_inventory_fp" = "$_zbg_current" ] || return 1
     [ ! -e "$_zbg_mod/config/stock_inventory_scan_pending" ] || return 1
     [ -s "$_zbg_mod/config/device_font_inventory.json" ] || return 1
     _zbg_boot=$(_zbg_boot_id)
@@ -355,6 +358,16 @@ _zbg_set_scan_complete() {
         mv -f "$_zbg_tmp" "$_zbg_file" 2>/dev/null || _zbg_rc=1
     done
     [ "$_zbg_rc" -eq 0 ] || return 1
+    if [ "$(_zbg_rom_identity)" != "$_zbg_rom" ]; then
+        : > "$_zbg_mod/config/stock_inventory_scan_pending"
+        return 1
+    fi
+    if [ -s "$_zbg_mod/config/device_font_topology.json" ]; then
+        _zbg_file="$_zbg_mod/config/stock-rom-scan.conf"; _zbg_tmp="$_zbg_file.tmp.$$"
+        [ ! -L "$_zbg_file" ] || return 1
+        (umask 077; printf 'schema=ziyu-stock-rom-v1\nrom_identity=%s\nfingerprint=%s\nboot_id=%s\n' \
+            "$_zbg_rom" "$_zbg_current" "$_zbg_boot" > "$_zbg_tmp") && mv -f "$_zbg_tmp" "$_zbg_file" || return 1
+    fi
     _zbg_log "$_zbg_mod" "trusted stock inventory scan committed fingerprint=$_zbg_current boot=$_zbg_boot"
     return 0
 }
@@ -660,6 +673,19 @@ _zbg_detect_ota() {
         _zbg_log "$_zbg_mod" 'build identity changed with a default restore queued; allowing safe activation'
     fi
     return 0
+}
+
+_zbg_scan_output_trusted() {
+    local _zbg_mod _zbg_receipt _zbg_rom
+    _zbg_mod="$1"; _zbg_receipt="$_zbg_mod/config/stock-rom-scan.conf"
+    [ "$(_zbg_value "$_zbg_receipt" schema)" = ziyu-stock-rom-v1 ] || return 1
+    _zbg_rom=$(_zbg_rom_identity)
+    [ -n "$_zbg_rom" ] && [ "$(_zbg_value "$_zbg_receipt" rom_identity)" = "$_zbg_rom" ] || return 1
+    [ ! -e "$_zbg_mod/config/stock_inventory_scan_pending" ] && \
+        [ -s "$_zbg_mod/config/device_font_inventory.json" ] && [ -s "$_zbg_mod/config/device_font_topology.json" ] || return 1
+    [ "$(_zbg_value "$_zbg_receipt" fingerprint)" = "$(_zbg_stock_inventory_fingerprint "$_zbg_mod")" ] && \
+        [ "$(_zbg_value "$_zbg_receipt" fingerprint)" = "$(_zbg_fingerprint)" ] || return 1
+    case "$(_zbg_ota_pending "$_zbg_mod")" in 1\|*) _zbg_stock_scan_trusted "$_zbg_mod" ;; *) return 0 ;; esac
 }
 
 _zbg_stock_scan_trusted() {
@@ -974,31 +1000,41 @@ _zbg_schedule_watcher() {
     return 0
 }
 
-_zbg_run_rescan_direct() {
-    local _zbg_after _zbg_mod _zbg_ota _zbg_out _zbg_rc
+_zbg_run_rescan_direct() (
+    local _zbg_mod _zbg_ota _zbg_out _zbg_rc _zbg_message _zbg_rom _zbg_lock_wait
     _zbg_mod="$1"
+    _zbg_rom=$(_zbg_rom_identity)
+    [ -n "$_zbg_rom" ] && { [ -z "$2" ] || [ "$2" = "$_zbg_rom" ]; } || {
+        printf 'status=error\nreason=rom-identity-changed\nmessage=ROM 身份发生变化，本次未启动扫描\n'; return 1;
+    }
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" != 1 ]; then
-        printf 'status=ok\nscan_state=complete\nreason=not-pending\nota_pending=0\nscan_complete=0\n'
-        return 0
-    fi
-    _zbg_boot_completed || { printf 'status=error\nscan_state=error\nreason=boot-not-completed\nota_pending=1\nscan_complete=0\n'; return 1; }
+    _zbg_boot_completed || { printf "status=error\nscan_state=error\nreason=boot-not-completed\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 1; }
     [ -f "$_zbg_mod/common/font_manager.sh" ] || {
-        printf 'status=error\nscan_state=error\nreason=font-manager-unavailable\nota_pending=1\nscan_complete=0\n'
+        printf "status=error\nscan_state=error\nreason=font-manager-unavailable\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"
         return 1
     }
-    _zbg_out=$(MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" LUOSHU_FRESH_STOCK_SCAN=1 \
+    . "$_zbg_mod/common/font_switch_lock.sh" || return 1
+    _zbg_lock_wait=0
+    until luoshu_font_lock_acquire "$_zbg_mod/.font_switch.lock" "$$"; do
+        [ "$_zbg_lock_wait" -lt 10 ] || {
+            printf 'status=error\nreason=font-switch-busy\nmessage=字体切换尚未结束，本次扫描未修改字体负载，请稍后手动重试\n'; return 1;
+        }
+        sleep 1; _zbg_lock_wait=$((_zbg_lock_wait + 1))
+    done
+    trap 'luoshu_font_lock_release "$_zbg_mod/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    : > "$_zbg_mod/config/stock_inventory_scan_pending" || return 1
+    _zbg_out=$(MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" LUOSHU_FRESH_STOCK_SCAN=1 LUOSHU_REQUIRE_TOPOLOGY=1 \
+        LUOSHU_SCAN_ROM_IDENTITY="$_zbg_rom" \
         sh "$_zbg_mod/common/font_manager.sh" action stock_scan 2>&1)
     _zbg_rc=$?
     printf '[%s] [BOOT-OTA-GUARD] trusted stock rescan rc=%s deadline=%ss: %s\n' \
         "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$_zbg_rc" "${LUOSHU_TASK_TIMEOUT_SECONDS:-900}" \
         "$(printf '%s' "$_zbg_out" | tr '\n\r' '  ' | cut -c1-900)" \
         >> "$_zbg_mod/logs/boot-ota-guard.log" 2>/dev/null || true
-    _zbg_after=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$_zbg_rc" -eq 0 ] && _zbg_stock_scan_trusted "$_zbg_mod"; then
+    if [ "$_zbg_rc" -eq 0 ] && [ "$(_zbg_rom_identity)" = "$_zbg_rom" ] && _zbg_scan_output_trusted "$_zbg_mod"; then
         if [ "$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" state)" = default-ready ]; then
             _zbg_finalize_default_after_scan "$_zbg_mod" || {
-                printf 'status=error\nscan_state=error\nreason=default-ota-finalize-failed\nota_pending=1\nscan_complete=1\n'
+                printf "status=error\nscan_state=error\nreason=default-ota-finalize-failed\nota_pending=${_zbg_ota%%\|*}\nscan_complete=1\n"
                 return 1
             }
         fi
@@ -1006,20 +1042,34 @@ _zbg_run_rescan_direct() {
             "$(printf '%s\n' "$(_zbg_ota_pending "$_zbg_mod")" | cut -d '|' -f1)"
         return 0
     fi
-    printf 'status=error\nscan_state=error\nreason=stock-rescan-failed-rc-%s\nota_pending=1\nscan_complete=0\n' "$_zbg_rc"
+    _zbg_message=$(printf '%s\n' "$_zbg_out" | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tail -n1 | cut -c1-900)
+    [ -n "$_zbg_message" ] || _zbg_message='原厂字体扫描结果或核验回执未通过，请导出诊断日志'
+    printf "status=error\nscan_state=error\nreason=stock-rescan-failed-rc-%s\nmessage=%s\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n" "$_zbg_rc" "$_zbg_message"
     return 1
-}
+)
 
 _zbg_rescan_worker() {
-    local _zbg_boot _zbg_lock _zbg_mod _zbg_rc _zbg_state_tmp
-    _zbg_mod="$1"; _zbg_boot="$2"
-    _zbg_run_rescan_direct "$_zbg_mod" >/dev/null
-    _zbg_rc=$?
+    local _zbg_boot _zbg_lock _zbg_mod _zbg_rc _zbg_state_tmp _zbg_task _zbg_pid _zbg_out
+    _zbg_mod="$1"; _zbg_boot="$2"; _zbg_task="$3"
     _zbg_lock=$(_zbg_rescan_lock)
-    if [ -d "$_zbg_lock" ] && [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$_zbg_boot" ]; then
+    [ ! -L "$_zbg_lock" ] && [ ! -L "$_zbg_lock/state" ] && [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$_zbg_boot" ] && \
+        [ "$(_zbg_value "$_zbg_lock/state" task)" = "$_zbg_task" ] || return 1
+    # Only the worker publishes running/terminal state. A fast worker must not
+    # have its terminal receipt overwritten by the launcher after fork.
+    _zbg_pid="${LUOSHU_TASK_SCOPE_PID:-}"
+    case "$_zbg_pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+    _zbg_state_tmp="$_zbg_lock/state.tmp.$$"
+    awk '$1 !~ /^pid=/ && $1 !~ /^proc_starttime=/' "$_zbg_lock/state" > "$_zbg_state_tmp" || return 1
+    printf 'pid=%s\nproc_starttime=%s\n' "$_zbg_pid" "$(_zbg_proc_starttime "$_zbg_pid")" >> "$_zbg_state_tmp" || return 1
+    chmod 0600 "$_zbg_state_tmp" && mv -f "$_zbg_state_tmp" "$_zbg_lock/state" || return 1
+    _zbg_out=$(_zbg_run_rescan_direct "$_zbg_mod" "$4")
+    _zbg_rc=$?
+    _zbg_log "$_zbg_mod" "manual rescan result: $(printf '%s' "$_zbg_out" | tr '\n\r' ' ' | cut -c1-1200)"
+    if [ -d "$_zbg_lock" ] && [ "$(_zbg_value "$_zbg_lock/state" task)" = "$_zbg_task" ]; then
         _zbg_state_tmp="$_zbg_lock/state.tmp.$$"
-        awk '$1 !~ /^finished=/ && $1 !~ /^result=/' "$_zbg_lock/state" > "$_zbg_state_tmp" 2>/dev/null || return 1
+        awk '$1 !~ /^finished=/ && $1 !~ /^result=/ && $1 !~ /^reason=/ && $1 !~ /^message=/' "$_zbg_lock/state" > "$_zbg_state_tmp" 2>/dev/null || return 1
         printf 'finished=1\nresult=%s\n' "$_zbg_rc" >> "$_zbg_state_tmp" || return 1
+        printf '%s\n' "$_zbg_out" | sed -n '/^reason=/p; /^message=/p' >> "$_zbg_state_tmp"
         mv -f "$_zbg_state_tmp" "$_zbg_lock/state" 2>/dev/null || return 1
     fi
     return "$_zbg_rc"
@@ -1029,25 +1079,33 @@ _zbg_rescan_state() {
     local _zbg_expected _zbg_lock _zbg_mod _zbg_now _zbg_ota _zbg_pid _zbg_saved_module _zbg_script _zbg_start _zbg_started _zbg_task
     _zbg_mod="$1"
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" != 1 ]; then
-        printf 'complete\n'; return 0
-    fi
-    if _zbg_stock_scan_trusted "$_zbg_mod"; then
-        printf 'complete\n'; return 0
+    _zbg_lock=$(_zbg_rescan_lock)
+    if [ "$(_zbg_value "$_zbg_lock/state" reason)" = default-ota-finalize-failed ] && \
+       [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$(_zbg_boot_id)" ] && \
+       [ "$(_zbg_value "$_zbg_lock/state" module)" = "$_zbg_mod" ] && \
+       [ "$(_zbg_value "$_zbg_lock/state" finished)" = 1 ] && \
+       [ "$(_zbg_value "$_zbg_lock/state" result)" != 0 ]; then
+        printf 'error\n'; return 0
     fi
     _zbg_lock=$(_zbg_rescan_lock)
-    [ -d "$_zbg_lock" ] || { printf 'queued\n'; return 0; }
+    if [ ! -d "$_zbg_lock" ]; then
+        if _zbg_scan_output_trusted "$_zbg_mod"; then printf 'complete\n'; else printf 'idle\n'; fi
+        return 0
+    fi
     _zbg_saved_module=$(_zbg_value "$_zbg_lock/state" module)
     case "$_zbg_mod" in
         */modules_update/ziyu) _zbg_expected=$(printf '%s\n' "$_zbg_mod" | sed 's,/modules_update/ziyu$,/modules/ziyu,') ;;
         *) _zbg_expected=$_zbg_mod ;;
     esac
     [ "$_zbg_saved_module" = "$_zbg_mod" ] || [ "$_zbg_saved_module" = "$_zbg_expected" ] || { printf 'error\n'; return 0; }
-    [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$(_zbg_boot_id)" ] || { printf 'error\n'; return 0; }
+    if [ "$(_zbg_value "$_zbg_lock/state" boot_id)" != "$(_zbg_boot_id)" ]; then
+        if _zbg_scan_output_trusted "$_zbg_mod"; then printf 'complete\n'; else printf 'error\n'; fi
+        return 0
+    fi
     [ "$(_zbg_value "$_zbg_lock/state" finished)" != 1 ] || {
-        # Trusted completion was checked above. A stale successful exit code
-        # must not hide a missing receipt, pending marker or changed ROM.
-        printf 'error\n'
+        if [ "$(_zbg_value "$_zbg_lock/state" result)" = 0 ] && _zbg_scan_output_trusted "$_zbg_mod"; then
+            printf 'complete\n'
+        else printf 'error\n'; fi
         return 0
     }
     _zbg_task=$(_zbg_value "$_zbg_lock/state" task)
@@ -1060,51 +1118,167 @@ _zbg_rescan_state() {
     _zbg_started=$(_zbg_value "$_zbg_lock/state" started)
     case "$_zbg_started" in ''|*[!0-9]*) _zbg_started=0 ;; esac
     _zbg_now=$(date +%s 2>/dev/null || echo 0)
-    [ $((_zbg_now - _zbg_started)) -lt 15 ] && printf 'queued\n' || printf 'error\n'
+    if [ $((_zbg_now - _zbg_started)) -lt 15 ]; then
+        printf 'queued\n'
+    else
+        # The supervisor may still be starting; its PID sidecars are written
+        # before the worker has published its own state.
+        _zbg_pid=$(sed -n '1p' "$_zbg_lock/worker.pid" 2>/dev/null)
+        _zbg_start=$(_zbg_proc_starttime "$_zbg_pid")
+        if _zbg_worker_identity "$_zbg_pid" "$_zbg_task" "$_zbg_start" "$_zbg_script"; then printf 'running\n'
+        else printf 'error\n'; fi
+    fi
 }
 
-_zbg_queue_rescan() {
-    local _zbg_boot _zbg_lock _zbg_lock_root _zbg_mod _zbg_ota _zbg_pid _zbg_pid_start _zbg_scan_timeout _zbg_script _zbg_start_rc _zbg_started _zbg_state _zbg_state_tmp _zbg_task _zbg_watch_mod
+# Reclaim only an owned, stopped rescan. Never kill a task on a retry. Numeric
+# clock sidecars can survive a hard reboot and used to make rmdir fail forever.
+_zbg_reap_rescan() {
+    local _zbg_mod _zbg_lock _zbg_expected _zbg_saved _zbg_task _zbg_script _zbg_pid _zbg_start _zbg_file _zbg_suffix
+    _zbg_mod="$1"; _zbg_lock=$(_zbg_rescan_lock)
+    [ -d "$_zbg_lock" ] && [ ! -L "$_zbg_lock" ] && [ ! -L "$_zbg_lock/state" ] || return 1
+    _zbg_expected=$_zbg_mod
+    case "$_zbg_mod" in
+        */modules_update/ziyu) _zbg_expected=${_zbg_mod%/modules_update/ziyu}/modules/ziyu ;;
+        */modules/ziyu) _zbg_expected=${_zbg_mod%/modules/ziyu}/modules_update/ziyu ;;
+    esac
+    _zbg_saved=$(_zbg_value "$_zbg_lock/state" module)
+    [ "$_zbg_saved" = "$_zbg_mod" ] || [ "$_zbg_saved" = "$_zbg_expected" ] || return 1
+    _zbg_task=$(_zbg_value "$_zbg_lock/state" task)
+    case "$_zbg_task" in ziyu-stock-rescan-?*) ;; *) return 1 ;; esac
+    _zbg_script=$(_zbg_value "$_zbg_lock/state" supervisor_script)
+    case "$_zbg_script" in "$_zbg_mod/common/task_scope.py"|"$_zbg_expected/common/task_scope.py") ;; *) return 1 ;; esac
+    _zbg_pid=$(_zbg_value "$_zbg_lock/state" pid)
+    _zbg_start=$(_zbg_value "$_zbg_lock/state" proc_starttime)
+    if [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$(_zbg_boot_id)" ] && \
+       [ -n "$_zbg_start" ] && [ "$(_zbg_proc_starttime "$_zbg_pid")" = "$_zbg_start" ]; then return 3; fi
+    # Account for a launcher interrupted before the worker recorded its PID.
+    if [ "$(cat "$_zbg_lock/worker.pid.boot" 2>/dev/null)" = "$(_zbg_boot_id)" ]; then
+        _zbg_pid=$(sed -n '1p' "$_zbg_lock/worker.pid" 2>/dev/null)
+        case "$_zbg_pid" in ''|*[!0-9]*|0|1) ;; *) kill -0 "$_zbg_pid" 2>/dev/null && return 3 ;; esac
+    fi
+    if [ -e "$_zbg_lock/worker.pid.cleanup.json" ]; then
+        [ -f "$_zbg_lock/worker.pid.cleanup.json" ] && [ ! -L "$_zbg_lock/worker.pid.cleanup.json" ] && \
+            grep -Eq '"leftoverPids"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]' "$_zbg_lock/worker.pid.cleanup.json" || return 1
+    fi
+    for _zbg_file in "$_zbg_lock"/worker.pid.clock.* "$_zbg_lock"/state.tmp.* "$_zbg_lock"/worker.pid.cleanup.json.tmp.*; do
+        [ -e "$_zbg_file" ] || [ -L "$_zbg_file" ] || continue
+        [ -f "$_zbg_file" ] && [ ! -L "$_zbg_file" ] || return 1
+        _zbg_suffix=${_zbg_file##*.}
+        if [ "$_zbg_suffix" = tmp ]; then _zbg_suffix=${_zbg_file%.tmp}; _zbg_suffix=${_zbg_suffix##*.}; fi
+        case "$_zbg_suffix" in ''|*[!0-9]*) return 1 ;; esac
+        # A clock writer from this boot must finish before its files are reaped.
+        if [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$(_zbg_boot_id)" ]; then
+            kill -0 "$_zbg_suffix" 2>/dev/null && return 3
+        fi
+    done
+    rm -f "$_zbg_lock"/worker.pid.clock.* "$_zbg_lock"/state.tmp.* "$_zbg_lock"/worker.pid.cleanup.json.tmp.* \
+        "$_zbg_lock/worker.pid" "$_zbg_lock/worker.pid.task" "$_zbg_lock/worker.pid.boot" \
+        "$_zbg_lock/worker.pid.cleanup.json" || return 1
+    # Unknown entries are retained, together with the ownership record.
+    [ "$(find "$_zbg_lock" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')" = 1 ] || return 1
+    rm -f "$_zbg_lock/state" && rmdir "$_zbg_lock"
+}
+
+_zbg_queue_rescan() (
+    # Serialize retries, including stale-lock retirement, without holding this
+    # short lock during the scan. Workers retain the existing bounded scope.
+    _zbg_request="$(_zbg_rescan_lock).request.$(_zbg_boot_id)"
+    if ! mkdir "$_zbg_request" 2>/dev/null; then
+        [ -d "$_zbg_request" ] && [ ! -L "$_zbg_request" ] && [ ! -L "$_zbg_request/owner" ] && \
+            mkdir "$_zbg_request/reap" 2>/dev/null || {
+            printf 'status=error\nreason=scan-request-busy\n'; return 1
+        }
+        # Re-read ownership after acquiring the reaper claim. Another request
+        # may have replaced the stale directory before we reached this point.
+        _zbg_owner=$(_zbg_value "$_zbg_request/owner" pid)
+        _zbg_start=$(_zbg_value "$_zbg_request/owner" start)
+        if [ -z "$_zbg_owner" ] || [ "$(_zbg_proc_starttime "$_zbg_owner")" = "$_zbg_start" ]; then
+            rmdir "$_zbg_request/reap" 2>/dev/null
+            printf 'status=error\nreason=scan-request-busy\n'; return 1
+        fi
+        _zbg_retired="$_zbg_request.stale.$$"
+        [ ! -e "$_zbg_retired" ] && [ ! -L "$_zbg_retired" ] && mv "$_zbg_request" "$_zbg_retired" || {
+            rmdir "$_zbg_request/reap" 2>/dev/null
+            printf 'status=error\nreason=scan-request-lock-failed\n'; return 1
+        }
+        rm -f "$_zbg_retired/owner"
+        rmdir "$_zbg_retired/reap" "$_zbg_retired" 2>/dev/null || true
+        mkdir "$_zbg_request" 2>/dev/null || { printf 'status=error\nreason=scan-request-busy\n'; return 1; }
+    fi
+    trap 'rm -f "$_zbg_request/owner"; rmdir "$_zbg_request" 2>/dev/null' EXIT
+    printf 'pid=%s\nstart=%s\n' "$$" "$(_zbg_proc_starttime "$$")" > "$_zbg_request/owner" || return 1
+    if [ "${2:-auto}" = app-check ]; then _zbg_app_rom_check_locked "$1"
+    else _zbg_queue_rescan_locked "$1" "${2:-auto}"; fi
+)
+
+_zbg_queue_rescan_locked() {
+    local _zbg_boot _zbg_lock _zbg_lock_root _zbg_mod _zbg_ota _zbg_scan_timeout _zbg_script _zbg_start_rc _zbg_started _zbg_state _zbg_task _zbg_watch_mod _zbg_rom _zbg_attempt
     _zbg_mod="$1"
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" != 1 ] || _zbg_stock_scan_trusted "$_zbg_mod"; then
+    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] && \
+       _zbg_stock_scan_trusted "$_zbg_mod" && \
+       [ "$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" state)" = default-ready ]; then
+        _zbg_finalize_default_after_scan "$_zbg_mod" || {
+            printf 'status=error\nreason=default-ota-finalize-failed\n'; return 1;
+        }
+        _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
+    fi
+    if [ "${2:-auto}" != manual ] && \
+       { [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" != 1 ] || _zbg_scan_output_trusted "$_zbg_mod"; }; then
         printf 'status=ok\nscan_state=complete\nota_pending=%s\nscan_complete=%s\n' \
             "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" \
             "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f2)"
         return 0
     fi
-    _zbg_boot_completed || { printf 'status=error\nscan_state=error\nreason=boot-not-completed\nota_pending=1\nscan_complete=0\n'; return 1; }
+    _zbg_boot_completed || { printf "status=error\nscan_state=error\nreason=boot-not-completed\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 1; }
     [ "$ZIYU_BOOT_OTA_DISABLE_WORKER" != 1 ] || {
-        printf 'status=error\nscan_state=error\nreason=worker-disabled\nota_pending=1\nscan_complete=0\n'; return 1;
+        printf "status=error\nscan_state=error\nreason=worker-disabled\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 1;
     }
     [ -f "$_zbg_mod/common/background_task.sh" ] && [ -f "$_zbg_mod/common/task_scope.sh" ] && \
     [ -x "$_zbg_mod/common/python/bin/luoshu-python" ] && [ -f "$_zbg_mod/common/task_scope.py" ] && \
     [ -f "$_zbg_mod/common/font_manager.sh" ] || {
-        printf 'status=error\nscan_state=error\nreason=task-supervisor-unavailable\nota_pending=1\nscan_complete=0\n'; return 1;
+        printf "status=error\nscan_state=error\nreason=task-supervisor-unavailable\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 1;
     }
     _zbg_lock=$(_zbg_rescan_lock)
+    _zbg_rom=$(_zbg_rom_identity)
+    [ -n "$_zbg_rom" ] || { printf 'status=error\nreason=rom-identity-unavailable\n'; return 1; }
+    _zbg_attempt="$_zbg_mod/config/stock-rom-auto-attempt.conf"
+    if [ "${2:-auto}" != manual ] && [ "$(_zbg_value "$_zbg_attempt" schema)" = ziyu-stock-auto-attempt-v1 ] && \
+       [ "$(_zbg_value "$_zbg_attempt" rom_identity)" = "$_zbg_rom" ]; then
+        case "$(_zbg_rescan_state "$_zbg_mod")" in
+            running|queued) printf 'status=ok\nscan_state=running\n'; return 0 ;;
+            *) printf 'status=error\nreason=scan-manual-retry-required\n'; return 1 ;;
+        esac
+    fi
     _zbg_lock_root=${_zbg_lock%/*}
     mkdir -p "$_zbg_mod/logs" "$_zbg_lock_root" 2>/dev/null || return 1
     if [ -d "$_zbg_lock" ]; then
         _zbg_state=$(_zbg_rescan_state "$_zbg_mod")
         case "$_zbg_state" in
             complete)
-                printf 'status=ok\nscan_state=complete\nota_pending=1\nscan_complete=1\n'; return 0 ;;
+                if [ "${2:-auto}" != manual ]; then
+                    printf "status=ok\nscan_state=complete\nota_pending=${_zbg_ota%%\|*}\nscan_complete=1\n"; return 0
+                fi ;;
             running|queued)
-                printf 'status=ok\nscan_state=%s\nota_pending=1\nscan_complete=0\n' "$_zbg_state"; return 0 ;;
+                printf "status=ok\nscan_state=%s\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n" "$_zbg_state"; return 0 ;;
             error)
                 ;;
         esac
-        rm -f "$_zbg_lock/state" "$_zbg_lock/worker.pid" "$_zbg_lock/worker.pid.task" \
-            "$_zbg_lock/worker.pid.boot" "$_zbg_lock/worker.pid.cleanup.json" 2>/dev/null || return 1
-        rmdir "$_zbg_lock" 2>/dev/null || return 1
+        _zbg_reap_rescan "$_zbg_mod"
+        _zbg_start_rc=$?
+        if [ "$_zbg_start_rc" = 3 ]; then
+            printf "status=ok\nscan_state=running\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 0
+        elif [ "$_zbg_start_rc" != 0 ]; then
+            _zbg_log "$_zbg_mod" 'rescan retry blocked: old lock ownership or cleanup unconfirmed'
+            printf 'status=error\nreason=rescan-lock-cleanup-unconfirmed\n'; return 1
+        fi
     fi
     mkdir "$_zbg_lock" 2>/dev/null || {
-        printf 'status=ok\nscan_state=queued\nota_pending=1\nscan_complete=0\n'; return 0;
+        printf "status=ok\nscan_state=queued\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 0;
     }
     _zbg_boot=$(_zbg_boot_id)
-    _zbg_task="ziyu-stock-rescan-$_zbg_boot"
     _zbg_started=$(date +%s 2>/dev/null || echo 0)
+    _zbg_task="ziyu-stock-rescan-$_zbg_boot-$_zbg_started-$$"
     _zbg_watch_mod="$_zbg_mod"
     case "$_zbg_mod" in
         */modules_update/ziyu) _zbg_watch_mod=$(printf '%s\n' "$_zbg_mod" | sed 's,/modules_update/ziyu$,/modules/ziyu,') ;;
@@ -1113,7 +1287,11 @@ _zbg_queue_rescan() {
     {
         printf 'boot_id=%s\ntask=%s\npid=pending\nproc_starttime=pending\n' "$_zbg_boot" "$_zbg_task"
         printf 'started=%s\nmodule=%s\nsupervisor_script=%s\nfinished=0\n' "$_zbg_started" "$_zbg_watch_mod" "$_zbg_script"
+        printf 'rom_identity=%s\n' "$_zbg_rom"
     } > "$_zbg_lock/state" 2>/dev/null || return 1
+    [ ! -L "$_zbg_attempt" ] || return 1
+    (umask 077; printf 'schema=ziyu-stock-auto-attempt-v1\nrom_identity=%s\n' "$_zbg_rom" > "$_zbg_attempt.tmp.$$") && \
+        mv -f "$_zbg_attempt.tmp.$$" "$_zbg_attempt" || return 1
     . "$_zbg_mod/common/background_task.sh" || return 1
     _zbg_scan_timeout=${LUOSHU_BOOT_OTA_SCAN_TIMEOUT_SECONDS:-300}
     case "$_zbg_scan_timeout" in ''|*[!0-9]*) _zbg_scan_timeout=300 ;; esac
@@ -1122,20 +1300,13 @@ _zbg_queue_rescan() {
     MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" LUOSHU_TASK_TIMEOUT_SECONDS="$_zbg_scan_timeout" \
         luoshu_start_detached "$_zbg_lock/worker.pid" "$_zbg_task" \
             "$_zbg_mod/logs/boot-ota-guard.log" \
-            sh "$_zbg_mod/common/boot_ota_guard.sh" _rescan-run "$_zbg_watch_mod" "$_zbg_boot"
+            sh "$_zbg_mod/common/boot_ota_guard.sh" _rescan-run "$_zbg_watch_mod" "$_zbg_boot" "$_zbg_task" "$_zbg_rom"
     _zbg_start_rc=$?
-    [ "$_zbg_start_rc" -eq 0 ] || return 1
-    _zbg_pid=$(luoshu_pid_value "$_zbg_lock/worker.pid")
-    _zbg_pid_start=$(_zbg_proc_starttime "$_zbg_pid")
-    if [ "$(_zbg_value "$_zbg_lock/state" finished)" != 1 ]; then
-        _zbg_state_tmp="$_zbg_lock/state.tmp.$$"
-        {
-            printf 'boot_id=%s\ntask=%s\npid=%s\nproc_starttime=%s\n' "$_zbg_boot" "$_zbg_task" "$_zbg_pid" "$_zbg_pid_start"
-            printf 'started=%s\nmodule=%s\nsupervisor_script=%s\nfinished=0\n' "$_zbg_started" "$_zbg_watch_mod" "$_zbg_script"
-        } > "$_zbg_state_tmp" 2>/dev/null && chmod 0600 "$_zbg_state_tmp" 2>/dev/null && \
-            mv -f "$_zbg_state_tmp" "$_zbg_lock/state" 2>/dev/null || return 1
-    fi
-    printf 'status=ok\nscan_state=queued\nota_pending=1\nscan_complete=0\n'
+    [ "$_zbg_start_rc" -eq 0 ] || {
+        _zbg_log "$_zbg_mod" "rescan supervisor launch failed rc=$_zbg_start_rc"
+        printf 'status=error\nreason=rescan-launch-failed\n'; return 1
+    }
+    printf "status=ok\nscan_state=queued\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"
 }
 
 _zbg_watcher() {
@@ -1236,7 +1407,7 @@ _zbg_cleanup_task_lock() {
 }
 
 _zbg_status() {
-    local _zbg_apply_font _zbg_block _zbg_current_boot _zbg_mod _zbg_next_ready _zbg_ota _zbg_ota_value _zbg_reason _zbg_safe _zbg_safe_reason _zbg_safe_value _zbg_scan_state _zbg_scan_value
+    local _zbg_apply_font _zbg_block _zbg_current_boot _zbg_mod _zbg_next_ready _zbg_ota _zbg_ota_value _zbg_reason _zbg_safe _zbg_safe_reason _zbg_safe_value _zbg_scan_state _zbg_scan_value _zbg_scan_lock
     _zbg_mod="$1"
     [ -d "$_zbg_mod" ] && [ ! -L "$_zbg_mod" ] || {
         printf 'status=error\nsafe_mode=0\nunfinished_boots=0\ncount=0\nreason=module-directory-unavailable\nota_pending=0\n'
@@ -1256,6 +1427,8 @@ _zbg_status() {
     elif [ "$ZBG_COUNT" -gt 0 ]; then _zbg_reason=unfinished-boot-pending
     fi
     _zbg_scan_state=$(_zbg_rescan_state "$_zbg_mod")
+    _zbg_scan_value=0
+    if [ "$_zbg_scan_state" = complete ] && _zbg_scan_output_trusted "$_zbg_mod"; then _zbg_scan_value=1; fi
     _zbg_next_ready=0
     _zbg_apply_font=$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" apply_font)
     if [ "$_zbg_ota_value" = 1 ] && [ -n "$_zbg_apply_font" ] && \
@@ -1271,6 +1444,16 @@ _zbg_status() {
     [ "$(_zbg_value "$_zbg_mod/config/boot-safety-current-boot.conf" state)" = blocked ] && _zbg_block=1
     printf 'reason=%s\nota_pending=%s\ncurrent_boot_blocked=%s\nscan_state=%s\nnext_generation_ready=%s\n' \
         "$_zbg_reason" "$_zbg_ota_value" "$_zbg_block" "$_zbg_scan_state" "$_zbg_next_ready"
+    printf 'scan_complete=%s\n' "$_zbg_scan_value"
+    if [ -e "$_zbg_mod/config/stock_inventory_scan_pending" ]; then printf 'stock_scan_pending=1\n'
+    else printf 'stock_scan_pending=0\n'; fi
+    _zbg_scan_lock=$(_zbg_rescan_lock)
+    if [ "$(_zbg_value "$_zbg_scan_lock/state" module)" = "$_zbg_mod" ] && \
+       [ "$(_zbg_value "$_zbg_scan_lock/state" boot_id)" = "$_zbg_current_boot" ]; then
+        printf 'scan_task=%s\nscan_reason=%s\nscan_message=%s\n' \
+            "$(_zbg_value "$_zbg_scan_lock/state" task)" "$(_zbg_value "$_zbg_scan_lock/state" reason)" \
+            "$(_zbg_value "$_zbg_scan_lock/state" message)"
+    fi
 }
 
 _zbg_recover() {
@@ -1474,7 +1657,7 @@ _zbg_record_apply() {
 }
 
 _zbg_cli() {
-    local _zbg_action _zbg_lock_root _zbg_mod
+    local _zbg_action _zbg_lock_root _zbg_mod _zbg_reply _zbg_rc
     _zbg_action="$1"
     _zbg_mod=$(_zbg_module "$2")
     case "$_zbg_action" in
@@ -1490,12 +1673,18 @@ _zbg_cli() {
         apply-failed) _zbg_mark_apply_failed "$_zbg_mod" "${3:-runtime-verification-failed}" ;;
         generation-identity) _zbg_apply_generation_identity "$_zbg_mod" "$3" 0 ;;
         loaded-generation-identity) _zbg_apply_generation_identity "$_zbg_mod" "$3" 0 0 ;;
-        rescan) _zbg_queue_rescan "$_zbg_mod" ;;
-        _rescan-run) _zbg_rescan_worker "$2" "$3" ;;
+        rescan)
+            _zbg_reply=$(_zbg_queue_rescan "$_zbg_mod" manual); _zbg_rc=$?
+            _zbg_log "$_zbg_mod" "rescan request rc=$_zbg_rc $(printf '%s' "$_zbg_reply" | tr '\n\r' ' ' | cut -c1-1200)"
+            printf '%s\n' "$_zbg_reply"
+            return "$_zbg_rc"
+            ;;
+        _rescan-run) _zbg_rescan_worker "$2" "$3" "$4" "$5" ;;
         _watcher) _zbg_watcher "$2" "$3" ;;
         scan-complete)
-            _zbg_set_scan_complete "$_zbg_mod"
+            _zbg_set_scan_complete "$_zbg_mod" "$3"
             ;;
+        rom-identity) _zbg_rom_identity ;;
         schedule-watcher) _zbg_schedule_watcher "$_zbg_mod" ;;
         uninstall-cleanup)
             _zbg_lock_root=${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}

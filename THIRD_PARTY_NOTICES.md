@@ -1,5 +1,8 @@
 # 第三方组件与许可证
 
+`common/stock_readonly_view.py` 为字域原创 GPL-3.0-only 运行文件，许可证见 [Ziyu-GPL-3.0.txt](licenses/Ziyu-GPL-3.0.txt)。它调用设备已有的 Linux 命名空间、loop 与只读 EROFS 挂载接口及系统 losetup，未引入或打包新的第三方库、分区镜像或字体。
+
+
 ## Xposed API 82（仅用于编译）
 
 `android-app/xposed-api/api-82.jar` 来源为 [Xposed 官方 Maven](https://api.xposed.info/de/robv/android/xposed/api/82/api-82.jar)，SHA-256 为 `f48c635f1c7469fdec0e00ad2ea0b7a6b2f5b55065784a35b7ca3a84615e8e25`，许可证为 [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)。它只作为 compileOnly 使用，不打包到 App；实际 API 由用户安装并启用的兼容框架提供。WebView 字体处理由字域自行实现。

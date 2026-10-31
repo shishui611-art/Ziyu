@@ -2,6 +2,8 @@
 # Standard partition payloads are migrated into .luoshu-payload during installation.
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .luoshu-runtime.
 common/app_bridge.sh
+common/app_handshake.sh
+common/app_rom_monitor.sh
 common/font_preload_helper.sh
 common/font_preload_control.sh
 common/font_preload_state.py
@@ -260,3 +262,4 @@ common/identity_migration.sh
 common/font_verity.py
 common/font_verity.sh
 licenses/SukiSU-Ultra-GPL-3.0.txt
+common/stock_readonly_view.py

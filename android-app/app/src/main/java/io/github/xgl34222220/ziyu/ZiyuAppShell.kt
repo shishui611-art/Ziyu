@@ -23,6 +23,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
@@ -77,16 +79,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -95,9 +99,13 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.xgl34222220.ziyu.ui.appearance.AppearanceSettings
@@ -184,6 +192,7 @@ internal fun ZiyuAppShell(
     }
     val appearance by appearanceViewModel.settings.collectAsStateWithLifecycle()
     var page by rememberSaveable { mutableStateOf(AppPage.Home) }
+    var navigationHistory by rememberSaveable { mutableStateOf(listOf(AppPage.Home)) }
     var settingsDetailVisible by rememberSaveable { mutableStateOf(false) }
     var logsReturnPage by rememberSaveable { mutableStateOf(AppPage.Home) }
     var pendingApply by remember { mutableStateOf<FontItem?>(null) }
@@ -191,9 +200,25 @@ internal fun ZiyuAppShell(
     var restoreDefault by remember { mutableStateOf(false) }
     var pickerSlot by remember { mutableStateOf<MixSlot?>(null) }
 
+    fun navigate(destination: AppPage) {
+        if (destination == page) return
+        val current = navigationHistory.let { if (it.lastOrNull() == page) it else listOf(AppPage.Home, page).distinct() }
+        val existing = current.indexOf(destination)
+        navigationHistory = if (existing >= 0) current.take(existing + 1) else current + destination
+        page = destination
+    }
+
+    fun returnToPreviousPage() {
+        val destination = navigationHistory.dropLast(1).lastOrNull()
+            ?: if (page == AppPage.Logs) logsReturnPage else AppPage.Home
+        navigationHistory = navigationHistory.dropLast(1).ifEmpty { listOf(destination) }
+        page = destination
+    }
+
     LaunchedEffect(lifecycleOwner, viewModel) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             viewModel.refresh()
+            launch { viewModel.checkRomOnForeground() }
             snapshotFlow { viewModel.snapshot.awaitingBootVerification }.collectLatest { pending ->
                 if (pending) {
                     // Stay read-only and stop on success, failure, background,
@@ -229,13 +254,13 @@ internal fun ZiyuAppShell(
             refresh = {
                 viewModel.refresh()
             },
-            openFontLibrary = { page = AppPage.Library },
-            openFontStudio = { page = AppPage.Studio },
+            openFontLibrary = { navigate(AppPage.Library) },
+            openFontStudio = { navigate(AppPage.Studio) },
             openLogs = {
                 logsReturnPage = AppPage.Home
-                page = AppPage.Logs
+                navigate(AppPage.Logs)
             },
-            openSettings = { page = AppPage.Settings },
+            openSettings = { navigate(AppPage.Settings) },
             restoreDefault = { restoreDefault = true },
             reboot = viewModel::rebootDevice,
             mountSettings = viewModel::loadMountPreferences,
@@ -310,10 +335,14 @@ internal fun ZiyuAppShell(
             pageCount = { dockPages.size },
         )
         var programmaticPageTarget by remember { mutableStateOf<Int?>(null) }
+        val previousPage = navigationHistory.dropLast(1).lastOrNull()
+            ?: if (page == AppPage.Logs) logsReturnPage else AppPage.Home
+        var gestureDestination by remember { mutableStateOf<AppPage?>(null) }
         val rootBack = rememberPredictiveBack(
             page != AppPage.Home && !(page == AppPage.Settings && settingsDetailVisible), appearance.predictiveBack,
         ) { gesture ->
-            val destination = if (page == AppPage.Logs) logsReturnPage else AppPage.Home
+            val destination = previousPage
+            gestureDestination = destination
             if (gesture) {
                 val target = dockPages.indexOf(destination)
                 if (target >= 0) {
@@ -321,11 +350,11 @@ internal fun ZiyuAppShell(
                     try { pagerState.scrollToPage(target) } finally { programmaticPageTarget = null }
                 }
             }
-            page = destination
+            returnToPreviousPage()
         }
-        LaunchedEffect(page, pagerState) {
+        LaunchedEffect(page, pagerState, rootBack.active) {
             val target = dockPages.indexOf(page)
-            if (target >= 0 && (pagerState.settledPage != target ||
+            if (!rootBack.active && target >= 0 && (pagerState.settledPage != target ||
                     pagerState.currentPage != target || kotlin.math.abs(pagerState.currentPageOffsetFraction) > .001f)) {
                 programmaticPageTarget = target
                 try {
@@ -340,14 +369,14 @@ internal fun ZiyuAppShell(
         }
         LaunchedEffect(pagerState) {
             snapshotFlow {
-                if (programmaticPageTarget == null && !pagerState.isScrollInProgress &&
+                if (!rootBack.active && programmaticPageTarget == null && !pagerState.isScrollInProgress &&
                     kotlin.math.abs(pagerState.currentPageOffsetFraction) <= .001f) pagerState.settledPage else null
             }
                 .distinctUntilChanged()
                 .collect { index ->
                     if (index != null && page != AppPage.Logs) {
                         val selected = dockPages[index]
-                        if (page != selected) page = selected
+                        if (page != selected) navigate(selected)
                     }
                 }
         }
@@ -412,147 +441,183 @@ internal fun ZiyuAppShell(
         val contentModifier = Modifier
             .fillMaxSize()
             .then(if (quickReturnEnabled) Modifier.nestedScroll(dockScrollConnection) else Modifier)
-            .then(if (liquidGlassSupported) Modifier.layerBackdrop(liquidBackdrop) else Modifier)
 
-        Box(Modifier.fillMaxSize()) {
-            val prepareRootPreview = appearance.predictiveBack && Build.VERSION.SDK_INT >= 34 &&
-                page != AppPage.Home && !(page == AppPage.Settings && settingsDetailVisible)
-            if (prepareRootPreview) Box(Modifier.fillMaxSize()
-                .predictiveBackPreviewMotion(rootBack)
-                .background(LocalZiyuPaletteTokens.current.pageBackground)
-                .backDestinationPreview()) {
-                if (page == AppPage.Logs && logsReturnPage == AppPage.Settings) {
-                    io.github.xgl34222220.ziyu.ui.settings.SettingsHome(systemCenter, {}, {})
-                } else {
-                    val previewActions = homeActions.copy(refresh = {}, loadTypography = {}, mountSettings = {})
-                    val state = viewModel.snapshot.toHomeUiState()
-                    when (appearance.uiStyle) {
-                        UiStyle.MATERIAL -> io.github.xgl34222220.ziyu.ui.home.HomeScreenMaterial(state, previewActions)
-                        UiStyle.MIUIX -> io.github.xgl34222220.ziyu.ui.home.HomeScreenMiuix(state, previewActions)
-                        UiStyle.COUI -> io.github.xgl34222220.ziyu.ui.home.HomeScreenCoui(state, previewActions)
+        // Page state belongs to a stable scene slot, never to a movable pager item.
+        val pageContent: @Composable (AppPage) -> Unit = { visiblePage ->
+            when (visiblePage) {
+                AppPage.Home -> Box(
+                    modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
+                ) {
+                    CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
+                        HomeRoute(
+                            style = appearance.uiStyle,
+                            state = viewModel.snapshot.toHomeUiState().copy(
+                                mountPreferences = viewModel.mountPreferences,
+                                mountBackendPreference = viewModel.mountBackendPreference,
+                                mountBackendRebootPrompt = viewModel.mountBackendRebootPrompt,
+                                mountPreferenceSaving = viewModel.mountPreferenceSaving,
+                                mountPreferenceLoaded = viewModel.mountPreferenceLoaded,
+                                undoAvailable = viewModel.undoAvailable,
+                                taskRunning = viewModel.operationBusy || viewModel.mixState.busy ||
+                                    viewModel.snapshot.taskState in setOf("queued", "running"),
+                                currentFontRevision = viewModel.fonts.firstOrNull { it.id == viewModel.snapshot.activeFont }?.sourceRevision.orEmpty(),
+                                typographyVisible = viewModel.snapshot.activeFont in setOf("", "default") ||
+                                    viewModel.fonts.any { it.id == viewModel.snapshot.activeFont && !it.combination },
+                                typography = viewModel.displayTypography,
+                                romCheckMessage = viewModel.romCheckMessage,
+                            ),
+                            actions = homeActions,
+                        )
+                    }
+                }
+                AppPage.Library -> Box(
+                    modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
+                ) {
+                    CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
+                        FontLibraryRoute(
+                            style = appearance.uiStyle,
+                            state = viewModel.toFontLibraryUiState(),
+                            actions = libraryActions,
+                            topActions = {
+                                NativeImportOverlay(
+                                    viewModel = viewModel,
+                                    style = appearance.uiStyle,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    embedded = true,
+                                )
+                            },
+                        )
+                    }
+                }
+                AppPage.Studio -> Box(
+                    modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
+                ) {
+                    CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
+                        FontStudioRoute(
+                            style = appearance.uiStyle,
+                            state = viewModel.toFontStudioUiState(features),
+                            actions = studioActions,
+                        )
+                    }
+                }
+                AppPage.Logs -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (appearance.uiStyle == UiStyle.MIUIX) {
+                                    Modifier
+                                        .background(LocalZiyuPaletteTokens.current.pageBackground)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .padding(bottom = dockClearance),
+                    ) {
+                        CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
+                            LogsRoute(
+                                style = appearance.uiStyle,
+                                state = viewModel.toLogsUiState(),
+                                actions = logsActions,
+                                onBack = { returnToPreviousPage() },
+                            )
+                        }
+                    }
+                }
+                AppPage.Settings -> Box(
+                    modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
+                ) {
+                    CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
+                        AppearanceSettingsRoute(
+                            settings = appearance,
+                            currentFontLabel = viewModel.snapshot.effectiveLabel,
+                            active = page == AppPage.Settings,
+                            actions = appearanceActions,
+                            onOpenTasks = {
+                                logsReturnPage = AppPage.Settings
+                                navigate(AppPage.Logs)
+                            },
+                            onDetailChanged = { settingsDetailVisible = it },
+                            onTemporaryRootChanged = viewModel::refresh,
+                        )
                     }
                 }
             }
-        Box(
-            Modifier.fillMaxSize().predictiveBackMotion(rootBack).windowInsetsPadding(
-                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
-            ),
-        ) {
-            Box(modifier = contentModifier) {
-                AppBackdrop(appearance.backgroundPath)
-                val pageContent: @Composable (AppPage) -> Unit = { visiblePage ->
-                    when (visiblePage) {
-                        AppPage.Home -> Box(
-                            modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
-                        ) {
-                            CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
-                                HomeRoute(
-                                    style = appearance.uiStyle,
-                                    state = viewModel.snapshot.toHomeUiState().copy(
-                                        mountPreferences = viewModel.mountPreferences,
-                                        mountBackendPreference = viewModel.mountBackendPreference,
-                                        mountBackendRebootPrompt = viewModel.mountBackendRebootPrompt,
-                                        mountPreferenceSaving = viewModel.mountPreferenceSaving,
-                                        mountPreferenceLoaded = viewModel.mountPreferenceLoaded,
-                                        undoAvailable = viewModel.undoAvailable,
-                                        taskRunning = viewModel.operationBusy || viewModel.mixState.busy ||
-                                            viewModel.snapshot.taskState in setOf("queued", "running"),
-                                        currentFontRevision = viewModel.fonts.firstOrNull { it.id == viewModel.snapshot.activeFont }?.sourceRevision.orEmpty(),
-                                        typographyVisible = viewModel.snapshot.activeFont in setOf("", "default") ||
-                                            viewModel.fonts.any { it.id == viewModel.snapshot.activeFont && !it.combination },
-                                        typography = viewModel.displayTypography,
-                                    ),
-                                    actions = homeActions,
-                                )
-                            }
+        }
+        val pageStateHolder = rememberSaveableStateHolder()
+        val previewDestination = if (rootBack.committing) gestureDestination ?: previousPage else previousPage
+        val pagerAtCurrentRoute = page == AppPage.Logs ||
+            (!pagerState.isScrollInProgress && pagerState.currentPage == dockPages.indexOf(page) &&
+                kotlin.math.abs(pagerState.currentPageOffsetFraction) <= .001f)
+        val prepareRootPreview = appearance.predictiveBack && Build.VERSION.SDK_INT >= 34 &&
+            (page != AppPage.Home && !(page == AppPage.Settings && settingsDetailVisible) || rootBack.active) &&
+            (pagerAtCurrentRoute || rootBack.active)
+
+        val pagerFling = PagerDefaults.flingBehavior(
+            state = pagerState,
+            snapAnimationSpec = tween(ZiyuMotionTokens.Normal, easing = FastOutSlowInEasing),
+        )
+        val layoutDirection = LocalLayoutDirection.current
+        val scenePages by remember(pagerState, page, prepareRootPreview, previewDestination) {
+            derivedStateOf {
+                buildSet {
+                    if (page == AppPage.Logs) add(AppPage.Logs) else {
+                        // A bounded adjacent window keeps page setup off the drag frame.
+                        for (index in (pagerState.currentPage - 1)..(pagerState.currentPage + 1)) {
+                            dockPages.getOrNull(index)?.let { add(it) }
                         }
-                        AppPage.Library -> Box(
-                            modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
-                        ) {
-                            CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
-                                FontLibraryRoute(
-                                    style = appearance.uiStyle,
-                                    state = viewModel.toFontLibraryUiState(),
-                                    actions = libraryActions,
-                                    topActions = {
-                                        NativeImportOverlay(
-                                            viewModel = viewModel,
-                                            style = appearance.uiStyle,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            embedded = true,
-                                        )
-                                    },
-                                )
-                            }
-                        }
-                        AppPage.Studio -> Box(
-                            modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
-                        ) {
-                            CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
-                                FontStudioRoute(
-                                    style = appearance.uiStyle,
-                                    state = viewModel.toFontStudioUiState(features),
-                                    actions = studioActions,
-                                )
-                            }
-                        }
-                        AppPage.Logs -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .then(
-                                        if (appearance.uiStyle == UiStyle.MIUIX) {
-                                            Modifier
-                                                .background(LocalZiyuPaletteTokens.current.pageBackground)
-                                        } else {
-                                            Modifier
-                                        },
-                                    )
-                                    .padding(bottom = dockClearance),
-                            ) {
-                                CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
-                                    LogsRoute(
-                                        style = appearance.uiStyle,
-                                        state = viewModel.toLogsUiState(),
-                                        actions = logsActions,
-                                        onBack = { page = logsReturnPage },
-                                    )
+                    }
+                    if (prepareRootPreview) add(previewDestination)
+                }
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
+            // Stable coordinates and an opaque base keep glass sampling valid while
+            // either page moves. The dock is outside its own backdrop recording.
+            Box(contentModifier
+                .then(if (liquidGlassSupported) Modifier.layerBackdrop(liquidBackdrop) else Modifier)
+                .background(LocalZiyuPaletteTokens.current.pageBackground)
+                .clipToBounds()
+                .scrollable(
+                    state = pagerState,
+                    orientation = Orientation.Horizontal,
+                    enabled = page != AppPage.Logs && !settingsDetailVisible && !rootBack.active,
+                    reverseDirection = layoutDirection == LayoutDirection.Ltr,
+                    flingBehavior = pagerFling,
+                )) {
+                // Pager supplies measurement, scroll position and the existing snap
+                // physics only. Stateful pages are composed once, in fixed keyed slots
+                // below, outside its asynchronously retained lazy subcompositions.
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize().clearAndSetSemantics { },
+                    userScrollEnabled = false,
+                    key = { dockPages[it] },
+                ) { Box(Modifier.fillMaxSize()) }
+
+                for (destination in AppPage.entries) key(destination) {
+                    if (destination in scenePages) {
+                        val preview = prepareRootPreview && destination == previewDestination
+                        val index = dockPages.indexOf(destination)
+                        val motion = if (preview) Modifier.predictiveBackPreviewMotion(rootBack) else {
+                            Modifier.predictiveBackMotion(rootBack).graphicsLayer {
+                                if (destination != AppPage.Logs) {
+                                    val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                                    val direction = if (layoutDirection == LayoutDirection.Ltr) 1f else -1f
+                                    translationX = direction * (index - position) * size.width
                                 }
                             }
                         }
-                        AppPage.Settings -> Box(
-                            modifier = Modifier.fillMaxSize().padding(bottom = dockClearance),
-                        ) {
-                            CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
-                                AppearanceSettingsRoute(
-                                    settings = appearance,
-                                    active = page == AppPage.Settings,
-                                    actions = appearanceActions,
-                                    onOpenTasks = {
-                                        logsReturnPage = AppPage.Settings
-                                        page = AppPage.Logs
-                                    },
-                                    onDetailChanged = { settingsDetailVisible = it },
-                                    onTemporaryRootChanged = viewModel::refresh,
-                                )
-                            }
+                        Box(Modifier.fillMaxSize()
+                            .zIndex(if (preview) 0f else 1f)
+                            .then(motion)
+                            .background(LocalZiyuPaletteTokens.current.pageBackground)
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .then(if (preview) Modifier.backDestinationPreview() else Modifier)) {
+                            AppBackdrop(appearance.backgroundPath)
+                            pageStateHolder.SaveableStateProvider(destination) { pageContent(destination) }
                         }
-                    }
-                }
-                if (page == AppPage.Logs) {
-                    pageContent(AppPage.Logs)
-                } else {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxSize(),
-                        flingBehavior = PagerDefaults.flingBehavior(
-                            state = pagerState,
-                            snapAnimationSpec = tween(ZiyuMotionTokens.Normal, easing = FastOutSlowInEasing),
-                        ),
-                        userScrollEnabled = !settingsDetailVisible,
-                        key = { dockPages[it] },
-                    ) { index ->
-                        pageContent(dockPages[index])
                     }
                 }
             }
@@ -573,26 +638,24 @@ internal fun ZiyuAppShell(
                 when (appearance.uiStyle) {
                     UiStyle.MATERIAL -> MaterialAppDock(
                         current = dockPage,
-                        onSelect = { page = it },
+                        onSelect = { navigate(it) },
                         appearance = appearance,
                         backdrop = liquidBackdrop,
                     )
                     UiStyle.MIUIX -> MiuixAppDock(
                         current = dockPage,
-                        onSelect = { page = it },
+                        onSelect = { navigate(it) },
                         appearance = appearance,
                         backdrop = liquidBackdrop,
                     )
                     UiStyle.COUI -> CouiAppDock(
                         current = dockPage,
-                        onSelect = { page = it },
+                        onSelect = { navigate(it) },
                         appearance = appearance,
                         backdrop = liquidBackdrop,
                     )
                 }
             }
-
-        }
 
         }
 

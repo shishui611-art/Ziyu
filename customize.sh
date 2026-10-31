@@ -36,6 +36,7 @@ fi
 # mounting or projecting the active module in the installer's namespace, and
 # schema metadata in the running installation must remain untouched.
 _lc_real_old_mod="$LUOSHU_OLD_MOD"
+_lc_scan_rom=$(MODDIR="$MODPATH" sh "$MODPATH/common/boot_ota_guard.sh" rom-identity "$MODPATH" 2>/dev/null)
 
 # Run the delegated installer by sourcing it so its migration state remains visible
 # to this wrapper, but convert its top-level exit statements into returns. This is
@@ -82,7 +83,22 @@ if [ -f "$MODPATH/common/boot_ota_guard.sh" ]; then
     MODDIR="$MODPATH" MODULE_DIR="$MODPATH" sh "$MODPATH/common/boot_ota_guard.sh" initialize "$MODPATH" \
         >> "$MODPATH/logs/boot-ota-guard.log" 2>&1 || \
         ui_print '• 系统基准迁移尚未完成，请在开机保护页面核对；外部停用标记保持不变'
+    # An actual fresh install scan can be reused by the App. Never bless a
+    # fallback inventory, incomplete topology, or a scan across ROM changes.
+    if [ "${_inventory_rc:-1}" = 0 ] && [ "${_topology_rc:-1}" = 0 ] && \
+       [ -n "$_lc_scan_rom" ] && [ ! -e "$MODPATH/config/stock_inventory_scan_pending" ]; then
+        MODDIR="$MODPATH" sh "$MODPATH/common/boot_ota_guard.sh" scan-complete "$MODPATH" "$_lc_scan_rom" \
+            >> "$MODPATH/logs/boot-ota-guard.log" 2>&1 || \
+            ui_print '• 安装扫描未形成可信 ROM 回执，保留后续核验流程'
+    fi
 fi
+for _lc_rom_record in app-rom-observed.conf stock-rom-auto-attempt.conf; do
+    if [ ! -e "$MODPATH/config/$_lc_rom_record" ] && \
+       [ -f "$_lc_real_old_mod/config/$_lc_rom_record" ] && [ ! -L "$_lc_real_old_mod/config/$_lc_rom_record" ] && \
+       [ "$(wc -c < "$_lc_real_old_mod/config/$_lc_rom_record")" -le 2048 ]; then
+        cp -p "$_lc_real_old_mod/config/$_lc_rom_record" "$MODPATH/config/$_lc_rom_record" || abort 'ROM 观察记录迁移失败'
+    fi
+done
 if [ -f "$MODPATH/common/mount_backend_preferences.sh" ]; then
     . "$MODPATH/common/mount_backend_preferences.sh"
     luoshu_mount_preference_restore "$_lc_real_old_mod" "$MODPATH" || {

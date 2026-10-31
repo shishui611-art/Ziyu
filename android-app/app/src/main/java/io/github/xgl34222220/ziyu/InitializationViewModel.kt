@@ -72,6 +72,9 @@ private val ROOT_AND_MODULE_PROBE = """
     if [ "${'$'}uid" != 0 ]; then exit 1; fi
 
     module_dir=/data/adb/modules/ziyu
+    if [ -f "${'$'}module_dir/common/app_handshake.sh" ]; then
+        exec sh "${'$'}module_dir/common/app_bridge.sh" handshake probe
+    fi
     if [ -f "${'$'}module_dir/common/root_manager_detection.sh" ]; then
         . "${'$'}module_dir/common/root_manager_detection.sh"
         luoshu_detect_root_manager >/dev/null 2>&1 || true

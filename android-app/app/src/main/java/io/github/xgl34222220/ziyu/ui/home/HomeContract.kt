@@ -21,6 +21,7 @@ data class HomeUiState(
     val rebootRequired: Boolean = false,
     val temporaryRootMode: Boolean = false,
     val error: String = "",
+    val romCheckMessage: String = "",
     val mountPreferences: String = "",
     val mountBackendPreference: String = "auto",
     val mountBackendRebootPrompt: String? = null,
@@ -68,6 +69,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
             (mountState in setOf("mounted", "partial") || (activeFont in setOf("", "default") && mountState in setOf("idle", "not-applicable"))),
         taskRunning = running,
         taskTitle = when {
+            detailsPending -> "模块已连接，正在读取详细状态"
             running -> "字体任务执行中"
             fontEffectState == "live" -> "字体热挂载成功"
             fontEffectState == "live-partial" -> "字体热挂载成功（有提示）"

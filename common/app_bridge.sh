@@ -10,6 +10,21 @@ if [ -z "$MODDIR" ]; then
         MODDIR="/data/adb/modules/ziyu"
     fi
 fi
+export MODDIR
+if [ "${1:-}" = handshake ]; then
+    shift
+    exec sh "$MODDIR/common/app_handshake.sh" "$@"
+fi
+if [ "${1:-}" = rom_check ]; then
+    shift
+    exec sh "$MODDIR/common/app_rom_monitor.sh" "${1:-check}"
+fi
+if [ "${1:-}" = boot_safety ]; then
+    [ "$#" -eq 2 ] || { printf 'status=error\nreason=invalid-arguments\n'; exit 2; }
+    case "$2" in status|recover|rescan) ;; *) printf 'status=error\nreason=invalid-action\n'; exit 2 ;; esac
+    [ -f "$MODDIR/common/boot_ota_guard.sh" ] || { printf 'status=error\nreason=helper-missing\n'; exit 1; }
+    exec sh "$MODDIR/common/boot_ota_guard.sh" "$2" "$MODDIR"
+fi
 # Display configuration reads do not need mount discovery, font engines or
 # user-directory initialization. Keep the cached path independent and short.
 if [ "${1:-}" = font_clipping ]; then
@@ -96,6 +111,7 @@ read_first_line() {
 }
 
 root_manager() {
+    if [ -n "${_status_root_manager:-}" ]; then printf '%s' "$_status_root_manager"; return; fi
     if type luoshu_detect_root_manager >/dev/null 2>&1; then
         _root=$(luoshu_detect_root_manager 2>/dev/null)
         [ -n "$_root" ] && [ "$_root" != unknown ] && { printf '%s' "$_root"; return; }
@@ -172,6 +188,7 @@ select_task_file() {
 }
 
 status_json() {
+    _status_root_manager=$(root_manager)
     # App refresh is also a safe late-boot convergence point. The helper will
     # never consume a marker created during this same boot.
     type luoshu_text_reboot_reconcile >/dev/null 2>&1 && \
@@ -401,6 +418,7 @@ EOF_TASK_SELECTION
     _boot_guard_status=''
     if [ -f "$MODDIR/config/boot-safety-current-boot.conf" ] &&
        [ ! -L "$MODDIR/config/boot-safety-current-boot.conf" ] &&
+       [ "$(read_prop "$MODDIR/config/boot-safety-current-boot.conf" boot_id)" = "$(read_first_line /proc/sys/kernel/random/boot_id)" ] &&
        [ -f "$MODDIR/common/boot_ota_guard.sh" ] &&
        _boot_guard_status=$(sh "$MODDIR/common/boot_ota_guard.sh" status "$MODDIR" 2>/dev/null); then
         _boot_guard_api=''; _boot_guard_blocked=0; _boot_guard_reason=''; _boot_guard_next_ready=0
@@ -589,12 +607,6 @@ case "${1:-status}" in
     display_typography)
         shift
         exec sh "$MODDIR/common/display_typography.sh" "$@"
-        ;;
-    boot_safety)
-        [ "$#" -eq 2 ] || { printf 'status=error\nreason=invalid-arguments\n'; exit 2; }
-        case "$2" in status|recover|rescan) ;; *) printf 'status=error\nreason=invalid-action\n'; exit 2 ;; esac
-        [ -f "$MODDIR/common/boot_ota_guard.sh" ] || { printf 'status=error\nreason=helper-missing\n'; exit 1; }
-        exec sh "$MODDIR/common/boot_ota_guard.sh" "$2" "$MODDIR"
         ;;
     app_coverage)
         [ -x "$PYBIN" ] && [ -f "$FONT_COVERAGE_LOCATOR" ] || { printf '{"status":"error","message":"应用字体诊断组件不可用"}\n'; exit 1; }

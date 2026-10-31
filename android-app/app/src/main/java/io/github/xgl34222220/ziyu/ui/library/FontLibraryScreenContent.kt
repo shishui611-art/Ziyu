@@ -140,7 +140,11 @@ internal fun FontLibraryPageContent(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(20.dp),
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                leadingIcon = {
+                    Box(Modifier.padding(start = 12.dp, end = 4.dp)) {
+                        Icon(Icons.Rounded.Search, contentDescription = null)
+                    }
+                },
                 trailingIcon = {
                     if (state.query.isNotEmpty()) {
                         IconButton(onClick = { actions.setQuery("") }) {

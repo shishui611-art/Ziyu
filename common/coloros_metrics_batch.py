@@ -86,6 +86,7 @@ def build(module: Path, stage: Path) -> dict:
         indexed = {}
     jobs = []
     reports = []
+    compatibility_aliases = []
     for partition, logical_root in LOGICAL_FONT_ROOTS:
         root = stage / partition / 'fonts'
         if not root.is_dir():
@@ -98,6 +99,20 @@ def build(module: Path, stage: Path) -> dict:
             report = {'slot': logical, 'metricsSource': 'preserved'}
             reports.append(report)
             slot = indexed.get(logical)
+            # These legacy names may be synthesized on newer ColorOS ROMs.
+            # Never give a synthetic alias a different frame from its real OEM
+            # slot when both were generated from the exact same donor inode.
+            canonical_name = {
+                'SysFont-Hans-Regular.ttf': 'SysSans-Hans-Regular.ttf',
+                'SysFont-Hant-Regular.ttf': 'SysSans-Hant-Regular.ttf',
+            }.get(source.name)
+            if slot is None and canonical_name:
+                canonical = root / canonical_name
+                canonical_logical = (logical_root / canonical_name).as_posix()
+                if (eligible_slot(indexed.get(canonical_logical), canonical_logical, digits_enabled)
+                        and canonical.is_file() and source.samefile(canonical)):
+                    compatibility_aliases.append((source, canonical, report, file_identity(source.stat())))
+                    continue
             if not eligible_slot(slot, logical, digits_enabled):
                 report['reason'] = 'missing-or-ineligible-stock-slot'
                 continue
@@ -227,13 +242,23 @@ def build(module: Path, stage: Path) -> dict:
         for source, expected in identities.items():
             if file_identity(source.stat()) != expected:
                 raise ValueError(f'字体来源在并行处理期间发生变化：{source.name}')
+        for alias, _canonical, _report, before in compatibility_aliases:
+            if file_identity(alias.stat()) != before:
+                raise ValueError(f'字体兼容别名来源发生变化：{alias.name}')
         for output, destination in prepared:
             link_copy(output, destination)
+        prepared_paths = {destination for _output, destination in prepared}
+        for alias, canonical, report, _before in compatibility_aliases:
+            if canonical not in prepared_paths:
+                raise ValueError(f'字体兼容别名缺少已校验的原厂槽输出：{alias.name}')
+            link_copy(canonical, alias)
+            report.update(metricsSource='stock-alias', aliasOf=str(canonical.relative_to(stage)))
         write_report(stage, reports)
     finally:
         shutil.rmtree(outputs, ignore_errors=True)
     return {'mapped': len(jobs), 'generated': len(groups),
-            'preservedSlots': len(reports) - len(jobs),
+            'preservedSlots': len(reports) - len(jobs) - len(compatibility_aliases),
+            'compatibilityAliasSlots': len(compatibility_aliases),
             'stockContractSlots': sum(r.get('slotCompatibility') == 'stock-contract-preserved' for r in reports),
             'stockOnlyCharactersRetained': sum(r.get('stockOnlyCharactersRetained', 0) for r in reports),
             'slotCompatibilityUnverified': sum(r.get('slotCompatibility') == 'unverified' for r in reports),

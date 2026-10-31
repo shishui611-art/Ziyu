@@ -186,6 +186,14 @@ _diag_dump_once() {
         _diag_emit_file 'device_font_partitions.conf' "$MODDIR/config/device_font_partitions.conf"
         _diag_emit_file 'stock font snapshot receipt' "$MODDIR/config/stock-font-snapshot/manifest.json"
         _diag_emit_file 'stock font snapshot log' "$MODDIR/logs/stock-font-snapshot.log" 40
+        _diag_emit_file 'boot OTA scan log' "$MODDIR/logs/boot-ota-guard.log" 240
+        _diag_emit_file 'App ROM observation' "$MODDIR/config/app-rom-observed.conf"
+        _diag_emit_file 'ROM auto scan attempt' "$MODDIR/config/stock-rom-auto-attempt.conf"
+        _diag_emit_file 'stock ROM receipt' "$MODDIR/config/stock-rom-scan.conf"
+        _diag_emit_file 'font inventory log' "$MODDIR/logs/font-inventory.log" 120
+        _diag_emit_file 'font topology log' "$MODDIR/logs/font-topology.log" 120
+        _diag_emit_file 'stock rescan task' '/data/adb/.ziyu-luoshu-stock-rescan.lock/state'
+        _diag_emit_file 'stock rescan cleanup' '/data/adb/.ziyu-luoshu-stock-rescan.lock/worker.pid.cleanup.json'
         _diag_emit_file 'self-mount.log' "$MODDIR/logs/self-mount.log" 600
         _diag_emit_file 'mount-diagnostics.log' "$MODDIR/logs/mount-diagnostics.log" 1200
         _diag_emit_file 'mount-diagnostics previous' "$MODDIR/logs/mount-diagnostics.log.previous" 400
