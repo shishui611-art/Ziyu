@@ -54,7 +54,7 @@ grep -q 'LogsPageContent(UiStyle.MATERIAL' "$ROOT/android-app/app/src/main/java/
 grep -q 'LogsPageContent(UiStyle.MIUIX' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsScreenMiuix.kt"
 grep -q 'LogsPageContent(UiStyle.COUI' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/logs/LogsScreenCoui.kt"
 grep -q 'internal fun LogsPageContent(' "$_logs_content"
-grep -q 'DiagnosticExportButton(style = style' "$_logs_content"
+grep -q 'DiagnosticExportButton(state = diagnosticState, onClick = onDiagnostic)' "$_logs_content"
 grep -q 'items(state.tasks, key = { "task-${it.id}" })' "$_logs_content"
 grep -q 'items(visibleLines, key = { "log-${it.index}" })' "$_logs_content"
 grep -q 'if (tab == LogsTab.LOGS) layout.compactPadding / 2 else layout.itemGap - 4.dp' "$_logs_content"
