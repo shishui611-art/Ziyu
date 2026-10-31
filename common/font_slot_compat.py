@@ -20,6 +20,7 @@ from composite_collection_build import (identity, protected, replace_face, verif
 from font_digest_cache import FontDigestCache
 import font_source_profile
 import stock_font_snapshot
+import font_clipping_compat
 
 MAX_FONT_BYTES = 128 * 1024 * 1024
 
@@ -96,6 +97,8 @@ class SlotCompat:
             raise ValueError('字体槽兼容来源不是受限的普通字体文件')
         stock = stock_font_snapshot.resolve(logical, self.module, self.digests)
         if stock is None:
+            if font_clipping_compat.enabled():
+                raise ValueError('该字体槽缺少可信原厂行框，无法安全防裁切；原负载保留')
             return donor, {'slotCompatibility': 'unverified',
                            'compatibilityReason': 'verified-stock-snapshot-unavailable'}
         stock_before = identity(stock)
@@ -115,6 +118,8 @@ class SlotCompat:
         with donor.open('rb') as stream:
             donor_magic = stream.read(4)
         if stock_magic == b'ttcf' or donor_magic == b'ttcf':
+            if font_clipping_compat.enabled():
+                raise ValueError('此字体槽仍需集合逐面处理，不能跳过防裁切校验；请先保存静态组合后重试')
             return donor, {'slotCompatibility': 'unverified',
                            'compatibilityReason': 'collection-requires-per-face-pipeline'}
         output = self.workspace / f'stock-slot-{len(self.outputs)}.font'
@@ -124,9 +129,11 @@ class SlotCompat:
                 # Keep variable/color sources on their established path. Freezing
                 # them here would lose the user's axis/bitmap/color behaviour.
                 if 'fvar' in source or any(tag in source for tag in font_source_profile.COLOR_TABLES):
+                    if font_clipping_compat.enabled():
+                        raise ValueError('防裁切需要普通或已选定字重的静态字体；请先保存静态组合，或关闭防裁切')
                     return donor, {'slotCompatibility': 'unverified',
                                    'compatibilityReason': 'variable-or-color-source-preserved'}
-                if 'glyf' not in base:
+                if 'glyf' not in base and not font_clipping_compat.enabled():
                     return donor, {'slotCompatibility': 'unverified',
                                    'compatibilityReason': 'non-truetype-stock-outline-preserved'}
                 if any(tag not in source for tag in ('head', 'hhea', 'OS/2')):
@@ -227,6 +234,7 @@ class SlotCompat:
                       'sourceUpem': source_upem, 'sourceHead': source_head,
                       'outputUpem': output_upem, 'outputHead': output_head,
                       'fontFrameExpansion': frame_expansion,
+                      'clippingFit': details.get('clippingFit'),
                       'metricExtremaExpansion': details.get('metricExtremaExpansion'),
                       'layoutBoundsSource': 'stock', 'bitmapBaselineCorrection': 0,
                       'bitmapBaselineReason': 'stock-preserved',

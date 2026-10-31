@@ -160,6 +160,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_slot_weight.py" \
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
+                         "$MODDIR/common/font_clipping_compat.py" \
                          "$MODDIR/common/font_native_glyphs.py" \
                          "$MODDIR/common/font_native_cff.py" \
                          "$MODDIR/common/font_native_instance.py" \
@@ -295,6 +296,7 @@ safe_switch_cache_context() {
         printf '%s\n' "$_sck_inventory"
         printf '%s\n' "$_sck_rom"
         printf '%s\n' "$_sck_mapper"
+        printf 'font-clipping:%s\n' "${ZIYU_FONT_CLIP_ENABLED:-0}"
     } | safe_hash_stream) || return 1
     [ -n "$_sck_key" ]
 }
@@ -794,6 +796,20 @@ prewarm_font() { return 0; }
 switch_font() {
     _font="$1"
     [ -n "$_font" ] || { safe_error '未指定字体'; return 1; }
+    if [ "$_font" != default ]; then
+        if [ -z "${ZIYU_FONT_CLIP_ENABLED:-}" ]; then
+            ZIYU_FONT_CLIP_ENABLED=$(sh "$MODDIR/common/font_clipping_compat.sh" mode "$_font") || {
+                safe_error '防裁切配置读取失败，未提交字体'; return 1;
+            }
+        fi
+        case "$ZIYU_FONT_CLIP_ENABLED" in 0|1) ;; *) safe_error '防裁切配置无效'; return 1 ;; esac
+        export ZIYU_FONT_CLIP_ENABLED
+        if [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ] && [ "${IS_COLOROS:-false}" != true ]; then
+            safe_error '当前自动防裁切适配用于 ColorOS 字体槽，请关闭本字体的防裁切后重试'; return 1
+        fi
+    else
+        ZIYU_FONT_CLIP_ENABLED=0; export ZIYU_FONT_CLIP_ENABLED
+    fi
     _active_label="${LUOSHU_SWITCH_ACTIVE_LABEL:-$_font}"
     [ -n "$_active_label" ] || _active_label="$_font"
     # A logical composite label must never turn a real default restoration

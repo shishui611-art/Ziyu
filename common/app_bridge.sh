@@ -12,6 +12,10 @@ if [ -z "$MODDIR" ]; then
 fi
 # Display configuration reads do not need mount discovery, font engines or
 # user-directory initialization. Keep the cached path independent and short.
+if [ "${1:-}" = font_clipping ]; then
+    shift
+    exec sh "$MODDIR/common/font_clipping_compat.sh" "$@"
+fi
 if [ "${1:-}" = display_typography ]; then
     shift
     exec sh "$MODDIR/common/display_typography.sh" "$@"
@@ -428,6 +432,18 @@ EOF_ZIYU_BOOT_GUARD_STATUS
                 _reboot_required=true
             fi
         fi
+    fi
+
+    # Task history records preparation, not the outcome of a later soft reboot.
+    # Return current verified state without rewriting the historical receipt.
+    if [ "$_task_type" = switch ] && [ "$_task_state" = success ] &&
+       [ "$_task_font" = "$_active" ] && [ "$_effective_active" = "$_active" ] &&
+       [ "$_reboot_required" = false ] && [ "$_rollback_pending" = false ]; then
+        case "$_font_effect_state" in
+            verified) _task_message='字体已应用，本次启动挂载验证通过' ;;
+            partial) _task_message='字体已应用；部分槽位存在提示，请查看验证详情' ;;
+            system) _task_message='已恢复系统默认字体' ;;
+        esac
     fi
 
     printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskFont":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"temporaryRootMode":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s"}}\n' \

@@ -1038,6 +1038,55 @@ def static_weight_compatibility(plan: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def source_style_compatibility(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """Route supported style differences to the existing physical engine.
+
+    Keep the source's real axes and the compiler's exact-output contracts. The
+    physical engine validates its own output; this decision never marks a
+    failed Universal artifact as deployable or invents a 1000-weight master.
+    """
+    examples: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, bool, str]] = set()
+    for path, target in plan["targets"].items():
+        if target.get("action") not in {"replace", "compile", "compile-specialized"}:
+            continue
+        candidates = [target]
+        candidates.extend(target_for_route(target, ref.get("weight"), ref.get("style"), ref.get("axes"))
+                          for ref in target.get("xmlRefs") or [] if isinstance(ref, dict))
+        for candidate in candidates:
+            if candidate.get("status") == "blocked":
+                continue
+            source, selection = candidate.get("source") or {}, candidate.get("selection") or {}
+            risks = set(candidate.get("risks") or [])
+            weight = _int(selection.get("targetWeight"))
+            italic = selection.get("targetItalic") is True
+            if weight is None or not 1 <= weight <= 1000:
+                continue
+            if "source-weight-axis-out-of-range" in risks and source.get("variable") is True:
+                axis = next((a for a in source.get("axes") or []
+                             if isinstance(a, dict) and a.get("tag") == "wght"), {})
+                low, high = _float(axis.get("min")), _float(axis.get("max"))
+                if low is not None and high is not None and 1 <= low <= high <= 1000 and not low <= weight <= high:
+                    key = (path, weight, italic, "weight-range")
+                    if key not in seen:
+                        seen.add(key)
+                        examples.append({"path": path, "kind": "weight-range", "requestedWeight": weight,
+                                         "sourceMin": low, "sourceMax": high,
+                                         "effectiveWeight": min(high, max(low, weight))})
+            if "italic-style-mismatch" in risks and source.get("italic") is not italic:
+                key = (path, weight, italic, "italic")
+                if key not in seen:
+                    seen.add(key)
+                    examples.append({"path": path, "kind": "italic", "requestedWeight": weight,
+                                     "requestedItalic": italic, "sourceItalic": source.get("italic") is True})
+    if not examples:
+        return static_weight_compatibility(plan)
+    return {"status": "compatibility-required", "severity": "warning",
+            "reason": "source-style-compatibility", "planId": plan["planId"],
+            "message": "部分目标字重或斜体超出字体提供的范围，改用兼容引擎处理；超范围字重采用可用边界，斜体效果可能不同",
+            "styleMismatchCount": len(examples), "examples": examples[:8]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--topology", required=True, type=Path)
@@ -1069,7 +1118,7 @@ def main() -> int:
             if args.output is not None:
                 _atomic_write(args.output, plan)
         if args.select_engine and args.validate is None:
-            decision = static_weight_compatibility(plan)
+            decision = source_style_compatibility(plan)
             if decision is not None:
                 print(json.dumps(decision, ensure_ascii=False, separators=(",", ":")))
                 return 3

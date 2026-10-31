@@ -153,10 +153,9 @@ rollback() {
         else wm density "$old_override" >/dev/null 2>&1; fi
         [ "$?" -eq 0 ] || dt_rollback_ok=false
     fi
-    if [ "$weight_written" = true ]; then restore_setting secure font_weight_adjustment "$old_weight_raw" || dt_rollback_ok=false; fi
     if [ "$scale_written" = true ]; then restore_setting system font_scale "$old_scale_raw" || dt_rollback_ok=false; fi
     read_state && [ "$dt_user" = "$old_user" ] && [ "$dt_percent" = "$old_percent" ] && \
-        [ "$dt_weight" = "$old_weight" ] && [ "$dt_override" = "$old_override" ] || dt_rollback_ok=false
+        [ "$dt_override" = "$old_override" ] || dt_rollback_ok=false
 }
 cleanup() {
     if [ "$committed" != true ]; then
@@ -201,31 +200,29 @@ case "${1:-status}" in
     *) fail '未知显示设置命令' ;;
 esac
 . "$MODDIR/common/font_switch_lock.sh" || fail '显示设置锁不可用'
-# apply USER OLD_SCALE OLD_WEIGHT OLD_DPI SCALE WEIGHT_OR_KEEP DPI
+# Keep the existing wire format for cached/older clients, but no longer own
+# system weight. Size/DPI writes and rollback must preserve concurrent weight changes.
+# apply USER OLD_SCALE OLD_WEIGHT OLD_DPI SCALE keep DPI
 for dt_arg in "$2" "$3" "$5" "$6" "$8"; do uint "$dt_arg" || fail '显示数值无效'; done
 sint "$4" || fail '原字重数值无效'
-if [ "$7" != keep ]; then sint "$7" || fail '字重数值无效'; fi
+[ "$7" = keep ] || fail '主页粗细调整已移除，请在手机系统设置中调整字体粗细'
 [ "$6" -ge 50 ] && [ "$6" -le 200 ] || fail '字体大小范围为 50% 至 200%'
-if [ "$7" != keep ]; then [ "$7" -ge -1000 ] && [ "$7" -le 1000 ] || fail '字重调整超出范围'; fi
 dt_lock="$MODDIR/.display-typography.lock"
 luoshu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
 read_state || { luoshu_font_lock_release "$dt_lock" "$$"; fail '无法读取修改前的显示设置'; }
 # Changes made outside this App become the next local read, without weakening
 # the compare-before-write guard for a stale draft or a different Android user.
 save_cache >/dev/null 2>&1 || rm -f "$CACHE"
-[ "$dt_user" = "$2" ] && [ "$dt_percent" = "$3" ] && [ "$dt_weight" = "$4" ] && [ "$dt_density" = "$5" ] || {
+[ "$dt_user" = "$2" ] && [ "$dt_percent" = "$3" ] && [ "$dt_density" = "$5" ] || {
     luoshu_font_lock_release "$dt_lock" "$$"; fail '系统设置已在其他位置变化，请重新读取后应用';
 }
 [ "$8" -ge "$dt_min" ] && [ "$8" -le "$dt_max" ] || {
     luoshu_font_lock_release "$dt_lock" "$$"; fail 'DPI 超出本机调节范围，请重新读取';
 }
-if [ "$7" != keep ] && [ "$dt_sdk" -lt 31 ]; then
-    luoshu_font_lock_release "$dt_lock" "$$"; fail '当前 Android 不支持系统字重调整'
-fi
-old_user="$dt_user"; old_percent="$dt_percent"; old_weight="$dt_weight"
+old_user="$dt_user"; old_percent="$dt_percent"
 old_density="$dt_density"; old_override="$dt_override"
-old_scale_raw="$dt_scale_raw"; old_weight_raw="$dt_weight_raw"
-scale_written=false; weight_written=false; density_written=false; committed=false
+old_scale_raw="$dt_scale_raw"
+scale_written=false; density_written=false; committed=false
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 touch "$MODDIR/config/display-typography-dirty" 2>/dev/null || true
@@ -235,10 +232,6 @@ if [ "$6" != "$old_percent" ]; then
     dt_scale_value=$(awk -v n="$6" 'BEGIN {printf "%.2f", n/100}')
     settings --user "$old_user" put system font_scale "$dt_scale_value" >/dev/null 2>&1 || dt_ok=false
 fi
-if [ "$dt_ok" = true ] && [ "$7" != keep ] && [ "$7" != "$old_weight" ]; then
-    weight_written=true
-    settings --user "$old_user" put secure font_weight_adjustment "$7" >/dev/null 2>&1 || dt_ok=false
-fi
 if [ "$dt_ok" = true ] && [ "$8" != "$old_density" ]; then
     density_written=true
     if [ "$8" = "$dt_base" ]; then wm density reset >/dev/null 2>&1
@@ -247,20 +240,11 @@ if [ "$dt_ok" = true ] && [ "$8" != "$old_density" ]; then
 fi
 if [ "$dt_ok" = true ]; then
     read_state && [ "$dt_user" = "$old_user" ] && [ "$dt_percent" = "$6" ] && [ "$dt_density" = "$8" ] || dt_ok=false
-    if [ "$7" != keep ] && [ "$dt_weight" != "$7" ]; then dt_ok=false; fi
-fi
-if [ "$dt_ok" = true ]; then
-    if [ "$7" != keep ]; then
-        # The user now owns this system setting. Old retirement records must
-        # not undo it on a later boot; legacy writers share this same lock.
-        rm -f "$MODDIR/config/font_weight.conf" "$MODDIR/config/font_weight_original.conf" \
-            "$MODDIR/config/font_weight_reboot_required.conf" || dt_ok=false
-    fi
 fi
 if [ "$dt_ok" = true ]; then
     committed=true
     if save_cache; then
-        emit_state; printf 'cache=system\ncacheSaved=true\nmessage=已应用并保存本地显示配置\n'
+        emit_state; printf 'cache=system\ncacheSaved=true\nmessage=已应用字号与 DPI；字体粗细请在手机系统设置中调整\n'
     else
         emit_state; printf 'cache=system\ncacheSaved=false\nmessage=系统设置已应用，本地配置未保存，可点击同步重试\n'
     fi

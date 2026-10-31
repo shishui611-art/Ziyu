@@ -95,6 +95,8 @@ common/font_scan_profile.py
 common/stock_font_snapshot.py
 common/font_slot_coverage.py
 common/font_slot_compat.py
+common/font_clipping_compat.py
+common/font_clipping_compat.sh
 common/display_typography.sh
 common/display_config_storage.sh
 common/display_config_storage.py

@@ -94,16 +94,38 @@ _uc_recover_pending() (
 
 _uc_legacy() {
     _ucl_font="$1"; _ucl_reason="$2"
+    _ucl_warning=''
     case "$_ucl_reason" in
-        default-font|composite-runtime|composite-family|physical-continuous-switch|static-weight-compatibility)
+        default-font|composite-runtime|composite-family|physical-continuous-switch|font-clipping-compatibility)
             _uc_log "INFO compatibility path selected font=$_ucl_font reason=$_ucl_reason"
             ;;
         *)
+            case "$_ucl_reason" in
+                source-style-compatibility)
+                    _ucl_warning='这款字体的部分字重或斜体不适合通用引擎，本次已切换到兼容引擎处理。超范围字重使用字体支持的边界粗细，部分斜体效果可能不同。'
+                    ;;
+                static-weight-compatibility)
+                    _ucl_warning='这款字体没有提供全部精确字重，本次已切换到兼容引擎处理。部分粗细可能相同，请以最终应用结果为准。'
+                    ;;
+                *) _ucl_warning='通用引擎本次未通过准备检查，已切换到兼容引擎处理。请以最终任务结果为准。' ;;
+            esac
             _uc_log "WARN universal path not ready; continuing with compatibility path font=$_ucl_font reason=$_ucl_reason"
             ;;
     esac
+    # This task-owned sidecar survives later stage messages, so a fast fallback
+    # is still reported by the final task receipt and not missed by App polling.
+    if [ -n "$PROGRESS_FILE" ]; then
+        _ucl_warning_code=''
+        [ -z "$_ucl_warning" ] || _ucl_warning_code=compatibility-engine
+        {
+            printf 'engine=compatibility\n'
+            printf 'warningCode=%s\n' "$_ucl_warning_code"
+            printf 'warningMessage=%s\n' "$_ucl_warning"
+        } > "$PROGRESS_FILE.warning.tmp.$$" &&
+            mv -f "$PROGRESS_FILE.warning.tmp.$$" "$PROGRESS_FILE.warning" || true
+    fi
     _uc_write_state fallback "$_ucl_font" legacy "$_ucl_reason"
-    _uc_progress 25 "正在使用兼容字体切换路径"
+    _uc_progress 25 "已切换兼容引擎，正在继续处理字体"
 
     # The physical publisher snapshots and supersedes queued selections only on commit.
     [ -f "$LEGACY_SWITCH" ] || {
@@ -182,6 +204,17 @@ _uc_switch() {
         _uc_legacy "$_uc_font" default-font
         return $?
     fi
+    ZIYU_FONT_CLIP_ENABLED=$(sh "$MODDIR/common/font_clipping_compat.sh" mode "$_uc_font") || {
+        printf '{"status":"error","message":"无法读取本字体防裁切设置，本次未提交负载"}\n'
+        return 1
+    }
+    export ZIYU_FONT_CLIP_ENABLED
+    if [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ]; then
+        # The checked physical publisher preserves OEM line metrics while it
+        # fits donor outlines. Do not return success from an unaffected path.
+        _uc_legacy "$_uc_font" font-clipping-compatibility
+        return $?
+    fi
     if [ -n "${LUOSHU_REAL_MODDIR:-}" ]; then
         _uc_legacy "$_uc_font" composite-runtime
         return $?
@@ -222,13 +255,25 @@ _uc_switch() {
         sh "$DEPLOYMENT" prepare "$_uc_font" 2>&1)
     _uc_prepare_rc=$?
     _uc_log "universal prepare finished font=$_uc_font rc=$_uc_prepare_rc budget=${_uc_prepare_budget}s"
-    printf '%s\n' "$_uc_prepare_output" | tail -c 12000 >> "$LOG_FILE" 2>/dev/null || true
+    case "$_uc_prepare_rc" in
+        0|125|129|130|143)
+            printf '%s\n' "$_uc_prepare_output" | tail -c 12000 >> "$LOG_FILE" 2>/dev/null || true
+            ;;
+        *)
+            # Retain raw detail inside warning records for a recoverable attempt.
+            # Unconfirmed cleanup and final compatibility failures stay errors.
+            printf '%s\n' "$_uc_prepare_output" | tail -c 12000 | sed 's/^/[WARN] [UNIVERSAL-ATTEMPT] /' >> "$LOG_FILE" 2>/dev/null || true
+            ;;
+    esac
     case "$_uc_prepare_rc" in
         3)
-            if printf '%s\n' "$_uc_prepare_output" | grep -Fq '"status":"compatibility-required"' &&
-               printf '%s\n' "$_uc_prepare_output" | grep -Fq '"reason":"static-weight-compatibility"'; then
-                _uc_legacy "$_uc_font" static-weight-compatibility
-                return $?
+            if printf '%s\n' "$_uc_prepare_output" | grep -Fq '"status":"compatibility-required"'; then
+                for _uc_expected_reason in static-weight-compatibility source-style-compatibility; do
+                    if printf '%s\n' "$_uc_prepare_output" | grep -Fq "\"reason\":\"$_uc_expected_reason\""; then
+                        _uc_legacy "$_uc_font" "$_uc_expected_reason"
+                        return $?
+                    fi
+                done
             fi
             ;;
         125|129|130|143)
@@ -260,11 +305,12 @@ _uc_switch() {
         --deployment "$UC_DEPLOYMENT" \
         --payload-root "$UC_PAYLOAD" 2>&1)
     _uc_gate_rc=$?
-    _uc_log "WARN universal readiness decision font=$_uc_font rc=$_uc_gate_rc result=$_uc_gate_output"
     if [ "$_uc_gate_rc" -ne 0 ] || ! printf '%s' "$_uc_gate_output" | grep -q '"eligible":true'; then
+        _uc_log "WARN universal readiness decision font=$_uc_font rc=$_uc_gate_rc result=$_uc_gate_output"
         _uc_legacy "$_uc_font" universal-readiness-gate-rejected
         return $?
     fi
+    _uc_log "INFO universal readiness decision font=$_uc_font rc=$_uc_gate_rc result=$_uc_gate_output"
 
     _uc_progress 88 "通用引擎验证通过，正在准备下一次启动"
     _uc_stage_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" CONFIG_DIR="$CONFIG_DIR" \

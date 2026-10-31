@@ -66,6 +66,7 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.xgl34222220.ziyu.ui.settings.SystemCenterViewModel
@@ -139,6 +140,9 @@ import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.roundToInt
 
@@ -187,8 +191,22 @@ internal fun ZiyuAppShell(
     var restoreDefault by remember { mutableStateOf(false) }
     var pickerSlot by remember { mutableStateOf<MixSlot?>(null) }
 
-    LaunchedEffect(Unit) {
-        viewModel.refresh()
+    LaunchedEffect(lifecycleOwner, viewModel) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.refresh()
+            snapshotFlow { viewModel.snapshot.awaitingBootVerification }.collectLatest { pending ->
+                if (pending) {
+                    // Stay read-only and stop on success, failure, background,
+                    // a new apply request, or the bounded verification window.
+                    withTimeoutOrNull(120_000L) {
+                        while (viewModel.snapshot.awaitingBootVerification) {
+                            delay(5_000L)
+                            viewModel.refreshFontRuntime()
+                        }
+                    }
+                }
+            }
+        }
     }
     LaunchedEffect(page) {
         when (page) {

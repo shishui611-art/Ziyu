@@ -57,6 +57,15 @@ internal data class ModuleSnapshot(
     val mountEngine: String = "未知",
     val error: String = "",
 ) {
+    // A consumed reboot queue can still be waiting for the bounded boot verifier.
+    // Poll that transition only; an unconsumed queue still needs a real reboot.
+    val awaitingBootVerification: Boolean
+        get() = rootGranted && installed && error.isBlank() && !loading &&
+            activeFont !in setOf("", "default") && !rebootRequired && !rollbackPending &&
+            taskState !in setOf("queued", "running") &&
+            (fontEffectState in setOf("pending", "unverified", "unknown") ||
+                (fontEffectState in setOf("verified", "partial") && effectiveFont != activeFont))
+
     val activeLabel: String
         get() = when (activeFont) {
             "mix" -> "完整复合字体"
@@ -232,18 +241,11 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                         timeoutMs = 15_000L,
                     ))
                 }
-                var capabilityMessage = ""
-                val multiWeight = if (font?.variable == true) {
-                    val info = resolveFontAxisInfo(font)
-                    if (info.error.isNotBlank()) capabilityMessage = "字重能力尚未确认，粗细暂不显示；可重新读取"
-                    info.error.isBlank() && info.axes.any { it.tag == "wght" && it.min < it.max }
-                } else font != null && io.github.xgl34222220.ziyu.ui.font.fontStaticWeights(font).size > 1
                 if (snapshot.activeFont == fontId && fonts.firstOrNull { it.id == fontId }?.sourceRevision.orEmpty() == revision) {
                     typographyModuleRevision = moduleRevision
                     displayTypography = DisplayTypographyState(
                         fontId = fontId, sourceRevision = revision, loading = false, values = values,
-                        supportsWeight = values.sdk >= 31 && multiWeight,
-                        message = listOf(displayMessage, capabilityMessage).filter { it.isNotBlank() }.joinToString("；"),
+                        message = displayMessage,
                     )
                 }
             } catch (cancelled: CancellationException) {
@@ -254,20 +256,19 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun applyDisplayTypography(scale: Int, weight: Int?, density: Int) {
+    fun applyDisplayTypography(scale: Int, density: Int) {
         val current = displayTypography
         val old = current.values ?: return
         val font = fonts.firstOrNull { it.id == snapshot.activeFont }
         if (current.fontId != snapshot.activeFont || current.sourceRevision != font?.sourceRevision.orEmpty() ||
             current.loading || current.saving || operationBusy || mixState.busy ||
             snapshot.taskState in setOf("queued", "running") || snapshot.activeFont == "mix" || font?.combination == true) return
-        if (scale !in 50..200 || density !in old.densityMin..old.densityMax ||
-            (weight != null && (!current.supportsWeight || weight !in -1000..1000))) return
+        if (scale !in 50..200 || density !in old.densityMin..old.densityMax) return
         displayTypography = current.copy(saving = true, error = "", message = "")
         typographyJob = viewModelScope.launch {
             try {
                 val command = "sh ${RootShell.quote(bridge)} display_typography apply " +
-                    "${old.user} ${old.scale} ${old.weight} ${old.density} $scale ${weight ?: "keep"} $density " +
+                    "${old.user} ${old.scale} ${old.weight} ${old.density} $scale keep $density " +
                     "${RootShell.quote(android.os.Build.FINGERPRINT)} ${android.os.Build.VERSION.SDK_INT}"
                 val (values, message) = parseDisplayTypography(RootShell.exec(command, timeoutMs = 25_000L))
                 displayTypography = current.copy(values = values, saving = false, message = message)
@@ -511,6 +512,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun scheduleConfirmedRestart() {
+        if (fontCompatibilityNotice != null) {
+            restartAfterCompatibilityNotice = true
+            return
+        }
         restartJob?.cancel()
         restartJob = viewModelScope.launch {
             rebootDevice()
@@ -560,6 +565,32 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
 
     var operationMessage by mutableStateOf("")
         private set
+    var fontCompatibilityNotice by mutableStateOf<String?>(null)
+        private set
+    private var compatibilityNoticeTask = ""
+    private var restartAfterCompatibilityNotice = false
+
+    fun dismissFontCompatibilityNotice() {
+        fontCompatibilityNotice = null
+        if (restartAfterCompatibilityNotice) {
+            restartAfterCompatibilityNotice = false
+            if (rebootRequired) scheduleConfirmedRestart()
+        }
+    }
+
+    private fun acceptFontCompatibilityNotice(taskId: String, data: JSONObject) {
+        if (data.optString("state") in setOf("failed", "cancelled")) {
+            fontCompatibilityNotice = null
+            restartAfterCompatibilityNotice = false
+            return
+        }
+        val notice = data.optString("warningMessage").take(2000)
+        if (data.optString("warningCode") == "compatibility-engine" &&
+            notice.isNotBlank() && compatibilityNoticeTask != taskId) {
+            compatibilityNoticeTask = taskId
+            fontCompatibilityNotice = notice
+        }
+    }
 
     var fontTaskNotification by mutableStateOf<FontTaskNotificationSpec?>(null)
         private set
@@ -618,8 +649,16 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun refresh() {
-        if (refreshJob?.isActive == true) return
-        snapshot = snapshot.copy(loading = true, error = "")
+        refreshModuleState(includeExtras = true)
+    }
+
+    internal suspend fun refreshFontRuntime() {
+        refreshModuleState(includeExtras = false).join()
+    }
+
+    private fun refreshModuleState(includeExtras: Boolean): Job {
+        refreshJob?.takeIf { it.isActive }?.let { return it }
+        if (includeExtras) snapshot = snapshot.copy(loading = true, error = "")
         refreshJob = viewModelScope.launch {
             val result = RootShell.exec(
                 "if [ -f ${RootShell.quote(bridge)} ]; then sh ${RootShell.quote(bridge)} status; " +
@@ -637,12 +676,13 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val parsed = parseSnapshot(result.stdout)
             snapshot = parsed
             rebootRequired = parsed.rebootRequired
-            if (parsed.installed) {
+            if (parsed.installed && includeExtras) {
                 refreshReadExtras()
             }
             resumePendingTask(parsed)
-            if (parsed.installed) requestFontPrewarm()
+            if (parsed.installed && includeExtras) requestFontPrewarm()
         }
+        return checkNotNull(refreshJob)
     }
 
     fun ensureFonts(force: Boolean = false) {
@@ -1012,6 +1052,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
 
     private fun startApplyFont(fontId: String, restartAfter: Boolean) {
         if (operationBusy || mixState.busy) return
+        fontCompatibilityNotice = null
+        restartAfterCompatibilityNotice = false
         operationBusy = true
         operationMessage = if (fontId == "default") "正在准备恢复系统字体…" else "正在验证并应用字体…"
         updateFontTaskNotification("switch", "queued", operationMessage)
@@ -1269,6 +1311,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         operationBusy = true
         try {
             val result = waitForTask("switch_status", taskId, timeoutSeconds = 390) { data ->
+                acceptFontCompatibilityNotice(taskId, data)
                 operationMessage = data.optString("message", "正在处理字体…")
                 updateFontTaskNotification("switch", data.optString("state", "running"), operationMessage,
                     data.optInt("percent", snapshot.taskProgress).coerceIn(0, 100))
@@ -1319,10 +1362,15 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             updateFontTaskNotification("switch", "success", operationMessage, 100)
             persistFontIndex(currentFont = applied)
             refreshActionStatus()
-            if (nextRebootRequired && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
+            // The task receipt describes preparation. Read the current mount
+            // state separately, including a reboot completed during polling.
+            refreshFontRuntime()
+            if (rebootRequired && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
+            fontCompatibilityNotice = null
+            restartAfterCompatibilityNotice = false
             operationMessage = error.message ?: "字体应用失败"
             snapshot = snapshot.copy(taskState = "failed", taskMessage = operationMessage, taskProgress = 100)
             updateFontTaskNotification("switch", "failed", operationMessage)

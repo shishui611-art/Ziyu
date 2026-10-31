@@ -80,6 +80,20 @@ write_task() {
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
     [ "$_percent" -ge 0 ] 2>/dev/null || _percent=0
     [ "$_percent" -le 100 ] 2>/dev/null || _percent=100
+    _engine=''; _warning_code=''; _warning_message=''
+    _task_warning="${TASK_FILE}.progress.${_task}.warning"
+    if [ -f "$_task_warning" ] && [ ! -L "$_task_warning" ]; then
+        while IFS='=' read -r _warning_key _warning_value || [ -n "$_warning_key" ]; do
+            case "$_warning_key" in
+                engine) _engine=$_warning_value ;;
+                warningCode) _warning_code=$_warning_value ;;
+                warningMessage) _warning_message=$_warning_value ;;
+            esac
+        done < "$_task_warning"
+    fi
+    if [ "$_engine" = compatibility ] && [ "$_state" = running ]; then
+        _message="$_percent% · 兼容引擎：${_message#*· }"
+    fi
     mkdir -p "${TASK_FILE%/*}" 2>/dev/null || return 1
     _tmp="${TASK_FILE}.tmp.$$"
     {
@@ -99,6 +113,7 @@ write_task() {
         printf 'liveApplied=%s\n' "$_live_applied"
         printf 'rebootRequired=%s\n' "$_reboot_required"
         printf 'uiCacheRefreshRequired=%s\n' "$_ui_cache_refresh"
+        printf 'engine=%s\nwarningCode=%s\nwarningMessage=%s\n' "$_engine" "$_warning_code" "$_warning_message"
     } > "$_tmp" 2>/dev/null || return 1
     mv -f "$_tmp" "$TASK_FILE" 2>/dev/null || return 1
     chmod 0644 "$TASK_FILE" 2>/dev/null || true
@@ -313,7 +328,7 @@ run_worker() {
     _worker_task=$_task
     _output="${TASK_FILE}.output.${_task}"
     _progress="${TASK_FILE}.progress.${_task}"
-    trap 'rm -f "$_progress" 2>/dev/null || true; type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_worker_task"' EXIT
+    trap 'rm -f "$_progress" "$_progress.warning" 2>/dev/null || true; type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_worker_task"' EXIT
     trap 'worker_signal_exit 129' HUP
     trap 'worker_signal_exit 130' INT
     trap 'worker_signal_exit 143' TERM
@@ -471,15 +486,45 @@ status_task() {
     _live_applied=$(read_value liveApplied)
     _reboot_required=$(read_value rebootRequired)
     _ui_cache_refresh=$(read_value uiCacheRefreshRequired)
+    _engine=$(read_value engine); _warning_code=$(read_value warningCode); _warning_message=$(read_value warningMessage)
     [ "$_ui_cache_refresh" = true ] || _ui_cache_refresh=false
     [ "$_live_applied" = true ] || _live_applied=false
     case "$_reboot_required" in true|false) ;; *) _reboot_required=null ;; esac
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
+    # KernelSU soft reboot preserves boot_id. Bind completion to the exact
+    # activation request and the current generation proof, not a boot-id change.
+    if [ "$_state" = success ] && [ "$_reboot_required" != false ] &&
+       [ ! -e "$MODDIR/config/text_reboot_required.conf" ] &&
+       [ ! -e "$MODDIR/config/font-payload-next.conf" ] &&
+       [ ! -e "$MODDIR/config/universal-font-next.conf" ] &&
+       [ ! -e "$MODDIR/config/font-live-transaction.conf" ]; then
+        . "$MODDIR/common/font_live_state.sh"
+        _st_activation="$MODDIR/config/font-payload-activated.conf"
+        _st_verify="$MODDIR/config/device-font-load-verification.conf"
+        _st_boot=$(current_boot_id)
+        _st_manifest_hash=$(ziyu_live_value "$_st_verify" payloadManifestSha256)
+        case "$_st_manifest_hash" in ''|*[!0-9a-f]*) _st_manifest_hash=invalid ;; esac
+        if [ "$(ziyu_live_value "$_st_activation" requestId)" = "$_task" ] &&
+           [ "$(ziyu_live_value "$_st_activation" font)" = "$_font" ] &&
+           [ "$(ziyu_live_value "$_st_activation" bootId)" = "$_st_boot" ] &&
+           [ "$(head -n1 "$MODDIR/config/active_font.conf" | tr -d '\r\n')" = "$_font" ] &&
+           [ "$(ziyu_live_value "$_st_verify" activeFont)" = "$_font" ] &&
+           [ "$(ziyu_live_value "$_st_verify" bootId)" = "$_st_boot" ] &&
+           [ -s "$MODDIR/config/font-payload-manifest.conf" ] &&
+           [ "${#_st_manifest_hash}" -eq 64 ] &&
+           [ "$_st_manifest_hash" = "$(sha256sum "$MODDIR/config/font-payload-manifest.conf" | awk '{print $1}')" ]; then
+            case "$(ziyu_live_value "$_st_verify" state)" in
+                verified) _reboot_required=false; _message='字体已应用，本次启动挂载验证通过' ;;
+                partial) _reboot_required=false; _message='字体已应用；部分槽位存在提示，请查看验证详情' ;;
+            esac
+        fi
+    fi
     if [ "$_state" = success ] && [ -f "$STATUS_SCRIPT" ]; then MODDIR="$MODDIR" sh "$STATUS_SCRIPT" "$_font" >/dev/null 2>&1 || true; fi
-    printf '{"status":"ok","data":{"task":"%s","state":"%s","font":"%s","message":"%s","started":%s,"finished":%s,"heartbeat":%s,"timeout":%s,"elapsed":%s,"percent":%s,"bootId":"%s","reused":%s,"liveApplied":%s,"rebootRequired":%s,"uiCacheRefreshRequired":%s}}\n' \
+    printf '{"status":"ok","data":{"task":"%s","state":"%s","font":"%s","message":"%s","started":%s,"finished":%s,"heartbeat":%s,"timeout":%s,"elapsed":%s,"percent":%s,"bootId":"%s","reused":%s,"liveApplied":%s,"rebootRequired":%s,"uiCacheRefreshRequired":%s,"engine":"%s","warningCode":"%s","warningMessage":"%s"}}\n' \
         "$(json_escape "$_task")" "$(json_escape "$_state")" "$(json_escape "$_font")" "$(json_escape "$_message")" \
         "${_started:-0}" "${_finished:-0}" "${_heartbeat:-0}" "${_timeout:-$TIMEOUT_SECONDS}" "${_elapsed:-0}" "$_percent" \
-        "$(json_escape "$_boot")" "$_reused" "$_live_applied" "$_reboot_required" "$_ui_cache_refresh"
+        "$(json_escape "$_boot")" "$_reused" "$_live_applied" "$_reboot_required" "$_ui_cache_refresh" \
+        "$(json_escape "$_engine")" "$(json_escape "$_warning_code")" "$(json_escape "$_warning_message")"
 }
 
 case "${1:-status}" in

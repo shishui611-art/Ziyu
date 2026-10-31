@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Warning
+import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon
+import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
@@ -22,6 +26,20 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
  */
 @Composable
 internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
+    viewModel.fontCompatibilityNotice?.let { message ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissFontCompatibilityNotice,
+            icon = { ZiyuIcon(Icons.Rounded.Warning, contentDescription = null, tint = LocalZiyuPaletteTokens.current.warning) },
+            title = { ZiyuText("已切换兼容引擎") },
+            text = { ZiyuText(message) },
+            confirmButton = {
+                ZiyuButton(onClick = viewModel::dismissFontCompatibilityNotice, modifier = Modifier.fillMaxWidth()) {
+                    ZiyuText("知道了")
+                }
+            },
+            dismissButton = null,
+        )
+    }
     if (viewModel.rebootChoiceVisible) {
         AlertDialog(
             onDismissRequest = viewModel::dismissRebootChoice,

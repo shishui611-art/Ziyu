@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import struct
+import sys
 import tempfile
 import time
 
@@ -46,6 +47,7 @@ from font_ligatures import plan_latin_ligatures
 from composite_font import LATIN_CODEPOINTS, DIGIT_CODEPOINTS, _pick_face, _progress
 import font_inventory as stock_inventory
 import font_parallel
+import font_clipping_compat
 import font_source_profile
 import stock_font_snapshot
 
@@ -654,7 +656,15 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     cmap, source = font.getBestCmap() or {}, donor.getBestCmap() or {}
     source_glyphs = donor.getGlyphSet()
     donor_metrics = donor['hmtx'].metrics
-    scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
+    clipping = font_clipping_compat.plan(font, donor, outline_cache, recordings)
+    scale = font['head'].unitsPerEm / donor['head'].unitsPerEm * clipping['scale']
+    baseline = clipping['baseline']
+
+    def transformed_bounds(bounds):
+        if bounds is None:
+            return None
+        x0, y0, x1, y1 = bounds
+        return (x0 * scale, y0 * scale + baseline, x1 * scale, y1 * scale + baseline)
     converted = {}
     # Recordings belong to this donor and are not changed by replacement.
     # Reuse only the raw outline bounds between faces with the same outline kind
@@ -663,18 +673,18 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     if outline_cache is None:
         outline_bounds = {}
     else:
-        outline_bounds = outline_cache.setdefault((kind, scale, kind == 'glyf' and 'fvar' in font), {})
+        outline_bounds = outline_cache.setdefault((kind, scale, baseline, kind == 'glyf' and 'fvar' in font), {})
 
     # Cache immutable, already-rounded simple glyph bytes by source and UPEM
     # scale. Each target gets its own Glyph object; variation/metric edits never
     # leak between stock faces. Scope is one donor in one finite worker.
-    templates = (outline_cache.setdefault(('glyf-templates', scale, 'fvar' in font), {})
+    templates = (outline_cache.setdefault(('glyf-templates', scale, baseline, 'fvar' in font), {})
                  if outline_cache is not None and kind == 'glyf' else {})
-    cff_templates = (outline_cache.setdefault(('cff-templates', kind, scale), {})
+    cff_templates = (outline_cache.setdefault(('cff-templates', kind, scale, baseline), {})
                      if outline_cache is not None and kind != 'glyf' else {})
 
     native_cache, native_report = None, {'engine': 'fonttools'}
-    if (kind == 'glyf' and native_source is not None and outline_cache is not None
+    if (not clipping['transformed'] and kind == 'glyf' and native_source is not None and outline_cache is not None
             and font['maxp'].numGlyphs >= 512):
         from font_native_glyphs import prepare as native_glyphs
         native_key = ('native-glyphs', font['head'].unitsPerEm)
@@ -689,7 +699,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
         native_cache, native_report = outline_cache[native_key]
 
     native_cff = None
-    if kind != 'glyf' and native_source is not None and outline_cache is not None:
+    if not clipping['transformed'] and kind != 'glyf' and native_source is not None and outline_cache is not None:
         from font_native_cff import prepare as prepare_cff
         cff_key = ('native-cff', font['head'].unitsPerEm)
         if cff_key not in outline_cache:
@@ -725,7 +735,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             recordings[source_name] = draw_record(source_glyphs, source_name)
         output = Cu2QuPen(pen, max_err=max(0.5, font['head'].unitsPerEm / 2000),
                           reverse_direction='glyf' not in donor)
-        recordings[source_name].replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+        recordings[source_name].replay(TransformPen(output, (scale, 0, 0, scale, 0, baseline)))
         glyph = pen.glyph()
         glyph.recalcBounds(font['glyf'])
         if 'fvar' in font and glyph.numberOfContours > 0:
@@ -773,7 +783,8 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                 glyph = converted_glyph(source_name)
                 converted[(source_name,)] = glyph
                 outline_bounds[source_name] = (
-                    tuple(getattr(glyph, key) / scale for key in ('xMin', 'yMin', 'xMax', 'yMax'))
+                    (glyph.xMin / scale, (glyph.yMin - baseline) / scale,
+                     glyph.xMax / scale, (glyph.yMax - baseline) / scale)
                     if glyph.numberOfContours else None)
             else:
                 pen = BoundsPen(None)
@@ -841,7 +852,6 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     retained_unsafe = 0
     unsafe_details = []
     if preserve_unsafe:
-        scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
         frame, header = font['head'], font['hhea']
         reverse_cmap = None
         for name, source_name in list(mapping.items()):
@@ -860,7 +870,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                 if bearing != 0:
                     reasons.append('empty-glyph-bearing')
             if bounds is not None:
-                x0, y0, x1, y1 = (value * scale for value in bounds)
+                x0, y0, x1, y1 = transformed_bounds(bounds)
                 outline_width = x1 - x0
                 if expand_bounds and any(value < -32768 or value > 32767 for value in (x0, y0, x1, y1)):
                     reasons.append('frame-range')
@@ -915,7 +925,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                                        for codepoint in sorted(reverse_cmap.get(name, []))[:8]],
                         'reasons': reasons, 'width': width, 'bearing': bearing,
                         'bounds': None if bounds is None
-                        else [round(value * scale, 3) for value in bounds]})
+                        else [round(value, 3) for value in transformed_bounds(bounds)]})
     dependency_proof = (copy_retained_dependencies(font, mapping)
                         if preserve_dependencies and 'glyf' in font else None)
     counts = dict.fromkeys(counts, 0)
@@ -929,7 +939,6 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                 **donor_report, 'targetStylePreserved': True}
     if '.notdef' in mapping:
         raise ValueError('原厂编码映射指向缺字槽，不能覆盖 .notdef')
-    scale = font['head'].unitsPerEm / donor['head'].unitsPerEm
     frame = font['head']
     conversion_retained, failed_sources, cff_bounds = [], set(), {}
     # Generated programs have no subroutines/hints/blends. Their rounded
@@ -937,14 +946,14 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     # Share these few envelope-outlier bounds between faces under the existing
     # worker cache budget, without keeping decoded CharString programs alive.
     converted_cff_bounds = {}
-    shared_cff_bounds = (outline_cache.setdefault(('cff-output-bounds', kind, scale), {})
+    shared_cff_bounds = (outline_cache.setdefault(('cff-output-bounds', kind, scale, baseline), {})
                          if outline_cache is not None and kind != 'glyf' else {})
     for target_name, source_name in mapping.items():
         bounds = bounds_for(source_name)
         # Descriptive bounds can grow without shrinking individual donor glyphs
         # or changing the stock ascent, descent, line spacing or vertical origin.
         if bounds is not None and not expand_bounds:
-            x0, y0, x1, y1 = (coordinate * scale for coordinate in bounds)
+            x0, y0, x1, y1 = transformed_bounds(bounds)
             if x0 < frame.xMin - 1 or y0 < frame.yMin - 1 or x1 > frame.xMax + 1 or y1 > frame.yMax + 1:
                 raise ValueError(f'来源字形 {source_name} 超出本机原厂字体面边界')
         width, bearing = donor_metrics[source_name]
@@ -974,6 +983,9 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     conversion_retained.append(target_name)
                     continue
             glyph = converted[key]
+            font_clipping_compat.verify_bounds(
+                (glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax) if glyph.numberOfContours else None,
+                clipping)
             vertical = retained_vertical_deltas(font, target_name)
             old_origin = None
             if 'vmtx' in font:
@@ -1048,7 +1060,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                         # Degree elevation preserves the curve; retain the same
                         # scaling, integer rounding and Type 2 specialization.
                         output = ReverseContourPen(pen) if 'glyf' in donor else pen
-                        recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, 0)))
+                        recording.replay(TransformPen(output, (scale, 0, 0, scale, 0, baseline)))
                         char = pen.getCharString(private=private, globalSubrs=cff.GlobalSubrs)
                         if outline_cache is not None:
                             outline_cache['cffConversions'] = outline_cache.get('cffConversions', 0) + 1
@@ -1077,7 +1089,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             if expand_bounds and bounds is not None:
                 # Existing source bounds are cached. Decode the emitted CFF
                 # program only when rounding could require a larger envelope.
-                x0, y0, x1, y1 = (value * scale for value in bounds)
+                x0, y0, x1, y1 = transformed_bounds(bounds)
                 bbox = top.FontBBox if kind == 'CFF ' else [frame.xMin, frame.yMin, frame.xMax, frame.yMax]
                 vertical_growth = False
                 if 'vhea' in font and 'vmtx' in font:
@@ -1086,7 +1098,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                     vertical_growth = (top_bearing < vheader.minTopSideBearing
                         or advance - top_bearing - (y1 - y0 + 2) < vheader.minBottomSideBearing
                         or top_bearing + y1 - y0 + 2 > vheader.yMaxExtent)
-                if (x0 - 1 < max(frame.xMin, bbox[0]) or y0 - 1 < max(frame.yMin, bbox[1])
+                if (clipping['enabled'] or x0 - 1 < max(frame.xMin, bbox[0]) or y0 - 1 < max(frame.yMin, bbox[1])
                         or x1 + 1 > min(frame.xMax, bbox[2]) or y1 + 1 > min(frame.yMax, bbox[3])
                         or bearing < header.minLeftSideBearing
                         or width - bearing - (x1 - x0 + 2) < header.minRightSideBearing
@@ -1115,6 +1127,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
                                     outline_cache['templateBytes'] = used + cost
                         converted_cff_bounds[key] = actual
                     cff_bounds[target_name] = converted_cff_bounds[key]
+                    font_clipping_compat.verify_bounds(cff_bounds[target_name], clipping)
         font['hmtx'][target_name] = (width, bearing)
     if conversion_retained:
         for name in conversion_retained:
@@ -1135,6 +1148,11 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             del font[tag]
     conflict_report = [{'glyph': name, 'codepoints': ['U+%04X' % cp for cp in codepoints]}
                        for name, codepoints in sorted(shared_conflicts.items())]
+    if clipping['enabled']:
+        print('[CLIP-FIT] ' + json.dumps({
+            'phase': 'generated-awaiting-transaction',
+            'target': target, 'fit': clipping,
+        }, ensure_ascii=False, sort_keys=True), file=sys.stderr)
     return {'mode': 'compiled', 'replaced': counts, 'uncovered': uncovered,
             'outlineEngine': native_report,
             'retainedUnsafeSlots': retained_unsafe,
@@ -1145,7 +1163,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
             'retainedUnencodedGlyphs': True,
             'retainedSharedConflictSlots': len(shared_conflicts),
             'retainedSharedConflicts': conflict_report[:16],
-            'boundsExpansion': expand_bounds, **bounds_report,
+            'boundsExpansion': expand_bounds, 'clippingFit': clipping, **bounds_report,
             **({'dependencyProof': dependency_proof} if dependency_proof else {}),
             'outline': kind, 'retainedVariationAxes': 'fvar' in font,
             'replacementVariation': 'selected-fixed-weight',

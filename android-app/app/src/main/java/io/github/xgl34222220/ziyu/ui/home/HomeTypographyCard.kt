@@ -27,14 +27,12 @@ internal fun HomeTypographyCard(state: HomeUiState, actions: HomeActions) {
     val palette = LocalZiyuPaletteTokens.current
     val layout = LocalZiyuThemeTokens.current.layout
     var scale by rememberSaveable(state.currentFontId) { mutableIntStateOf(values?.scale ?: 100) }
-    var weight by rememberSaveable(state.currentFontId) { mutableIntStateOf(values?.weight ?: 0) }
     var density by rememberSaveable(state.currentFontId) { mutableIntStateOf(values?.density ?: 0) }
     LaunchedEffect(values) {
-        values?.let { scale = it.scale; weight = it.weight; density = it.density }
+        values?.let { scale = it.scale; density = it.density }
     }
     val enabled = values != null && !data.loading && !data.saving && !state.taskRunning && state.rootGranted
-    val dirty = values != null && (scale != values.scale || density != values.density ||
-        data.supportsWeight && weight != values.weight)
+    val dirty = values != null && (scale != values.scale || density != values.density)
     ZiyuCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = palette.cardBackground, contentColor = palette.textPrimary),
@@ -44,21 +42,17 @@ internal fun HomeTypographyCard(state: HomeUiState, actions: HomeActions) {
                 ZiyuGlyph(Icons.Rounded.Tune, null, ZiyuIconTokens.SectionGlyph, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
                     ZiyuText("全局字体与显示", style = MaterialTheme.typography.titleMedium)
-                    ZiyuText("字体大小、粗细与屏幕密度", style = MaterialTheme.typography.bodySmall, color = palette.textSecondary)
+                    ZiyuText("字体大小与屏幕密度", style = MaterialTheme.typography.bodySmall, color = palette.textSecondary)
                 }
             }
+            ZiyuText(
+                "字体粗细请在手机「设置」的字体设置中调整，由系统统一管理。此处调整字号、DPI 或恢复默认数值时，均保留系统当前粗细。",
+                style = MaterialTheme.typography.bodySmall, color = palette.textSecondary,
+            )
             if (data.loading) {
-                ZiyuText("正在读取本地配置与字体能力…", color = palette.textSecondary)
+                ZiyuText("正在读取显示配置…", color = palette.textSecondary)
             } else if (values != null) {
                 TypographySlider("字体大小", "$scale%", scale, 50..200, enabled) { scale = it }
-                if (data.supportsWeight) {
-                    ZiyuHorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
-                    TypographySlider(
-                        "字体粗细", if (weight == 0) "标准" else if (weight > 0) "+$weight" else "$weight",
-                        weight, minOf(-300, values.weight)..maxOf(300, values.weight), enabled, step = 10,
-                    ) { weight = it }
-                    ZiyuText("系统字重偏移，0 为原始粗细", style = MaterialTheme.typography.bodySmall, color = palette.textSecondary)
-                }
                 ZiyuHorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
                 TypographySlider("屏幕 DPI", "$density", density, values.densityMin..values.densityMax, enabled) { density = it }
                 ZiyuText(
@@ -67,11 +61,11 @@ internal fun HomeTypographyCard(state: HomeUiState, actions: HomeActions) {
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ZiyuOutlinedButton(
-                        onClick = { scale = 100; weight = 0; density = values.baseDensity },
+                        onClick = { scale = 100; density = values.baseDensity },
                         enabled = enabled, modifier = Modifier.weight(1f),
                     ) { ZiyuText("默认数值") }
                     ZiyuButton(
-                        onClick = { actions.applyTypography(scale, weight.takeIf { data.supportsWeight }, density) },
+                        onClick = { actions.applyTypography(scale, density) },
                         enabled = enabled && dirty && scale in 50..200, modifier = Modifier.weight(1f),
                     ) { ZiyuText(if (data.saving) "应用中…" else "应用调整") }
                 }

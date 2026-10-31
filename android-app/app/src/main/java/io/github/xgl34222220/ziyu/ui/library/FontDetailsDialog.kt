@@ -201,6 +201,7 @@ internal fun FontDetailsDialogRoute(
             }
 
             Spacer(Modifier.height(18.dp))
+            FontClippingControl(font = font, busy = busy)
             Text("字体信息", color = primaryText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text("快速查看这款字体的能力、字重与文件信息", color = secondaryText, fontSize = 12.sp)
             Spacer(Modifier.height(9.dp))

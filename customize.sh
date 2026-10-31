@@ -131,6 +131,23 @@ ziyu_identity_finish "$MODPATH" "$_lc_real_old_mod" || {
 }
 # Settings services may be unavailable in recovery/early boot. Attempt one
 # bounded, read-only initialization; the App fills a missing cache on first use.
+# Preserve only small regular per-font clipping preferences during upgrades.
+# Their schema/font binding is rechecked by the runtime before use.
+if [ "$_lc_real_old_mod" != "$MODPATH" ] && \
+   [ -d "$_lc_real_old_mod/config/font-clipping-preferences" ] && \
+   [ ! -L "$_lc_real_old_mod/config/font-clipping-preferences" ]; then
+    [ ! -L "$MODPATH/config/font-clipping-preferences" ] || abort '防裁切偏好目录不可为符号链接'
+    mkdir -p "$MODPATH/config/font-clipping-preferences" || abort '防裁切偏好目录创建失败'
+    for _lc_clip_file in "$_lc_real_old_mod/config/font-clipping-preferences/"*.json; do
+        [ -f "$_lc_clip_file" ] && [ ! -L "$_lc_clip_file" ] || continue
+        _lc_clip_name=${_lc_clip_file##*/}
+        printf '%s\n' "$_lc_clip_name" | grep -Eq '^[0-9a-f]{64}\.json$' || continue
+        _lc_clip_size=$(wc -c < "$_lc_clip_file")
+        [ "$_lc_clip_size" -le 4096 ] || continue
+        [ -e "$MODPATH/config/font-clipping-preferences/$_lc_clip_name" ] || \
+            cp -p "$_lc_clip_file" "$MODPATH/config/font-clipping-preferences/$_lc_clip_name" || abort '防裁切偏好迁移失败'
+    done
+fi
 for _lc_display_config in display-config-storage.conf display-typography.conf display-typography-dirty; do
     if [ ! -e "$MODPATH/config/$_lc_display_config" ] && \
        [ -f "$_lc_real_old_mod/config/$_lc_display_config" ] && [ ! -L "$_lc_real_old_mod/config/$_lc_display_config" ]; then

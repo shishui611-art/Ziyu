@@ -21,7 +21,6 @@ data class DisplayTypographyState(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val values: DisplayTypographyValues? = null,
-    val supportsWeight: Boolean = false,
     val error: String = "",
     val message: String = "",
 )
