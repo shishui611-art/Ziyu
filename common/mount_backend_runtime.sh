@@ -360,17 +360,23 @@ _lbr_nomount_runtime_ready() {
         PROVIDER_REASON="$META_USABLE_REASON"
         return 1
     fi
-    META_NOMOUNT_CLI=''
-    for _lbr_nm_cli in "$_lbr_nm_dir/bin/nm" "$_lbr_nm_dir/nm" "$_lbr_nm_dir/nomount"; do
-        [ -x "$_lbr_nm_cli" ] || continue
-        META_NOMOUNT_CLI="$_lbr_nm_cli"
-        break
-    done
+    # Match the initial detector's ABI-aware path selection. A stale
+    # post-fs-data CLI path must not override the active metamodule instance.
+    META_NOMOUNT_CLI=$(_luoshu_nomount_cli_for_dir "$_lbr_nm_dir")
     if [ "$_lbr_selected" = self ]; then
         # Observe the API without changing the recorded provider exclusion that
         # belongs to the user's self-mount selection.
         luoshu_nomount_kernel_probe "$META_NOMOUNT_CLI"
         return $?
+    fi
+    if [ -z "$META_NOMOUNT_CLI" ]; then
+        META_READY=0
+        META_USABLE_REASON=nomount-cli-unavailable
+        PROVIDER_STATE=unknown
+        PROVIDER_REASON="$META_USABLE_REASON"
+        # A provider may finish installing its executable before service.
+        [ "$_lbr_stage" != post-mount ] || return 2
+        return 1
     fi
     if luoshu_nomount_kernel_probe "$META_NOMOUNT_CLI"; then
         META_READY=1

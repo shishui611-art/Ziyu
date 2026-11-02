@@ -208,6 +208,61 @@ actual_line=$(detect_nm_capability)
 }
 CHECKS=$((CHECKS + 1))
 unset NM_VERSION_RC
+
+# NoMount Suite uses an architecture-specific nm and its live driver answers
+# "nm v" (not "nm version"). Detect the real driver CLI, not the userspace
+# "nomount" manager, and keep the provider's early boot probe read-only.
+SUITE="$ADB/modules/meta-nomount"
+mkdir -p "$SUITE/bin/arm64-v8a"
+printf 'id=meta-nomount\nname=NoMount Suite\nmetamodule=1\n' > "$SUITE/module.prop"
+: > "$SUITE/metamount.sh"
+cat > "$SUITE/bin/arm64-v8a/nm" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+    version) exit 3 ;;
+    v) [ "${SUITE_V_FAIL:-0}" != 1 ] || exit 1; printf '22 NoMount Suite\n' ;;
+    *) exit 2 ;;
+esac
+SH
+chmod +x "$SUITE/bin/arm64-v8a/nm"
+suite_detect() {
+  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$SUITE" \
+  LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_NOMOUNT_TEST_ABI="${1:-arm64-v8a}" \
+  LUOSHU_META_PROVIDER_SCAN="${2:-0}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s|%s\n" "$META_READY" "$META_USABLE" "$NOMOUNT_KERNEL_USABLE" "$META_USABLE_REASON" "$META_NOMOUNT_CLI"' _ "$ROOT"
+}
+suite_cli="$SUITE/bin/arm64-v8a/nm"
+suite_actual=$(suite_detect)
+suite_expected="1|0|1|nomount-not-integrated|$suite_cli"
+[ "$suite_actual" = "$suite_expected" ] || {
+  printf 'FAIL: Suite architecture CLI + nm v (expected %s, got %s)\n' "$suite_expected" "$suite_actual" >&2
+  FAILURES=$((FAILURES + 1))
+}
+CHECKS=$((CHECKS + 1))
+suite_actual=$(suite_detect arm64-v8a 1)
+suite_expected="1|0|unknown|nomount-provider-ready|$suite_cli"
+[ "$suite_actual" = "$suite_expected" ] || {
+  printf 'FAIL: Suite provider readiness before driver load (expected %s, got %s)\n' "$suite_expected" "$suite_actual" >&2
+  FAILURES=$((FAILURES + 1))
+}
+CHECKS=$((CHECKS + 1))
+SUITE_V_FAIL=1
+export SUITE_V_FAIL
+suite_actual=$(suite_detect)
+suite_expected="0|0|0|nomount-not-active|$suite_cli"
+[ "$suite_actual" = "$suite_expected" ] || {
+  printf 'FAIL: Suite driver probe fails closed (expected %s, got %s)\n' "$suite_expected" "$suite_actual" >&2
+  FAILURES=$((FAILURES + 1))
+}
+CHECKS=$((CHECKS + 1))
+unset SUITE_V_FAIL
+suite_actual=$(suite_detect x86_64)
+suite_expected='0|0|unknown|nomount-cli-unavailable|'
+[ "$suite_actual" = "$suite_expected" ] || {
+  printf 'FAIL: Suite refuses a mismatched ABI (expected %s, got %s)\n' "$suite_expected" "$suite_actual" >&2
+  FAILURES=$((FAILURES + 1))
+}
+CHECKS=$((CHECKS + 1))
 : > "$MOD/skip_mount"
 check_nm 'foreign skip marker excludes nomount by name' '0|0|nomount-module-excluded'
 rm -f "$MOD/skip_mount"

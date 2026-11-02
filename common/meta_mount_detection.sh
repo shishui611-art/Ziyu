@@ -36,6 +36,33 @@ _luoshu_meta_type_for_dir() {
     esac
 }
 
+# Locate a NoMount kernel CLI without assuming one packaging layout. NoMount
+# Suite keeps its kernel-facing nm under bin/<android-abi>/nm; the separate
+# "nomount" manager binary is not the preferred driver probe.
+_luoshu_nomount_cli_for_dir() {
+    _lnc_dir="${1:-}"
+    [ -d "$_lnc_dir" ] || return 1
+    _lnc_abi="${LUOSHU_NOMOUNT_TEST_ABI:-}"
+    if [ -z "$_lnc_abi" ]; then
+        _lnc_abi=$(getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r\n')
+        [ -n "$_lnc_abi" ] || _lnc_abi=$(getprop ro.product.cpu.abilist 2>/dev/null | cut -d, -f1 | tr -d '\r\n')
+    fi
+    case "$_lnc_abi" in ''|*[!A-Za-z0-9._-]*) _lnc_abi='' ;; esac
+    if [ -n "$_lnc_abi" ]; then
+        for _lnc_path in "$_lnc_dir/bin/$_lnc_abi/nm" "$_lnc_dir/bin/$_lnc_abi/nomount"; do
+            [ -x "$_lnc_path" ] || continue
+            printf '%s\n' "$_lnc_path"
+            return 0
+        done
+    fi
+    for _lnc_path in "$_lnc_dir/bin/nm" "$_lnc_dir/nm" "$_lnc_dir/nomount"; do
+        [ -x "$_lnc_path" ] || continue
+        printf '%s\n' "$_lnc_path"
+        return 0
+    done
+    return 1
+}
+
 _luoshu_meta_active_dir() {
     if [ -n "${LUOSHU_META_TEST_ACTIVE_DIR:-}" ]; then
         [ -f "$LUOSHU_META_TEST_ACTIVE_DIR/module.prop" ] || return 1
@@ -425,20 +452,24 @@ _luoshu_meta_hybrid_runtime_api() {
 }
 
 luoshu_nomount_kernel_probe() {
-    # Only query the API. Loading the driver belongs to the manager's metamount hook.
+    # Read-only kernel probe: classic NoMount uses "nm version", while
+    # NoMount Suite's netlink-facing nm responds to "nm v". Never use the
+    # separate Suite manager's "nomount version" as proof of kernel readiness.
     NOMOUNT_KERNEL_USABLE=0
     META_NOMOUNT_VERSION=''
     [ -x "$1" ] || return 1
-    if command -v timeout >/dev/null 2>&1; then
-        META_NOMOUNT_VERSION=$(timeout 2 "$1" version 2>/dev/null)
-    else
-        META_NOMOUNT_VERSION=$("$1" version 2>/dev/null)
-    fi
-    _lmd_nm_probe_rc=$?
-    if [ "$_lmd_nm_probe_rc" -eq 0 ] && [ -n "$META_NOMOUNT_VERSION" ]; then
-        NOMOUNT_KERNEL_USABLE=1
-        return 0
-    fi
+    for _lmd_nm_verb in version v; do
+        if command -v timeout >/dev/null 2>&1; then
+            META_NOMOUNT_VERSION=$(timeout 2 "$1" "$_lmd_nm_verb" 2>/dev/null)
+        else
+            META_NOMOUNT_VERSION=$("$1" "$_lmd_nm_verb" 2>/dev/null)
+        fi
+        _lmd_nm_probe_rc=$?
+        if [ "$_lmd_nm_probe_rc" -eq 0 ] && [ -n "$META_NOMOUNT_VERSION" ]; then
+            NOMOUNT_KERNEL_USABLE=1
+            return 0
+        fi
+    done
     META_NOMOUNT_VERSION=''
     return 1
 }
@@ -655,16 +686,9 @@ luoshu_meta_mount_detect() {
                 fi
                 ;;
             nomount)
+                META_NOMOUNT_CLI=$(_luoshu_nomount_cli_for_dir "$META_MODULE_DIR")
                 _lmd_runner=0
-                for _lmd_nm_candidate in \
-                    "$META_MODULE_DIR/bin/nm" \
-                    "$META_MODULE_DIR/nm" \
-                    "$META_MODULE_DIR/nomount"; do
-                    [ -x "$_lmd_nm_candidate" ] || continue
-                    META_NOMOUNT_CLI="$_lmd_nm_candidate"
-                    _lmd_runner=1
-                    break
-                done
+                [ -z "$META_NOMOUNT_CLI" ] || _lmd_runner=1
                 if [ "$_lmd_is_active" -ne 1 ]; then
                     META_USABLE_REASON=nomount-not-active
                 elif [ "$_lmd_runner" -ne 1 ]; then
