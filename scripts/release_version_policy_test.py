@@ -93,7 +93,7 @@ class RefactorVersionTest(unittest.TestCase):
 
     def test_metadata_uses_refactor_assets_and_advances_both_old_channels(self):
         info=version_info('v1.0.0','refactor')
-        metadata=build_metadata(repository='xgl34222220-ops/Ziyu',version=info['version'],version_code=info['versionCode'],tag=info['tag'],notes_file=info['notesFile'],artifact_name='LuoShu')
+        metadata=build_metadata(repository='xgl34222220-ops/Ziyu',version=info['version'],version_code=info['versionCode'],tag=info['tag'],notes_file=info['notesFile'],artifact_name='Ziyu')
         self.assertIn('/refactor-v1.0.0/Ziyu-v1.0.0.zip',metadata['zipUrl'])
         self.assertIn('/refactor-v1.0.0/%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97/RELEASE_NOTES_refactor-v1.0.0.md',metadata['changelog'])
         with tempfile.TemporaryDirectory() as d:

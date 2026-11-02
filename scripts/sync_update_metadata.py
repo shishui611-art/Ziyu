@@ -79,7 +79,12 @@ def advance_fallback_channel(metadata: dict, output: Path) -> bool:
     """Let preview-channel users receive a newer stable without downgrading RCs."""
     if output.is_file():
         current = json.loads(output.read_text(encoding="utf-8"))
-        ziyu = "/Ziyu/" in str(metadata.get("zipUrl", ""))
+        zip_url = str(metadata.get("zipUrl", ""))
+        # A refactor tag intentionally resets the displayed version while its
+        # monotonic Android versionCode continues above the legacy release.
+        # Keep the Ziyu semver guard for regular fork releases only.
+        refactor_release = "/download/refactor-" in zip_url
+        ziyu = "/Ziyu/" in zip_url and not refactor_release
         def semver(value):
             match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", str(value))
             return tuple(map(int, match.groups())) if match else None
