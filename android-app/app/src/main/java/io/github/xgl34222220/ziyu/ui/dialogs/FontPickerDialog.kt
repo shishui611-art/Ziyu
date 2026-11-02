@@ -1,5 +1,6 @@
 package io.github.xgl34222220.ziyu.ui.dialogs
 
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -106,7 +107,7 @@ private fun MaterialFontPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = MaterialTheme.shapes.large,
-                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                    leadingIcon = { ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, contentDescription = null) } },
                     placeholder = { Text("搜索名称、格式或字重") },
                 )
                 LazyColumn(
@@ -239,7 +240,7 @@ private fun MiuixFontPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(20.dp),
-                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                    leadingIcon = { ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, contentDescription = null) } },
                     placeholder = { Text("搜索字体") },
                 )
 

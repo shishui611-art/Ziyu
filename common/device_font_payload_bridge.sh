@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu v2.2 integration bridge.
+# Ziyu v2.2 integration bridge.
 # Load after ROM adapters, font_config_runtime, weight preparation and final hotfixes.
 set +e
 
@@ -7,7 +7,7 @@ _dfpb_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 [ -f "$_dfpb_module/common/device_font_payload_runtime.sh" ] && . "$_dfpb_module/common/device_font_payload_runtime.sh"
 
 # Schema upgrades preserve the current payload and require one explicit foreground apply.
-LUOSHU_PAYLOAD_SCHEMA_CURRENT="device-template-v2-baseline-v9-rolegraph-v2"
+ZIYU_PAYLOAD_SCHEMA_CURRENT="device-template-v2-baseline-v9-rolegraph-v2"
 
 # Prefer the already prepared 100-900 files, then ROM-specific anchors. This keeps
 # direct, variable and composite flows on the same source selection contract.
@@ -21,7 +21,7 @@ _dfpr_anchor_lines() {
         _dfpr_weight=${_dfpr_pair%%:*}
         _dfpr_name=${_dfpr_pair#*:}
         for _dfpr_path in \
-            "$_dfpr_fonts/LuoShu-${_dfpr_weight}.ttf" \
+            "$_dfpr_fonts/Ziyu-${_dfpr_weight}.ttf" \
             "$_dfpr_store/wght-${_dfpr_weight}.font" \
             "$_dfpr_store/compact-wght-${_dfpr_weight}.font" \
             "$_dfpr_store/${_dfpr_name}.font" \
@@ -32,7 +32,7 @@ _dfpr_anchor_lines() {
             fi
         done
     done
-    if [ ! -s "$_dfpr_fonts/LuoShu-400.ttf" ]; then
+    if [ ! -s "$_dfpr_fonts/Ziyu-400.ttf" ]; then
         for _dfpr_path in "$_dfpr_store/regular.font" "$_dfpr_store/compact-regular.font" "$_dfpr_store/mix-composite.font"; do
             [ -s "$_dfpr_path" ] || continue
             printf '400|%s\n' "$_dfpr_path"
@@ -46,29 +46,29 @@ _dfpr_anchor_lines() {
 # flag so XML fallback cannot delete freshly prepared physical slots.
 font_config_disable() {
     type device_font_payload_clear >/dev/null 2>&1 && device_font_payload_clear
-    if [ "${LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE:-0}" != 1 ]; then
-        type luoshu_oem_clear_managed_fonts >/dev/null 2>&1 && luoshu_oem_clear_managed_fonts
-        if type _luoshu_detect_flyme >/dev/null 2>&1 && _luoshu_detect_flyme; then
-            type _luoshu_flyme_prepare_data_restore >/dev/null 2>&1 && \
-                _luoshu_flyme_prepare_data_restore >/dev/null 2>&1 || true
+    if [ "${ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE:-0}" != 1 ]; then
+        type ziyu_oem_clear_managed_fonts >/dev/null 2>&1 && ziyu_oem_clear_managed_fonts
+        if type _ziyu_detect_flyme >/dev/null 2>&1 && _ziyu_detect_flyme; then
+            type _ziyu_flyme_prepare_data_restore >/dev/null 2>&1 && \
+                _ziyu_flyme_prepare_data_restore >/dev/null 2>&1 || true
         fi
     fi
-    type luoshu_dynamic_targets_clear >/dev/null 2>&1 && luoshu_dynamic_targets_clear
-    type _luoshu_font_config_disable_base >/dev/null 2>&1 && _luoshu_font_config_disable_base
+    type ziyu_dynamic_targets_clear >/dev/null 2>&1 && ziyu_dynamic_targets_clear
+    type _ziyu_font_config_disable_base >/dev/null 2>&1 && _ziyu_font_config_disable_base
 }
 
 # Composite/finalize flows already prepare deterministic 100-900 sources. Prefer the
 # device engine; unsupported CFF/TTC sources fall back to the established XML path.
-LUOSHU_DEVICE_PAYLOAD_RESULT='idle'
+ZIYU_DEVICE_PAYLOAD_RESULT='idle'
 font_config_enable_for_payload() {
     _dfpb_family="${1:-unknown}"
-    LUOSHU_DEVICE_PAYLOAD_RESULT='preparing'
+    ZIYU_DEVICE_PAYLOAD_RESULT='preparing'
     type font_config_prepare_payload_weights >/dev/null 2>&1 || {
-        LUOSHU_DEVICE_PAYLOAD_RESULT='prepare-failed'
+        ZIYU_DEVICE_PAYLOAD_RESULT='prepare-failed'
         return 1
     }
     font_config_prepare_payload_weights || {
-        LUOSHU_DEVICE_PAYLOAD_RESULT='prepare-failed'
+        ZIYU_DEVICE_PAYLOAD_RESULT='prepare-failed'
         font_config_disable
         return 1
     }
@@ -77,22 +77,22 @@ font_config_enable_for_payload() {
         _dfpb_rc=$?
         case "$_dfpb_rc" in
             0)
-                LUOSHU_DEVICE_PAYLOAD_RESULT='device'
+                ZIYU_DEVICE_PAYLOAD_RESULT='device'
                 return 0
                 ;;
             1)
-                LUOSHU_DEVICE_PAYLOAD_RESULT='device-failed'
+                ZIYU_DEVICE_PAYLOAD_RESULT='device-failed'
                 font_config_disable
                 return 1
                 ;;
-            2) LUOSHU_DEVICE_PAYLOAD_RESULT='unsupported' ;;
+            2) ZIYU_DEVICE_PAYLOAD_RESULT='unsupported' ;;
         esac
     fi
     if type font_config_generate >/dev/null 2>&1 && font_config_generate "$_dfpb_family"; then
-        LUOSHU_DEVICE_PAYLOAD_RESULT='legacy'
+        ZIYU_DEVICE_PAYLOAD_RESULT='legacy'
         return 0
     fi
-    LUOSHU_DEVICE_PAYLOAD_RESULT='slot-only'
+    ZIYU_DEVICE_PAYLOAD_RESULT='slot-only'
     return 1
 }
 
@@ -104,16 +104,16 @@ apply_font_by_rom() {
     _dfpb_mode="${3:-full}"
     _dfpb_family="${4:-}"
     [ -n "$_dfpb_family" ] || _dfpb_family=$(detect_font_family "$(basename "$_dfpb_src")")
-    LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE=0
-    export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+    ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE=0
+    export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
 
     if [ "${IS_HYPEROS:-false}" = true ]; then
         copy_as_hyperos "$_dfpb_src" "$_dfpb_dest" "$_dfpb_mode" "$_dfpb_family"
     elif [ "${IS_COLOROS:-false}" = true ]; then
         copy_as_coloros "$_dfpb_src" "$_dfpb_dest" "$_dfpb_mode" "$_dfpb_family"
-    elif type _luoshu_detect_originos >/dev/null 2>&1 && _luoshu_detect_originos; then
+    elif type _ziyu_detect_originos >/dev/null 2>&1 && _ziyu_detect_originos; then
         copy_as_originos "$_dfpb_src" "$_dfpb_dest" "$_dfpb_mode" "$_dfpb_family"
-    elif type _luoshu_detect_flyme >/dev/null 2>&1 && _luoshu_detect_flyme; then
+    elif type _ziyu_detect_flyme >/dev/null 2>&1 && _ziyu_detect_flyme; then
         copy_as_flyme "$_dfpb_src" "$_dfpb_dest" "$_dfpb_mode" "$_dfpb_family"
     else
         copy_as_generic "$_dfpb_src" "$_dfpb_dest" "$_dfpb_mode"
@@ -122,13 +122,13 @@ apply_font_by_rom() {
     [ "$_dfpb_adapter_rc" -eq 0 ] || return "$_dfpb_adapter_rc"
     [ "$_dfpb_mode" = quick ] || return 0
 
-    LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE=1
-    export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+    ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE=1
+    export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
     font_config_enable_for_payload "$_dfpb_family"
     _dfpb_config_rc=$?
-    _dfpb_result="$LUOSHU_DEVICE_PAYLOAD_RESULT"
-    LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE=0
-    export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+    _dfpb_result="$ZIYU_DEVICE_PAYLOAD_RESULT"
+    ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE=0
+    export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
 
     case "$_dfpb_result:$_dfpb_config_rc" in
         device:0)
@@ -152,26 +152,26 @@ apply_font_by_rom() {
 
 # Final validation override. v2 files use content hashes from their own installed
 # manifest; legacy payloads retain the existing metadata-only fast path.
-luoshu_payload_validate_current() {
+ziyu_payload_validate_current() {
     _lpv_active="${1:-unknown}"
-    _lpv_module="$(_luoshu_safety_module)"
-    _lpv_config="$(_luoshu_safety_config)"
+    _lpv_module="$(_ziyu_safety_module)"
+    _lpv_config="$(_ziyu_safety_config)"
     [ "$_lpv_active" != default ] || return 0
     if type device_font_payload_is_installed >/dev/null 2>&1 && device_font_payload_is_installed; then
         device_font_payload_validate_installed || return 1
-        LUOSHU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
+        ZIYU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
         return 0
     fi
     _lpv_fonts=0
-    for _lpv_part in $(_luoshu_payload_parts); do
+    for _lpv_part in $(_ziyu_payload_parts); do
         _lpv_dir="$_lpv_module/$_lpv_part/fonts"
         [ -d "$_lpv_dir" ] || continue
         for _lpv_file in "$_lpv_dir"/*.ttf "$_lpv_dir"/*.otf "$_lpv_dir"/*.ttc; do
             [ -f "$_lpv_file" ] || continue
-            if type _luoshu_fast_font_ok >/dev/null 2>&1; then
-                _luoshu_fast_font_ok "$_lpv_file" || return 1
+            if type _ziyu_fast_font_ok >/dev/null 2>&1; then
+                _ziyu_fast_font_ok "$_lpv_file" || return 1
             else
-                _lpv_size=$(_luoshu_filesize "$_lpv_file")
+                _lpv_size=$(_ziyu_filesize "$_lpv_file")
                 case "$_lpv_size" in ''|*[!0-9]*) return 1 ;; esac
                 [ "$_lpv_size" -ge 1024 ] || return 1
             fi
@@ -202,38 +202,38 @@ luoshu_payload_validate_current() {
         [ -n "$_lpv_rel" ] || continue
         case "$_lpv_rel" in */fonts/*.ttf|*/fonts/*.otf|*/fonts/*.ttc) ;; *) return 1 ;; esac
         [ -f "$_lpv_module/$_lpv_rel" ] || return 1
-        if type _luoshu_fast_font_ok >/dev/null 2>&1; then
-            _luoshu_fast_font_ok "$_lpv_module/$_lpv_rel" || return 1
+        if type _ziyu_fast_font_ok >/dev/null 2>&1; then
+            _ziyu_fast_font_ok "$_lpv_module/$_lpv_rel" || return 1
         fi
     done < "$_lpv_manifest"
 fi
     fi
     while IFS='|' read -r _lpv_key _lpv_real _lpv_overlay _lpv_font_dir; do
         [ -f "$_lpv_overlay" ] || continue
-        grep -Eq 'LuoShu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lpv_overlay" 2>/dev/null || continue
-        _luoshu_font_config_validate "$_lpv_overlay" "$_lpv_font_dir" || return 1
+        grep -Eq 'Ziyu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lpv_overlay" 2>/dev/null || continue
+        _ziyu_font_config_validate "$_lpv_overlay" "$_lpv_font_dir" || return 1
     done <<EOF_DFPB_VALIDATE
-$(_luoshu_font_config_specs)
+$(_ziyu_font_config_specs)
 EOF_DFPB_VALIDATE
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
     return 0
 }
 
 # Include v2 slot XML and the private dynamic config view in the boot manifest.
-luoshu_payload_build_manifest() {
-    _lpm_module="$(_luoshu_safety_module)"
-    _lpm_config="$(_luoshu_safety_config)"
+ziyu_payload_build_manifest() {
+    _lpm_module="$(_ziyu_safety_module)"
+    _lpm_config="$(_ziyu_safety_config)"
     _lpm_tmp="$_lpm_config/font-payload-manifest.conf.tmp.$$"
     _lpm_checksum_cache="$_lpm_config/.font-payload-checksums.$$"
     : > "$_lpm_tmp" 2>/dev/null || return 1
     : > "$_lpm_checksum_cache" 2>/dev/null || { rm -f "$_lpm_tmp"; return 1; }
-    for _lpm_part in $(_luoshu_payload_parts); do
+    for _lpm_part in $(_ziyu_payload_parts); do
         _lpm_fonts="$_lpm_module/$_lpm_part/fonts"
         if [ -d "$_lpm_fonts" ]; then
             find "$_lpm_fonts" -type f 2>/dev/null | while IFS= read -r _lpm_file; do
                 case "$_lpm_file" in *.ttf|*.otf|*.ttc|*.TTF|*.OTF|*.TTC) ;; *) continue ;; esac
                 _lpm_rel=${_lpm_file#$_lpm_module/}
-                _lpm_sum=$(_luoshu_cached_checksum "$_lpm_file" "$_lpm_checksum_cache")
+                _lpm_sum=$(_ziyu_cached_checksum "$_lpm_file" "$_lpm_checksum_cache")
                 [ -n "$_lpm_sum" ] && printf '%s|%s\n' "$_lpm_rel" "$_lpm_sum"
             done >> "$_lpm_tmp"
         fi
@@ -241,11 +241,11 @@ luoshu_payload_build_manifest() {
         if [ -d "$_lpm_etc" ]; then
             find "$_lpm_etc" -maxdepth 1 -type f -name '*.xml' 2>/dev/null | while IFS= read -r _lpm_file; do
                 case "${_lpm_file##*/}" in
-                    .luoshu-data-fonts-config.xml) ;;
-                    *) grep -Eq 'LuoShu(Mono)?-|LuoShuSlot-' "$_lpm_file" 2>/dev/null || continue ;;
+                    .ziyu-data-fonts-config.xml) ;;
+                    *) grep -Eq '(Ziyu|LuoShu)(Mono)?-|(Ziyu|LuoShu)Slot-' "$_lpm_file" 2>/dev/null || continue ;;
                 esac
                 _lpm_rel=${_lpm_file#$_lpm_module/}
-                _lpm_sum=$(_luoshu_cached_checksum "$_lpm_file" "$_lpm_checksum_cache")
+                _lpm_sum=$(_ziyu_cached_checksum "$_lpm_file" "$_lpm_checksum_cache")
                 [ -n "$_lpm_sum" ] && printf '%s|%s\n' "$_lpm_rel" "$_lpm_sum"
             done >> "$_lpm_tmp"
         fi
@@ -258,29 +258,29 @@ luoshu_payload_build_manifest() {
 
 # Snapshot v2 state files together with the module partition tree so any failed
 # switch restores the previous engine mode and dynamic-mount contract as well.
-luoshu_payload_transaction_begin() {
-    [ -z "$LUOSHU_PAYLOAD_TXN" ] || return 1
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE=''
-    _lpt_module="$(_luoshu_safety_module)"
-    _lpt_config="$(_luoshu_safety_config)"
-    LUOSHU_PAYLOAD_TXN="$_lpt_config/.payload-transaction.$$"
-    rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-    mkdir -p "$LUOSHU_PAYLOAD_TXN/tree" "$LUOSHU_PAYLOAD_TXN/config" 2>/dev/null || { LUOSHU_PAYLOAD_TXN=''; return 1; }
-    : > "$LUOSHU_PAYLOAD_TXN/paths"
-    for _lpt_part in $(_luoshu_payload_parts); do
+ziyu_payload_transaction_begin() {
+    [ -z "$ZIYU_PAYLOAD_TXN" ] || return 1
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE=''
+    _lpt_module="$(_ziyu_safety_module)"
+    _lpt_config="$(_ziyu_safety_config)"
+    ZIYU_PAYLOAD_TXN="$_lpt_config/.payload-transaction.$$"
+    rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+    mkdir -p "$ZIYU_PAYLOAD_TXN/tree" "$ZIYU_PAYLOAD_TXN/config" 2>/dev/null || { ZIYU_PAYLOAD_TXN=''; return 1; }
+    : > "$ZIYU_PAYLOAD_TXN/paths"
+    for _lpt_part in $(_ziyu_payload_parts); do
         for _lpt_sub in fonts etc; do
             _lpt_rel="$_lpt_part/$_lpt_sub"
             _lpt_src="$_lpt_module/$_lpt_rel"
             if [ -d "$_lpt_src" ]; then
-                mkdir -p "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_part" 2>/dev/null || return 1
-                cp -al "$_lpt_src" "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null ||
-                cp -af "$_lpt_src" "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || {
-                    mkdir -p "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || return 1
-                    cp -rfp "$_lpt_src/." "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel/" 2>/dev/null || return 1
+                mkdir -p "$ZIYU_PAYLOAD_TXN/tree/$_lpt_part" 2>/dev/null || return 1
+                cp -al "$_lpt_src" "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null ||
+                cp -af "$_lpt_src" "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || {
+                    mkdir -p "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || return 1
+                    cp -rfp "$_lpt_src/." "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel/" 2>/dev/null || return 1
                 }
-                printf 'present|%s\n' "$_lpt_rel" >> "$LUOSHU_PAYLOAD_TXN/paths"
+                printf 'present|%s\n' "$_lpt_rel" >> "$ZIYU_PAYLOAD_TXN/paths"
             else
-                printf 'absent|%s\n' "$_lpt_rel" >> "$LUOSHU_PAYLOAD_TXN/paths"
+                printf 'absent|%s\n' "$_lpt_rel" >> "$ZIYU_PAYLOAD_TXN/paths"
             fi
         done
     done
@@ -290,10 +290,10 @@ luoshu_payload_transaction_begin() {
         font-payload-schema.conf text_reboot_required.conf device-font-engine.conf \
         device-font-installed.conf device-font-dynamic-mount.conf; do
         if [ -f "$_lpt_config/$_lpt_name" ]; then
-            cp -fp "$_lpt_config/$_lpt_name" "$LUOSHU_PAYLOAD_TXN/config/$_lpt_name" 2>/dev/null || return 1
-            printf 'present|config/%s\n' "$_lpt_name" >> "$LUOSHU_PAYLOAD_TXN/paths"
+            cp -fp "$_lpt_config/$_lpt_name" "$ZIYU_PAYLOAD_TXN/config/$_lpt_name" 2>/dev/null || return 1
+            printf 'present|config/%s\n' "$_lpt_name" >> "$ZIYU_PAYLOAD_TXN/paths"
         else
-            printf 'absent|config/%s\n' "$_lpt_name" >> "$LUOSHU_PAYLOAD_TXN/paths"
+            printf 'absent|config/%s\n' "$_lpt_name" >> "$ZIYU_PAYLOAD_TXN/paths"
         fi
     done
     return 0
@@ -301,41 +301,41 @@ luoshu_payload_transaction_begin() {
 
 # Quarantine v2 files while preserving OEM recovery semantics. Flyme's persistent
 # theme slot must be restored before the module returns to default.
-luoshu_payload_quarantine() {
-    _lpq_module="$(_luoshu_safety_module)"
-    _lpq_config="$(_luoshu_safety_config)"
+ziyu_payload_quarantine() {
+    _lpq_module="$(_ziyu_safety_module)"
+    _lpq_config="$(_ziyu_safety_config)"
     _lpq_fail=$(cat "$_lpq_config/font-boot-failures" 2>/dev/null)
     case "$_lpq_fail" in ''|*[!0-9]*) _lpq_fail=0 ;; esac
     _lpq_fail=$((_lpq_fail + 1))
     printf '%s\n' "$_lpq_fail" > "$_lpq_config/font-boot-failures" 2>/dev/null || true
 
-    type luoshu_oem_clear_managed_fonts >/dev/null 2>&1 && luoshu_oem_clear_managed_fonts
-    if type _luoshu_detect_flyme >/dev/null 2>&1 && _luoshu_detect_flyme; then
-        type _luoshu_flyme_prepare_data_restore >/dev/null 2>&1 && \
-            _luoshu_flyme_prepare_data_restore >/dev/null 2>&1 || true
-        type luoshu_flyme_pending_apply >/dev/null 2>&1 && luoshu_flyme_pending_apply >/dev/null 2>&1 || true
+    type ziyu_oem_clear_managed_fonts >/dev/null 2>&1 && ziyu_oem_clear_managed_fonts
+    if type _ziyu_detect_flyme >/dev/null 2>&1 && _ziyu_detect_flyme; then
+        type _ziyu_flyme_prepare_data_restore >/dev/null 2>&1 && \
+            _ziyu_flyme_prepare_data_restore >/dev/null 2>&1 || true
+        type ziyu_flyme_pending_apply >/dev/null 2>&1 && ziyu_flyme_pending_apply >/dev/null 2>&1 || true
     fi
     type device_font_payload_clear >/dev/null 2>&1 && device_font_payload_clear
 
-    for _lpq_part in $(_luoshu_payload_parts); do
+    for _lpq_part in $(_ziyu_payload_parts); do
         rm -rf "$_lpq_module/$_lpq_part/fonts" 2>/dev/null || true
         _lpq_etc="$_lpq_module/$_lpq_part/etc"
         [ -d "$_lpq_etc" ] || continue
         for _lpq_xml in "$_lpq_etc"/*.xml; do
             [ -f "$_lpq_xml" ] || continue
-            grep -Eq 'LuoShu(Mono)?-|LuoShuSlot-' "$_lpq_xml" 2>/dev/null && rm -f "$_lpq_xml" 2>/dev/null || true
+            grep -Eq '(Ziyu|LuoShu)(Mono)?-|(Ziyu|LuoShu)Slot-' "$_lpq_xml" 2>/dev/null && rm -f "$_lpq_xml" 2>/dev/null || true
         done
     done
-    if type luoshu_meta_content_roots >/dev/null 2>&1; then
-        for _lpq_root in $(luoshu_meta_content_roots); do
+    if type ziyu_meta_content_roots >/dev/null 2>&1; then
+        for _lpq_root in $(ziyu_meta_content_roots); do
             [ -d "$_lpq_root" ] || continue
-            for _lpq_part in $(_luoshu_payload_parts); do
+            for _lpq_part in $(_ziyu_payload_parts); do
                 rm -rf "$_lpq_root/$_lpq_part/fonts" 2>/dev/null || true
                 _lpq_etc="$_lpq_root/$_lpq_part/etc"
                 [ -d "$_lpq_etc" ] || continue
                 for _lpq_xml in "$_lpq_etc"/*.xml; do
                     [ -f "$_lpq_xml" ] || continue
-                    grep -Eq 'LuoShu(Mono)?-|LuoShuSlot-' "$_lpq_xml" 2>/dev/null && rm -f "$_lpq_xml" 2>/dev/null || true
+                    grep -Eq '(Ziyu|LuoShu)(Mono)?-|(Ziyu|LuoShu)Slot-' "$_lpq_xml" 2>/dev/null && rm -f "$_lpq_xml" 2>/dev/null || true
                 done
             done
         done
@@ -350,7 +350,7 @@ luoshu_payload_quarantine() {
         printf 'failures=%s\n' "$_lpq_fail"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_lpq_config/font-payload-quarantine.conf" 2>/dev/null || true
-    _luoshu_safety_log ERROR "检测到上次字体负载未完成开机，已撤销全部字体覆盖（failure=$_lpq_fail）"
+    _ziyu_safety_log ERROR "检测到上次字体负载未完成开机，已撤销全部字体覆盖（failure=$_lpq_fail）"
 }
 
 unset _dfpb_module

@@ -4,7 +4,7 @@
 The scanner is read-only. A shell guard is responsible for invoking it only on a
 clean default-font boot. The JSON keeps the historical template schema for payload
 compatibility and carries captureRevision=2 to reject templates made from a mounted
-LuoShu payload.
+Ziyu payload.
 """
 from __future__ import annotations
 

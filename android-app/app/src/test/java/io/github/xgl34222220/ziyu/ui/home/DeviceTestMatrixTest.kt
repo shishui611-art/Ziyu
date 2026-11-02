@@ -88,7 +88,7 @@ class DeviceTestMatrixTest {
         val raw = encodeDeviceTestMatrix(listOf(record), report, generatedAt = 3000L)
         val root = JSONObject(raw)
 
-        assertEquals("luoshu-device-test-matrix", root.getString("type"))
+        assertEquals("ziyu-device-test-matrix", root.getString("type"))
         assertFalse(raw.contains("SecretFamily"))
         assertFalse(raw.contains("model", ignoreCase = true))
         assertFalse(raw.contains("fingerprint", ignoreCase = true))

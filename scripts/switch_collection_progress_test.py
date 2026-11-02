@@ -18,10 +18,10 @@ class CollectionProgressTest(unittest.TestCase):
             (module / 'logs').mkdir()
             manager = module / 'fake-manager.sh'
             manager.write_text('''#!/bin/sh
-printf 'percent=88\\nmessage=正在生成原厂 CJK 字体集合\\n' > "$LUOSHU_SWITCH_PROGRESS_FILE"
-printf '%s\\n' '{"stage":"collection-faces","message":"本机 CJK 集合已编译 1/3 面","percent":95}' > "$LUOSHU_COLLECTION_PROGRESS_FILE"
+printf 'percent=88\\nmessage=正在生成原厂 CJK 字体集合\\n' > "$ZIYU_SWITCH_PROGRESS_FILE"
+printf '%s\\n' '{"stage":"collection-faces","message":"本机 CJK 集合已编译 1/3 面","percent":95}' > "$ZIYU_COLLECTION_PROGRESS_FILE"
 sleep 3
-printf '%s\\n' '{"stage":"collection-merge","message":"正在合并本机 CJK 集合","percent":97}' > "$LUOSHU_COLLECTION_PROGRESS_FILE"
+printf '%s\\n' '{"stage":"collection-merge","message":"正在合并本机 CJK 集合","percent":97}' > "$ZIYU_COLLECTION_PROGRESS_FILE"
 sleep 3
 printf '%s\\n' '{"status":"ok"}'
 ''', encoding='utf-8')
@@ -33,8 +33,8 @@ run_bounded font "$MODDIR/output.json" task-1 1 "$MODDIR/config/progress.conf"
 ''', encoding='utf-8')
             shell = shutil.which('bash') or r'C:\Program Files\Git\bin\bash.exe'
             capture = module/'capture.txt'
-            env = {**os.environ, 'MODDIR': module.as_posix(), 'LUOSHU_FONT_MANAGER': manager.as_posix(),
-                   'LUOSHU_SWITCH_HEARTBEAT_INTERVAL': '1', 'CAPTURE': capture.as_posix()}
+            env = {**os.environ, 'MODDIR': module.as_posix(), 'ZIYU_FONT_MANAGER': manager.as_posix(),
+                   'ZIYU_SWITCH_HEARTBEAT_INTERVAL': '1', 'CAPTURE': capture.as_posix()}
             result = subprocess.run([shell, runner.as_posix()], env=env, capture_output=True,
                                     text=True, encoding='utf-8', timeout=20)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

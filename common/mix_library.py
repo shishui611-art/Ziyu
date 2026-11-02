@@ -14,7 +14,7 @@ ROLES = {100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 500: "Med
 
 
 def check_cancelled():
-    task, marker = os.environ.get("LUOSHU_MIX_PARENT_TASK"), os.environ.get("LUOSHU_MIX_CANCEL_FILE")
+    task, marker = os.environ.get("ZIYU_MIX_PARENT_TASK"), os.environ.get("ZIYU_MIX_CANCEL_FILE")
     if task and marker and Path(marker).is_file():
         if f"task={task}" in Path(marker).read_text(encoding="utf-8").splitlines():
             raise ValueError("组合任务已取消")
@@ -25,7 +25,7 @@ def persist_task(task_file, result_file):
     task_file = Path(task_file)
     lines = task_file.read_text(encoding="utf-8").splitlines()
     old = dict(line.split("=", 1) for line in lines if "=" in line)
-    expected = os.environ.get("LUOSHU_MIX_PARENT_TASK")
+    expected = os.environ.get("ZIYU_MIX_PARENT_TASK")
     if expected and old.get("task") != expected:
         raise ValueError("组合任务已被替换")
     data = json.loads(Path(result_file).read_text(encoding="utf-8"))["data"]

@@ -14,14 +14,14 @@ MOD="$TMP/modules/Ziyu"
 NM="$TMP/modules/nomount"
 DB="$TMP/rules.db"
 CALLS="$TMP/nm.calls"
-mkdir -p "$MOD/config" "$MOD/.ziyu-state" "$MOD/.luoshu-payload/system/fonts" \
-  "$MOD/.luoshu-payload/system/etc" "$NM/bin" "$MOD/common"
+mkdir -p "$MOD/config" "$MOD/.ziyu-state" "$MOD/.ziyu-payload/system/fonts" \
+  "$MOD/.ziyu-payload/system/etc" "$NM/bin" "$MOD/common"
 cp "$ROOT/common/nomount_rule_json.py" "$MOD/common/nomount_rule_json.py"
 cp "$ROOT/common/font_switch_lock.sh" "$MOD/common/font_switch_lock.sh"
-printf 'font-bytes\n' > "$MOD/.luoshu-payload/system/fonts/Ziyu Test.ttf"
-printf '<fonts />\n' > "$MOD/.luoshu-payload/system/etc/fonts.xml"
-FONT_HASH=$(sha256sum "$MOD/.luoshu-payload/system/fonts/Ziyu Test.ttf" | awk '{print $1}')
-XML_HASH=$(sha256sum "$MOD/.luoshu-payload/system/etc/fonts.xml" | awk '{print $1}')
+printf 'font-bytes\n' > "$MOD/.ziyu-payload/system/fonts/Ziyu Test.ttf"
+printf '<fonts />\n' > "$MOD/.ziyu-payload/system/etc/fonts.xml"
+FONT_HASH=$(sha256sum "$MOD/.ziyu-payload/system/fonts/Ziyu Test.ttf" | awk '{print $1}')
+XML_HASH=$(sha256sum "$MOD/.ziyu-payload/system/etc/fonts.xml" | awk '{print $1}')
 printf 'system/fonts/Ziyu Test.ttf|%s\nsystem/etc/fonts.xml|%s\n' "$FONT_HASH" "$XML_HASH" \
   > "$MOD/config/font-payload-manifest.conf"
 : > "$DB"
@@ -67,22 +67,22 @@ SH
 chmod +x "$NM/bin/nm"
 
 export MODDIR="$MOD" MODULE_DIR="$MOD" META_MODULE_DIR="$NM" META_NOMOUNT_CLI="$NM/bin/nm"
-export LUOSHU_NOMOUNT_TEST_BOOT_ID=boot-A NM_DB="$DB" NM_CALLS="$CALLS"
+export ZIYU_NOMOUNT_TEST_BOOT_ID=boot-A NM_DB="$DB" NM_CALLS="$CALLS"
 . "$ROOT/common/mount_nomount_backend.sh"
 
-luoshu_nomount_apply "$MOD" || fail 'two NoMount rules commit as one backend transaction'
-assert_contains "$DB" "/system/fonts/Ziyu Test.ttf|$MOD/.luoshu-payload/system/fonts/Ziyu Test.ttf" 'font rule points into the private payload'
-assert_contains "$DB" "/system/etc/fonts.xml|$MOD/.luoshu-payload/system/etc/fonts.xml" 'font XML rule is included in the same transaction'
+ziyu_nomount_apply "$MOD" || fail 'two NoMount rules commit as one backend transaction'
+assert_contains "$DB" "/system/fonts/Ziyu Test.ttf|$MOD/.ziyu-payload/system/fonts/Ziyu Test.ttf" 'font rule points into the private payload'
+assert_contains "$DB" "/system/etc/fonts.xml|$MOD/.ziyu-payload/system/etc/fonts.xml" 'font XML rule is included in the same transaction'
 GENERATION=$(sha256sum "$MOD/config/font-payload-manifest.conf" | awk '{print $1}')
-assert_contains "$MOD/.ziyu-state/nomount-rules.current" "boot-A|$GENERATION|/system/fonts/Ziyu Test.ttf|$MOD/.luoshu-payload/system/fonts/Ziyu Test.ttf" 'ledger records boot, generation, target, and source'
+assert_contains "$MOD/.ziyu-state/nomount-rules.current" "boot-A|$GENERATION|/system/fonts/Ziyu Test.ttf|$MOD/.ziyu-payload/system/fonts/Ziyu Test.ttf" 'ledger records boot, generation, target, and source'
 assert_contains "$MOD/.ziyu-state/nomount-rules.current" 'state=committed' 'ledger commits only after verification'
 
 # A failed second add must remove only this transaction's first rule and clear
 # its partial ledger before the caller is allowed to fall back to legacy mounts.
-luoshu_nomount_cleanup "$MOD" || fail 'cleanup of committed NoMount rules succeeds'
+ziyu_nomount_cleanup "$MOD" || fail 'cleanup of committed NoMount rules succeeds'
 : > "$DB"
 : > "$CALLS"
-if NM_FAIL_TARGET=/system/etc/fonts.xml luoshu_nomount_apply "$MOD"; then
+if NM_FAIL_TARGET=/system/etc/fonts.xml ziyu_nomount_apply "$MOD"; then
   fail 'a failed second rule must fail the NoMount transaction'
 else
   RC=$?
@@ -98,7 +98,7 @@ fi
 : > "$DB"
 printf '/system/etc/fonts.xml|%s/user-fonts.xml\n' "$TMP" > "$DB"
 : > "$CALLS"
-if luoshu_nomount_apply "$MOD"; then fail 'a pre-existing user target must not be overwritten'; else RC=$?; fi
+if ziyu_nomount_apply "$MOD"; then fail 'a pre-existing user target must not be overwritten'; else RC=$?; fi
 assert_eq "$RC" 1 'a target conflict with clean rollback is a clean failure'
 assert_eq "$(wc -l < "$DB" | tr -d '[:space:]')" 1 'conflict rollback preserves the user rule and removes Ziyu additions'
 assert_contains "$DB" "/system/etc/fonts.xml|$TMP/user-fonts.xml" 'user rule source is preserved'
@@ -109,11 +109,11 @@ assert_not_contains "$DB" '/system/fonts/Ziyu Test.ttf|' 'earlier Ziyu rule is r
 : > "$MOD/.ziyu-state/nomount-rules.current"
 printf 'schema=ziyu-nomount-rules-v1\nstate=committed\nboot_id=boot-A\npayload_generation=%s\n' "$GENERATION" \
   > "$MOD/.ziyu-state/nomount-rules.current"
-printf 'boot-A|%s|/system/fonts/Ziyu Test.ttf|%s/.luoshu-payload/system/fonts/Ziyu Test.ttf\n' "$GENERATION" "$MOD" \
+printf 'boot-A|%s|/system/fonts/Ziyu Test.ttf|%s/.ziyu-payload/system/fonts/Ziyu Test.ttf\n' "$GENERATION" "$MOD" \
   >> "$MOD/.ziyu-state/nomount-rules.current"
-printf '/system/fonts/Ziyu Test.ttf|%s/.luoshu-payload/system/fonts/Ziyu Test.ttf\n' "$MOD" >> "$DB"
+printf '/system/fonts/Ziyu Test.ttf|%s/.ziyu-payload/system/fonts/Ziyu Test.ttf\n' "$MOD" >> "$DB"
 printf '/system/fonts/User-Regular.ttf|%s/user-fonts.ttf\n' "$TMP" >> "$DB"
-luoshu_nomount_cleanup "$MOD" || fail 'current-boot cleanup succeeds'
+ziyu_nomount_cleanup "$MOD" || fail 'current-boot cleanup succeeds'
 assert_eq "$(wc -l < "$DB" | tr -d '[:space:]')" 1 'cleanup leaves an unrelated user rule intact'
 assert_contains "$DB" '/system/fonts/User-Regular.ttf|' 'unrelated user rule remains active'
 
@@ -122,10 +122,10 @@ assert_contains "$DB" '/system/fonts/User-Regular.ttf|' 'unrelated user rule rem
 : > "$CALLS"
 printf 'schema=ziyu-nomount-rules-v1\nstate=committed\nboot_id=boot-previous\npayload_generation=%s\n' "$GENERATION" \
   > "$MOD/.ziyu-state/nomount-rules.current"
-printf 'boot-previous|%s|/system/fonts/Ziyu Test.ttf|%s/.luoshu-payload/system/fonts/Ziyu Test.ttf\n' "$GENERATION" "$MOD" \
+printf 'boot-previous|%s|/system/fonts/Ziyu Test.ttf|%s/.ziyu-payload/system/fonts/Ziyu Test.ttf\n' "$GENERATION" "$MOD" \
   >> "$MOD/.ziyu-state/nomount-rules.current"
 printf '/system/fonts/Ziyu Test.ttf|%s/user-replaced.ttf\n' "$TMP" > "$DB"
-luoshu_nomount_cleanup "$MOD" || fail 'stale prior-boot ledger is discarded without CLI mutation'
+ziyu_nomount_cleanup "$MOD" || fail 'stale prior-boot ledger is discarded without CLI mutation'
 assert_eq "$(cat "$CALLS")" '' 'stale boot ledger never calls nm rule del'
 assert_contains "$DB" '/system/fonts/Ziyu Test.ttf|' 'prior-boot cleanup preserves current rule state'
 
@@ -151,18 +151,18 @@ readlink() {
 printf '/system/fonts/Ziyu Test.ttf|%s/system/fonts/Ziyu Test.ttf\n' "$MOD" >> "$DB"
 printf '/system/bin/ziyu|%s/system/bin/ziyu\n' "$MOD" >> "$DB"
 printf '/system/fonts/Other.ttf|%s/other-module/system/fonts/Other.ttf\n' "$TMP" >> "$DB"
-luoshu_nomount_provider_reload_cleanup "$MOD" || fail 'managed provider cleanup retires published Ziyu rules'
+ziyu_nomount_provider_reload_cleanup "$MOD" || fail 'managed provider cleanup retires published Ziyu rules'
 assert_eq "$(wc -l < "$DB" | tr -d '[:space:]')" 1 'provider cleanup keeps other modules untouched'
 assert_contains "$DB" '/system/fonts/Other.ttf|' 'unrelated provider rule remains'
 
 # ColorOS keeps its Tango translator named zygote across a managed reboot.
 # It is not the init zygote service whose stopped lifecycle authorizes reload.
 pidof() { printf '4102\n'; }
-luoshu_nomount_reload_window_ready || fail 'persistent Tango process name does not block stopped managed zygotes'
-if NM_TEST_NEXT_STATE=running luoshu_nomount_reload_window_ready; then
+ziyu_nomount_reload_window_ready || fail 'persistent Tango process name does not block stopped managed zygotes'
+if NM_TEST_NEXT_STATE=running ziyu_nomount_reload_window_ready; then
     fail 'a running managed zygote_next still blocks reload'
 fi
-if ZIYU_KSU_POST_STOP_RELOAD=0 luoshu_nomount_reload_window_ready; then
+if ZIYU_KSU_POST_STOP_RELOAD=0 ziyu_nomount_reload_window_ready; then
     fail 'stopped services do not authorize cleanup outside manager post-stop'
 fi
 pidof() { return 1; }
@@ -171,7 +171,7 @@ pidof() { return 1; }
 # and the pending font rather than claiming that the next generation activated.
 printf '/system/bin/ziyu|%s/system/bin/ziyu\n' "$MOD" >> "$DB"
 printf '/system/fonts/Ziyu Test.ttf|%s/system/fonts/Ziyu Test.ttf\n' "$MOD" >> "$DB"
-if NM_FAIL_DEL_TARGET='/system/fonts/Ziyu Test.ttf' luoshu_nomount_provider_reload_cleanup "$MOD"; then
+if NM_FAIL_DEL_TARGET='/system/fonts/Ziyu Test.ttf' ziyu_nomount_provider_reload_cleanup "$MOD"; then
     fail 'failed provider deletion blocks reload'
 fi
 assert_contains "$DB" "/system/bin/ziyu|$MOD/system/bin/ziyu" 'earlier retired rule restored on failure'
@@ -180,33 +180,33 @@ assert_contains "$DB" '/system/fonts/Other.ttf|' 'rollback preserves unrelated m
 [ ! -e "$MOD/.ziyu-state/nomount-provider-reload.removed" ] || fail 'confirmed rollback clears transaction ledger'
 
 : > "$CALLS"
-if NM_TEST_INIT_NAMESPACE=other luoshu_nomount_provider_reload_cleanup "$MOD"; then
+if NM_TEST_INIT_NAMESPACE=other ziyu_nomount_provider_reload_cleanup "$MOD"; then
     fail 'provider cleanup requires PID1 mount namespace'
 fi
 assert_eq "$(cat "$CALLS")" '' 'namespace mismatch makes no provider calls'
 : > "$CALLS"
-if NM_TEST_ZYGOTE_STATE=running luoshu_nomount_provider_reload_cleanup "$MOD"; then fail 'running Android apps block provider cleanup'; fi
+if NM_TEST_ZYGOTE_STATE=running ziyu_nomount_provider_reload_cleanup "$MOD"; then fail 'running Android apps block provider cleanup'; fi
 assert_eq "$(cat "$CALLS")" '' 'pre-stop cleanup performs no provider calls'
 . "$ROOT/common/font_switch_lock.sh"
-luoshu_font_lock_acquire "$MOD/.font_switch.lock" "$$" || fail 'fixture owns the font transaction lock'
+ziyu_font_lock_acquire "$MOD/.font_switch.lock" "$$" || fail 'fixture owns the font transaction lock'
 : > "$CALLS"
-if luoshu_nomount_provider_reload_cleanup "$MOD"; then fail 'a concurrent font transaction blocks provider cleanup'; fi
+if ziyu_nomount_provider_reload_cleanup "$MOD"; then fail 'a concurrent font transaction blocks provider cleanup'; fi
 assert_eq "$(cat "$CALLS")" '' 'busy font transaction is never mutated by cleanup'
-luoshu_font_lock_release "$MOD/.font_switch.lock" "$$" || fail 'fixture lock is released'
+ziyu_font_lock_release "$MOD/.font_switch.lock" "$$" || fail 'fixture lock is released'
 
 printf 'boot_id=boot-A\n/system/bin/ziyu|%s/system/bin/ziyu\n' "$MOD" \
   > "$MOD/.ziyu-state/nomount-provider-reload.removed"
 : > "$CALLS"
-if luoshu_nomount_provider_reload_cleanup "$MOD"; then fail 'an interrupted current-boot cleanup is not overwritten'; fi
+if ziyu_nomount_provider_reload_cleanup "$MOD"; then fail 'an interrupted current-boot cleanup is not overwritten'; fi
 assert_eq "$(cat "$CALLS")" '' 'incomplete transaction blocks before querying or deleting provider rules'
 sed -i 's/^boot_id=boot-A$/boot_id=boot-previous/' "$MOD/.ziyu-state/nomount-provider-reload.removed"
-luoshu_nomount_provider_reload_cleanup "$MOD" || fail 'kernel reboot retires stale cleanup ledger safely'
+ziyu_nomount_provider_reload_cleanup "$MOD" || fail 'kernel reboot retires stale cleanup ledger safely'
 assert_eq "$(wc -l < "$DB" | tr -d '[:space:]')" 1 'new-boot cleanup still preserves the unrelated module'
 
 # A source under our module cannot authorize an unrelated virtual destination.
 printf '/product/overlay/unrelated.apk|%s/system/fonts/Ziyu Test.ttf\n' "$MOD" >> "$DB"
 : > "$CALLS"
-if luoshu_nomount_provider_reload_cleanup "$MOD"; then fail 'mismatched partition target is refused'; fi
+if ziyu_nomount_provider_reload_cleanup "$MOD"; then fail 'mismatched partition target is refused'; fi
 ! grep -q '^rule del ' "$CALLS" || fail 'complete plan is checked before the first deletion'
 
 # An upgrade installs new code after the old cleanup hook has already failed.
@@ -231,10 +231,10 @@ printf 'boot_id=boot-A\nstate=ready\n' > "${0%/*}/config/temporary-root-soft-reb
 SH
 printf '#!/bin/sh\nexit 0\n' > "$MOD/common/font_live_switch.sh"
 cat > "$MOD/common/next_boot_payload.sh" <<'SH'
-luoshu_next_boot_activate() { printf 'activate\n' >> "$MODDIR/config/upgrade-stage.calls"; return 2; }
+ziyu_next_boot_activate() { printf 'activate\n' >> "$MODDIR/config/upgrade-stage.calls"; return 2; }
 SH
 printf '#!/bin/sh\nexit 0\n' > "$MOD/common/mount_backend_runtime.sh"
-printf 'boot_id=boot-A\nstate=failed\nreason=nomount-still-routes-luoshu-payload\n' > "$MOD/config/temporary-root-soft-reboot.conf"
+printf 'boot_id=boot-A\nstate=failed\nreason=nomount-still-routes-ziyu-payload\n' > "$MOD/config/temporary-root-soft-reboot.conf"
 sh "$MOD/post-fs-data.sh" || fail 'upgraded post-fs hook recovers the old NoMount cleanup failure'
 assert_eq "$(cat "$MOD/config/upgrade-stage.calls")" "$(printf 'cleanup\nactivate')" 'cleanup is verified before activation'
 : > "$MOD/config/upgrade-stage.calls"
@@ -246,7 +246,7 @@ printf 'boot_id=boot-A\nstate=failed\nreason=nomount-cleanup-window-not-quiescen
 sh "$MOD/post-fs-data.sh" || fail 'upgraded post-fs hook recovers the old Tango name collision'
 assert_eq "$(cat "$MOD/config/upgrade-stage.calls")" "$(printf 'cleanup\nactivate')" 'Tango recovery verifies cleanup before activation'
 : > "$MOD/config/upgrade-stage.calls"
-printf 'boot_id=boot-A\nstate=failed\nreason=nomount-still-routes-luoshu-payload\n' > "$MOD/config/temporary-root-soft-reboot.conf"
+printf 'boot_id=boot-A\nstate=failed\nreason=nomount-still-routes-ziyu-payload\n' > "$MOD/config/temporary-root-soft-reboot.conf"
 if NM_UPGRADE_RETRY_FAIL=1 sh "$MOD/post-fs-data.sh"; then fail 'failed cleanup retry blocks activation'; fi
 assert_eq "$(cat "$MOD/config/upgrade-stage.calls")" cleanup 'failed retry never activates a pending generation'
 : > "$MOD/config/upgrade-stage.calls"

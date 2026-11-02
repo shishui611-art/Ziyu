@@ -39,7 +39,7 @@ _zap_log() {
 ziyu_apatch_hook_install() (
     _zap_install_module="$1"
     . "$_zap_install_module/common/root_manager_detection.sh" || return 1
-    luoshu_detect_root_manager >/dev/null || return 1
+    ziyu_detect_root_manager >/dev/null || return 1
     [ "$ROOT_MANAGER" = APatch ] || return 0
     _zap_hook=/data/adb/post-fs-data.d/ziyu-apatch-pre-mount.sh
     [ ! -L /data/adb/post-fs-data.d ] || return 1

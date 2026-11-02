@@ -62,14 +62,14 @@ def inventory_for(path: Path, logical: str) -> dict:
 
 class LayoutDiagnosticTest(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="luoshu-layout-diagnostic-")
+        self.temp = tempfile.TemporaryDirectory(prefix="ziyu-layout-diagnostic-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.module = self.root / "module"
         self.logical = "/system/fonts/MiSansVF.ttf"
-        self.active = self.module / ".luoshu-payload" / self.logical.lstrip("/")
+        self.active = self.module / ".ziyu-payload" / self.logical.lstrip("/")
         self.mounted = self.root / self.logical.lstrip("/")
-        self.next = self.module / ".luoshu-next-payload" / self.logical.lstrip("/")
+        self.next = self.module / ".ziyu-next-payload" / self.logical.lstrip("/")
         make_font(self.active, 700)
         make_font(self.next, 1100)
         self.mounted.parent.mkdir(parents=True)
@@ -102,7 +102,7 @@ class LayoutDiagnosticTest(unittest.TestCase):
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
         text = json.dumps(report)
         for secret in ("private-build-fingerprint", "Private-user-original-family", "/private/",
-                       ".luoshu-next-payload", str(self.root)):
+                       ".ziyu-next-payload", str(self.root)):
             self.assertNotIn(secret, text)
         self.assertFalse(report["limitations"]["appSelectedTypefaceCollected"])
 
@@ -131,7 +131,7 @@ class LayoutDiagnosticTest(unittest.TestCase):
         entry["metrics"]["hhea"]["descent"] = 0
         self.data["mainSlot"] = copy.deepcopy(entry)
         self.inventory_path.write_text(json.dumps(self.data), encoding="utf-8")
-        lower = self.root / "data/adb/luoshu/self-mount/lower/system-fonts/MiSansVF.ttf"
+        lower = self.root / "data/adb/ziyu/self-mount/lower/system-fonts/MiSansVF.ttf"
         make_font(lower, 820)
         report = self.collect()
         slot = report["slots"][0]
@@ -141,15 +141,15 @@ class LayoutDiagnosticTest(unittest.TestCase):
         self.assertEqual(profile["probes"]["岁"]["bounds"][3], 820)
 
     def test_processing_report_comes_only_from_active_and_exports_allowlisted_fields(self):
-        filename = ".luoshu-metrics-report.json"
-        active_report = self.module / ".luoshu-payload" / filename
-        active_report.write_text(json.dumps({"schema": "luoshu-slot-metrics-v1", "slots": [{
+        filename = ".ziyu-metrics-report.json"
+        active_report = self.module / ".ziyu-payload" / filename
+        active_report.write_text(json.dumps({"schema": "ziyu-slot-metrics-v1", "slots": [{
             "slot": self.logical, "metricsSource": "stock", "layoutBoundsSource": "source",
             "cjkRoutingSource": "stock-fallback", "cjkRoutingReason": "stock-latin-primary",
             "removedCjkMappings": 123,
             "source": "/sdcard/LuoShu/fonts/Private-original.ttf"}]}), encoding="utf-8")
-        (self.module / ".luoshu-next-payload" / filename).write_text(json.dumps({
-            "schema": "luoshu-slot-metrics-v1", "slots": [{"slot": self.logical,
+        (self.module / ".ziyu-next-payload" / filename).write_text(json.dumps({
+            "schema": "ziyu-slot-metrics-v1", "slots": [{"slot": self.logical,
                 "metricsSource": "fallback", "layoutBoundsSource": "stock"}]}), encoding="utf-8")
         report = self.collect()
         observed = report["slots"][0]["processing"]
@@ -161,9 +161,9 @@ class LayoutDiagnosticTest(unittest.TestCase):
         self.assertNotIn("Private-original", json.dumps(report))
 
     def test_processing_cjk_fields_reject_unknown_labels_and_invalid_counts(self):
-        path = self.module / ".luoshu-payload/.luoshu-metrics-report.json"
+        path = self.module / ".ziyu-payload/.ziyu-metrics-report.json"
         for count in (True, -1, 0x110001, "42", 1.5, None):
-            path.write_text(json.dumps({"schema": "luoshu-slot-metrics-v1", "slots": [{
+            path.write_text(json.dumps({"schema": "ziyu-slot-metrics-v1", "slots": [{
                 "slot": self.logical, "cjkRoutingSource": "private-source-name",
                 "cjkRoutingReason": {"private-file-path": "/sdcard/private-font.ttf"},
                 "removedCjkMappings": count}]}), encoding="utf-8")

@@ -15,37 +15,37 @@ cp "$ROOT/common/font_safety.sh" "$MODDIR/common/font_safety.sh"
 dd if=/dev/zero of="$MODDIR/system/fonts/Test.ttf" bs=2048 count=1 2>/dev/null
 printf 'old\n' >"$MODDIR/config/active_font.conf"
 printf 'schema=legacy-v1\n' >"$MODDIR/config/font-payload-schema.conf"
-luoshu_payload_transaction_begin
+ziyu_payload_transaction_begin
 printf 'changed' >>"$MODDIR/system/fonts/Test.ttf"
 printf 'new\n' >"$MODDIR/config/active_font.conf"
-luoshu_payload_arm Demo
-[ "$(luoshu_payload_schema_read)" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ]
-luoshu_payload_transaction_abort
+ziyu_payload_arm Demo
+[ "$(ziyu_payload_schema_read)" = "$ZIYU_PAYLOAD_SCHEMA_CURRENT" ]
+ziyu_payload_transaction_abort
 [ "$(wc -c <"$MODDIR/system/fonts/Test.ttf" | tr -d ' ')" = 2048 ]
 [ "$(cat "$MODDIR/config/active_font.conf")" = old ]
-[ "$(luoshu_payload_schema_read)" = legacy-v1 ]
+[ "$(ziyu_payload_schema_read)" = legacy-v1 ]
 
 # A prepared current-schema payload is allowed for one boot. Repeated post-fs-data entry in that
 # same boot is idempotent. One different boot is an inconclusive bounded retry for
 # KernelSU/APatch mount timing; a second unconfirmed boot quarantines the generation.
-LUOSHU_CURRENT_BOOT_ID=boot-a
-export LUOSHU_CURRENT_BOOT_ID
-luoshu_payload_arm Demo
+ZIYU_CURRENT_BOOT_ID=boot-a
+export ZIYU_CURRENT_BOOT_ID
+ziyu_payload_arm Demo
 [ "$(sed -n 's/^state=//p' "$MODDIR/config/font-payload-boot.conf")" = prepared ]
-[ "$(luoshu_payload_schema_read)" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ]
+[ "$(ziyu_payload_schema_read)" = "$ZIYU_PAYLOAD_SCHEMA_CURRENT" ]
 font_config_boot_guard Demo
 [ "$(sed -n 's/^state=//p' "$MODDIR/config/font-payload-boot.conf")" = booting ]
 font_config_boot_guard Demo
 [ "$(sed -n 's/^bootId=//p' "$MODDIR/config/font-payload-boot.conf")" = boot-a ]
 [ -d "$MODDIR/system/fonts" ]
-LUOSHU_CURRENT_BOOT_ID=boot-b
-export LUOSHU_CURRENT_BOOT_ID
+ZIYU_CURRENT_BOOT_ID=boot-b
+export ZIYU_CURRENT_BOOT_ID
 font_config_boot_guard Demo
 [ "$(sed -n 's/^reason=//p' "$MODDIR/config/font-payload-boot.conf")" = previous-boot-unconfirmed-retry ]
 [ "$(sed -n 's/^count=//p' "$MODDIR/config/font-boot-inconclusive.conf")" = 1 ]
 [ -d "$MODDIR/system/fonts" ]
-LUOSHU_CURRENT_BOOT_ID=boot-c
-export LUOSHU_CURRENT_BOOT_ID
+ZIYU_CURRENT_BOOT_ID=boot-c
+export ZIYU_CURRENT_BOOT_ID
 if font_config_boot_guard Demo; then
     echo 'second unconfirmed boot was not rejected' >&2
     exit 1
@@ -60,22 +60,22 @@ fi
 mkdir -p "$MODDIR/system/fonts"
 dd if=/dev/zero of="$MODDIR/system/fonts/Test.ttf" bs=2048 count=1 2>/dev/null
 printf 'Demo\n' >"$MODDIR/config/active_font.conf"
-luoshu_payload_quarantine
+ziyu_payload_quarantine
 [ "$(cat "$MODDIR/config/font-boot-failures")" -ge 2 ]
 [ ! -e "$MODDIR/disable" ]
 
 # A completed boot keeps the current schema and resets failure history.
 mkdir -p "$MODDIR/system/fonts"
 dd if=/dev/zero of="$MODDIR/system/fonts/Test.ttf" bs=2048 count=1 2>/dev/null
-LUOSHU_CURRENT_BOOT_ID=boot-d
-export LUOSHU_CURRENT_BOOT_ID
-luoshu_payload_arm Demo
+ZIYU_CURRENT_BOOT_ID=boot-d
+export ZIYU_CURRENT_BOOT_ID
+ziyu_payload_arm Demo
 font_config_boot_guard Demo
 font_config_mark_boot_success
 [ "$(sed -n 's/^state=//p' "$MODDIR/config/font-payload-boot.conf")" = confirmed ]
 font_config_boot_guard Demo
 [ "$(sed -n 's/^state=//p' "$MODDIR/config/font-payload-boot.conf")" = confirmed ]
-[ "$(luoshu_payload_schema_read)" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ]
+[ "$(ziyu_payload_schema_read)" = "$ZIYU_PAYLOAD_SCHEMA_CURRENT" ]
 [ -s "$MODDIR/config/font-last-boot-success.conf" ]
 
 # Even a structurally valid old payload is rejected before Zygote when its engine schema is stale.

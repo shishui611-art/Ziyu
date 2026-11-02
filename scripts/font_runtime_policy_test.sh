@@ -24,14 +24,14 @@ _verify_font_copy() {
 . "$ROOT/common/font_runtime_policy.sh"
 . "$ROOT/common/font_runtime_cleanup.sh"
 
-mkdir -p "$MODDIR/.luoshu-payload/system/fonts" \
-  "$MODDIR/.luoshu-payload/product/fonts" \
-  "$MODDIR/.luoshu-payload/future_oem/fonts" \
+mkdir -p "$MODDIR/.ziyu-payload/system/fonts" \
+  "$MODDIR/.ziyu-payload/product/fonts" \
+  "$MODDIR/.ziyu-payload/future_oem/fonts" \
   "$TMP/visible/system/fonts" "$TMP/visible/product/fonts" "$TMP/visible/future_oem/fonts"
 
 # The private tree must be selected dynamically even if it appeared after the
 # policy was sourced, matching installation and App-shell namespace handoff.
-ok test "$(_lfrp_payload_root)" = "$MODDIR/.luoshu-payload"
+ok test "$(_lfrp_payload_root)" = "$MODDIR/.ziyu-payload"
 SYSTEM_FONTS_DIR="$MODDIR/system/fonts"
 # A direct mapper target must preserve the real partition instead of collapsing
 # product/vendor/OEM slots into system/fonts.
@@ -47,27 +47,27 @@ _lfrp_visible_font_dirs() {
 python3 - "$TMP/anchor.ttf" <<'PY'
 from pathlib import Path
 import sys
-Path(sys.argv[1]).write_bytes((b"LuoShu-runtime-policy" * 512) + b"END")
+Path(sys.argv[1]).write_bytes((b"Ziyu-runtime-policy" * 512) + b"END")
 PY
 cp "$TMP/anchor.ttf" "$TMP/visible/product/fonts/Roboto-Regular.ttf"
 
-LUOSHU_FONT_HAS_CJK=false
-LUOSHU_FONT_HAS_LATIN=true
-LUOSHU_FONT_HAS_MIXED=false
-export LUOSHU_FONT_HAS_CJK LUOSHU_FONT_HAS_LATIN LUOSHU_FONT_HAS_MIXED
+ZIYU_FONT_HAS_CJK=false
+ZIYU_FONT_HAS_LATIN=true
+ZIYU_FONT_HAS_MIXED=false
+export ZIYU_FONT_HAS_CJK ZIYU_FONT_HAS_LATIN ZIYU_FONT_HAS_MIXED
 
 COUNT=$(_lfrp_alias_existing_targets "$TMP/anchor.ttf" Roboto-Regular.ttf)
 ok test "$COUNT" -eq 1
-ok test -s "$MODDIR/.luoshu-payload/product/fonts/Roboto-Regular.ttf"
-no test -e "$MODDIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+ok test -s "$MODDIR/.ziyu-payload/product/fonts/Roboto-Regular.ttf"
+no test -e "$MODDIR/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 
 # A scanner-discovered partition must remain partition-aware all the way to
 # the private payload instead of collapsing into system/fonts.
 cp "$TMP/anchor.ttf" "$TMP/visible/future_oem/fonts/RobotoFuture-Regular.ttf"
 COUNT=$(_lfrp_alias_existing_targets "$TMP/anchor.ttf" RobotoFuture-Regular.ttf)
 ok test "$COUNT" -eq 1
-ok test -s "$MODDIR/.luoshu-payload/future_oem/fonts/RobotoFuture-Regular.ttf"
-no test -e "$MODDIR/.luoshu-payload/system/fonts/RobotoFuture-Regular.ttf"
+ok test -s "$MODDIR/.ziyu-payload/future_oem/fonts/RobotoFuture-Regular.ttf"
+no test -e "$MODDIR/.ziyu-payload/system/fonts/RobotoFuture-Regular.ttf"
 
 # A Latin-only font must not replace CJK or mixed fallback slots, which is the
 # architectural fix for the Telegram/System Settings tofu-box failure.
@@ -85,26 +85,26 @@ rm -f "$TMP/visible/product/fonts/Roboto-Regular.ttf"
 for NAME in MiSansVF.ttf Roboto-Regular.ttf 400.ttf MitypeMonoVF.ttf; do
   cp "$TMP/anchor.ttf" "$TMP/visible/system/fonts/$NAME"
 done
-LUOSHU_FONT_HAS_CJK=true
-LUOSHU_FONT_HAS_LATIN=true
-LUOSHU_FONT_HAS_MIXED=true
-export LUOSHU_FONT_HAS_CJK LUOSHU_FONT_HAS_LATIN LUOSHU_FONT_HAS_MIXED
+ZIYU_FONT_HAS_CJK=true
+ZIYU_FONT_HAS_LATIN=true
+ZIYU_FONT_HAS_MIXED=true
+export ZIYU_FONT_HAS_CJK ZIYU_FONT_HAS_LATIN ZIYU_FONT_HAS_MIXED
 for NAME in MiSansVF.ttf Roboto-Regular.ttf 400.ttf MitypeMonoVF.ttf; do
   COUNT=$(_lfrp_alias_existing_targets "$TMP/anchor.ttf" "$NAME")
   ok test "$COUNT" -eq 1
-  ok test "$(stat -c '%d:%i' "$MODDIR/.luoshu-payload/system/fonts/$NAME")" = \
+  ok test "$(stat -c '%d:%i' "$MODDIR/.ziyu-payload/system/fonts/$NAME")" = \
     "$(stat -c '%d:%i' "$TMP/anchor.ttf")"
 done
 
 # Switching again must remove every old generated alias and generated XML from
 # the canonical private payload, not only from the public compatibility view.
-mkdir -p "$MODDIR/.luoshu-payload/system/etc"
-cp "$TMP/anchor.ttf" "$MODDIR/.luoshu-payload/system/fonts/OldAlias.ttf"
-printf '%s\n' '<family><font>LuoShu-400.ttf</font></family>' \
-  > "$MODDIR/.luoshu-payload/system/etc/fonts.xml"
+mkdir -p "$MODDIR/.ziyu-payload/system/etc"
+cp "$TMP/anchor.ttf" "$MODDIR/.ziyu-payload/system/fonts/OldAlias.ttf"
+printf '%s\n' '<family><font>Ziyu-400.ttf</font></family>' \
+  > "$MODDIR/.ziyu-payload/system/etc/fonts.xml"
 clear_managed_text_fonts
-no test -e "$MODDIR/.luoshu-payload/system/fonts/OldAlias.ttf"
-no test -e "$MODDIR/.luoshu-payload/system/etc/fonts.xml"
-ok test -d "$MODDIR/.luoshu-payload/system/fonts"
+no test -e "$MODDIR/.ziyu-payload/system/fonts/OldAlias.ttf"
+no test -e "$MODDIR/.ziyu-payload/system/etc/fonts.xml"
+ok test -d "$MODDIR/.ziyu-payload/system/fonts"
 
 echo 'font_runtime_policy_test: PASS'

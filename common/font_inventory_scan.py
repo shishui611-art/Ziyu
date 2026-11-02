@@ -333,7 +333,7 @@ DYNAMIC_PARTITION_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_]{0,63}$")
 
 
 def _dynamic_partition_search_bases() -> tuple[Path, ...]:
-    override = os.environ.get("LUOSHU_DYNAMIC_PARTITION_SCAN_ROOTS", "").strip()
+    override = os.environ.get("ZIYU_DYNAMIC_PARTITION_SCAN_ROOTS", "").strip()
     if override:
         return tuple(Path(item) for item in override.split(os.pathsep) if item)
     return (Path("/"), Path("/system"))
@@ -418,7 +418,7 @@ def _probe_font_roots(args: Any) -> list[base.FontRoot]:
     """Pick the live/explicit font directories without requiring stock trust.
 
     This pass records paths only. It intentionally does not call _read_metrics(),
-    so an already-mounted old LuoShu payload cannot poison stock metric contracts.
+    so an already-mounted old Ziyu payload cannot poison stock metric contracts.
     """
     roots: list[base.FontRoot] = []
     for partition, logical, argument, aliases in PRIMARY_FONT_SPECS:
@@ -831,7 +831,7 @@ def _verify_upgrade_roots(font_roots: list[base.FontRoot], etc_roots: list[tuple
     Resolve each present root again through the existing lower/mirror safety
     resolver, including explicit directory arguments. The private-payload wrapper
     can also prove a partition is untouched; the pre-mount hook bypasses this
-    check only via its existing LUOSHU_STOCK_VIEW_VERIFIED contract.
+    check only via its existing ZIYU_STOCK_VIEW_VERIFIED contract.
     """
     aliases_by_root = {logical: aliases for _partition, logical, _argument, aliases
                        in (*PRIMARY_FONT_SPECS, *PRIMARY_ETC_SPECS)}
@@ -903,7 +903,7 @@ def _stock_font_links(roots: list[base.FontRoot]) -> dict[str, str]:
 
 
 def _retirable_absent_upgrade_slot(logical: str, *, coloros: bool) -> bool:
-    """Retire only stale entries known to come from old LuoShu compatibility scope.
+    """Retire only stale entries known to come from old Ziyu compatibility scope.
 
     Never turn generic "missing from this rescan" into a deletion rule. On ColorOS,
     old mix payloads unconditionally created a small set of compatibility aliases,
@@ -960,7 +960,7 @@ def scan(args: Any) -> int:
     candidate_output = output.with_name("device_font_candidates.json")
     build_key, fingerprint, display_id = base.current_build_key(args.build_key)
     existing = base._load_json(output)
-    fresh_scan = os.environ.get("LUOSHU_FRESH_STOCK_SCAN", "").strip() == "1"
+    fresh_scan = os.environ.get("ZIYU_FRESH_STOCK_SCAN", "").strip() == "1"
     if fresh_scan:
         # Installation and pre-mount recovery must rebuild the device inventory
         # from verified stock only. The previous inventory remains on disk as an
@@ -1025,7 +1025,7 @@ def _scan_current_roots(args: Any, build_key: str, fingerprint: str, display_id:
                         probe: dict[str, Any]) -> int:
     output: Path = args.output
     risk = base._overlay_risk(args.overlay_module)
-    require_verified = upgrade and os.environ.get("LUOSHU_STOCK_VIEW_VERIFIED", "").strip() != "1"
+    require_verified = upgrade and os.environ.get("ZIYU_STOCK_VIEW_VERIFIED", "").strip() != "1"
     risk = risk or require_verified
     primary_roots = _resolve_primary_font_roots(args, risk)
     auxiliary_roots = _resolve_aux_font_roots(args, risk)
@@ -1074,8 +1074,8 @@ def _scan_current_roots(args: Any, build_key: str, fingerprint: str, display_id:
     retired_absent_upgrade_slots: set[str] = set()
     if upgrade and existing is not None:
         _refresh_known_slots(slots, families, existing, replaceable_roots, preserved_paths, metrics_cache)
-        # Older LuoShu builds could pollute the saved inventory with aliases that
-        # existed only in LuoShu's generated payload (ColorOS alias_core is the
+        # Older Ziyu builds could pollute the saved inventory with aliases that
+        # existed only in Ziyu's generated payload (ColorOS alias_core is the
         # common example). Once this scan is reading verified stock roots, an old
         # logical path that is completely absent from stock is safe to retire.
         # Existing-but-unparseable paths are NOT retired and still fail closed.

@@ -4,11 +4,11 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
 CASE='设备对齐缓存'
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-cache)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-cache)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MODULE="$TMP/module"
-mkdir -p "$MODULE/common" "$MODULE/config" "$MODULE/logs" "$MODULE/system/fonts/.luoshu-font-store"
-printf 'font-data\n' > "$MODULE/system/fonts/.luoshu-font-store/regular.font"
+mkdir -p "$MODULE/common" "$MODULE/config" "$MODULE/logs" "$MODULE/system/fonts/.ziyu-font-store"
+printf 'font-data\n' > "$MODULE/system/fonts/.ziyu-font-store/regular.font"
 printf 'trusted-key\n' > "$MODULE/config/device-font-template.key"
 cat > "$MODULE/common/device_font_template.sh" <<'EOF'
 #!/bin/sh
@@ -18,8 +18,8 @@ chmod 0755 "$MODULE/common/device_font_template.sh"
 
 MODDIR="$MODULE"
 MODULE_DIR="$MODULE"
-LUOSHU_CACHE_AUTOSTART=0
-export MODDIR MODULE_DIR LUOSHU_CACHE_AUTOSTART
+ZIYU_CACHE_AUTOSTART=0
+export MODDIR MODULE_DIR ZIYU_CACHE_AUTOSTART
 INSTALLS="$TMP/installs"
 : > "$INSTALLS"
 _dfpr_install_overlay() { printf '%s\n' "$1" >> "$INSTALLS"; printf 'file|system/fonts/X.ttf|hash|1024\n' > "$MODULE/config/device-font-installed.conf"; }
@@ -33,16 +33,16 @@ ok grep -q 'alignment-cache-v5-content' "$ROOT/common/device_font_cache.sh"
 
 CASE='设备缓存键只认字体内容'
 FIRST_SOURCE_KEY=$(_dfcache_source_key)
-cp "$MODULE/system/fonts/.luoshu-font-store/regular.font" "$TMP/recreated.font"
-rm -f "$MODULE/system/fonts/.luoshu-font-store/regular.font"
-mv "$TMP/recreated.font" "$MODULE/system/fonts/.luoshu-font-store/regular.font"
-touch "$MODULE/system/fonts/.luoshu-font-store/regular.font"
+cp "$MODULE/system/fonts/.ziyu-font-store/regular.font" "$TMP/recreated.font"
+rm -f "$MODULE/system/fonts/.ziyu-font-store/regular.font"
+mv "$TMP/recreated.font" "$MODULE/system/fonts/.ziyu-font-store/regular.font"
+touch "$MODULE/system/fonts/.ziyu-font-store/regular.font"
 SECOND_SOURCE_KEY=$(_dfcache_source_key)
 eq "$SECOND_SOURCE_KEY" "$FIRST_SOURCE_KEY"
-printf 'font-date\n' > "$MODULE/system/fonts/.luoshu-font-store/regular.font"
+printf 'font-date\n' > "$MODULE/system/fonts/.ziyu-font-store/regular.font"
 THIRD_SOURCE_KEY=$(_dfcache_source_key)
 ne "$THIRD_SOURCE_KEY" "$FIRST_SOURCE_KEY"
-printf 'font-data\n' > "$MODULE/system/fonts/.luoshu-font-store/regular.font"
+printf 'font-data\n' > "$MODULE/system/fonts/.ziyu-font-store/regular.font"
 eq "$(_dfcache_source_key)" "$FIRST_SOURCE_KEY"
 
 CASE='v4 设备缓存无损升级为内容键'

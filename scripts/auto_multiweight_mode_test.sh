@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TMP="${TMPDIR:-/tmp}/luoshu-auto-weight-test.$$"
+TMP="${TMPDIR:-/tmp}/ziyu-auto-weight-test.$$"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 mkdir -p "$TMP/fonts"
 : > "$TMP/fonts/Family-Regular.ttf"

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu v13.4 Beta2 Hotfix6 - 字体文件真实格式与基础兼容性检测
+# Ziyu v13.4 Beta2 Hotfix6 - 字体文件真实格式与基础兼容性检测
 # 只读取文件，不修改字体。
 
 font_magic_hex() {
@@ -55,12 +55,12 @@ font_validate() {
         _struct_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
         _struct_root="$_struct_module/common/python"
         _struct_checker="$_struct_module/common/font_structure.py"
-        _struct_python="${LUOSHU_HOST_PYTHON:-$_struct_root/bin/luoshu-python}"
+        _struct_python="${ZIYU_HOST_PYTHON:-$_struct_root/bin/ziyu-python}"
         if [ ! -f "$_struct_checker" ] || [ ! -x "$_struct_python" ]; then
             FONT_CHECK_ERROR="字体结构校验器不可用"
             return 1
         fi
-        if [ -n "${LUOSHU_HOST_PYTHON:-}" ]; then
+        if [ -n "${ZIYU_HOST_PYTHON:-}" ]; then
             _struct_error=$("$_struct_python" "$_struct_checker" "$_file" 2>&1)
         else
             _struct_error=$(PYTHONHOME="$_struct_root" PYTHONPATH="$_struct_root/lib/python3.14/site-packages" \
@@ -124,7 +124,7 @@ font_validate_global() {
     _file="$1"
     font_validate "$_file" text || return 1
     _module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
-    _python="$_module/common/python/bin/luoshu-python"
+    _python="$_module/common/python/bin/ziyu-python"
     _checker="$_module/common/font_coverage.py"
     FONT_CHECK_COVERAGE=""
     if [ ! -x "$_python" ] || [ ! -f "$_checker" ]; then

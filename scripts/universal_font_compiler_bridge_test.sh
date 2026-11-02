@@ -80,8 +80,8 @@ JSON
 export MODDIR="$MOD"
 export MODULE_DIR="$MOD"
 export CONFIG_DIR="$MOD/config"
-export LUOSHU_PYTHON=python3
-export LUOSHU_COMPILER_CACHE="$MOD/cache/compiler"
+export ZIYU_PYTHON=python3
+export ZIYU_COMPILER_CACHE="$MOD/cache/compiler"
 
 BUILD=$(sh "$MOD/common/universal_font_compiler.sh" compile DemoFamily)
 printf "%s\n" "$BUILD" | grep -q '"status":"ok"'
@@ -96,6 +96,6 @@ printf "%s\n" "$VALID" | grep -q '"status":"ok"'
 
 # Compiler bridge must stay private: no system or payload tree is created.
 test ! -e "$MOD/system"
-test ! -e "$MOD/.luoshu-payload"
+test ! -e "$MOD/.ziyu-payload"
 
 echo "universal_font_compiler_bridge_test: PASS"

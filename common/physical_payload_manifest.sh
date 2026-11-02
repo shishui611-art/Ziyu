@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # Integrity contract for the existing XML-preserving physical font backend.
 # Build only from the frozen payload before mount/activation, never live ROM files.
-luoshu_physical_manifest_build() (
+ziyu_physical_manifest_build() (
     _lpm_module="$1"
     _lpm_root="$2"
     _lpm_config="$_lpm_module/config"
@@ -24,11 +24,11 @@ luoshu_physical_manifest_build() (
         [ ! -d "$_lpm_root/$_lpm_part/etc" ] || find "$_lpm_root/$_lpm_part/etc" -maxdepth 1 -type f -name '*font*.xml' >> "$_lpm_list" || return 1
     done
     _lpm_pyroot="$_lpm_module/common/python"
-    if [ -x "$_lpm_pyroot/bin/luoshu-python" ] && [ -f "$_lpm_module/common/physical_payload_hashes.py" ]; then
+    if [ -x "$_lpm_pyroot/bin/ziyu-python" ] && [ -f "$_lpm_module/common/physical_payload_hashes.py" ]; then
         PYTHONHOME="$_lpm_pyroot" \
         PYTHONPATH="$_lpm_module/common:$_lpm_pyroot/lib/python3.14:$_lpm_pyroot/lib/python3.14/site-packages" \
         LD_LIBRARY_PATH="$_lpm_pyroot/lib:$_lpm_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            "$_lpm_pyroot/bin/luoshu-python" "$_lpm_module/common/physical_payload_hashes.py" \
+            "$_lpm_pyroot/bin/ziyu-python" "$_lpm_module/common/physical_payload_hashes.py" \
             "$_lpm_root" "$_lpm_list" "$_lpm_tmp" || return 1
         chmod 0644 "$_lpm_tmp" || return 1
         mv -f "$_lpm_tmp" "$_lpm_config/font-payload-manifest.conf" || return 1
@@ -54,11 +54,11 @@ luoshu_physical_manifest_build() (
     mv -f "$_lpm_tmp" "$_lpm_config/font-payload-manifest.conf" || return 1
 )
 
-luoshu_physical_manifest_ensure() {
+ziyu_physical_manifest_ensure() {
     [ ! -e "$1/config/font-payload-manifest.conf" ] || {
         [ -s "$1/config/font-payload-manifest.conf" ]; return;
     }
     [ "$(sed -n 's/^core=//p' "$1/config/font_runtime_legacy_v14_4.conf" 2>/dev/null | head -n1)" = physical-safe-v1 ] || return 1
     [ "$(sed -n 's/^schema=//p' "$1/config/font-payload-schema.conf" 2>/dev/null | head -n1)" = legacy-physical-safe-v1 ] || return 1
-    luoshu_physical_manifest_build "$1" "$2"
+    ziyu_physical_manifest_build "$1" "$2"
 }

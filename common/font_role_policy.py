@@ -53,7 +53,7 @@ def slot_for(data: dict, logical: str) -> dict:
 
 
 def assert_isolated(module: Path, stage: Path) -> None:
-    live = (module / '.luoshu-payload').resolve()
+    live = (module / '.ziyu-payload').resolve()
     resolved = stage.resolve()
     if resolved == module.resolve() or resolved == live or live in resolved.parents:
         raise ValueError('拒绝修改本次启动正在使用的字体负载')
@@ -77,7 +77,7 @@ def protected_aliases(stage: Path, data: dict) -> list[Path]:
 
 
 def record_preserved(stage: Path, logicals: list[str]) -> list[str]:
-    sidecar = stage / '.luoshu-stock-preserved.paths'
+    sidecar = stage / '.ziyu-stock-preserved.paths'
     existing = sidecar.read_text().splitlines() if sidecar.is_file() else []
     # This file is consumed by boot repair with grep -Fx, not evaluated as shell.
     paths = sorted({p for p in [*existing, *logicals]
@@ -111,9 +111,9 @@ def cleanup(module: Path, stage: Path) -> dict:
     paths = record_preserved(stage, logicals)
     for alias in aliases:
         alias.unlink(missing_ok=True)
-    result = {'schema': 'luoshu-font-role-protection-v1',
+    result = {'schema': 'ziyu-font-role-protection-v1',
               'removedStagedAliases': logicals, 'preservedStockPaths': paths}
-    report = stage / '.luoshu-font-role-report.json'
+    report = stage / '.ziyu-font-role-report.json'
     report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     report.chmod(0o644)
     return result

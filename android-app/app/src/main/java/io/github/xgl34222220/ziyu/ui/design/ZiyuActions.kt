@@ -464,6 +464,10 @@ fun ZiyuIconButton(
     }
 }
 
+/** Translucent fills expose the hardware shadow caster's interior occlusion region. */
+internal fun ziyuSurfaceShadowElevation(containerColor: Color, requested: Dp): Dp =
+    if (containerColor.alpha < 1f) 0.dp else requested
+
 /** Surface wrapper whose non-Material branches stay on the active native surface implementation. */
 @Composable
 fun ZiyuSurface(
@@ -496,7 +500,7 @@ fun ZiyuSurface(
                     color = resolvedColor,
                     contentColor = resolvedContentColor,
                     tonalElevation = tonalElevation,
-                    shadowElevation = shadowElevation,
+                    shadowElevation = ziyuSurfaceShadowElevation(resolvedColor, shadowElevation),
                     border = border,
                     content = body,
                 )
@@ -509,7 +513,7 @@ fun ZiyuSurface(
                     color = resolvedColor,
                     contentColor = resolvedContentColor,
                     tonalElevation = tonalElevation,
-                    shadowElevation = shadowElevation,
+                    shadowElevation = ziyuSurfaceShadowElevation(resolvedColor, shadowElevation),
                     border = border,
                     interactionSource = interactionSource,
                     content = body,
@@ -531,7 +535,7 @@ fun ZiyuSurface(
                     color = resolvedColor,
                     contentColor = resolvedContentColor,
                     border = border,
-                    shadowElevation = shadowElevation,
+                    shadowElevation = ziyuSurfaceShadowElevation(resolvedColor, shadowElevation),
                     content = body,
                 )
             } else {
@@ -543,7 +547,7 @@ fun ZiyuSurface(
                     color = resolvedColor,
                     contentColor = resolvedContentColor,
                     border = border,
-                    shadowElevation = shadowElevation,
+                    shadowElevation = ziyuSurfaceShadowElevation(resolvedColor, shadowElevation),
                     interactionSource = interactionSource,
                     content = body,
                 )
@@ -564,7 +568,7 @@ fun ZiyuSurface(
                     color = resolvedColor,
                     contentColor = resolvedContentColor,
                     border = border,
-                    shadowElevation = shadowElevation,
+                    shadowElevation = ziyuSurfaceShadowElevation(resolvedColor, shadowElevation),
                     content = body,
                 )
             } else {
@@ -576,7 +580,7 @@ fun ZiyuSurface(
                     color = resolvedColor,
                     contentColor = resolvedContentColor,
                     border = border,
-                    shadowElevation = shadowElevation,
+                    shadowElevation = ziyuSurfaceShadowElevation(resolvedColor, shadowElevation),
                     interactionSource = interactionSource,
                     content = body,
                 )

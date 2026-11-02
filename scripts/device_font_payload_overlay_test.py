@@ -124,32 +124,32 @@ def main() -> None:
         fonts = payload_root / "fonts"
         fonts.mkdir(parents=True)
         generated = {
-            "LuoShuSlot-ui-400.ttf",
-            "LuoShuSlot-mi-400.ttf",
-            "LuoShuSlot-google-400.ttf",
-            "LuoShuSlot-mono-400.ttf",
+            "ZiyuSlot-ui-400.ttf",
+            "ZiyuSlot-mi-400.ttf",
+            "ZiyuSlot-google-400.ttf",
+            "ZiyuSlot-mono-400.ttf",
         }
         for name in generated:
             (fonts / name).write_bytes((name.encode("utf-8") + b"\0") * 256)
 
         slots = [
-            slot(system_primary, "sans-serif", "Roboto-Regular.ttf", "LuoShuSlot-ui-400.ttf"),
-            slot(system_legacy, "sans-serif", "Roboto-Regular.ttf", "LuoShuSlot-ui-400.ttf"),
-            slot(product_xml, "mi-sans", "MiSans-Regular.ttf", "LuoShuSlot-mi-400.ttf"),
+            slot(system_primary, "sans-serif", "Roboto-Regular.ttf", "ZiyuSlot-ui-400.ttf"),
+            slot(system_legacy, "sans-serif", "Roboto-Regular.ttf", "ZiyuSlot-ui-400.ttf"),
+            slot(product_xml, "mi-sans", "MiSans-Regular.ttf", "ZiyuSlot-mi-400.ttf"),
             slot(
                 product_xml,
                 # Legacy capture revision 2 lost the family-list wrapper name.
                 # The renderer must still locate this unique monospace slot.
                 "",
                 "CutiveMono-Regular.ttf",
-                "LuoShuSlot-mono-400.ttf",
+                "ZiyuSlot-mono-400.ttf",
                 roles=["mono"],
             ),
             slot(
                 dynamic_xml,
                 "google-sans",
                 "",
-                "LuoShuSlot-google-400.ttf",
+                "ZiyuSlot-google-400.ttf",
                 postscript="GoogleSans-Regular",
                 roles=["dynamic", "global-ui"],
             ),
@@ -227,11 +227,11 @@ def main() -> None:
             names = family_names(path)
             texts = font_texts(path)
             assert "google-sans" in names
-            assert "LuoShuSlot-ui-400.ttf" in texts
-            assert "LuoShuSlot-google-400.ttf" in texts
+            assert "ZiyuSlot-ui-400.ttf" in texts
+            assert "ZiyuSlot-google-400.ttf" in texts
         assert "NotoColorEmoji.ttf" in font_texts(output_primary)
-        assert "LuoShuSlot-mi-400.ttf" in font_texts(output_product)
-        assert "LuoShuSlot-mono-400.ttf" in font_texts(output_product)
+        assert "ZiyuSlot-mi-400.ttf" in font_texts(output_product)
+        assert "ZiyuSlot-mono-400.ttf" in font_texts(output_product)
 
         dynamic_names = family_names(output_dynamic)
         assert "google-sans" not in dynamic_names
@@ -240,25 +240,25 @@ def main() -> None:
         dynamic_root = ET.parse(output_dynamic).getroot()
         assert any(node.tag.rsplit("}", 1)[-1] == "updatedFontDir" for node in dynamic_root.iter())
 
-        assert (output / "system/fonts/LuoShuSlot-ui-400.ttf").is_file()
-        assert (output / "system/fonts/LuoShuSlot-google-400.ttf").is_file()
-        assert (output / "product/fonts/LuoShuSlot-mi-400.ttf").is_file()
-        assert (output / "product/fonts/LuoShuSlot-mono-400.ttf").is_file()
+        assert (output / "system/fonts/ZiyuSlot-ui-400.ttf").is_file()
+        assert (output / "system/fonts/ZiyuSlot-google-400.ttf").is_file()
+        assert (output / "product/fonts/ZiyuSlot-mi-400.ttf").is_file()
+        assert (output / "product/fonts/ZiyuSlot-mono-400.ttf").is_file()
         assert report["dynamicMounts"] == [
             {"source": "dynamic/data-fonts-config.xml", "target": str(dynamic_xml)}
         ]
 
         stock_lower = root / "self-mount/lower/system-etc/fonts.xml"
         write(stock_lower, "<familyset/>")
-        old_state_root = os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT")
-        os.environ["LUOSHU_SELF_MOUNT_STATE_ROOT"] = str(root / "self-mount")
+        old_state_root = os.environ.get("ZIYU_SELF_MOUNT_STATE_ROOT")
+        os.environ["ZIYU_SELF_MOUNT_STATE_ROOT"] = str(root / "self-mount")
         try:
             assert overlay.stock_xml_input({}, "/system/etc/fonts.xml") == stock_lower
         finally:
             if old_state_root is None:
-                os.environ.pop("LUOSHU_SELF_MOUNT_STATE_ROOT", None)
+                os.environ.pop("ZIYU_SELF_MOUNT_STATE_ROOT", None)
             else:
-                os.environ["LUOSHU_SELF_MOUNT_STATE_ROOT"] = old_state_root
+                os.environ["ZIYU_SELF_MOUNT_STATE_ROOT"] = old_state_root
         print(json.dumps(report["summary"], ensure_ascii=False, sort_keys=True))
 
 

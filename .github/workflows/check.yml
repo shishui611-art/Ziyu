@@ -64,14 +64,14 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Prepare ARM64 composite runtime
         run: |
-          if [ ! -x common/python/bin/luoshu-python ] || [ ! -x .luoshu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
+          if [ ! -x common/python/bin/ziyu-python ] || [ ! -x .ziyu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
@@ -119,20 +119,20 @@ jobs:
           test -s "$apk"
           rm -rf dist
           mkdir -p dist
-          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          app="dist/Ziyu-App-${ZIYU_ARTIFACT_VERSION}-Debug.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
-          LUOSHU_SOURCE_CHECK_RECEIPT="$RUNNER_TEMP/ziyu-source-check.json" \
-            LUOSHU_APP_APK="$apk" LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
+          ZIYU_SOURCE_CHECK_RECEIPT="$RUNNER_TEMP/ziyu-source-check.json" \
+            ZIYU_APP_APK="$apk" ZIYU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 
       - name: Inspect candidate artifacts
         shell: bash
         run: |
           set -euo pipefail
           . ./scripts/version.sh
-          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
-          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
-          list="$RUNNER_TEMP/luoshu-package-list.txt"
+          module="dist/Ziyu-${ZIYU_ARTIFACT_VERSION}.zip"
+          app="dist/Ziyu-App-${ZIYU_ARTIFACT_VERSION}-Debug.apk"
+          list="$RUNNER_TEMP/ziyu-package-list.txt"
 
           test -s "$module"
           test -s "$app"
@@ -156,7 +156,7 @@ jobs:
             common/device_font_template.py common/device_font_slot_plan.py \
             common/device_font_slot_build.py common/device_font_payload_build.py \
             common/device_font_payload_runtime.sh common/device_font_load_verify.py \
-            common/python/bin/luoshu-python LICENSE NOTICE.md THIRD_PARTY_NOTICES.md; do
+            common/python/bin/ziyu-python LICENSE NOTICE.md THIRD_PARTY_NOTICES.md; do
             require_member "$member"
           done
 
@@ -173,10 +173,10 @@ jobs:
           (cd dist && sha256sum -c "$(basename "$module").sha256")
           (cd dist && sha256sum -c "$(basename "$app").sha256")
 
-          test "$(unzip -p "$module" module.prop | sed -n 's/^version=//p')" = "$LUOSHU_VERSION"
-          test "$(unzip -p "$module" module.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_VERSION_CODE"
+          test "$(unzip -p "$module" module.prop | sed -n 's/^version=//p')" = "$ZIYU_VERSION"
+          test "$(unzip -p "$module" module.prop | sed -n 's/^versionCode=//p')" = "$ZIYU_VERSION_CODE"
           test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^package=//p')" = 'io.github.shishui611_art.ziyu'
-          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_APP_VERSION_CODE"
+          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$ZIYU_APP_VERSION_CODE"
 
           unzip -p "$module" LICENSE | grep -q 'GNU GENERAL PUBLIC LICENSE'
           unzip -p "$module" NOTICE.md | grep -q 'GPL-3.0-only'

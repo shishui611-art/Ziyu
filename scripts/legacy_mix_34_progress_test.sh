@@ -2,7 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-legacy-34)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-legacy-34)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 MODULE="$TMP/module"
@@ -79,24 +79,24 @@ chmod 0755 "$MODULE/common"/*.sh
 # The worker now subsets static donors too. This lifecycle fixture deliberately
 # stubs only font preparation; real outline preservation is covered separately.
 mkdir -p "$MODULE/common/python/bin"
-cat >"$MODULE/common/python/bin/luoshu-python" <<'EOF_INSTANCE'
+cat >"$MODULE/common/python/bin/ziyu-python" <<'EOF_INSTANCE'
 #!/bin/sh
 shift
 while [ "$#" -gt 0 ]; do
     case "$1" in --input) input="$2";; --output) output="$2";; esac
     shift 2
 done
-[ -z "${LUOSHU_FIXTURE_PREPARE_SLEEP:-}" ] || sleep "$LUOSHU_FIXTURE_PREPARE_SLEEP"
+[ -z "${ZIYU_FIXTURE_PREPARE_SLEEP:-}" ] || sleep "$ZIYU_FIXTURE_PREPARE_SLEEP"
 cp "$input" "$output"
 printf '%s\n' '{"status":"ok"}'
 EOF_INSTANCE
-chmod 0755 "$MODULE/common/python/bin/luoshu-python"
+chmod 0755 "$MODULE/common/python/bin/ziyu-python"
 
 printf 'font-data\n' >"$PUBLIC/fonts/CJK-Regular.ttf"
 printf 'font-data\n' >"$PUBLIC/fonts/Latin-Regular.ttf"
 printf 'font-data\n' >"$PUBLIC/fonts/Digit-Regular.ttf"
 
-START=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" \
+START=$(MODDIR="$MODULE" ZIYU_PUBLIC_DIR="$PUBLIC" \
     sh "$MODULE/common/v142_weighted_mix.sh" start CJK Latin Digit wght=400 wght=400 wght=400)
 OUTER=$(printf '%s\n' "$START" | sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' | tail -n1)
 test -n "$OUTER"
@@ -140,20 +140,20 @@ test "${STATE:-}" = success
 grep -q 'background_task.sh' "$ROOT/common/legacy_v14_4/mix_router.sh"
 grep -q 'mix_task_handoff.sh' "$ROOT/common/legacy_v14_4/mix_router.sh"
 grep -q 'mix-engine-start.*json' "$ROOT/common/legacy_v14_4/font_mix_runtime.sh"
-! grep -q '_output=$(LUOSHU_PUBLIC_DIR=' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+! grep -q '_output=$(ZIYU_PUBLIC_DIR=' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 ! sed -n '/^payload_stage_begin()/,/^}/p' "$ROOT/common/legacy_v14_4/font_mix_engine.sh" | grep -q 'cp -af'
 grep -q 'hyperos_metrics_batch.py' "$ROOT/common/hyperos_stage_complete.sh"
 
 # Replacing a task must also stop its old completion monitor promptly. It must
 # neither poll for the former twelve-minute budget nor finalize the new task.
 printf 'task=newer-task\nstate=running\n' > "$MODULE/config/mix_task.conf"
-timeout 3 env MODDIR="$MODULE" LUOSHU_REAL_MODDIR="$MODULE" \
+timeout 3 env MODDIR="$MODULE" ZIYU_REAL_MODDIR="$MODULE" \
     sh "$ROOT/common/legacy_v14_4/font_mix_runtime.sh" monitor superseded-task
 test ! -f "$MODULE/config/mix-finalize-state.conf"
 
 # Cancel while donor preparation children are alive. The controller must drain
 # them before deleting the owned input tree and must never start/publish an engine.
-START=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" LUOSHU_FIXTURE_PREPARE_SLEEP=3 \
+START=$(MODDIR="$MODULE" ZIYU_PUBLIC_DIR="$PUBLIC" ZIYU_FIXTURE_PREPARE_SLEEP=3 \
     sh "$MODULE/common/v142_weighted_mix.sh" start CJK Latin Digit wght=400 wght=400 wght=400)
 CANCEL_TASK=$(printf '%s\n' "$START" | sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' | tail -n1)
 COUNT=0

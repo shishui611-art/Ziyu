@@ -147,7 +147,7 @@ with tempfile.TemporaryDirectory() as directory:
         clock_font.close()
 
 
-    os.environ["LUOSHU_BUILD_KEY"] = "different-rom"
+    os.environ["ZIYU_BUILD_KEY"] = "different-rom"
     stale_normalized = temp / "stale-inventory-normalized.ttf"
     stale_report = normalize_path(source, stale_normalized, inventory=inventory)
     stale_font = TTFont(stale_normalized)
@@ -157,7 +157,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert stale_report["metricsSource"] == "fixed-fallback"
     finally:
         stale_font.close()
-        os.environ.pop("LUOSHU_BUILD_KEY", None)
+        os.environ.pop("ZIYU_BUILD_KEY", None)
 
     # Glyph extremes must be enclosed by both hhea and typo (USE_TYPO_METRICS makes engines
     # read typo), while win metrics stay capped so includeFontPadding=true spacing is unchanged.

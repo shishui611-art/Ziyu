@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate one stock-aligned LuoShu font for a captured device slot."""
+"""Generate one stock-aligned Ziyu font for a captured device slot."""
 from __future__ import annotations
 
 import argparse
@@ -347,11 +347,11 @@ def apply_line_contract(font: TTFont, slot: dict[str, Any]) -> None:
 def set_slot_identity(font: TTFont, slot: dict[str, Any]) -> None:
     if "name" not in font:
         return
-    family = str(slot.get("familyNormalized") or slot.get("family") or "luoshu-slot")
+    family = str(slot.get("familyNormalized") or slot.get("family") or "ziyu-slot")
     weight = rounded(slot.get("weight"), 400)
     style = "Italic" if str(slot.get("style", "normal")).lower() == "italic" else "Regular"
-    safe = "".join(char if char.isalnum() else "-" for char in family).strip("-") or "LuoShuSlot"
-    unique_family = f"LuoShuSlot-{safe}-{weight}"
+    safe = "".join(char if char.isalnum() else "-" for char in family).strip("-") or "ZiyuSlot"
+    unique_family = f"ZiyuSlot-{safe}-{weight}"
     full_name = f"{unique_family} {style}"
     postscript = f"{unique_family}-{style}".replace(" ", "")[:63]
     table = font["name"]

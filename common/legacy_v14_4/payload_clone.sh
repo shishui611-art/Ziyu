@@ -3,7 +3,7 @@
 # the retained payload entries, so a rejected hard link cannot copy gigabytes of
 # old font aliases just to delete them again. The live tree is always read-only.
 
-luoshu_clone_payload_entry() {
+ziyu_clone_payload_entry() {
     _lcpe_source="$1"; _lcpe_dest="$2"
     if cp -al "$_lcpe_source" "$_lcpe_dest" 2>/dev/null; then
         return 0
@@ -18,7 +18,7 @@ luoshu_clone_payload_entry() {
     fi
 }
 
-luoshu_clone_payload_metadata() {
+ziyu_clone_payload_metadata() {
     _lcpm_source="$1"; _lcpm_dest="$2"
     [ -d "$_lcpm_source" ] && [ "$_lcpm_source" != "$_lcpm_dest" ] || return 1
     mkdir -p "$_lcpm_dest" 2>/dev/null || return 1
@@ -26,7 +26,7 @@ luoshu_clone_payload_metadata() {
         [ -e "$_lcpm_entry" ] || [ -L "$_lcpm_entry" ] || continue
         _lcpm_name=${_lcpm_entry##*/}
         case "$_lcpm_name" in
-            .luoshu-metrics-report.json) continue ;;
+            .ziyu-metrics-report.json) continue ;;
             system|system_ext|product|vendor|odm|oem|my_product|my_engineering|\
             my_company|my_preload|my_region|my_stock|oplus_product|\
             oplus_engineering|oplus_version|oplus_region|mi_ext|cust|hw_product)
@@ -36,13 +36,13 @@ luoshu_clone_payload_metadata() {
                         [ -e "$_lcpm_child" ] || [ -L "$_lcpm_child" ] || continue
                         _lcpm_base=${_lcpm_child##*/}
                         [ "$_lcpm_base" != fonts ] || continue
-                        luoshu_clone_payload_entry "$_lcpm_child" "$_lcpm_dest/$_lcpm_name/$_lcpm_base" || return 1
+                        ziyu_clone_payload_entry "$_lcpm_child" "$_lcpm_dest/$_lcpm_name/$_lcpm_base" || return 1
                     done
                     continue
                 fi
                 ;;
         esac
-        luoshu_clone_payload_entry "$_lcpm_entry" "$_lcpm_dest/$_lcpm_name" || return 1
+        ziyu_clone_payload_entry "$_lcpm_entry" "$_lcpm_dest/$_lcpm_name" || return 1
     done
     return 0
 }

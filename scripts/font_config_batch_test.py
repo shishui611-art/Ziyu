@@ -29,15 +29,15 @@ def rows(text: str) -> list[list[str]]:
     return [line.rstrip("\n").split("\t") for line in text.splitlines() if line.strip()]
 
 
-with tempfile.TemporaryDirectory(prefix="luoshu batch | ") as tmp_raw:
+with tempfile.TemporaryDirectory(prefix="ziyu batch | ") as tmp_raw:
     tmp = Path(tmp_raw)
     source = tmp / "fonts | config.xml"
     output = tmp / "overlay | generated.xml"
     font_dir = tmp / "font aliases | safe"
     font_dir.mkdir()
     for weight in (400, 500):
-        (font_dir / f"LuoShu-{weight}.ttf").write_bytes(b"L" * 2048)
-    (font_dir / "LuoShuMono-400.ttf").write_bytes(b"M" * 2048)
+        (font_dir / f"Ziyu-{weight}.ttf").write_bytes(b"L" * 2048)
+    (font_dir / "ZiyuMono-400.ttf").write_bytes(b"M" * 2048)
 
     source.write_text(
         """<?xml version="1.0" encoding="utf-8"?>
@@ -68,8 +68,8 @@ with tempfile.TemporaryDirectory(prefix="luoshu batch | ") as tmp_raw:
         for family in tree.getroot().iter("family")
         for font in family.findall("font")
     ]
-    assert ("sans-serif", "LuoShu-400.ttf") in rendered, rendered
-    assert ("hihonor-sans", "LuoShu-500.ttf") in rendered, rendered
+    assert ("sans-serif", "Ziyu-400.ttf") in rendered, rendered
+    assert ("hihonor-sans", "Ziyu-500.ttf") in rendered, rendered
     assert ("honor-serif-display", "HonorSerif.ttf") in rendered, rendered
 
     # Overlay batching must isolate a broken document and still process later jobs.

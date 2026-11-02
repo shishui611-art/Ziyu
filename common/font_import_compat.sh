@@ -28,8 +28,8 @@ import_probe_metadata() {
     _probe_file="$1"
     [ -f "$IMPORT_PROBE" ] || return 1
     _probe_output=""
-    if [ -n "${LUOSHU_IMPORT_PYTHON:-}" ]; then
-        _probe_output=$("$LUOSHU_IMPORT_PYTHON" "$IMPORT_PROBE" "$_probe_file" 2>/dev/null)
+    if [ -n "${ZIYU_IMPORT_PYTHON:-}" ]; then
+        _probe_output=$("$ZIYU_IMPORT_PYTHON" "$IMPORT_PROBE" "$_probe_file" 2>/dev/null)
     elif [ -x "$IMPORT_PYBIN" ]; then
         _probe_output=$(PYTHONHOME="$IMPORT_PYROOT" \
             PYTHONPATH="$IMPORT_PYROOT/lib/python3.14:$IMPORT_PYROOT/lib/python3.14/site-packages" \

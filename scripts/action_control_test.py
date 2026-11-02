@@ -18,29 +18,29 @@ class ActionControlTest(unittest.TestCase):
         (self.mod/'config').mkdir()
 
     def test_discard_pending_preserves_live_and_previous_selection(self):
-        (self.mod/'.luoshu-payload').mkdir()
-        (self.mod/'.luoshu-payload/font').write_text('old')
-        (self.mod/'.luoshu-payload-next').mkdir()
+        (self.mod/'.ziyu-payload').mkdir()
+        (self.mod/'.ziyu-payload/font').write_text('old')
+        (self.mod/'.ziyu-payload-next').mkdir()
         (self.mod/'config/font-payload-next.conf').write_text('font=new\npreviousFont=old\n')
         (self.mod/'config/active_font.conf').write_text('new\n')
         result = self.control.undo(self.mod)
         self.assertFalse(result['rebootRequired'])
-        self.assertEqual('old', (self.mod/'.luoshu-payload/font').read_text())
+        self.assertEqual('old', (self.mod/'.ziyu-payload/font').read_text())
         self.assertEqual('old\n', (self.mod/'config/active_font.conf').read_text())
-        self.assertFalse((self.mod/'.luoshu-payload-next').exists())
+        self.assertFalse((self.mod/'.ziyu-payload-next').exists())
 
     def test_undo_after_boot_stages_previous_payload_without_touching_live(self):
-        retired = self.mod/'.luoshu-retired/payload-test'
+        retired = self.mod/'.ziyu-retired/payload-test'
         retired.mkdir(parents=True)
         (retired/'font').write_text('old')
-        (self.mod/'.luoshu-payload').mkdir()
-        (self.mod/'.luoshu-payload/font').write_text('new')
+        (self.mod/'.ziyu-payload').mkdir()
+        (self.mod/'.ziyu-payload/font').write_text('new')
         (self.mod/'config/font-undo.conf').write_text(
             f'previousFont=old\npreviousMode=legacy\nretired={retired}\nfont=new\n')
         result = self.control.undo(self.mod)
         self.assertTrue(result['rebootRequired'])
-        self.assertEqual('old', (self.mod/'.luoshu-payload-next/font').read_text())
-        self.assertEqual('new', (self.mod/'.luoshu-payload/font').read_text())
+        self.assertEqual('old', (self.mod/'.ziyu-payload-next/font').read_text())
+        self.assertEqual('new', (self.mod/'.ziyu-payload/font').read_text())
         self.assertTrue(retired.exists())
 
     def test_undo_rejects_retired_path_outside_module(self):
@@ -75,7 +75,7 @@ class ActionControlTest(unittest.TestCase):
         self.assertEqual('old', result['targetFont'])
 
     def test_owned_pending_cancellation_never_cancels_another_task(self):
-        (self.mod/'.luoshu-payload-next').mkdir()
+        (self.mod/'.ziyu-payload-next').mkdir()
         state = self.mod/'config/font-payload-next.conf'
         state.write_text('taskId=other\nfont=new\npreviousFont=old\n')
         self.control.discard_pending(self.mod, 'wanted')
@@ -102,7 +102,7 @@ class ActionControlTest(unittest.TestCase):
         self.assertIsNone(self.control.supervisor_identity(pid, 'wanted', proc))
 
     def test_verified_prune_keeps_undo_and_recovery_but_removes_historical_owned_snapshots(self):
-        retired = self.mod/'.luoshu-retired'
+        retired = self.mod/'.ziyu-retired'
         for name in ('payload-undo', 'universal-recovery', 'payload-old'):
             (retired/name).mkdir(parents=True)
             (retired/name/'font').write_text(name)

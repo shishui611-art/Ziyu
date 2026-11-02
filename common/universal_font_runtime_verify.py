@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 8 runtime verifier for LuoShu universal font deployments.
+"""Phase 8 runtime verifier for Ziyu universal font deployments.
 
 This verifier never discovers or selects new font targets. It consumes the frozen
 Phase 4 FontPlan, Phase 6 artifact manifest and Phase 7 deployment, then checks
@@ -264,7 +264,7 @@ def _font_manager_tokens(
             tokens.add(value)
     for name in snapshot.get("names") or []:
         value = str(name).strip()
-        if value.startswith("LuoShuUF") or value.startswith("LuoShu-UF"):
+        if value.startswith("ZiyuUF") or value.startswith("Ziyu-UF"):
             tokens.add(value)
     return sorted(token for token in tokens if len(token) >= 3)
 

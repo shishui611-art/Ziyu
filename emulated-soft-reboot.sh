@@ -8,8 +8,8 @@ MODULE_DIR="$MODDIR"
 # persistent-root installations. Every such cycle must reset our boot choice.
 mkdir -p "$MODDIR/config" "$MODDIR/logs" || exit 1
 . "$MODDIR/common/font_live_state.sh" || exit 1
-_self_root="${LUOSHU_SELF_MOUNT_STATE_ROOT:-$(ziyu_live_work_root)}"
-[ -n "$_self_root" ] || _self_root=/data/adb/luoshu/self-mount
+_self_root="${ZIYU_SELF_MOUNT_STATE_ROOT:-$(ziyu_live_work_root)}"
+[ -n "$_self_root" ] || _self_root=/data/adb/ziyu/self-mount
 
 _boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
 [ -n "$_boot" ] || exit 1
@@ -55,18 +55,18 @@ if [ "$_provider" = nomount ] || [ -e "$MODDIR/.ziyu-state/nomount-rules.current
         printf '[TEMP-ROOT] NoMount cleanup deferred until Android services stop\n' >> "$MODDIR/logs/mount-backend.log"
         exit 0
     fi
-    luoshu_nomount_reload_window_ready || _soft_fail 'nomount-cleanup-window-not-quiescent'
+    ziyu_nomount_reload_window_ready || _soft_fail 'nomount-cleanup-window-not-quiescent'
     # Rescue and provider pairs share the font-transaction lock in this stage.
-    luoshu_nomount_provider_reload_cleanup "$MODDIR" || \
+    ziyu_nomount_provider_reload_cleanup "$MODDIR" || \
         _soft_fail 'nomount-provider-owned-rule-cleanup-unconfirmed'
-    _nomount_rules=$(luoshu_nomount_module_rules_state "$MODDIR") || \
+    _nomount_rules=$(ziyu_nomount_module_rules_state "$MODDIR") || \
         _soft_fail 'nomount-live-rule-state-unknown'
     case "$_nomount_rules" in
         absent)
-            printf '[TEMP-ROOT] NoMount has no live rule referencing LuoShu payload\n' \
+            printf '[TEMP-ROOT] NoMount has no live rule referencing Ziyu payload\n' \
                 >> "$MODDIR/logs/mount-backend.log"
             ;;
-        present) _soft_fail 'nomount-still-routes-luoshu-payload' ;;
+        present) _soft_fail 'nomount-still-routes-ziyu-payload' ;;
         *) _soft_fail 'nomount-live-rule-state-invalid' ;;
     esac
 fi
@@ -77,8 +77,8 @@ if { [ "$_state_boot" = "$_boot" ] && [ "$_backend" = self ]; } || \
    { [ "$(cat "$_self_root/boot-id" 2>/dev/null | tr -d '\r\n')" = "$_boot" ] && [ -s "$_self_root/mounts.list" ]; }; then
     . "$MODDIR/common/mount_backend_runtime.sh" || exit 1
     _lbr_restore_boot_choice
-    LUOSHU_SELF_ALLOW_LAZY_UMOUNT=1
-    export LUOSHU_SELF_ALLOW_LAZY_UMOUNT
+    ZIYU_SELF_ALLOW_LAZY_UMOUNT=1
+    export ZIYU_SELF_ALLOW_LAZY_UMOUNT
     _lbr_rollback_self_attempt || _soft_fail 'self-mount-cleanup-failed'
 fi
 

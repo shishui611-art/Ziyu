@@ -3,17 +3,17 @@
 # Heavy font files are verified once during boot; a repeated identical request must not rebuild them.
 set +e
 
-_luoshu_active_state_module() {
+_ziyu_active_state_module() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
-_luoshu_active_state_value() {
+_ziyu_active_state_value() {
     sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
 }
 
-luoshu_active_payload_verified() {
+ziyu_active_payload_verified() {
     _las_expected="${1:-}"
-    _las_module="$(_luoshu_active_state_module)"
+    _las_module="$(_ziyu_active_state_module)"
     _las_config="$_las_module/config"
     _las_active=$(head -n1 "$_las_config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_las_expected" ] && [ "$_las_expected" != default ] || return 1
@@ -26,13 +26,13 @@ luoshu_active_payload_verified() {
     [ ! -s "$_las_config/font-payload-rebuild-pending.conf" ] || return 1
     [ -s "$_las_config/font-payload-manifest.conf" ] || return 1
 
-    _las_boot_state=$(_luoshu_active_state_value "$_las_config/font-payload-boot.conf" state)
+    _las_boot_state=$(_ziyu_active_state_value "$_las_config/font-payload-boot.conf" state)
     [ "$_las_boot_state" = confirmed ] || return 1
 
     _las_verify="$_las_config/device-font-load-verification.conf"
-    _las_verify_state=$(_luoshu_active_state_value "$_las_verify" state)
-    _las_verify_mode=$(_luoshu_active_state_value "$_las_verify" mode)
-    _las_verify_active=$(_luoshu_active_state_value "$_las_verify" activeFont)
+    _las_verify_state=$(_ziyu_active_state_value "$_las_verify" state)
+    _las_verify_mode=$(_ziyu_active_state_value "$_las_verify" mode)
+    _las_verify_active=$(_ziyu_active_state_value "$_las_verify" activeFont)
     [ "$_las_verify_state" = verified ] || return 1
     [ "$_las_verify_active" = "$_las_expected" ] || return 1
     case "$_las_verify_mode" in aligned|mount-verified|mount-confirmed) ;; *) return 1 ;; esac
@@ -41,56 +41,56 @@ luoshu_active_payload_verified() {
         # Metadata reuse must not turn a failed/pending selector verdict green.
         # All heavy route checking stays in the boot verifier; the App consumes
         # only its same-boot, same-font proof for the currently active backend.
-        case "$(_luoshu_active_state_value "$_las_backend_state" schema)" in
+        case "$(_ziyu_active_state_value "$_las_backend_state" schema)" in
             ziyu-mount-backend-v1|ziyu-mount-backend-v2|ziyu-mount-backend-v3) ;;
             *) return 1 ;;
         esac
-        _las_current_boot="${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
+        _las_current_boot="${ZIYU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
         [ -n "$_las_current_boot" ] || return 1
-        [ "$(_luoshu_active_state_value "$_las_backend_state" boot_id)" = "$_las_current_boot" ] || return 1
-        [ "$(_luoshu_active_state_value "$_las_backend_state" verification)" = passed ] || return 1
-        [ "$(_luoshu_active_state_value "$_las_backend_state" backend_conflict)" != 1 ] || return 1
-        _las_backend=$(_luoshu_active_state_value "$_las_backend_state" active_backend)
+        [ "$(_ziyu_active_state_value "$_las_backend_state" boot_id)" = "$_las_current_boot" ] || return 1
+        [ "$(_ziyu_active_state_value "$_las_backend_state" verification)" = passed ] || return 1
+        [ "$(_ziyu_active_state_value "$_las_backend_state" backend_conflict)" != 1 ] || return 1
+        _las_backend=$(_ziyu_active_state_value "$_las_backend_state" active_backend)
         case "$_las_backend" in meta|self|external) ;; *) return 1 ;; esac
-        [ "$(_luoshu_active_state_value "$_las_verify" bootId)" = "$_las_current_boot" ] || return 1
+        [ "$(_ziyu_active_state_value "$_las_verify" bootId)" = "$_las_current_boot" ] || return 1
         [ "$_las_verify_mode" = mount-verified ] || return 1
-        [ "$(_luoshu_active_state_value "$_las_verify" reason)" = "backend-pid1-route-verified:$_las_backend" ] || return 1
+        [ "$(_ziyu_active_state_value "$_las_verify" reason)" = "backend-pid1-route-verified:$_las_backend" ] || return 1
         return 0
     fi
-    [ "$(_luoshu_active_state_value "$_las_config/self-mount.conf" state)" != failed ] || return 1
+    [ "$(_ziyu_active_state_value "$_las_config/self-mount.conf" state)" != failed ] || return 1
     return 0
 }
 
-_luoshu_mix_state_value() {
+_ziyu_mix_state_value() {
     _lms_file="$1"
     _lms_key="$2"
     _lms_fallback="$3"
-    _lms_value=$(_luoshu_active_state_value "$_lms_file" "$_lms_key")
+    _lms_value=$(_ziyu_active_state_value "$_lms_file" "$_lms_key")
     [ -n "$_lms_value" ] || _lms_value="$_lms_fallback"
     printf '%s' "$_lms_value" | tr -d '\r\n'
 }
 
-luoshu_mix_request_matches_active() {
-    _lms_module="$(_luoshu_active_state_module)"
+ziyu_mix_request_matches_active() {
+    _lms_module="$(_ziyu_active_state_module)"
     _lms_config="$_lms_module/config"
     _lms_source="$_lms_config/axes_mix.conf"
     [ -s "$_lms_source" ] || _lms_source="$_lms_config/font_mix.conf"
     [ -s "$_lms_source" ] || return 1
-    luoshu_active_payload_verified mix || return 1
+    ziyu_active_payload_verified mix || return 1
 
-    [ "$(_luoshu_mix_state_value "$_lms_source" cjk '')" = "$1" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" latin '')" = "$2" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" digit '')" = "$3" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" cjk '')" = "$1" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" latin '')" = "$2" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" digit '')" = "$3" ] || return 1
 
-    _lms_cjk_weight=$(_luoshu_mix_state_value "$_lms_source" cjkWeight 400)
-    _lms_latin_weight=$(_luoshu_mix_state_value "$_lms_source" latinWeight 400)
-    _lms_digit_weight=$(_luoshu_mix_state_value "$_lms_source" digitWeight 400)
-    [ "$(_luoshu_mix_state_value "$_lms_source" cjkAxes "wght=$_lms_cjk_weight")" = "$4" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" latinAxes "wght=$_lms_latin_weight")" = "$5" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" digitAxes "wght=$_lms_digit_weight")" = "$6" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" cjkMode fixed)" = "${7:-fixed}" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" latinMode fixed)" = "${8:-fixed}" ] || return 1
-    [ "$(_luoshu_mix_state_value "$_lms_source" digitMode fixed)" = "${9:-fixed}" ] || return 1
+    _lms_cjk_weight=$(_ziyu_mix_state_value "$_lms_source" cjkWeight 400)
+    _lms_latin_weight=$(_ziyu_mix_state_value "$_lms_source" latinWeight 400)
+    _lms_digit_weight=$(_ziyu_mix_state_value "$_lms_source" digitWeight 400)
+    [ "$(_ziyu_mix_state_value "$_lms_source" cjkAxes "wght=$_lms_cjk_weight")" = "$4" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" latinAxes "wght=$_lms_latin_weight")" = "$5" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" digitAxes "wght=$_lms_digit_weight")" = "$6" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" cjkMode fixed)" = "${7:-fixed}" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" latinMode fixed)" = "${8:-fixed}" ] || return 1
+    [ "$(_ziyu_mix_state_value "$_lms_source" digitMode fixed)" = "${9:-fixed}" ] || return 1
     return 0
 }
 

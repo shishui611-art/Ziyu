@@ -57,12 +57,12 @@ UNIVERSAL_DEPLOYMENT="$MODDIR/common/universal_font_deployment.sh"
 UNIVERSAL_VERIFY="$MODDIR/common/universal_font_runtime_verify.sh"
 FONT_COVERAGE_LOCATOR="$MODDIR/common/font_coverage_locator.py"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 [ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 AXES_TASK_FILE="$MODDIR/config/axes_task.conf"
 SWITCH_TASK_FILE="$MODDIR/config/switch_task.conf"
 TEXT_REBOOT_REQUIRED="$MODDIR/config/text_reboot_required.conf"
@@ -112,8 +112,8 @@ read_first_line() {
 
 root_manager() {
     if [ -n "${_status_root_manager:-}" ]; then printf '%s' "$_status_root_manager"; return; fi
-    if type luoshu_detect_root_manager >/dev/null 2>&1; then
-        _root=$(luoshu_detect_root_manager 2>/dev/null)
+    if type ziyu_detect_root_manager >/dev/null 2>&1; then
+        _root=$(ziyu_detect_root_manager 2>/dev/null)
         [ -n "$_root" ] && [ "$_root" != unknown ] && { printf '%s' "$_root"; return; }
     fi
     # Keep the App label aligned with boot-hook identity. An unknown `su`
@@ -127,7 +127,7 @@ temporary_root_mode() {
 }
 
 mount_engine() {
-    _backend_file=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && luoshu_current_boot_backend_state)
+    _backend_file=$(type ziyu_current_boot_backend_state >/dev/null 2>&1 && ziyu_current_boot_backend_state)
     if [ -n "$_backend_file" ]; then
         _backend_active=$(read_prop "$_backend_file" active_backend)
         _backend_selected=$(read_prop "$_backend_file" selected_backend)
@@ -142,7 +142,7 @@ mount_engine() {
             fi
             return
         fi
-        luoshu_mount_backend_details
+        ziyu_mount_backend_details
         _backend_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD"
         if [ "$_backend_verify" = failed ]; then
             case "$_backend_selected" in self) _backend_label='自挂载' ;; esac
@@ -191,8 +191,8 @@ status_json() {
     _status_root_manager=$(root_manager)
     # App refresh is also a safe late-boot convergence point. The helper will
     # never consume a marker created during this same boot.
-    type luoshu_text_reboot_reconcile >/dev/null 2>&1 && \
-        LUOSHU_BOOT_RECONCILE_CACHED_ONLY=1 luoshu_text_reboot_reconcile >/dev/null 2>&1 || true
+    type ziyu_text_reboot_reconcile >/dev/null 2>&1 && \
+        ZIYU_BOOT_RECONCILE_CACHED_ONLY=1 ziyu_text_reboot_reconcile >/dev/null 2>&1 || true
     _installed=false
     _version='未安装'
     _version_code=0
@@ -249,7 +249,7 @@ status_json() {
 
     # The unified transaction owns the final outcome. Legacy self/universal
     # caches can still say mounted after final route verification rolled back.
-    _backend_current=$(type luoshu_current_boot_backend_state >/dev/null 2>&1 && luoshu_current_boot_backend_state)
+    _backend_current=$(type ziyu_current_boot_backend_state >/dev/null 2>&1 && ziyu_current_boot_backend_state)
     _backend_rollback_uncertain=false
     if [ -n "$_backend_current" ]; then
         _backend_verification=$(read_prop "$_backend_current" verification)
@@ -675,23 +675,23 @@ case "${1:-status}" in
     weight_axis) weight_axis_info "${2:-}" ;;
     source_profile)
         [ -f "$SOURCE_PROFILE" ] || { printf '{"status":"error","message":"源字体 Profile 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$SOURCE_PROFILE" family "${2:-}"
+        MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$SOURCE_PROFILE" family "${2:-}"
         ;;
     universal_plan)
         [ -f "$UNIVERSAL_PLAN" ] || { printf '{"status":"error","message":"Universal FontPlan 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_PLAN" build "${2:-}"
+        MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_PLAN" build "${2:-}"
         ;;
     xml_route_plan)
         [ -f "$MINIMAL_XML_ROUTER" ] || { printf '{"status":"error","message":"Minimal XML Router 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$MINIMAL_XML_ROUTER" build "${2:-}"
+        MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$MINIMAL_XML_ROUTER" build "${2:-}"
         ;;
     font_compile)
         [ -f "$UNIVERSAL_COMPILER" ] || { printf '{"status":"error","message":"Universal Font Compiler 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_COMPILER" compile "${2:-}"
+        MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_COMPILER" compile "${2:-}"
         ;;
     font_deployment)
         [ -f "$UNIVERSAL_DEPLOYMENT" ] || { printf '{"status":"error","message":"Universal Deployment 组件不可用"}\n'; exit 1; }
-        MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_DEPLOYMENT" prepare "${2:-}"
+        MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" sh "$UNIVERSAL_DEPLOYMENT" prepare "${2:-}"
         ;;
     font_runtime_verify)
         [ -f "$UNIVERSAL_VERIFY" ] || { printf '{"status":"error","message":"Runtime Verification 组件不可用"}\n'; exit 1; }
@@ -703,7 +703,7 @@ case "${1:-status}" in
         ;;
     prewarm)
         if [ -f "$SAFE_SWITCH" ]; then
-            MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" \
+            MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" \
                 sh "$SAFE_SWITCH" action prewarm-start "${2:-}" >/dev/null 2>&1 || true
             printf '{"status":"ok","data":{"font":"%s","scheduled":true}}\n' "$(json_escape "${2:-}")"
         else
@@ -713,7 +713,7 @@ case "${1:-status}" in
     validate)
         manager_ready || exit 1
         if [ -f "$SAFE_SWITCH" ] && [ -n "${2:-}" ] && [ "${2:-}" != default ]; then
-            MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" \
+            MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" \
                 sh "$SAFE_SWITCH" action prewarm-start "${2:-}" >/dev/null 2>&1 || true
         fi
         sh "$FONT_MANAGER" action validate "${2:-}"

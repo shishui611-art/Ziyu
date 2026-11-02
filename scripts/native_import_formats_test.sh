@@ -4,9 +4,9 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
-PYTHON=${LUOSHU_TEST_PYTHON:-python3}
-TTF=${LUOSHU_TEST_FONT_TTF:-}
-OTF=${LUOSHU_TEST_FONT_OTF:-}
+PYTHON=${ZIYU_TEST_PYTHON:-python3}
+TTF=${ZIYU_TEST_FONT_TTF:-}
+OTF=${ZIYU_TEST_FONT_OTF:-}
 if [ ! -s "$TTF" ]; then
     TTF=$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)
 fi
@@ -34,7 +34,7 @@ for file in native_import.sh util_functions.sh util_functions_core.sh font_check
     cp "$ROOT/common/$file" "$MOD/common/$file"
 done
 
-cat > "$MOD/common/python/bin/luoshu-python" <<EOF_PY
+cat > "$MOD/common/python/bin/ziyu-python" <<EOF_PY
 #!/bin/bash
 unset PYTHONHOME PYTHONPATH LD_LIBRARY_PATH
 if command -v cygpath >/dev/null 2>&1; then
@@ -47,7 +47,7 @@ if command -v cygpath >/dev/null 2>&1; then
 fi
 exec "$PYTHON" "\$@"
 EOF_PY
-chmod 0755 "$MOD/common/python/bin/luoshu-python"
+chmod 0755 "$MOD/common/python/bin/ziyu-python"
 
 "$PYTHON" - "$TTF_PY" "$OTF_PY" "$FIXTURES_PY" <<'PY'
 from pathlib import Path
@@ -123,9 +123,9 @@ with ZipFile(root / 'No-Fonts.zip', 'w', ZIP_DEFLATED) as archive:
     archive.writestr('module.prop', 'id=empty\nname=Empty\nversion=1\nversionCode=1\n')
 PY
 
-export MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PUBLIC_DIR="$PUBLIC"
-export LUOSHU_IMPORT_PYTHON="$MOD/common/python/bin/luoshu-python"
-export LUOSHU_HOST_PYTHON="$MOD/common/python/bin/luoshu-python"
+export MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PUBLIC_DIR="$PUBLIC"
+export ZIYU_IMPORT_PYTHON="$MOD/common/python/bin/ziyu-python"
+export ZIYU_HOST_PYTHON="$MOD/common/python/bin/ziyu-python"
 export NATIVE_IMPORT_LIBRARY_ONLY=true
 . "$MOD/common/native_import.sh"
 schedule_font_prewarm() { return 0; }
@@ -210,10 +210,10 @@ for entry in \
 done
 
 for _font in Format-TTF.ttf Format-WOFF.ttf Format-WOFF2.ttf Fixture-ZIP-Regular.ttf; do
-    "$LUOSHU_IMPORT_PYTHON" "$ROOT/scripts/device_font_slot_build_test.py" \
+    "$ZIYU_IMPORT_PYTHON" "$ROOT/scripts/device_font_slot_build_test.py" \
         --font "$PUBLIC/fonts/$_font" >/dev/null 2>&1 || fail "$_font failed device font slot generation"
 done
-"$LUOSHU_IMPORT_PYTHON" "$ROOT/scripts/device_font_slot_build_test.py" \
+"$ZIYU_IMPORT_PYTHON" "$ROOT/scripts/device_font_slot_build_test.py" \
     --font "$PUBLIC/fonts/Format-TTC.ttc" --source-index 0 >/dev/null 2>&1 || \
     fail 'TTC face 0 failed device font slot generation'
 

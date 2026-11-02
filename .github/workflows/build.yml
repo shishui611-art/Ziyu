@@ -28,14 +28,14 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Prepare ARM64 composite runtime
         run: |
-          if [ ! -x common/python/bin/luoshu-python ] || [ ! -x .luoshu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
+          if [ ! -x common/python/bin/ziyu-python ] || [ ! -x .ziyu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
@@ -46,20 +46,20 @@ jobs:
           CJK="$(find /usr/share/fonts -type f \( -iname '*NotoSansCJK*Regular*.ttc' -o -iname '*NotoSansCJK*Regular*.otf' \) -print -quit)"
           LATIN="$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit)"
           test -n "$CJK"; test -n "$LATIN"
-          python3 common/composite_font.py --cjk "$CJK" --latin "$LATIN" --digit "$LATIN" --output /tmp/luoshu-composite.otf >/tmp/luoshu-composite.json
+          python3 common/composite_font.py --cjk "$CJK" --latin "$LATIN" --digit "$LATIN" --output /tmp/ziyu-composite.otf >/tmp/ziyu-composite.json
           python3 - <<'PY'
           import json
           from fontTools.ttLib import TTFont
 
-          report = json.load(open('/tmp/luoshu-composite.json', encoding='utf-8'))
+          report = json.load(open('/tmp/ziyu-composite.json', encoding='utf-8'))
           assert report['status'] == 'ok', report
-          font = TTFont('/tmp/luoshu-composite.otf')
+          font = TTFont('/tmp/ziyu-composite.otf')
           cmap = font.getBestCmap() or {}
           assert all(ord(ch) in cmap for ch in '中Aa019')
           assert report['replaced']['latin'] >= 52
           assert report['replaced']['digit'] >= 10
           PY
-          python3 common/font_coverage.py /tmp/luoshu-composite.otf --brief
+          python3 common/font_coverage.py /tmp/ziyu-composite.otf --brief
           python3 scripts/font_instance_svg_test.py
           if python3 common/font_coverage.py "$LATIN" --brief; then
             echo 'Latin-only font unexpectedly passed the global coverage gate' >&2

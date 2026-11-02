@@ -42,8 +42,8 @@ class MixStatusLifecycleTest(unittest.TestCase):
                                 env=self.env, text=True, capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((self.module / '.legacy-v14-runtime').exists())
-        self.assertFalse((self.module / '.luoshu-mix-stage').exists())
-        self.assertFalse((self.module / '.luoshu-payload').exists())
+        self.assertFalse((self.module / '.ziyu-mix-stage').exists())
+        self.assertFalse((self.module / '.ziyu-payload').exists())
         self.assertFalse(list(self.config.glob('*.reconcile.*')))
         return json.loads(result.stdout)
 

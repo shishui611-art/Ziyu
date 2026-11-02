@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu v4 UI compatibility backend using the last pre-reset v14.4 font switch core.
+# Ziyu v4 UI compatibility backend using the last pre-reset v14.4 font switch core.
 # This path deliberately avoids the v2/v4 device-template, slot-build, XML batch and
 # fast-validation payload pipeline that can stall near the end of foreground apply.
 set +e
@@ -19,8 +19,8 @@ LEGACY_DIR="$MODDIR/common/legacy_v14_4"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
-USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
+ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
+USER_FONTS_DIR="$ZIYU_PUBLIC_DIR/fonts"
 ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
 TEXT_REBOOT_REQUIRED="$CONFIG_DIR/text_reboot_required.conf"
 LEGACY_MODE_CONF="$CONFIG_DIR/font_runtime_legacy_v14_4.conf"
@@ -30,14 +30,14 @@ LEGACY_LOCK_HELD=false
 
 # Current releases keep the mountable tree private. Generate the old v14.4 aliases
 # directly inside that source tree, then let the existing self-mount layer expose it.
-if [ -d "$MODDIR/.luoshu-payload" ]; then
-    PAYLOAD_ROOT="$MODDIR/.luoshu-payload"
+if [ -d "$MODDIR/.ziyu-payload" ]; then
+    PAYLOAD_ROOT="$MODDIR/.ziyu-payload"
 else
     PAYLOAD_ROOT="$MODDIR"
 fi
 SYSTEM_FONTS_DIR="$PAYLOAD_ROOT/system/fonts"
 
-export MODULE_DIR LUOSHU_PUBLIC_DIR
+export MODULE_DIR ZIYU_PUBLIC_DIR
 [ -f "$LEGACY_DIR/util_functions.sh" ] && . "$LEGACY_DIR/util_functions.sh"
 [ -f "$LEGACY_DIR/font_check.sh" ] && . "$LEGACY_DIR/font_check.sh"
 [ -f "$LEGACY_DIR/rom_adapters.sh" ] && . "$LEGACY_DIR/rom_adapters.sh"
@@ -62,19 +62,19 @@ legacy_error() {
 
 legacy_lock_cleanup() {
     [ "$LEGACY_LOCK_HELD" = true ] || return 0
-    if type luoshu_font_lock_release >/dev/null 2>&1; then
-        luoshu_font_lock_release "$LEGACY_SWITCH_LOCK" "$$" >/dev/null 2>&1 || \
-            luoshu_font_lock_force_clear "$LEGACY_SWITCH_LOCK" "$$" >/dev/null 2>&1 || true
+    if type ziyu_font_lock_release >/dev/null 2>&1; then
+        ziyu_font_lock_release "$LEGACY_SWITCH_LOCK" "$$" >/dev/null 2>&1 || \
+            ziyu_font_lock_force_clear "$LEGACY_SWITCH_LOCK" "$$" >/dev/null 2>&1 || true
     fi
     LEGACY_LOCK_HELD=false
 }
 
 legacy_lock_acquire() {
-    type luoshu_font_lock_acquire >/dev/null 2>&1 || {
+    type ziyu_font_lock_acquire >/dev/null 2>&1 || {
         legacy_error '缺少字体切换身份锁'
         return 1
     }
-    luoshu_font_lock_acquire "$LEGACY_SWITCH_LOCK" "$$"
+    ziyu_font_lock_acquire "$LEGACY_SWITCH_LOCK" "$$"
     _legacy_lock_rc=$?
     case "$_legacy_lock_rc" in
         0)
@@ -121,7 +121,7 @@ legacy_validate_global() {
     type font_validate >/dev/null 2>&1 || return 0
     font_validate "$_file" text || return 1
 
-    _python="$MODDIR/common/python/bin/luoshu-python"
+    _python="$MODDIR/common/python/bin/ziyu-python"
     _checker="$LEGACY_DIR/font_coverage.py"
     [ -x "$_python" ] && [ -f "$_checker" ] || return 0
     _pyroot="$MODDIR/common/python"
@@ -147,7 +147,7 @@ legacy_clear_generated_xml() {
               "$_etc/fonts_customization.xml" "$_etc/font_customization.xml" 2>/dev/null || true
         for _xml in "$_etc"/*.xml; do
             [ -f "$_xml" ] || continue
-            if grep -a -qE 'LuoShuSlot-|LuoShu-|luoshu' "$_xml" 2>/dev/null; then
+            if grep -a -qE '(Ziyu|LuoShu)Slot-|(Ziyu|LuoShu)-|ziyu|luoshu' "$_xml" 2>/dev/null; then
                 rm -f "$_xml" 2>/dev/null || true
             fi
         done
@@ -155,7 +155,7 @@ legacy_clear_generated_xml() {
 }
 
 legacy_clear_payload_fonts() {
-    # The private payload contains only LuoShu overlay files. Clearing these directories
+    # The private payload contains only Ziyu overlay files. Clearing these directories
     # reveals the stock lower layer; emoji/symbol/other-language fonts stay untouched.
     for _part in system system_ext product vendor my_product mi_ext oplus_product; do
         _dir="$PAYLOAD_ROOT/$_part/fonts"

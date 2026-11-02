@@ -31,7 +31,7 @@ APK 随模块 ZIP 内置，不作为正式 Release 单独附件。用户下载�
 
 工作流先锁定同一份不可变源码，再并行运行完整源码回归与 Android Lint、单元测试和签名构建。只有两项均成功，打包/发布任务才会启动；写入 Release 的权限仅授予最后一个任务。Android 签名构建通过制品传递，打包任务用上游输出的 SHA-256 核对下载到的 APK。
 
-源码检查由 `scripts/source_check_receipt.py run --receipt <临时文件>` 执行，成功后记录提交 SHA、所有受版本管理文件的实际内容/模式，以及模块清单中运行负载的内容摘要。打包器通过 `LUOSHU_SOURCE_CHECK_RECEIPT` 接收同次工作流的检查记录并重新核对输入；缺失、失败、源码或运行负载变化都会阻断复用。生成的 Python 字节码会在打包时删除，不计入复用摘要。常规 `scripts/build.sh` 未提供记录时仍执行完整检查，CI 的完整源码回归只执行一次。
+源码检查由 `scripts/source_check_receipt.py run --receipt <临时文件>` 执行，成功后记录提交 SHA、所有受版本管理文件的实际内容/模式，以及模块清单中运行负载的内容摘要。打包器通过 `ZIYU_SOURCE_CHECK_RECEIPT` 接收同次工作流的检查记录并重新核对输入；缺失、失败、源码或运行负载变化都会阻断复用。生成的 Python 字节码会在打包时删除，不计入复用摘要。常规 `scripts/build.sh` 未提供记录时仍执行完整检查，CI 的完整源码回归只执行一次。
 
 ARM64 运行时准备成功后立即保存缓存，后续测试失败也能复用；APK/ZIP 在 Actions 制品中按原有压缩内容上传。失败的源码日志与 Android 报告单独保留 7 天，供定位故障。并行任务使用独立 runner，会增加部分 runner 用量；实际发布时间变化须以同等缓存条件下的 Actions 记录为准。
 

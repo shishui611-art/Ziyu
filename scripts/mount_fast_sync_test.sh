@@ -17,7 +17,7 @@ for name in MiSansVF.ttf Roboto-Regular.ttf GoogleSansText-Regular.ttf 100.ttf 4
 done
 printf '<familyset/>\n' > "$SRC/etc/fonts.xml"
 
-luoshu_copy_tree_bounded "$SRC" "$DST"
+ziyu_copy_tree_bounded "$SRC" "$DST"
 test -s "$DST/fonts/MiSansVF.ttf"
 test -s "$DST/etc/fonts.xml"
 

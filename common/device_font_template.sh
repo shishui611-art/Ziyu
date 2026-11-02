@@ -1,13 +1,13 @@
 #!/system/bin/sh
-# LuoShu trusted stock font-template capture.
-# A template is valid only when Android is running the ROM default font and LuoShu has
+# Ziyu trusted stock font-template capture.
+# A template is valid only when Android is running the ROM default font and Ziyu has
 # no generated font/XML payload in its module tree. Active-font boots may reuse an
 # already trusted template for the same ROM, but can never refresh it.
 set +e
 
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 PYROOT="$MODDIR/common/python"
-PYTHON="$PYROOT/bin/luoshu-python"
+PYTHON="$PYROOT/bin/ziyu-python"
 ENGINE="$MODDIR/common/device_font_template.py"
 OUT="$MODDIR/config/device-font-template.json"
 KEY="$MODDIR/config/device-font-template.key"
@@ -116,7 +116,7 @@ capture_clean_reason() {
             return 1
         fi
         _dft_etc="$MODDIR/$_dft_part/etc"
-        if [ -d "$_dft_etc" ] && grep -RIlE 'LuoShu(Mono|Slot)?-' "$_dft_etc" --include='*.xml' 2>/dev/null | head -n1 | grep -q .; then
+        if [ -d "$_dft_etc" ] && grep -RIlE 'Ziyu(Mono|Slot)?-' "$_dft_etc" --include='*.xml' 2>/dev/null | head -n1 | grep -q .; then
             printf 'module-xml-payload:%s\n' "$_dft_part"
             return 1
         fi

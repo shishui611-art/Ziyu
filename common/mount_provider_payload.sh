@@ -33,8 +33,8 @@ ziyu_provider_payload_verify() (
         return 1
     fi
     . "$_zpp_module/common/module_update_state.sh" || return 1
-    if ! luoshu_update_verify_manifest "$_zpp_module" "$_zpp_verify_root" 0 "$_zpp_verify_layout"; then
-        _zpp_log "verification failed root=$_zpp_verify_root layout=$_zpp_verify_layout reason=${LUOSHU_UPDATE_FAILURE_REASON:-unknown}"
+    if ! ziyu_update_verify_manifest "$_zpp_module" "$_zpp_verify_root" 0 "$_zpp_verify_layout"; then
+        _zpp_log "verification failed root=$_zpp_verify_root layout=$_zpp_verify_layout reason=${ZIYU_UPDATE_FAILURE_REASON:-unknown}"
         return 1
     fi
 )
@@ -75,7 +75,7 @@ ziyu_provider_payload_publish() (
     _zpp_module="$1"
     _zpp_root="$2"
     _zpp_layout="$3"
-    _zpp_payload="$_zpp_module/.luoshu-payload"
+    _zpp_payload="$_zpp_module/.ziyu-payload"
     _zpp_payload_kind=private
     case "$_zpp_layout" in nested-system|nomount-partition-roots) ;; *) return 1 ;; esac
     if [ ! -d "$_zpp_payload" ]; then
@@ -88,9 +88,9 @@ ziyu_provider_payload_publish() (
             return 1
         fi
         . "$_zpp_update_state"
-        if ! type luoshu_update_verify_manifest >/dev/null 2>&1 || \
-           ! luoshu_update_verify_manifest "$_zpp_module" "$_zpp_payload"; then
-            _zpp_reason="${LUOSHU_UPDATE_FAILURE_REASON:-payload-manifest-verification-failed}"
+        if ! type ziyu_update_verify_manifest >/dev/null 2>&1 || \
+           ! ziyu_update_verify_manifest "$_zpp_module" "$_zpp_payload"; then
+            _zpp_reason="${ZIYU_UPDATE_FAILURE_REASON:-payload-manifest-verification-failed}"
             _zpp_log "publish refused: legacy module tree failed manifest verification reason=$_zpp_reason"
             return 1
         fi
@@ -109,9 +109,9 @@ ziyu_provider_payload_publish() (
     mkdir -p "$_zpp_stage/system" || return 1
 
     # Include empty destinations to retire fonts removed from the new generation.
-    _zpp_parts=$(luoshu_private_partitions)
+    _zpp_parts=$(ziyu_private_partitions)
     for _zpp_part in $_zpp_parts; do
-        _luoshu_private_partition_safe "$_zpp_part" || return 1
+        _ziyu_private_partition_safe "$_zpp_part" || return 1
         _zpp_destination="$_zpp_stage/$_zpp_part"
         if [ "$_zpp_layout" = nested-system ] && [ "$_zpp_part" != system ]; then
             _zpp_destination="$_zpp_stage/system/$_zpp_part"
@@ -127,9 +127,9 @@ ziyu_provider_payload_publish() (
         fi
     done
     chmod -R u=rwX,go=rX "$_zpp_stage" || return 1
-    chmod 0755 "$_zpp_stage/system/bin/ziyu" "$_zpp_stage/system/bin/luoshud" \
-        "$_zpp_stage/system/bin/luoshu-history" "$_zpp_stage/system/bin/luoshu-health" \
-        "$_zpp_stage/system/bin/luoshu-backup" 2>/dev/null || true
+    chmod 0755 "$_zpp_stage/system/bin/ziyu" "$_zpp_stage/system/bin/ziyud" \
+        "$_zpp_stage/system/bin/ziyu-history" "$_zpp_stage/system/bin/ziyu-health" \
+        "$_zpp_stage/system/bin/ziyu-backup" 2>/dev/null || true
     # One content pass on the final projection proves the copied/hard-linked
     # bytes against the frozen canonical manifest; don't hash it twice here.
     ziyu_provider_payload_verify "$_zpp_module" "$_zpp_stage" "$_zpp_layout" || return 1

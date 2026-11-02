@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Phase 6 universal font compiler bridge.
+# Ziyu Phase 6 universal font compiler bridge.
 # Compiles private artifacts only. Never publishes or mounts them.
 set +e
 
@@ -10,13 +10,13 @@ COMPILER="$MODDIR/common/universal_font_compiler.py"
 FONT_PLAN_BRIDGE="$MODDIR/common/universal_font_plan.sh"
 ROUTE_BRIDGE="$MODDIR/common/minimal_xml_router.sh"
 MANIFEST_DIR="$CONFIG_DIR/universal-font-artifact-manifests"
-CACHE_ROOT="${LUOSHU_COMPILER_CACHE:-$MODDIR/cache/universal-font-artifacts}"
+CACHE_ROOT="${ZIYU_COMPILER_CACHE:-$MODDIR/cache/universal-font-artifacts}"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 
 _ufc_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127
@@ -84,10 +84,10 @@ _ufc_compile() {
         --route-plan "$_uc_route_plan" \
         --output-dir "$_uc_output" \
         --manifest "$_uc_manifest"
-    if [ -n "${LUOSHU_STOCK_FONT_MAP:-}" ]; then
-        set -- "$@" --stock-map "$LUOSHU_STOCK_FONT_MAP"
+    if [ -n "${ZIYU_STOCK_FONT_MAP:-}" ]; then
+        set -- "$@" --stock-map "$ZIYU_STOCK_FONT_MAP"
     fi
-    if [ "${LUOSHU_COMPILER_ALLOW_LIVE_STOCK:-0}" = 1 ]; then
+    if [ "${ZIYU_COMPILER_ALLOW_LIVE_STOCK:-0}" = 1 ]; then
         set -- "$@" --allow-live-stock
     fi
     [ ! -L "$_uc_output" ] && [ ! -L "$_uc_manifest" ] || {

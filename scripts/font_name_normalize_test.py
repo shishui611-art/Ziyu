@@ -27,8 +27,8 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
 
-    with tempfile.TemporaryDirectory(prefix="luoshu-name-") as directory:
-        output = Path(directory) / "LuoShu-700.ttf"
+    with tempfile.TemporaryDirectory(prefix="ziyu-name-") as directory:
+        output = Path(directory) / "Ziyu-700.ttf"
         subprocess.run(
             [
                 "python3",
@@ -56,7 +56,7 @@ def main() -> int:
             assert debug_name(result, 1) == "LuoShu UI"
             assert debug_name(result, 2) == "Bold"
             assert debug_name(result, 4) == "LuoShu UI Bold"
-            assert debug_name(result, 6) == "LuoShuUI-Bold"
+            assert debug_name(result, 6) == "ZiyuUI-Bold"
             assert debug_name(result, 16) == "LuoShu UI"
             assert debug_name(result, 17) == "Bold"
             assert result["OS/2"].usWeightClass == 700

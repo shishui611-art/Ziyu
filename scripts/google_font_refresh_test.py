@@ -52,7 +52,7 @@ exec "$@"
 printf '%s\\n' "$*" >> "$TEST_ROOT/am.log"
 [ "$#" = 4 ] && [ "$1" = kill ] && [ "$2" = --user ] || exit 98
 [ "${TEST_AM_BEHAVIOR:-foreground}" = background ] || exit 0
-for process in "$LUOSHU_PROC_ROOT"/[0-9]*; do
+for process in "$ZIYU_PROC_ROOT"/[0-9]*; do
     [ -d "$process" ] || continue
     name=$(tr '\\000' '\\n' < "$process/cmdline" | head -n1)
     name=${name%%:*}
@@ -64,7 +64,7 @@ done
         self.env = {
             **os.environ,
             "MODDIR": str(self.module),
-            "LUOSHU_PROC_ROOT": str(self.proc),
+            "ZIYU_PROC_ROOT": str(self.proc),
             "TEST_ROOT": str(self.root),
             "PATH": f"{self.bin}:{os.environ['PATH']}",
         }
@@ -151,12 +151,12 @@ _gfp_source_for_weight() { printf '%s\\n' "$TEST_ROOT/clone.ttf"; }
 _gfp_build_clone() { printf '%s\\n' "$TEST_ROOT/clone.ttf"; }
 _gfp_mount_in_pid() {
     printf '%s\\n' "$1" >> "$TEST_ROOT/mount-pids"
-    ln -sfn "$2" "$LUOSHU_PROC_ROOT/$1/root$3" || return 1
+    ln -sfn "$2" "$ZIYU_PROC_ROOT/$1/root$3" || return 1
     _gfp_mount_mode=plain
 }
 _gfp_apply_once || exit $?
 _gfp_refresh_consumers
-''', LUOSHU_GOOGLE_FONT_TARGETS=str(self.old_font))
+''', ZIYU_GOOGLE_FONT_TARGETS=str(self.old_font))
 
     def test_changed_view_without_old_descriptors_or_mappings_needs_no_restart(self):
         self.process(fd=False)

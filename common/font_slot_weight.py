@@ -58,9 +58,9 @@ def variable_target(data: dict, logical: str) -> bool:
 
 
 def source_for(fonts: Path, name: str, weight: int) -> Path:
-    store = fonts / '.luoshu-font-store'
+    store = fonts / '.ziyu-font-store'
     role = ROLES.get(weight)
-    candidates = [fonts / f'LuoShu-{weight}.ttf', store / f'wght-{weight}.font',
+    candidates = [fonts / f'Ziyu-{weight}.ttf', store / f'wght-{weight}.font',
                   store / f'compact-wght-{weight}.font']
     if role and role != 'regular':
         candidates.append(store / f'{role}.font')

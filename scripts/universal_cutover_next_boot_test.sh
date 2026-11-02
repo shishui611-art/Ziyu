@@ -26,12 +26,12 @@ chmod +x "$TMP/fake-python"
 
 # Universal activation records the exact previous production identity and clears stale states.
 MOD="$TMP/universal"
-mkdir -p "$MOD/common" "$MOD/config" "$MOD/.luoshu-payload/old" \
-         "$MOD/.luoshu-payload-next/.luoshu-runtime/deployment"
+mkdir -p "$MOD/common" "$MOD/config" "$MOD/.ziyu-payload/old" \
+         "$MOD/.ziyu-payload-next/.ziyu-runtime/deployment"
 printf '# fake\n' > "$MOD/common/universal_font_deployment.py"
 cp "$ROOT/common/action_control.sh" "$MOD/common/"
-printf 'old\n' > "$MOD/.luoshu-payload/old/file"
-printf '{}\n' > "$MOD/.luoshu-payload-next/.luoshu-runtime/deployment/deployment.json"
+printf 'old\n' > "$MOD/.ziyu-payload/old/file"
+printf '{}\n' > "$MOD/.ziyu-payload-next/.ziyu-runtime/deployment/deployment.json"
 printf 'OldFont\n' > "$MOD/config/active_font.conf"
 printf 'enabled=true\n' > "$MOD/config/font_runtime_legacy_v14_4.conf"
 printf 'schema=legacy\n' > "$MOD/config/font-payload-schema.conf"
@@ -51,8 +51,8 @@ previousLegacy=true
 recovery=false
 EOF
 
-MODDIR="$MOD"; MODULE_DIR="$MOD"; LUOSHU_PYTHON="$TMP/fake-python"
-export MODDIR MODULE_DIR LUOSHU_PYTHON
+MODDIR="$MOD"; MODULE_DIR="$MOD"; ZIYU_PYTHON="$TMP/fake-python"
+export MODDIR MODULE_DIR ZIYU_PYTHON
 . "$ROOT/common/universal_next_boot.sh"
 universal_font_next_boot_activate
 
@@ -75,11 +75,11 @@ RETIRED="$(sed -n 's/^retired=//p' "$MOD/config/universal-font-activated.conf")"
 
 # Classic recovery from a failed Universal boot must leave Universal mode completely.
 MOD2="$TMP/classic"
-mkdir -p "$MOD2/config" "$MOD2/.luoshu-payload/current" "$MOD2/.luoshu-payload-next/classic"
+mkdir -p "$MOD2/config" "$MOD2/.ziyu-payload/current" "$MOD2/.ziyu-payload-next/classic"
 mkdir -p "$MOD2/common"
 cp "$ROOT/common/action_control.sh" "$MOD2/common/"
-printf 'failed universal\n' > "$MOD2/.luoshu-payload/current/file"
-printf 'classic payload\n' > "$MOD2/.luoshu-payload-next/classic/file"
+printf 'failed universal\n' > "$MOD2/.ziyu-payload/current/file"
+printf 'classic payload\n' > "$MOD2/.ziyu-payload-next/classic/file"
 printf 'BadFont\n' > "$MOD2/config/active_font.conf"
 printf 'state=active\nfont=BadFont\n' > "$MOD2/config/universal-font-runtime.conf"
 printf 'grade=FAIL\n' > "$MOD2/config/universal-font-runtime-verification.conf"
@@ -99,7 +99,7 @@ EOF
 MODDIR="$MOD2"; MODULE_DIR="$MOD2"
 export MODDIR MODULE_DIR
 . "$ROOT/common/next_boot_payload.sh"
-luoshu_next_boot_activate
+ziyu_next_boot_activate
 
 grep -q '^ClassicFont$' "$MOD2/config/active_font.conf"
 [ ! -f "$MOD2/config/font_runtime_legacy_v14_4.conf" ]
@@ -110,18 +110,18 @@ grep -q '^ClassicFont$' "$MOD2/config/active_font.conf"
 [ ! -f "$MOD2/config/universal-font-rollback.conf" ]
 [ ! -f "$MOD2/config/text_reboot_required.conf" ]
 grep -q '^targetMode=classic$' "$MOD2/config/font-payload-activated.conf"
-[ -f "$MOD2/.luoshu-payload/classic/file" ]
+[ -f "$MOD2/.ziyu-payload/classic/file" ]
 
 # Legacy recovery still restores the physical-safe runtime mode.
 MOD3="$TMP/legacy"
-mkdir -p "$MOD3/config" "$MOD3/.luoshu-payload/current" "$MOD3/.luoshu-payload-next/legacy"
+mkdir -p "$MOD3/config" "$MOD3/.ziyu-payload/current" "$MOD3/.ziyu-payload-next/legacy"
 mkdir -p "$MOD3/common"
 cp "$ROOT/common/action_control.sh" "$MOD3/common/"
 cp "$ROOT/common/physical_payload_manifest.sh" "$MOD3/common/"
-mkdir -p "$MOD3/.luoshu-payload-next/system/fonts"
-printf 'legacy CJK payload\n' > "$MOD3/.luoshu-payload-next/system/fonts/SysSans-Hans-Regular.ttf"
-printf 'failed universal\n' > "$MOD3/.luoshu-payload/current/file"
-printf 'legacy payload\n' > "$MOD3/.luoshu-payload-next/legacy/file"
+mkdir -p "$MOD3/.ziyu-payload-next/system/fonts"
+printf 'legacy CJK payload\n' > "$MOD3/.ziyu-payload-next/system/fonts/SysSans-Hans-Regular.ttf"
+printf 'failed universal\n' > "$MOD3/.ziyu-payload/current/file"
+printf 'legacy payload\n' > "$MOD3/.ziyu-payload-next/legacy/file"
 printf 'BadFont\n' > "$MOD3/config/active_font.conf"
 printf 'state=active\nfont=BadFont\n' > "$MOD3/config/universal-font-runtime.conf"
 cat > "$MOD3/config/font-payload-next.conf" <<'EOF'
@@ -136,7 +136,7 @@ EOF
 MODDIR="$MOD3"; MODULE_DIR="$MOD3"
 export MODDIR MODULE_DIR
 . "$ROOT/common/next_boot_payload.sh"
-luoshu_next_boot_activate
+ziyu_next_boot_activate
 
 grep -q '^LegacyFont$' "$MOD3/config/active_font.conf"
 grep -q '^enabled=true$' "$MOD3/config/font_runtime_legacy_v14_4.conf"
@@ -147,12 +147,12 @@ grep -q '^targetMode=legacy$' "$MOD3/config/font-payload-activated.conf"
 # A Universal payload rejected before swap keeps the previous live payload and
 # restores the configured selection to the font that is actually still running.
 MOD4="$TMP/rejected"
-mkdir -p "$MOD4/common" "$MOD4/config" "$MOD4/.luoshu-payload/old" \
-         "$MOD4/.luoshu-payload-next/.luoshu-runtime/deployment"
+mkdir -p "$MOD4/common" "$MOD4/config" "$MOD4/.ziyu-payload/old" \
+         "$MOD4/.ziyu-payload-next/.ziyu-runtime/deployment"
 printf '# fake\n' > "$MOD4/common/universal_font_deployment.py"
 cp "$ROOT/common/action_control.sh" "$MOD4/common/"
-printf 'still-live\n' > "$MOD4/.luoshu-payload/old/file"
-printf '{}\n' > "$MOD4/.luoshu-payload-next/.luoshu-runtime/deployment/deployment.json"
+printf 'still-live\n' > "$MOD4/.ziyu-payload/old/file"
+printf '{}\n' > "$MOD4/.ziyu-payload-next/.ziyu-runtime/deployment/deployment.json"
 printf 'NewConfigured\n' > "$MOD4/config/active_font.conf"
 printf 'enabled=true\nfont=OldLive\n' > "$MOD4/config/font_runtime_legacy_v14_4.conf"
 printf 'pending\n' > "$MOD4/config/text_reboot_required.conf"
@@ -167,14 +167,14 @@ previousLegacy=true
 recovery=false
 EOF
 
-MODDIR="$MOD4"; MODULE_DIR="$MOD4"; LUOSHU_PYTHON="$TMP/fake-python"; FAKE_VALIDATE=fail
-export MODDIR MODULE_DIR LUOSHU_PYTHON FAKE_VALIDATE
+MODDIR="$MOD4"; MODULE_DIR="$MOD4"; ZIYU_PYTHON="$TMP/fake-python"; FAKE_VALIDATE=fail
+export MODDIR MODULE_DIR ZIYU_PYTHON FAKE_VALIDATE
 . "$ROOT/common/universal_next_boot.sh"
 universal_font_next_boot_activate >/dev/null 2>&1 || true
 unset FAKE_VALIDATE
 
-[ -f "$MOD4/.luoshu-payload/old/file" ]
-[ ! -e "$MOD4/.luoshu-payload-next" ]
+[ -f "$MOD4/.ziyu-payload/old/file" ]
+[ ! -e "$MOD4/.ziyu-payload-next" ]
 [ ! -f "$MOD4/config/universal-font-next.conf" ]
 [ ! -f "$MOD4/config/text_reboot_required.conf" ]
 grep -q '^OldLive$' "$MOD4/config/active_font.conf"

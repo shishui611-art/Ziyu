@@ -25,7 +25,7 @@ PUNCTUATION = tuple(map(ord, ".,!?-:;()[]/+'\""))
 
 # GB2312 contains 6,763 Han characters. A font replacing every Android UI slot
 # should provide roughly that level of core Chinese coverage. Smaller artistic or
-# Latin-only fonts remain usable through LuoShu's composite-font feature.
+# Latin-only fonts remain usable through Ziyu's composite-font feature.
 MIN_CORE_HAN = 6000
 CORE_HAN_RANGES = (
     (0x3400, 0x4DBF),  # CJK Unified Ideographs Extension A

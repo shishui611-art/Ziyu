@@ -36,7 +36,7 @@ class ProviderJournalTest(unittest.TestCase):
         self.journal = self.config / 'google-font-provider-namespaces.conf'
         self.events = self.root / 'events'
         self.env = {**os.environ, 'MODDIR': str(self.module),
-                    'LUOSHU_PROC_ROOT': str(self.proc), 'TEST_ROOT': str(self.root),
+                    'ZIYU_PROC_ROOT': str(self.proc), 'TEST_ROOT': str(self.root),
                     'TEST_TARGET': self.target, 'TEST_OLD': str(self.old), 'TEST_NEW': str(self.new),
                     'TEST_STOCK': str(self.stock), 'TEST_FOREIGN': str(self.foreign)}
 
@@ -48,7 +48,7 @@ _gfp_unique_namespace_pids() { printf '%s\\n' ${TEST_PIDS:-101}; }
 # are kernel mount/unmount, represented by hardlinks with real inode identity.
 _gfp_queue_all_consumers() { :; }
 _gfp_mount_in_pid() {
-    _mock_view="$LUOSHU_PROC_ROOT/$1/root$3"
+    _mock_view="$ZIYU_PROC_ROOT/$1/root$3"
     if [ -e "$_mock_view" ] && [ "$(_gfp_identity "$_mock_view")" != "$(_gfp_identity "$TEST_STOCK")" ]; then
         echo unexpected-stack >> "$TEST_ROOT/events"
         return 95
@@ -61,7 +61,7 @@ _gfp_mount_in_pid() {
 _gfp_unmount_in_pid() {
     printf 'unmount:%s\\n' "$1" >> "$TEST_ROOT/events"
     [ "${TEST_UNMOUNT_FAIL:-0}" != 1 ] || return 1
-    _mock_view="$LUOSHU_PROC_ROOT/$1/root$2"
+    _mock_view="$ZIYU_PROC_ROOT/$1/root$2"
     rm -f "$_mock_view"
     ln "$TEST_STOCK" "$_mock_view"
 }
@@ -95,8 +95,8 @@ _gfp_mount_target 101 "$TEST_OLD" "$TEST_TARGET" || exit 11
     def test_inherited_namespace_is_restored_without_prior_child_entry(self):
         events = self.shell('''
 _gfp_mount_target 101 "$TEST_OLD" "$TEST_TARGET" || exit 10
-rm "$LUOSHU_PROC_ROOT/102/root$TEST_TARGET"
-ln "$TEST_OLD" "$LUOSHU_PROC_ROOT/102/root$TEST_TARGET"
+rm "$ZIYU_PROC_ROOT/102/root$TEST_TARGET"
+ln "$TEST_OLD" "$ZIYU_PROC_ROOT/102/root$TEST_TARGET"
 TEST_PIDS='101 102'
 _gfp_restore_internal || exit 11
 ''')
@@ -106,8 +106,8 @@ _gfp_restore_internal || exit 11
     def test_foreign_replacement_is_never_unmounted(self):
         events = self.shell('''
 _gfp_mount_target 101 "$TEST_OLD" "$TEST_TARGET" || exit 10
-rm "$LUOSHU_PROC_ROOT/101/root$TEST_TARGET"
-ln "$TEST_FOREIGN" "$LUOSHU_PROC_ROOT/101/root$TEST_TARGET"
+rm "$ZIYU_PROC_ROOT/101/root$TEST_TARGET"
+ln "$TEST_FOREIGN" "$ZIYU_PROC_ROOT/101/root$TEST_TARGET"
 _gfp_restore_internal || exit 11
 ''')
         self.assertEqual(events, ['bind:101:old.ttf'])
@@ -152,8 +152,8 @@ _gfp_mount_target 101 "$TEST_NEW" "$TEST_TARGET"
         events = self.shell('''
 mv() {
     [ "$3" = "$MOUNTS" ] || { command mv "$@"; return $?; }
-    rm "$LUOSHU_PROC_ROOT/101/root$TEST_TARGET"
-    ln "$TEST_FOREIGN" "$LUOSHU_PROC_ROOT/101/root$TEST_TARGET"
+    rm "$ZIYU_PROC_ROOT/101/root$TEST_TARGET"
+    ln "$TEST_FOREIGN" "$ZIYU_PROC_ROOT/101/root$TEST_TARGET"
     return 1
 }
 _gfp_mount_target 101 "$TEST_NEW" "$TEST_TARGET"

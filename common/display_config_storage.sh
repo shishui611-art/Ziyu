@@ -17,7 +17,7 @@ ziyu_display_config_directory() {
     case "$_zdcs_path" in
         *'/../'*|*'/./'*|*/..|*/.|*'|'*|*'
 '*) return 1 ;;
-        /storage/emulated/0/?*|/data/adb/ziyu-data/?*) ;;
+        /storage/emulated/0/?*|/data/adb/ziyu/user-data/?*|/data/adb/ziyu-data/?*) ;;
         /storage/*/*) case "$_zdcs_path" in /storage/emulated/*|/storage/self/*) return 1 ;; esac ;;
         *) return 1 ;;
     esac
@@ -29,5 +29,5 @@ ziyu_display_config_command() (
     _zdcs_py="$_zdcs_module/common/python"
     PYTHONHOME="$_zdcs_py" PYTHONPATH="$_zdcs_module/common:$_zdcs_py/lib/python3.14:$_zdcs_py/lib/python3.14/site-packages" \
     LD_LIBRARY_PATH="$_zdcs_py/lib:$_zdcs_py/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$_zdcs_py/bin/luoshu-python" "$_zdcs_module/common/display_config_storage.py" "$_zdcs_module" "$@"
+        "$_zdcs_py/bin/ziyu-python" "$_zdcs_module/common/display_config_storage.py" "$_zdcs_module" "$@"
 )

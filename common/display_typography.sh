@@ -163,7 +163,7 @@ cleanup() {
         if [ "$dt_rollback_ok" = true ]; then save_cache >/dev/null 2>&1 || rm -f "$CACHE"
         else rm -f "$CACHE"; fi
     fi
-    luoshu_font_lock_release "$dt_lock" "$$" >/dev/null 2>&1 || true
+    ziyu_font_lock_release "$dt_lock" "$$" >/dev/null 2>&1 || true
 }
 
 case "${1:-status}" in
@@ -171,8 +171,8 @@ case "${1:-status}" in
         shift
         . "$MODDIR/common/font_switch_lock.sh" || fail '显示设置锁不可用'
         dt_lock="$MODDIR/.display-typography.lock"
-        luoshu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
-        trap 'luoshu_font_lock_release "$dt_lock" "$$" >/dev/null 2>&1' EXIT
+        ziyu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
+        trap 'ziyu_font_lock_release "$dt_lock" "$$" >/dev/null 2>&1' EXIT
         trap 'exit 1' HUP INT TERM
         ziyu_display_config_command "$MODDIR" "$@"
         exit $?
@@ -182,8 +182,8 @@ case "${1:-status}" in
         if [ "$1" = status ] && read_cache; then emit_state; printf 'cache=local\n'; exit 0; fi
         . "$MODDIR/common/font_switch_lock.sh" || fail '显示设置锁不可用'
         dt_lock="$MODDIR/.display-typography.lock"
-        luoshu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
-        trap 'luoshu_font_lock_release "$dt_lock" "$$" >/dev/null 2>&1; rm -f "$CACHE.tmp.$$"' EXIT
+        ziyu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
+        trap 'ziyu_font_lock_release "$dt_lock" "$$" >/dev/null 2>&1; rm -f "$CACHE.tmp.$$"' EXIT
         trap 'exit 1' HUP INT TERM
         read_state || fail '无法读取系统字体缩放或实际 DPI'
         if save_cache; then dt_saved=true; else dt_saved=false; fi
@@ -208,16 +208,16 @@ sint "$4" || fail '原字重数值无效'
 [ "$7" = keep ] || fail '主页粗细调整已移除，请在手机系统设置中调整字体粗细'
 [ "$6" -ge 50 ] && [ "$6" -le 200 ] || fail '字体大小范围为 50% 至 200%'
 dt_lock="$MODDIR/.display-typography.lock"
-luoshu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
-read_state || { luoshu_font_lock_release "$dt_lock" "$$"; fail '无法读取修改前的显示设置'; }
+ziyu_font_lock_acquire "$dt_lock" "$$" || fail '另一项显示设置正在处理，请稍后重试'
+read_state || { ziyu_font_lock_release "$dt_lock" "$$"; fail '无法读取修改前的显示设置'; }
 # Changes made outside this App become the next local read, without weakening
 # the compare-before-write guard for a stale draft or a different Android user.
 save_cache >/dev/null 2>&1 || rm -f "$CACHE"
 [ "$dt_user" = "$2" ] && [ "$dt_percent" = "$3" ] && [ "$dt_density" = "$5" ] || {
-    luoshu_font_lock_release "$dt_lock" "$$"; fail '系统设置已在其他位置变化，请重新读取后应用';
+    ziyu_font_lock_release "$dt_lock" "$$"; fail '系统设置已在其他位置变化，请重新读取后应用';
 }
 [ "$8" -ge "$dt_min" ] && [ "$8" -le "$dt_max" ] || {
-    luoshu_font_lock_release "$dt_lock" "$$"; fail 'DPI 超出本机调节范围，请重新读取';
+    ziyu_font_lock_release "$dt_lock" "$$"; fail 'DPI 超出本机调节范围，请重新读取';
 }
 old_user="$dt_user"; old_percent="$dt_percent"
 old_density="$dt_density"; old_override="$dt_override"

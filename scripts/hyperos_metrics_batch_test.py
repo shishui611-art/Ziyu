@@ -47,18 +47,18 @@ class HyperOSMetricsTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.module = self.root / 'module'
-        self.stage = self.module / '.luoshu-payload-next'
+        self.stage = self.module / '.ziyu-payload-next'
         self.fonts = self.stage / 'system/fonts'
         self.fonts.mkdir(parents=True)
         (self.module / 'config').mkdir()
         # The host may load FontTools only through the bundled pure-Python path.
         # Preserve that path separately before the Android entry point replaces it.
-        self.env = {'LUOSHU_BUILD_KEY': 'fixture',
-                    'LUOSHU_TEST_PYTHONPATH': os.pathsep.join(sys.path)}
+        self.env = {'ZIYU_BUILD_KEY': 'fixture',
+                    'ZIYU_TEST_PYTHONPATH': os.pathsep.join(sys.path)}
         for part in batch.PARTS:
             root = self.root / 'stock' / part
             root.mkdir(parents=True)
-            self.env[f'LUOSHU_{part.upper()}_FONTS_ROOT'] = str(root)
+            self.env[f'ZIYU_{part.upper()}_FONTS_ROOT'] = str(root)
         self.env_patch = patch.dict(os.environ, self.env)
         self.env_patch.start(); self.addCleanup(self.env_patch.stop)
         font_file(self.fonts / '400.ttf')
@@ -77,7 +77,7 @@ class HyperOSMetricsTest(unittest.TestCase):
             result = batch.build(self.module, self.stage, ['MiSansVF.ttf'])
         self.assertEqual({key: result[key] for key in ('mapped', 'generated', 'fallbackSlots')},
                          {'mapped': 1, 'generated': 1, 'fallbackSlots': 0})
-        report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())
+        report = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())
         self.assertEqual(report['slots'][0]['metricsSource'], 'stock')
         self.assertEqual(report['slots'][0]['slot'], '/system/fonts/MiSansVF.ttf')
         with TTFont(self.fonts / 'MiSansVF.ttf') as out, TTFont(self.fonts / '400.ttf') as src:
@@ -113,7 +113,7 @@ class HyperOSMetricsTest(unittest.TestCase):
                         '/product/fonts/MiSansVF.ttf': slot()})
         for _ in range(3):
             batch.build(self.module, self.stage, ['MiSansVF.ttf'])
-            store = self.fonts / '.luoshu-font-store'
+            store = self.fonts / '.ziyu-font-store'
             self.assertEqual(list(store.glob('hyperos-metrics-*')), [])
             # Removing generator names must leave both partition aliases usable.
             for part in ('system', 'product'):
@@ -126,7 +126,7 @@ class HyperOSMetricsTest(unittest.TestCase):
         with patch.object(batch, 'write_metrics', side_effect=ValueError('bad source')):
             with self.assertRaisesRegex(ValueError, 'bad source'):
                 batch.build(self.module, self.stage, ['MiSansVF.ttf'])
-        self.assertEqual(list((self.fonts / '.luoshu-font-store').glob('hyperos-metrics-*')), [])
+        self.assertEqual(list((self.fonts / '.ziyu-font-store').glob('hyperos-metrics-*')), [])
 
     def test_latin_bitmap_policy_does_not_leak_to_main_or_clock(self):
         slots = {f'/system/fonts/{name}': slot(use_typo=False, head=(-430, 1100))
@@ -155,7 +155,7 @@ class HyperOSMetricsTest(unittest.TestCase):
         batch.build(self.module, self.stage, ['Roboto-Regular.ttf'])
         with TTFont(self.fonts / 'Roboto-Regular.ttf') as font:
             self.assertEqual(font['head'].yMin, -550)
-        report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())['slots'][0]
+        report = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())['slots'][0]
         self.assertEqual(report['bitmapBaselineReason'], 'latin-descender-would-clip')
         self.assertEqual(report['bitmapBaselineCorrection'], 0)
 
@@ -170,7 +170,7 @@ class HyperOSMetricsTest(unittest.TestCase):
                 self.assertEqual((font['head'].yMin, font['head'].yMax), expected)
                 with TTFont(self.fonts / '400.ttf') as source:
                     self.assertEqual(font.reader['glyf'], source.reader['glyf'])
-        report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())
+        report = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())
         self.assertTrue(all(entry['layoutBoundsSource'] == 'stock' for entry in report['slots']))
 
     def test_different_head_with_identical_line_metrics_cannot_share_alias(self):
@@ -196,7 +196,7 @@ class HyperOSMetricsTest(unittest.TestCase):
             with self.subTest(head=head):
                 self.inventory({'/system/fonts/MiClock.otf': slot(head=head)})
                 self.assertEqual(batch.build(self.module, self.stage, ['MiClock.otf'])['fallbackSlots'], 0)
-                report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())['slots'][0]
+                report = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())['slots'][0]
                 self.assertEqual(report['layoutBoundsSource'], 'source')
                 self.assertEqual(report['outputHead'], report['sourceHead'])
 
@@ -204,7 +204,7 @@ class HyperOSMetricsTest(unittest.TestCase):
         (self.root / 'stock/system/MiSansVF.ttf').touch()
         result = batch.build(self.module, self.stage, ['MiSansVF.ttf'])
         self.assertEqual(result['fallbackSlots'], 1)
-        report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())
+        report = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())
         self.assertEqual(report['slots'][0]['metricsSource'], 'fallback')
         (self.fonts / '400.ttf').write_bytes(b'corrupt')
         with self.assertRaises(Exception):
@@ -216,15 +216,15 @@ class HyperOSMetricsTest(unittest.TestCase):
         batch.build(self.module, self.stage, ['MiSansVF.ttf'])
         target = self.stage / 'product/fonts/MiSansVF.ttf'
         before = target.read_bytes()
-        subprocess.run(['sh', '-c', '. "$1"; luoshu_hyperos_clock_payload_ensure', 'sh',
+        subprocess.run(['sh', '-c', '. "$1"; ziyu_hyperos_clock_payload_ensure', 'sh',
                         str(ROOT / 'common/legacy_v14_4/hyperos_clock_compat.sh')],
                        env={**os.environ, 'MODDIR': str(self.module), 'IS_HYPEROS': 'true',
-                            'LUOSHU_HYPEROS_CLOCK_PAYLOAD_ROOT': str(self.stage)}, check=True)
+                            'ZIYU_HYPEROS_CLOCK_PAYLOAD_ROOT': str(self.stage)}, check=True)
         self.assertEqual(target.read_bytes(), before)
 
     def test_reject_live_payload(self):
         with self.assertRaisesRegex(ValueError, '本次启动'):
-            batch.build(self.module, self.module / '.luoshu-payload', ['MiSansVF.ttf'])
+            batch.build(self.module, self.module / '.ziyu-payload', ['MiSansVF.ttf'])
 
     def test_stage_covers_the_same_dynamic_slots_as_boot(self):
         self.inventory({'/system/fonts/MiSansVF.ttf': slot(),
@@ -244,14 +244,14 @@ _hyperos_weight_files() { :; }
 _hyperos_upright_ui_files() { :; }
 _hyperos_clock_ui_files() { :; }
 ''')
-        launcher = common / 'python/bin/luoshu-python'
+        launcher = common / 'python/bin/ziyu-python'
         launcher.write_text('#!/bin/sh\nunset PYTHONHOME LD_LIBRARY_PATH\n'
-                            'PYTHONPATH="$LUOSHU_TEST_PYTHONPATH" '
-                            'exec "$LUOSHU_TEST_PYTHON" "$@"\n')
+                            'PYTHONPATH="$ZIYU_TEST_PYTHONPATH" '
+                            'exec "$ZIYU_TEST_PYTHON" "$@"\n')
         launcher.chmod(0o755)
         result = subprocess.run(['sh', str(ROOT / 'common/hyperos_stage_complete.sh'), str(self.stage)],
-            env={**os.environ, 'LUOSHU_REAL_MODDIR': str(self.module),
-                 'LUOSHU_TEST_PYTHON': sys.executable}, capture_output=True, text=True)
+            env={**os.environ, 'ZIYU_REAL_MODDIR': str(self.module),
+                 'ZIYU_TEST_PYTHON': sys.executable}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         for name, ascent in (('MiSansDisplayVF.ttf', 850), ('XiaomiSansVF.otf', 900)):
             target = self.stage / 'product/fonts' / name
@@ -290,16 +290,16 @@ _hyperos_weight_files() { :; }
 _hyperos_upright_ui_files() { :; }
 _hyperos_clock_ui_files() { :; }
 ''')
-        launcher = common / 'python/bin/luoshu-python'
-        launcher.write_text('#!/bin/sh\nprintf "launch\\n" >> "$LUOSHU_TEST_LAUNCHES"\n'
+        launcher = common / 'python/bin/ziyu-python'
+        launcher.write_text('#!/bin/sh\nprintf "launch\\n" >> "$ZIYU_TEST_LAUNCHES"\n'
                             'unset PYTHONHOME LD_LIBRARY_PATH\n'
-                            'PYTHONPATH="$LUOSHU_TEST_PYTHONPATH" '
-                            'exec "$LUOSHU_TEST_PYTHON" "$@"\n')
+                            'PYTHONPATH="$ZIYU_TEST_PYTHONPATH" '
+                            'exec "$ZIYU_TEST_PYTHON" "$@"\n')
         launcher.chmod(0o755)
         launches = self.root / 'launches'
         command = ['sh', str(ROOT / 'common/hyperos_stage_complete.sh'), str(self.stage)]
-        env = {**os.environ, 'LUOSHU_REAL_MODDIR': str(self.module),
-               'LUOSHU_TEST_LAUNCHES': str(launches), 'LUOSHU_TEST_PYTHON': sys.executable}
+        env = {**os.environ, 'ZIYU_REAL_MODDIR': str(self.module),
+               'ZIYU_TEST_LAUNCHES': str(launches), 'ZIYU_TEST_PYTHON': sys.executable}
         result = subprocess.run(command, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['mapped'], 2)

@@ -19,10 +19,14 @@ val appVersionName = moduleVersion
     .lowercase()
     .replace(Regex("[^0-9a-z.]+"), "-")
     .trim('-')
-val releaseStoreFile = providers.environmentVariable("LUOSHU_KEYSTORE_FILE").orNull
-val releaseStorePassword = providers.environmentVariable("LUOSHU_KEYSTORE_PASSWORD").orNull
-val releaseKeyAlias = providers.environmentVariable("LUOSHU_KEY_ALIAS").orNull
-val releaseKeyPassword = providers.environmentVariable("LUOSHU_KEY_PASSWORD").orNull
+val releaseStoreFile = (providers.environmentVariable("ZIYU_KEYSTORE_FILE").orNull
+    ?: providers.environmentVariable("LUOSHU_KEYSTORE_FILE").orNull)
+val releaseStorePassword = (providers.environmentVariable("ZIYU_KEYSTORE_PASSWORD").orNull
+    ?: providers.environmentVariable("LUOSHU_KEYSTORE_PASSWORD").orNull)
+val releaseKeyAlias = (providers.environmentVariable("ZIYU_KEY_ALIAS").orNull
+    ?: providers.environmentVariable("LUOSHU_KEY_ALIAS").orNull)
+val releaseKeyPassword = (providers.environmentVariable("ZIYU_KEY_PASSWORD").orNull
+    ?: providers.environmentVariable("LUOSHU_KEY_PASSWORD").orNull)
 val hasReleaseSigning = listOf(
     releaseStoreFile,
     releaseStorePassword,

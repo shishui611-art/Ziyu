@@ -5,7 +5,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 cat > "$TMP/payload.json" <<'EOF_PAYLOAD'
-{"schema":"device-font-payload-v1","slots":[{"family":"sans-serif","familyNormalized":"sans-serif","weight":400,"generatedFile":"LuoShuSlot.ttf"}]}
+{"schema":"device-font-payload-v1","slots":[{"family":"sans-serif","familyNormalized":"sans-serif","weight":400,"generatedFile":"ZiyuSlot.ttf"}]}
 EOF_PAYLOAD
 cat > "$TMP/overlay.json" <<'EOF_OVERLAY'
 {"schema":"device-font-overlay-v1","copiedFonts":[{"path":"system/fonts/Roboto-Regular.ttf"}],"dynamic":[{"removedFamilies":["OEM Dynamic Sans"]}],"summary":{"mappedSlots":1}}
@@ -61,18 +61,18 @@ grep -q '^activeFont=Composite Font$' "$AUTO_MOD/config/device-font-load-verific
 COMPAT_MOD="$TMP/compat-module"
 VISIBLE_ROOT="$TMP/visible-root"
 mkdir -p "$COMPAT_MOD/common" "$COMPAT_MOD/config" "$COMPAT_MOD/logs" \
-    "$COMPAT_MOD/.luoshu-payload/system/fonts" "$VISIBLE_ROOT/system/fonts"
+    "$COMPAT_MOD/.ziyu-payload/system/fonts" "$VISIBLE_ROOT/system/fonts"
 cp "$ROOT/common/device_font_load_verify.sh" "$ROOT/common/font_switch_lock.sh" "$COMPAT_MOD/common/"
 printf 'Composite Font\n' > "$COMPAT_MOD/config/active_font.conf"
-python3 - "$COMPAT_MOD/.luoshu-payload/system/fonts/Roboto-Regular.ttf" "$VISIBLE_ROOT/system/fonts/Roboto-Regular.ttf" <<'PY_FONT'
+python3 - "$COMPAT_MOD/.ziyu-payload/system/fonts/Roboto-Regular.ttf" "$VISIBLE_ROOT/system/fonts/Roboto-Regular.ttf" <<'PY_FONT'
 from pathlib import Path
 import sys
-payload = (b"LuoShu-visible-font-test" * 4096) + b"END"
+payload = (b"Ziyu-visible-font-test" * 4096) + b"END"
 Path(sys.argv[1]).write_bytes(payload)
 Path(sys.argv[2]).write_bytes(payload)
 PY_FONT
 printf '%s\n' 'system/fonts/Roboto-Regular.ttf|0|0' > "$COMPAT_MOD/config/font-payload-manifest.conf"
-MODDIR="$COMPAT_MOD" MODULE_DIR="$COMPAT_MOD" LUOSHU_VISIBLE_ROOT="$VISIBLE_ROOT" \
+MODDIR="$COMPAT_MOD" MODULE_DIR="$COMPAT_MOD" ZIYU_VISIBLE_ROOT="$VISIBLE_ROOT" \
     sh "$COMPAT_MOD/common/device_font_load_verify.sh" verify
 grep -q '^state=verified$' "$COMPAT_MOD/config/device-font-load-verification.conf"
 grep -q '^mode=mount-verified$' "$COMPAT_MOD/config/device-font-load-verification.conf"
@@ -83,7 +83,7 @@ grep -q '^reason=visible-font-files-match$' "$COMPAT_MOD/config/device-font-load
 printf 'different-visible-font\n' > "$VISIBLE_ROOT/system/fonts/Roboto-Regular.ttf"
 printf 'state=mounted\n' > "$COMPAT_MOD/config/self-mount.conf"
 printf 'state=confirmed\nfont=Composite Font\n' > "$COMPAT_MOD/config/font-payload-boot.conf"
-MODDIR="$COMPAT_MOD" MODULE_DIR="$COMPAT_MOD" LUOSHU_VISIBLE_ROOT="$VISIBLE_ROOT" \
+MODDIR="$COMPAT_MOD" MODULE_DIR="$COMPAT_MOD" ZIYU_VISIBLE_ROOT="$VISIBLE_ROOT" \
     sh "$COMPAT_MOD/common/device_font_load_verify.sh" verify
 grep -q '^state=verified$' "$COMPAT_MOD/config/device-font-load-verification.conf"
 grep -q '^mode=mount-confirmed$' "$COMPAT_MOD/config/device-font-load-verification.conf"
@@ -92,7 +92,7 @@ grep -q '^reason=mount-active-visible-layout-differs$' "$COMPAT_MOD/config/devic
 # Only an explicit mount failure without stronger visible evidence remains a hard failure.
 printf 'state=failed\n' > "$COMPAT_MOD/config/self-mount.conf"
 set +e
-MODDIR="$COMPAT_MOD" MODULE_DIR="$COMPAT_MOD" LUOSHU_VISIBLE_ROOT="$VISIBLE_ROOT" \
+MODDIR="$COMPAT_MOD" MODULE_DIR="$COMPAT_MOD" ZIYU_VISIBLE_ROOT="$VISIBLE_ROOT" \
     sh "$COMPAT_MOD/common/device_font_load_verify.sh" verify
 VERIFY_RC=$?
 set -e
@@ -117,11 +117,11 @@ cat > "$TMP/bin/getprop" <<'EOF_GETPROP'
 EOF_GETPROP
 chmod +x "$TMP/bin/getprop"
 PATH="$TMP/bin:$PATH" MODDIR="$MOD" \
-    LUOSHU_BOOT_VERIFY_SETTLE_SECONDS=0 \
-    LUOSHU_BOOT_VERIFY_IDLE_WAIT_LIMIT=1 \
-    LUOSHU_BOOT_VERIFY_POLL_SECONDS=1 \
+    ZIYU_BOOT_VERIFY_SETTLE_SECONDS=0 \
+    ZIYU_BOOT_VERIFY_IDLE_WAIT_LIMIT=1 \
+    ZIYU_BOOT_VERIFY_POLL_SECONDS=1 \
     sh "$MOD/common/device_font_boot_verify.sh" run trust-test
 grep -q '^state=verified$' "$MOD/config/device-font-load-verification.conf"
-! grep -q 'device_font_boot_verify.sh.*schedule' "$ROOT/post-fs-data.sh" "$ROOT/.luoshu-runtime/compat/v227/post-fs-data.sh"
+! grep -q 'device_font_boot_verify.sh.*schedule' "$ROOT/post-fs-data.sh" "$ROOT/.ziyu-runtime/compat/v227/post-fs-data.sh"
 
 echo 'device_font_trust_test: PASS'

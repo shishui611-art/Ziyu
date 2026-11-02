@@ -44,7 +44,7 @@ if [ ! -e "$MODDIR/disable" ] && [ ! -e "$MODDIR/remove" ] &&
         _activate_rc=$?
     else
         . "$MODDIR/common/next_boot_payload.sh" || exit 1
-        luoshu_next_boot_activate
+        ziyu_next_boot_activate
         _activate_rc=$?
     fi
     case "$_activate_rc" in

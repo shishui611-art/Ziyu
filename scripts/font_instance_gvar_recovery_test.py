@@ -93,8 +93,8 @@ class GvarRecoveryTest(unittest.TestCase):
                 source.write_bytes(b"font fixture for fingerprint")
                 engine = load(relative)
                 args = argparse.Namespace(input=str(source), output="unused", role="cjk", weight=400, axes="wght=400", preserve_metrics=False)
-                environment = {"LUOSHU_TASK_ID": "mix-repro-123", "LUOSHU_FONT_FAMILY": "测试字体",
-                               "LUOSHU_GENERATED_WEIGHT": "100", "LUOSHU_WEIGHT_MODE": "fixed"}
+                environment = {"ZIYU_TASK_ID": "mix-repro-123", "ZIYU_FONT_FAMILY": "测试字体",
+                               "ZIYU_GENERATED_WEIGHT": "100", "ZIYU_WEIGHT_MODE": "fixed"}
                 for error, code, exit_code in ((AssertionError("packed delta failure"), "FONT_VARIATION_ASSERTION", 13),
                                                (MemoryError("allocation failure"), "FONT_INSTANCE_MEMORY", 12)):
                     stderr = io.StringIO()

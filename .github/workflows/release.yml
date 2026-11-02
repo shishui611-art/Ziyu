@@ -80,7 +80,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: luoshu-release-${{ github.ref }}
+  group: ziyu-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -113,7 +113,7 @@ jobs:
           python3 scripts/release_version_policy_test.py
           python3 scripts/sync_update_metadata_test.py
           . ./scripts/version.sh
-          expected_tag="$LUOSHU_RELEASE_TAG"
+          expected_tag="$ZIYU_RELEASE_TAG"
           tag="${GITHUB_REF_NAME}"
           mode="tag"
           source_sha="$GITHUB_SHA"
@@ -163,7 +163,7 @@ jobs:
             echo "Tag $tag does not match module.prop ($expected_tag)" >&2
             exit 2
           }
-          notes_file="$LUOSHU_RELEASE_NOTES"
+          notes_file="$ZIYU_RELEASE_NOTES"
           [[ -s "$notes_file" ]] || { echo "Missing release notes: $notes_file" >&2; exit 2; }
           prerelease="${INPUT_PRERELEASE:-false}"
           if grep -q '<!-- prerelease -->' "$notes_file"; then
@@ -171,9 +171,9 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "version=$LUOSHU_VERSION" >> "$GITHUB_OUTPUT"
-          echo "release_title=$LUOSHU_RELEASE_TITLE" >> "$GITHUB_OUTPUT"
-          echo "artifact_version=$LUOSHU_ARTIFACT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$ZIYU_VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_title=$ZIYU_RELEASE_TITLE" >> "$GITHUB_OUTPUT"
+          echo "artifact_version=$ZIYU_ARTIFACT_VERSION" >> "$GITHUB_OUTPUT"
           echo "notes_file=$notes_file" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
@@ -215,15 +215,15 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Prepare ARM64 composite runtime
         shell: bash
         run: |
-          if [[ ! -x common/python/bin/luoshu-python || ! -x .luoshu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
+          if [[ ! -x common/python/bin/ziyu-python || ! -x .ziyu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
@@ -233,10 +233,10 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Run source regression checks
         id: checks
@@ -317,25 +317,25 @@ jobs:
       - name: Require signing secrets
         shell: bash
         env:
-          KEYSTORE_BASE64: ${{ secrets.LUOSHU_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.ZIYU_KEYSTORE_BASE64 || secrets.LUOSHU_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ZIYU_KEYSTORE_PASSWORD || secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ZIYU_KEY_ALIAS || secrets.LUOSHU_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ZIYU_KEY_PASSWORD || secrets.LUOSHU_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           for value in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
-            [[ -n "${!value}" ]] || { echo "Missing repository secret: LUOSHU_${value}" >&2; exit 3; }
+            [[ -n "${!value}" ]] || { echo "Missing repository secret: ZIYU_${value}" >&2; exit 3; }
           done
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/luoshu-release.jks"
-          keytool -list -keystore "$RUNNER_TEMP/luoshu-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ziyu-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/ziyu-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
       - name: Lint, test and build signed release App
         working-directory: android-app
         env:
-          LUOSHU_KEYSTORE_FILE: ${{ runner.temp }}/luoshu-release.jks
-          LUOSHU_KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
-          LUOSHU_KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
-          LUOSHU_KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
+          ZIYU_KEYSTORE_FILE: ${{ runner.temp }}/ziyu-release.jks
+          ZIYU_KEYSTORE_PASSWORD: ${{ secrets.ZIYU_KEYSTORE_PASSWORD || secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          ZIYU_KEY_ALIAS: ${{ secrets.ZIYU_KEY_ALIAS || secrets.LUOSHU_KEY_ALIAS }}
+          ZIYU_KEY_PASSWORD: ${{ secrets.ZIYU_KEY_PASSWORD || secrets.LUOSHU_KEY_PASSWORD }}
         run: gradle --no-daemon --stacktrace :app:lintRelease :app:testDebugUnitTest :app:assembleRelease
 
       - name: Verify APK signature certificate
@@ -428,15 +428,15 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Prepare ARM64 composite runtime
         shell: bash
         run: |
-          if [[ ! -x common/python/bin/luoshu-python || ! -x .luoshu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
+          if [[ ! -x common/python/bin/ziyu-python || ! -x .ziyu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
@@ -475,12 +475,12 @@ jobs:
           apk='android-app/app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
           mkdir -p dist
-          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}.apk"
+          app="dist/Ziyu-App-${ZIYU_ARTIFACT_VERSION}.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
-          LUOSHU_SOURCE_CHECK_RECEIPT="$RUNNER_TEMP/ziyu-source-check.json" \
-            LUOSHU_APP_APK="$apk" sh ./scripts/build.sh
-          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
+          ZIYU_SOURCE_CHECK_RECEIPT="$RUNNER_TEMP/ziyu-source-check.json" \
+            ZIYU_APP_APK="$apk" sh ./scripts/build.sh
+          module="dist/Ziyu-${ZIYU_ARTIFACT_VERSION}.zip"
           test -s "$module"
           unzip -t "$module" >/dev/null
           unzip -Z1 "$module" | grep -qx 'bundled/Ziyu-App.apk'

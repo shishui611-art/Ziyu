@@ -60,7 +60,7 @@ Release 发布流程会验证 ZIP、内置 App 和 SHA-256，并自动同步更�
 ## 快速开始
 
 1. 从[最新正式版](https://github.com/shishui611-art/Ziyu/releases/latest)下载页面实际列出的正式模块 ZIP，并校验同一 Release 的 SHA-256 文件；源码版本号本身不代表对应资产已经发布。
-2. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入 ZIP，按管理器提示重启，再从模块的“操作”入口安装内置 App。
+2. 使用 Magisk / KernelSU / SukiSU Ultra / APatch 刷入 ZIP；音量上键选择普通 Root，音量下键选择临时 Root。30 秒未选择保留原设置，首次安装默认普通 Root。按安装完成提示和管理器支持的方式加载模块，再从模块的“操作”入口安装内置 App。
 3. 在 App 的“字体挂载方式”中明确选择模式。切换模式后，按弹窗选择立即重启验证或稍后重启。
 4. 导入字体，选择中文、英文、数字及字重，提交应用。
 5. 等待准备完成并重启，再查看挂载验证；首次从旧模块 ID 升级必须完整重启。
@@ -223,8 +223,8 @@ gradle --no-daemon :app:assembleDebug
 cd ..
 sh ./scripts/prepare_composite_runtime.sh
 sh ./scripts/check.sh
-LUOSHU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
-LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
+ZIYU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
+ZIYU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 ```
 
 模块打包步骤需在配置好 Android SDK/NDK 和 Python 运行时的环境运行。配置正式签名时 Debug 可覆盖正式 App；未提供正式签名时，本地 Debug 仍使用相同包名但证书不同，不能覆盖正式 App。正式 Release 使用固定证书构建，模块内置 App 必须与已签名构建产物保持一致。

@@ -7,13 +7,13 @@ MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 _lbr_state="$MODDIR/config/mount-backend.conf"
 _lbr_log="$MODDIR/logs/mount-backend.log"
-_lbr_boot="${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
+_lbr_boot="${ZIYU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
 [ -n "$_lbr_boot" ] || { printf 'boot-id-unavailable\n' >&2; return 1 2>/dev/null || exit 1; }
 _lbr_source_common="$MODDIR/common"
 _lbr_runtime_file="${BASH_SOURCE:-$0}"
 case "$_lbr_runtime_file" in */common/mount_backend_runtime.sh) _lbr_source_common="${_lbr_runtime_file%/*}" ;; esac
 
-luoshu_backend_load_dependencies() {
+ziyu_backend_load_dependencies() {
     for _lbr_dependency in private_payload font_live_state mount_backend_state skip_mount_ownership mount_backend_preferences \
         mount_provider_detection mount_backend_policy mount_provider_payload root_manager_detection; do
         _lbr_helper="$MODDIR/common/$_lbr_dependency.sh"
@@ -21,7 +21,7 @@ luoshu_backend_load_dependencies() {
         [ ! -f "$_lbr_helper" ] || . "$_lbr_helper"
     done
     type ziyu_backend_state_load >/dev/null 2>&1 || return 1
-    [ "${LUOSHU_BACKEND_TEST_MODE:-0}" != 1 ] || return 0
+    [ "${ZIYU_BACKEND_TEST_MODE:-0}" != 1 ] || return 0
     for _lbr_dependency in util_functions font_config_runtime font_config_partitions mount_compat mount_self_backend; do
         _lbr_helper="$MODDIR/common/$_lbr_dependency.sh"
         [ ! -f "$_lbr_helper" ] || . "$_lbr_helper"
@@ -78,10 +78,10 @@ _lbr_log_mount_summary() {
         *) _lbr_summary_label='状态未知' ;;
     esac
     if [ "$_lbr_summary_result" = success ] && \
-       [ "${LUOSHU_BACKEND_TEST_MODE:-0}" != 1 ] && \
+       [ "${ZIYU_BACKEND_TEST_MODE:-0}" != 1 ] && \
        [ -f "$MODDIR/common/mount_backend_details.sh" ]; then
         . "$MODDIR/common/mount_backend_details.sh"
-        luoshu_mount_backend_details snapshot
+        ziyu_mount_backend_details snapshot
         _lbr_summary_provider_name="${MOUNT_PROVIDER_NAME:-$_lbr_summary_provider}"
         _lbr_summary_method="${MOUNT_METHOD:-未确认}"
     elif [ "$_lbr_summary_result" = failed ]; then
@@ -212,21 +212,6 @@ _lbr_write_state() {
     mv -f "$_lbr_tmp" "$_lbr_state" 2>/dev/null || return 1
     # Refresh once after a successful atomic commit, never reuse a failed write.
     ziyu_backend_state_load "$_lbr_state" || :
-    # Bind optional cache preparation to this verified state and immutable
-    # payload. A pending/live generation must not reuse a prior boot receipt.
-    case "$_lbr_active:$_lbr_verify" in
-        self:passed|self:partial|external:passed|external:partial)
-            _lbr_preload_pyroot="$MODDIR/common/python"
-            if [ "${LUOSHU_BACKEND_TEST_MODE:-0}" != 1 ] && \
-               [ -x "$_lbr_preload_pyroot/bin/luoshu-python" ] && [ -f "$MODDIR/common/font_preload_state.py" ]; then
-                PYTHONHOME="$_lbr_preload_pyroot" \
-                PYTHONPATH="$MODDIR/common:$_lbr_preload_pyroot/lib/python3.14:$_lbr_preload_pyroot/lib/python3.14/site-packages" \
-                LD_LIBRARY_PATH="$_lbr_preload_pyroot/lib:$_lbr_preload_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-                    "$_lbr_preload_pyroot/bin/luoshu-python" "$MODDIR/common/font_preload_state.py" "$MODDIR" \
-                    >> "$MODDIR/logs/font-preload.log" 2>&1 || _lbr_log 'optional font preload generation not ready; existing mount result retained'
-            fi
-            ;;
-    esac
     return 0
 }
 
@@ -252,28 +237,28 @@ _lbr_verify_font_route() {
         _lbr_log '[Final Verify] no custom font selected; XML/CJK/Latin/Digit route check is not applicable'
         return 0
     fi
-    if [ "${LUOSHU_BACKEND_TEST_MODE:-0}" = 1 ]; then
+    if [ "${ZIYU_BACKEND_TEST_MODE:-0}" = 1 ]; then
         case "$_lbr_backend" in
-            meta) _lbr_test_verify="${LUOSHU_BACKEND_TEST_META_VERIFY_RESULT:-${LUOSHU_BACKEND_TEST_VERIFY_RESULT:-pass}}" ;;
-            external) _lbr_test_verify="${LUOSHU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT:-${LUOSHU_BACKEND_TEST_VERIFY_RESULT:-pass}}" ;;
-            *) _lbr_test_verify="${LUOSHU_BACKEND_TEST_SELF_VERIFY_RESULT:-${LUOSHU_BACKEND_TEST_VERIFY_RESULT:-pass}}" ;;
+            meta) _lbr_test_verify="${ZIYU_BACKEND_TEST_META_VERIFY_RESULT:-${ZIYU_BACKEND_TEST_VERIFY_RESULT:-pass}}" ;;
+            external) _lbr_test_verify="${ZIYU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT:-${ZIYU_BACKEND_TEST_VERIFY_RESULT:-pass}}" ;;
+            *) _lbr_test_verify="${ZIYU_BACKEND_TEST_SELF_VERIFY_RESULT:-${ZIYU_BACKEND_TEST_VERIFY_RESULT:-pass}}" ;;
         esac
         [ "$_lbr_test_verify" = pass ] && FONT_ROUTE_VERIFY_RESULT=passed
         [ "$_lbr_test_verify" = pass ]
         return $?
     fi
-    _lbr_python="$MODDIR/common/python/bin/luoshu-python"
+    _lbr_python="$MODDIR/common/python/bin/ziyu-python"
     _lbr_verify_mode=auto
     if [ "$_lbr_backend" = self ] && [ "${_lbr_self_backend_active:-legacy}" = nomount ]; then
         _lbr_verify_mode=nomount
     elif [ "$_lbr_backend" = external ] && [ "${PROVIDER_ID:-}" = nomount ]; then
         _lbr_verify_mode=nomount
     fi
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        _lbr_python="$LUOSHU_PYTHON"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        _lbr_python="$ZIYU_PYTHON"
         _lbr_py_rc=$("$_lbr_python" "$MODDIR/common/font_route_verify.py" \
-            --module-root "$MODDIR" --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
-            --mountinfo "${LUOSHU_BACKEND_MOUNTINFO:-/proc/1/mountinfo}" --mode "$_lbr_verify_mode" \
+            --module-root "$MODDIR" --visible-root "${ZIYU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
+            --mountinfo "${ZIYU_BACKEND_MOUNTINFO:-/proc/1/mountinfo}" --mode "$_lbr_verify_mode" \
             --active-font "$_lbr_active" \
             --output "$MODDIR/config/mount-backend-verification.json" 2>>"$_lbr_log")
     else
@@ -281,8 +266,8 @@ _lbr_verify_font_route() {
         _lbr_py_rc=$(PYTHONHOME="$_lbr_pyroot" PYTHONPATH="$MODDIR/common:$_lbr_pyroot/lib/python3.14:$_lbr_pyroot/lib/python3.14/site-packages" \
             LD_LIBRARY_PATH="$_lbr_pyroot/lib:$_lbr_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
             "$_lbr_python" "$MODDIR/common/font_route_verify.py" \
-            --module-root "$MODDIR" --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
-            --mountinfo "${LUOSHU_BACKEND_MOUNTINFO:-/proc/1/mountinfo}" --mode "$_lbr_verify_mode" \
+            --module-root "$MODDIR" --visible-root "${ZIYU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
+            --mountinfo "${ZIYU_BACKEND_MOUNTINFO:-/proc/1/mountinfo}" --mode "$_lbr_verify_mode" \
             --active-font "$_lbr_active" \
             --output "$MODDIR/config/mount-backend-verification.json" 2>>"$_lbr_log")
     fi
@@ -291,8 +276,8 @@ _lbr_verify_font_route() {
     [ "$_lbr_rc" -eq 0 ] || return 1
 
     if [ -s "$MODDIR/config/universal-font-runtime.conf" ]; then
-        LUOSHU_VERIFY_BOOT_COMPLETED=1 LUOSHU_VERIFY_SETTLE_SECONDS=0 \
-        LUOSHU_VERIFY_MAIN_NAMESPACE=1 LUOSHU_VERIFY_NO_CUTOVER=1 \
+        ZIYU_VERIFY_BOOT_COMPLETED=1 ZIYU_VERIFY_SETTLE_SECONDS=0 \
+        ZIYU_VERIFY_MAIN_NAMESPACE=1 ZIYU_VERIFY_NO_CUTOVER=1 \
             MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/universal_font_runtime_verify.sh" verify >>"$_lbr_log" 2>&1 || return 1
         [ "$(_lbr_value "$MODDIR/config/universal-font-runtime-verification.conf" grade)" != FAIL ] || return 1
     fi
@@ -310,25 +295,25 @@ _lbr_verify_font_route() {
 
 
 _lbr_detect() {
-    if [ "${LUOSHU_BACKEND_TEST_MODE:-0}" = 1 ]; then
-        ROOT_MANAGER="${LUOSHU_BACKEND_TEST_MANAGER:-unknown}"
+    if [ "${ZIYU_BACKEND_TEST_MODE:-0}" = 1 ]; then
+        ROOT_MANAGER="${ZIYU_BACKEND_TEST_MANAGER:-unknown}"
         ROOT_VERSION=test
         ROOT_DETECTION_SOURCE=test
-        META_ENGINE="${LUOSHU_BACKEND_TEST_META_ENGINE:-none}"
-        PROVIDER_STATE="${LUOSHU_BACKEND_TEST_PROVIDER_STATE:-absent}"
-        PROVIDER_ID="${LUOSHU_BACKEND_TEST_PROVIDER_ID:-none}"
-        PROVIDER_LAYOUT="${LUOSHU_BACKEND_TEST_PROVIDER_LAYOUT:-nested-system}"
+        META_ENGINE="${ZIYU_BACKEND_TEST_META_ENGINE:-none}"
+        PROVIDER_STATE="${ZIYU_BACKEND_TEST_PROVIDER_STATE:-absent}"
+        PROVIDER_ID="${ZIYU_BACKEND_TEST_PROVIDER_ID:-none}"
+        PROVIDER_LAYOUT="${ZIYU_BACKEND_TEST_PROVIDER_LAYOUT:-nested-system}"
         PROVIDER_REASON=test
         PROVIDER_CONTENT_ROOT="$MODDIR"
         return 0
     fi
-    luoshu_detect_root_manager >/dev/null 2>&1 || return 1
-    LUOSHU_META_PROVIDER_SCAN=1
-    export LUOSHU_META_PROVIDER_SCAN
-    luoshu_meta_mount_detect >/dev/null 2>&1
+    ziyu_detect_root_manager >/dev/null 2>&1 || return 1
+    ZIYU_META_PROVIDER_SCAN=1
+    export ZIYU_META_PROVIDER_SCAN
+    ziyu_meta_mount_detect >/dev/null 2>&1
     _lbr_detect_rc=$?
     META_DISPLAY_VERSION=$(_lbr_value "${META_MODULE_DIR:-/nonexistent}/module.prop" version)
-    unset LUOSHU_META_PROVIDER_SCAN
+    unset ZIYU_META_PROVIDER_SCAN
     [ "$_lbr_detect_rc" -eq 0 ] || return 1
     ziyu_mount_provider_detect "$MODDIR"
 }
@@ -344,15 +329,15 @@ _lbr_nomount_runtime_ready() {
     # The boot choice stays frozen. Refresh only that NoMount instance's API
     # after the manager has had a chance to load its LKM and scan our public tree.
     [ "${META_ENGINE:-none}" = nomount ] || return 0
-    [ "${LUOSHU_BACKEND_TEST_MODE:-0}" != 1 ] || return 0
+    [ "${ZIYU_BACKEND_TEST_MODE:-0}" != 1 ] || return 0
     NOMOUNT_KERNEL_USABLE=unknown
     _lbr_nm_dir="${META_ACTIVE_DIR:-}"
-    _lbr_nm_selector="${LUOSHU_META_DETECT_ROOT:-/data/adb}/metamodule"
+    _lbr_nm_selector="${ZIYU_META_DETECT_ROOT:-/data/adb}/metamodule"
     _lbr_nm_expected=$(readlink -f "$_lbr_nm_dir" 2>/dev/null)
     _lbr_nm_current=$(readlink -f "$_lbr_nm_selector" 2>/dev/null)
     if [ -z "$_lbr_nm_expected" ] || [ "$_lbr_nm_expected" != "$_lbr_nm_current" ] || \
        [ -e "$_lbr_nm_dir/disable" ] || [ -e "$_lbr_nm_dir/remove" ] || \
-       [ "$(_luoshu_meta_type_for_dir "$_lbr_nm_dir")" != nomount ]; then
+       [ "$(_ziyu_meta_type_for_dir "$_lbr_nm_dir")" != nomount ]; then
         META_READY=0
         META_ENABLED=0
         META_USABLE_REASON=nomount-provider-changed-or-disabled
@@ -362,11 +347,11 @@ _lbr_nomount_runtime_ready() {
     fi
     # Match the initial detector's ABI-aware path selection. A stale
     # post-fs-data CLI path must not override the active metamodule instance.
-    META_NOMOUNT_CLI=$(_luoshu_nomount_cli_for_dir "$_lbr_nm_dir")
+    META_NOMOUNT_CLI=$(_ziyu_nomount_cli_for_dir "$_lbr_nm_dir")
     if [ "$_lbr_selected" = self ]; then
         # Observe the API without changing the recorded provider exclusion that
         # belongs to the user's self-mount selection.
-        luoshu_nomount_kernel_probe "$META_NOMOUNT_CLI"
+        ziyu_nomount_kernel_probe "$META_NOMOUNT_CLI"
         return $?
     fi
     if [ -z "$META_NOMOUNT_CLI" ]; then
@@ -378,7 +363,7 @@ _lbr_nomount_runtime_ready() {
         [ "$_lbr_stage" != post-mount ] || return 2
         return 1
     fi
-    if luoshu_nomount_kernel_probe "$META_NOMOUNT_CLI"; then
+    if ziyu_nomount_kernel_probe "$META_NOMOUNT_CLI"; then
         META_READY=1
         META_USABLE_REASON=nomount-runtime-ready
         PROVIDER_STATE=available
@@ -447,17 +432,17 @@ _lbr_restore_boot_choice() {
 _lbr_cleanup_nomount_rules() {
     [ -e "$MODDIR/.ziyu-state/nomount-rules.current" ] || return 0
     . "$MODDIR/common/mount_nomount_backend.sh" || return 1
-    luoshu_nomount_cleanup "$MODDIR"
+    ziyu_nomount_cleanup "$MODDIR"
 }
 
 _lbr_rollback_self_attempt() {
-    if [ "${LUOSHU_BACKEND_TEST_MODE:-0}" = 1 ]; then
-        [ "${LUOSHU_BACKEND_TEST_ROLLBACK_RC:-0}" -eq 0 ] || return 1
+    if [ "${ZIYU_BACKEND_TEST_MODE:-0}" = 1 ]; then
+        [ "${ZIYU_BACKEND_TEST_ROLLBACK_RC:-0}" -eq 0 ] || return 1
         : > "$MODDIR/config/test-self-rollback"
-        [ "${LUOSHU_BACKEND_TEST_ROLLBACK_STILL_ACTIVE:-0}" != 1 ] || return 1
+        [ "${ZIYU_BACKEND_TEST_ROLLBACK_STILL_ACTIVE:-0}" != 1 ] || return 1
         return 0
     fi
-    if ! type _luoshu_atomic_rollback >/dev/null 2>&1; then
+    if ! type _ziyu_atomic_rollback >/dev/null 2>&1; then
         [ -f "$MODDIR/common/mount_compat.sh" ] || return 1
         . "$MODDIR/common/mount_compat.sh" || return 1
     fi
@@ -465,17 +450,17 @@ _lbr_rollback_self_attempt() {
     if [ -s "$MODDIR/config/universal-font-runtime.conf" ]; then
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/universal_mount_runtime.sh" rollback || return 1
     fi
-    _lbr_mounts="$(_luoshu_self_state_root)/mounts.list"
+    _lbr_mounts="$(_ziyu_self_state_root)/mounts.list"
     if [ ! -s "$_lbr_mounts" ]; then
-        _luoshu_self_state_mounts_remain payload && return 1
+        _ziyu_self_state_mounts_remain payload && return 1
         return 0
     fi
     # Kernel mounts disappear on reboot. Never unload targets from an old journal.
-    _lbr_journal_boot=$(cat "$(_luoshu_self_state_root)/boot-id" 2>/dev/null | tr -d '\r\n')
+    _lbr_journal_boot=$(cat "$(_ziyu_self_state_root)/boot-id" 2>/dev/null | tr -d '\r\n')
     [ "$_lbr_journal_boot" = "$_lbr_boot" ] || return 0
     _lbr_keep_work=''
     type ziyu_live_current >/dev/null 2>&1 && ziyu_live_current && _lbr_keep_work=detach
-    _luoshu_atomic_rollback "$_lbr_mounts" "$_lbr_keep_work"
+    _ziyu_atomic_rollback "$_lbr_mounts" "$_lbr_keep_work"
 }
 
 _lbr_run_self() {
@@ -498,30 +483,30 @@ _lbr_run_self() {
     _lbr_self_mount_mode="${_lbr_self_backend_selected:-self_mount}"
     case "$_lbr_self_mount_mode" in magic|overlayfs|self_mount) ;; *) _lbr_self_mount_mode=self_mount ;; esac
     _lbr_self_backend_active="$_lbr_self_mount_mode"
-    LUOSHU_SELF_MOUNT_MODE="$_lbr_self_mount_mode"
-    export LUOSHU_SELF_MOUNT_MODE
+    ZIYU_SELF_MOUNT_MODE="$_lbr_self_mount_mode"
+    export ZIYU_SELF_MOUNT_MODE
     _lbr_set_self_skip || return 1
-    if [ "${LUOSHU_BACKEND_TEST_MODE:-0}" = 1 ]; then
-        _lbr_rc="${LUOSHU_BACKEND_TEST_SELF_RC:-0}"
+    if [ "${ZIYU_BACKEND_TEST_MODE:-0}" = 1 ]; then
+        _lbr_rc="${ZIYU_BACKEND_TEST_SELF_RC:-0}"
         [ "$_lbr_rc" -ne 0 ] || : > "$MODDIR/config/test-self-mounted"
     elif [ -s "$MODDIR/config/universal-font-runtime.conf" ]; then
         _lbr_allow_service_fallback=0
         [ "$_lbr_stage" != service ] || [ "$_lbr_fallback" != 1 ] || _lbr_allow_service_fallback=1
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-            LUOSHU_UNIVERSAL_ALLOW_SERVICE_FALLBACK="$_lbr_allow_service_fallback" \
-            LUOSHU_SELF_MOUNT_MODE="$_lbr_self_mount_mode" \
+            ZIYU_UNIVERSAL_ALLOW_SERVICE_FALLBACK="$_lbr_allow_service_fallback" \
+            ZIYU_SELF_MOUNT_MODE="$_lbr_self_mount_mode" \
             sh "$MODDIR/common/universal_mount_runtime.sh" hook "$_lbr_stage"
         _lbr_rc=$?
     else
         if [ ! -s "$MODDIR/config/font-payload-manifest.conf" ]; then
             . "$MODDIR/common/physical_payload_manifest.sh" || return 1
-            luoshu_physical_manifest_ensure "$MODDIR" "$MODDIR/.luoshu-payload" || {
+            ziyu_physical_manifest_ensure "$MODDIR" "$MODDIR/.ziyu-payload" || {
                 _lbr_write_state self none "$_lbr_fallback" not-selected failed "$_lbr_stage" failed physical-integrity-contract-missing
                 _lbr_log_mount_summary failed "$_lbr_stage" physical-integrity-contract-missing
                 return 1
             }
         fi
-        luoshu_private_self_mount_ensure
+        ziyu_private_self_mount_ensure
         _lbr_rc=$?
     fi
     _lbr_error=none
@@ -586,7 +571,7 @@ _lbr_try_auto_self_fallback() {
     return "$_lbr_fallback_rc"
 }
 
-luoshu_mount_backend_hook() {
+ziyu_mount_backend_hook() {
     _lbr_stage="$1"
     mkdir -p "$MODDIR/config" "$MODDIR/logs" || return 1
     if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
@@ -662,7 +647,7 @@ luoshu_mount_backend_hook() {
             _lbr_log_mount_summary pending "$_lbr_stage" early-hook-missing
             return 1
         fi
-        _lbr_preference=$(luoshu_mount_preference_get)
+        _lbr_preference=$(ziyu_mount_preference_get)
         _lbr_previous_boot=$ZIYU_BACKEND_BOOT_ID
         if [ "$_lbr_preference" = auto ] && [ -n "$_lbr_previous_boot" ] && [ "$_lbr_previous_boot" != "$_lbr_boot" ]; then
             # A previous automatic self-fallback owns skip markers only for
@@ -890,10 +875,10 @@ luoshu_mount_backend_hook() {
     esac
 }
 
-luoshu_backend_load_dependencies || { return 1 2>/dev/null || exit 1; }
+ziyu_backend_load_dependencies || { return 1 2>/dev/null || exit 1; }
 if [ "${0##*/}" = mount_backend_runtime.sh ]; then
     case "${1:-hook}" in
-        hook) luoshu_mount_backend_hook "${2:-post-fs-data}" ;;
+        hook) ziyu_mount_backend_hook "${2:-post-fs-data}" ;;
         detect) _lbr_detect; printf 'ROOT_MANAGER=%s\nPROVIDER_STATE=%s\nPROVIDER_ID=%s\nPROVIDER_LAYOUT=%s\nMETA_ENGINE=%s\n' "$ROOT_MANAGER" "$PROVIDER_STATE" "$PROVIDER_ID" "$PROVIDER_LAYOUT" "$META_ENGINE" ;;
         status) cat "$_lbr_state" 2>/dev/null ;;
         *) printf 'usage: %s {hook STAGE|detect|status}\n' "$0" >&2; exit 2 ;;

@@ -18,7 +18,7 @@ class AppControlsBridgeTest(unittest.TestCase):
             common.mkdir()
             config = module / 'config'
             config.mkdir()
-            (module / 'module.prop').write_text('id=LuoShu\nversion=v1.4.2\nversionCode=14002\n', encoding='utf-8')
+            (module / 'module.prop').write_text('id=Ziyu\nversion=v1.4.2\nversionCode=14002\n', encoding='utf-8')
             (config / 'active_font.conf').write_text('Demo\n', encoding='utf-8')
             (config / 'device-font-load-verification.conf').write_text(
                 'state=verified\nmode=mount-verified\nactiveFont=Demo\n', encoding='utf-8')
@@ -105,8 +105,8 @@ class AppControlsBridgeTest(unittest.TestCase):
             (module/'config').mkdir()
             for name in ('app_bridge.sh', 'mount_backend_preferences.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'root_manager_detection.sh', 'meta_mount_detection.sh', 'action_control.sh', 'action_control.py', 'log_review.sh'):
                 shutil.copy2(ROOT/'common'/name, module/'common'/name)
-            (module/'module.prop').write_text('id=LuoShu\n')
-            env = dict(os.environ, MODDIR=str(module), LUOSHU_PYTHON=sys.executable)
+            (module/'module.prop').write_text('id=Ziyu\n')
+            env = dict(os.environ, MODDIR=str(module), ZIYU_PYTHON=sys.executable)
             shell = shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
             env['PATH'] = str(Path(shell).parent) + os.pathsep + env.get('PATH', '')
             def request(*arguments):
@@ -129,10 +129,10 @@ class AppControlsBridgeTest(unittest.TestCase):
             common = module / 'common'
             python_bin = common / 'python' / 'bin'
             python_bin.mkdir(parents=True)
-            (module / 'module.prop').write_text('id=LuoShu\n', encoding='utf-8')
+            (module / 'module.prop').write_text('id=Ziyu\n', encoding='utf-8')
             shutil.copy2(ROOT / 'common' / 'app_bridge.sh', common / 'app_bridge.sh')
             (common / 'font_coverage_locator.py').write_text('# fixture\n', encoding='utf-8')
-            stub = python_bin / 'luoshu-python'
+            stub = python_bin / 'ziyu-python'
             with stub.open('w', encoding='utf-8', newline='\n') as stream:
                 stream.write(
                     '#!/bin/sh\n'

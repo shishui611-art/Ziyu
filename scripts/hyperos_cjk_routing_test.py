@@ -78,15 +78,15 @@ class RoutingTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.module = self.root / 'module'
-        self.stage = self.module / '.luoshu-payload-next'
+        self.stage = self.module / '.ziyu-payload-next'
         self.fonts = self.stage / 'system/fonts'
         self.fonts.mkdir(parents=True)
         (self.module / 'config').mkdir()
-        env = {'LUOSHU_BUILD_KEY': 'routing-test'}
+        env = {'ZIYU_BUILD_KEY': 'routing-test'}
         for part in batch.PARTS:
             root = self.root / 'stock' / part
             root.mkdir(parents=True)
-            env[f'LUOSHU_{part.upper()}_FONTS_ROOT'] = str(root)
+            env[f'ZIYU_{part.upper()}_FONTS_ROOT'] = str(root)
         self.patch = patch.dict(os.environ, env)
         self.patch.start(); self.addCleanup(self.patch.stop)
         self.slots = {}
@@ -110,7 +110,7 @@ class RoutingTest(unittest.TestCase):
             result = batch.build(self.module, self.stage,
                                  names or [Path(logical).name for logical in (*self.slots, *self.dynamic_aliases)])
         self.reports = {entry['slot']: entry for entry in json.loads(
-            (self.stage / '.luoshu-metrics-report.json').read_text())['slots']}
+            (self.stage / '.ziyu-metrics-report.json').read_text())['slots']}
         return result
 
     def default_pair(self, cff=False, variable=False):
@@ -200,7 +200,7 @@ class RoutingTest(unittest.TestCase):
             result = self.build()
         self.assertEqual(result['mapped'], 22)
         self.assertEqual(compact.call_count, 1)
-        self.assertFalse(list((self.fonts / '.luoshu-font-store').glob('hyperos-metrics-*')))
+        self.assertFalse(list((self.fonts / '.ziyu-font-store').glob('hyperos-metrics-*')))
 
     def test_dali_dynamic_overlay_is_not_frozen_to_the_init_roboto_seed(self):
         self.default_pair()
@@ -234,7 +234,7 @@ class RoutingTest(unittest.TestCase):
             self.assertIn(48, han.getBestCmap())
             self.assertNotIn(HAN, latin.getBestCmap())
         self.assertNotIn(logical, self.reports)
-        report = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())
+        report = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())
         self.assertEqual(report['preservedDynamicAliases'], [logical])
 
         # Model the unchanged ROM symlink chain inside the fixture namespace.
@@ -264,10 +264,10 @@ class RoutingTest(unittest.TestCase):
         # Boot compatibility used to recreate every absent Overlay alias.
         # It must now expose the exact ROM link in both overlay and bind modes.
         env = {**os.environ, 'IS_HYPEROS': 'true',
-               'LUOSHU_REAL_MODDIR': str(self.module),
-               'LUOSHU_HYPEROS_CLOCK_PAYLOAD_ROOT': str(self.stage)}
+               'ZIYU_REAL_MODDIR': str(self.module),
+               'ZIYU_HYPEROS_CLOCK_PAYLOAD_ROOT': str(self.stage)}
         helper = ROOT / 'common/legacy_v14_4/hyperos_clock_compat.sh'
-        command = '. "$1"; luoshu_hyperos_clock_payload_ensure'
+        command = '. "$1"; ziyu_hyperos_clock_payload_ensure'
         for stale in (False, True):
             if stale:
                 make_font(self.fonts / name)

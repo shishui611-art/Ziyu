@@ -51,11 +51,11 @@ def expect_error(callable_, needle: str) -> None:
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="luoshu-payload-verify-") as temp_raw:
+    with tempfile.TemporaryDirectory(prefix="ziyu-payload-verify-") as temp_raw:
         temp = Path(temp_raw)
         fonts = temp / "fonts"
         fonts.mkdir()
-        font = fonts / "LuoShuSlot-test-400.ttf"
+        font = fonts / "ZiyuSlot-test-400.ttf"
         font.write_bytes(b"\0" * 2048)
         manifest = payload(font.name, font.stat().st_size)
         (temp / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")

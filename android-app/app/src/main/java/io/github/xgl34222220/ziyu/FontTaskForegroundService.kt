@@ -165,11 +165,12 @@ internal object FontTaskNotificationController {
                         }
                     },
                 )
-                builder.addExtras(Bundle().apply {
-                    putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, true)
-                })
-                // A few OEM API 36 builds expose ProgressStyle before the promotion methods.
+                // API 36.1 introduced this request extra. API 36.0 can still use
+                // ProgressStyle, but should not receive a request it cannot honor.
                 if (supportsPromotedOngoingApi(Build.VERSION.SDK_INT_FULL)) {
+                    builder.addExtras(Bundle().apply {
+                        putBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING, true)
+                    })
                     runCatching {
                         builder.requestPromotedOngoing(spec.chipText)
                     }.onFailure { Log.d("ZiyuFontTask", "Compact live-update API unavailable", it) }

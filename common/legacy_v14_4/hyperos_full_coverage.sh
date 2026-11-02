@@ -8,7 +8,7 @@ set +e
 # backend from the module root first, then keep source-tree fallbacks for tests.
 _hfc_base=''
 for _hfc_candidate in \
-    "${LUOSHU_REAL_MODDIR:-}/common/legacy_v14_4/hyperos_clock_compat.sh" \
+    "${ZIYU_REAL_MODDIR:-}/common/legacy_v14_4/hyperos_clock_compat.sh" \
     "${MODDIR:-}/common/legacy_v14_4/hyperos_clock_compat.sh" \
     "${MODULE_DIR:-}/common/legacy_v14_4/hyperos_clock_compat.sh" \
     "${PWD:-.}/common/legacy_v14_4/hyperos_clock_compat.sh" \
@@ -112,12 +112,12 @@ _lhcc_names_for_root() {
     done
 }
 
-luoshu_hyperos_full_payload_ensure() {
-    type luoshu_hyperos_clock_payload_ensure >/dev/null 2>&1 || return 0
-    luoshu_hyperos_clock_payload_ensure "$@"
+ziyu_hyperos_full_payload_ensure() {
+    type ziyu_hyperos_clock_payload_ensure >/dev/null 2>&1 || return 0
+    ziyu_hyperos_clock_payload_ensure "$@"
 }
 
 # Keep the compatibility API used by existing routers, now backed by full discovery.
-luoshu_hyperos_legacy_payload_ensure() {
-    luoshu_hyperos_full_payload_ensure "$@"
+ziyu_hyperos_legacy_payload_ensure() {
+    ziyu_hyperos_full_payload_ensure "$@"
 }

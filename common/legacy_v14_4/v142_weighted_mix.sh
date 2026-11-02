@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v14.2 RC2：异步真实字重与多轴字体组合桥。
+# 字域 v14.2 RC2：异步真实字重与多轴字体组合桥。
 # 任务状态持久化在模块目录，App 或 WebUI 退出后可重新接管。
 set +e
 
@@ -13,17 +13,17 @@ if [ -z "$MODDIR" ]; then
 fi
 
 CONFIG_DIR="$MODDIR/config"
-export LUOSHU_PREPARE_CACHE="$MODDIR/cache/prepared-selected-v1"
+export ZIYU_PREPARE_CACHE="$MODDIR/cache/prepared-selected-v1"
 CACHE_ROOT="$MODDIR/cache/axes-mix"
 [ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 BASE_ENGINE="$MODDIR/common/font_mix.sh"
 INSTANCE_PY="$MODDIR/common/font_instance.py"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 BASE_TASK_FILE="$CONFIG_DIR/mix_task.conf"
 TASK_FILE="$CONFIG_DIR/axes_task.conf"
 AXES_CONF="$CONFIG_DIR/axes_mix.conf"
@@ -58,8 +58,8 @@ clean_spec() {
 
 clear_worker_pid() {
     _cw_task="${1:-}"
-    if type luoshu_clear_task_pid >/dev/null 2>&1; then
-        luoshu_clear_task_pid "$WORKER_PID" "$_cw_task"
+    if type ziyu_clear_task_pid >/dev/null 2>&1; then
+        ziyu_clear_task_pid "$WORKER_PID" "$_cw_task"
     else
         rm -f "$WORKER_PID" 2>/dev/null || true
     fi
@@ -67,9 +67,9 @@ clear_worker_pid() {
 
 task_worker_alive() {
     _twa_task="$1"
-    if type luoshu_task_pid_alive >/dev/null 2>&1; then
-        luoshu_task_pid_alive "$WORKER_PID" "$_twa_task" && return 0
-        luoshu_task_pid_alive "$AUTO_WORKER_PID" "$_twa_task" && return 0
+    if type ziyu_task_pid_alive >/dev/null 2>&1; then
+        ziyu_task_pid_alive "$WORKER_PID" "$_twa_task" && return 0
+        ziyu_task_pid_alive "$AUTO_WORKER_PID" "$_twa_task" && return 0
     fi
     for _twa_file in "$WORKER_PID" "$AUTO_WORKER_PID"; do
         _twa_pid=$(sed -n '1{s/[^0-9].*$//;p;}' "$_twa_file" 2>/dev/null)
@@ -142,8 +142,8 @@ write_task() {
         printf 'cjk=%s\nlatin=%s\ndigit=%s\n' "$4" "$5" "$6"
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$7" "$8" "$9"
         printf 'latinSize=%s\nlatinOffset=%s\n' \
-            "$(composite_tune_clamp "${LUOSHU_MIX_LATIN_SIZE:-0}" 15)" \
-            "$(composite_tune_clamp "${LUOSHU_MIX_LATIN_OFFSET:-0}" 10)"
+            "$(composite_tune_clamp "${ZIYU_MIX_LATIN_SIZE:-0}" 15)" \
+            "$(composite_tune_clamp "${ZIYU_MIX_LATIN_OFFSET:-0}" 10)"
         shift 9
         printf 'root=%s\nchildTask=%s\nstarted=%s\nfinished=%s\npercent=%s\n' "$1" "$2" "$3" "$4" "$5"
         if [ "$_wt_state" != cancelled ] && [ "$(read_value "$TASK_FILE" task)" = "$_wt_task" ]; then
@@ -229,8 +229,8 @@ run_instance() {
     _error="${_destination}.err"
     [ -x "$PYBIN" ] || chmod 0755 "$PYBIN" 2>/dev/null || true
     (
-        export LUOSHU_TASK_ID="${_wanted:-unknown}" LUOSHU_FONT_FAMILY="$_family"
-        export LUOSHU_GENERATED_WEIGHT="$_weight" LUOSHU_WEIGHT_MODE=fixed
+        export ZIYU_TASK_ID="${_wanted:-unknown}" ZIYU_FONT_FAMILY="$_family"
+        export ZIYU_GENERATED_WEIGHT="$_weight" ZIYU_WEIGHT_MODE=fixed
         export PYTHONHOME="$PYROOT"
         # CPython on Android resolves font_instance.py's symlink into the
         # legacy directory; sys.path[0] therefore cannot find runtime helpers.
@@ -350,7 +350,7 @@ prune_prepare_cache() {
     PYTHONHOME="$PYROOT" \
         PYTHONPATH="$MODDIR/common:$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages" \
         LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$PYBIN" "$MODDIR/common/font_prepare_cache.py" --prune "$LUOSHU_PREPARE_CACHE" \
+        "$PYBIN" "$MODDIR/common/font_prepare_cache.py" --prune "$ZIYU_PREPARE_CACHE" \
         >/dev/null 2>>"$LOG_FILE" || printf '[MIX_PREPARE] cache cleanup skipped after parallel preparation\n' >>"$LOG_FILE"
 }
 
@@ -385,15 +385,15 @@ parallel_prepare_slots() {
     _pps_root="$8"
 
     update_task "$_pps_wanted" running '正在并行准备中文、英文和数字字体' 4 '' ''
-    start_prepare_job cjk "$_pps_cjk" "$_pps_cjk_axes" "$_pps_root" LuoShuMixCJK
+    start_prepare_job cjk "$_pps_cjk" "$_pps_cjk_axes" "$_pps_root" ZiyuMixCJK
     _pps_cjk_pid="$PREPARE_JOB_PID"
-    start_prepare_job latin "$_pps_latin" "$_pps_latin_axes" "$_pps_root" LuoShuMixLatin
+    start_prepare_job latin "$_pps_latin" "$_pps_latin_axes" "$_pps_root" ZiyuMixLatin
     _pps_latin_pid="$PREPARE_JOB_PID"
     if [ "$_pps_latin" = "$_pps_digit" ] && [ "$_pps_latin_axes" = "$_pps_digit_axes" ]; then
-        start_prepare_job digit "$_pps_digit" "$_pps_digit_axes" "$_pps_root" LuoShuMixDigit \
+        start_prepare_job digit "$_pps_digit" "$_pps_digit_axes" "$_pps_root" ZiyuMixDigit \
             "$_pps_latin_pid" "$_pps_root/prepare-latin.status"
     else
-        start_prepare_job digit "$_pps_digit" "$_pps_digit_axes" "$_pps_root" LuoShuMixDigit
+        start_prepare_job digit "$_pps_digit" "$_pps_digit_axes" "$_pps_root" ZiyuMixDigit
     fi
     _pps_digit_pid="$PREPARE_JOB_PID"
 
@@ -459,13 +459,13 @@ rewrite_public_config() {
 
 mix_cancel_checkpoint() {
     if [ "${MIX_LOCAL_CANCEL:-false}" = true ] || \
-       { [ -n "${_wanted:-}" ] && [ "$(read_value "${LUOSHU_MIX_CANCEL_FILE:-$CONFIG_DIR/mix_task.cancel}" task)" = "$_wanted" ]; }; then
+       { [ -n "${_wanted:-}" ] && [ "$(read_value "${ZIYU_MIX_CANCEL_FILE:-$CONFIG_DIR/mix_task.cancel}" task)" = "$_wanted" ]; }; then
         case "${_root:-}" in "$CACHE_ROOT"/axes-*) rm -rf "$_root" 2>/dev/null || true ;; esac
-        _mcc_module="${LUOSHU_REAL_MODDIR:-$MODDIR}"
+        _mcc_module="${ZIYU_REAL_MODDIR:-$MODDIR}"
         _mcc_state="$_mcc_module/config/mix-stage-next.conf"
-        if [ -n "${LUOSHU_MIX_REQUEST_ID:-}" ] && \
-           [ "$(read_value "$_mcc_state" requestId)" = "$LUOSHU_MIX_REQUEST_ID" ]; then
-            rm -rf "$_mcc_module/.luoshu-mix-stage" 2>/dev/null || true
+        if [ -n "${ZIYU_MIX_REQUEST_ID:-}" ] && \
+           [ "$(read_value "$_mcc_state" requestId)" = "$ZIYU_MIX_REQUEST_ID" ]; then
+            rm -rf "$_mcc_module/.ziyu-mix-stage" 2>/dev/null || true
             rm -f "$_mcc_state" 2>/dev/null || true
         fi
         update_task "$_wanted" cancelled '组合任务已取消' 100 '' "$(date +%s)"
@@ -478,8 +478,8 @@ worker() {
     trap '' HUP
     trap 'MIX_LOCAL_CANCEL=true' TERM INT
     _wanted="$1"
-    export LUOSHU_MIX_PARENT_TASK="$_wanted"
-    export LUOSHU_MIX_CANCEL_FILE="${LUOSHU_REAL_MODDIR:-$MODDIR}/config/mix_task.cancel"
+    export ZIYU_MIX_PARENT_TASK="$_wanted"
+    export ZIYU_MIX_CANCEL_FILE="${ZIYU_REAL_MODDIR:-$MODDIR}/config/mix_task.cancel"
     [ "$(read_value "$TASK_FILE" task)" = "$_wanted" ] || exit 0
     _cjk=$(read_value "$TASK_FILE" cjk)
     _latin=$(read_value "$TASK_FILE" latin)
@@ -489,8 +489,8 @@ worker() {
     _digit_axes=$(read_value "$TASK_FILE" digitAxes)
     _root=$(read_value "$TASK_FILE" root)
 
-    export LUOSHU_MIX_LATIN_SIZE="$(composite_tune_clamp "$(read_value "$TASK_FILE" latinSize)" 15)"
-    export LUOSHU_MIX_LATIN_OFFSET="$(composite_tune_clamp "$(read_value "$TASK_FILE" latinOffset)" 10)"
+    export ZIYU_MIX_LATIN_SIZE="$(composite_tune_clamp "$(read_value "$TASK_FILE" latinSize)" 15)"
+    export ZIYU_MIX_LATIN_OFFSET="$(composite_tune_clamp "$(read_value "$TASK_FILE" latinOffset)" 10)"
     mix_cancel_checkpoint
     parallel_prepare_slots "$_wanted" "$_cjk" "$_latin" "$_digit" \
         "$_cjk_axes" "$_latin_axes" "$_digit_axes" "$_root" || {
@@ -512,16 +512,16 @@ worker() {
     : >"$_response_file" 2>/dev/null || true
     (
         trap '' HUP
-        LUOSHU_PUBLIC_DIR="$_root" MODDIR="$MODDIR" sh "$BASE_ENGINE" start \
-            LuoShuMixCJK LuoShuMixLatin LuoShuMixDigit >"$_response_file" 2>&1
+        ZIYU_PUBLIC_DIR="$_root" MODDIR="$MODDIR" sh "$BASE_ENGINE" start \
+            ZiyuMixCJK ZiyuMixLatin ZiyuMixDigit >"$_response_file" 2>&1
     ) &
     _starter_pid=$!
     _child=''
     _start_loops=0
     while [ "$_start_loops" -lt 20 ]; do
-        if type luoshu_resolve_nested_mix_task >/dev/null 2>&1; then
-            _child=$(luoshu_resolve_nested_mix_task "$_response_file" "$BASE_TASK_FILE" "$_previous_child" \
-                LuoShuMixCJK LuoShuMixLatin LuoShuMixDigit 2>/dev/null)
+        if type ziyu_resolve_nested_mix_task >/dev/null 2>&1; then
+            _child=$(ziyu_resolve_nested_mix_task "$_response_file" "$BASE_TASK_FILE" "$_previous_child" \
+                ZiyuMixCJK ZiyuMixLatin ZiyuMixDigit 2>/dev/null)
         else
             _child=$(sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' "$_response_file" 2>/dev/null | tail -n1)
         fi
@@ -530,14 +530,14 @@ worker() {
         sleep 1
         _start_loops=$((_start_loops + 1))
     done
-    if [ -z "$_child" ] && type luoshu_resolve_nested_mix_task >/dev/null 2>&1; then
-        _child=$(luoshu_resolve_nested_mix_task "$_response_file" "$BASE_TASK_FILE" "$_previous_child" \
-            LuoShuMixCJK LuoShuMixLatin LuoShuMixDigit 2>/dev/null)
+    if [ -z "$_child" ] && type ziyu_resolve_nested_mix_task >/dev/null 2>&1; then
+        _child=$(ziyu_resolve_nested_mix_task "$_response_file" "$BASE_TASK_FILE" "$_previous_child" \
+            ZiyuMixCJK ZiyuMixLatin ZiyuMixDigit 2>/dev/null)
     fi
     if [ -z "$_child" ]; then
         kill "$_starter_pid" 2>/dev/null || true
-        if type luoshu_mix_task_message_from_response >/dev/null 2>&1; then
-            _message=$(luoshu_mix_task_message_from_response "$_response_file" 2>/dev/null)
+        if type ziyu_mix_task_message_from_response >/dev/null 2>&1; then
+            _message=$(ziyu_mix_task_message_from_response "$_response_file" 2>/dev/null)
         else
             _message=$(sed -n 's/^.*"message":"\([^"]*\)".*$/\1/p' "$_response_file" 2>/dev/null | tail -n1)
         fi
@@ -568,7 +568,7 @@ worker() {
                 success)
                     mix_cancel_checkpoint
                     update_task "$_wanted" running '正在保存组合到字体库' 99 "$_child" ''
-                    if ! MODDIR="${LUOSHU_REAL_MODDIR:-$MODDIR}" sh "${LUOSHU_REAL_MODDIR:-$MODDIR}/common/legacy_v14_4/mix_router.sh" finalize >>"$LOG_FILE" 2>&1; then
+                    if ! MODDIR="${ZIYU_REAL_MODDIR:-$MODDIR}" sh "${ZIYU_REAL_MODDIR:-$MODDIR}/common/legacy_v14_4/mix_router.sh" finalize >>"$LOG_FILE" 2>&1; then
                         mix_cancel_checkpoint
                         update_task "$_wanted" failed '保存组合到字体库失败，请查看日志' 100 "$_child" "$(date +%s)"
                         rm -rf "$_root"; clear_worker_pid "$_wanted"; exit 1
@@ -661,7 +661,7 @@ start_mix() {
     [ -n "$_cjk" ] && [ -n "$_latin" ] && [ -n "$_digit" ] || {
         printf '{"status":"error","message":"请选择中文、英文和数字字体"}\n'; return
     }
-    [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ] || [ ! -f "$TEXT_REBOOT_REQUIRED" ] || {
+    [ "${ZIYU_MIX_PREPARE_ONLY:-false}" = true ] || [ ! -f "$TEXT_REBOOT_REQUIRED" ] || {
         printf '{"status":"error","message":"本次开机已更改文字字体，请先重启手机"}\n'; return
     }
     if [ -s "$WORKER_PID" ]; then
@@ -670,11 +670,11 @@ start_mix() {
             printf '{"status":"error","message":"已有字体组合任务正在运行"}\n'; return
         }
     fi
-    if type luoshu_font_lock_busy >/dev/null 2>&1; then
-        if luoshu_font_lock_busy "$LOCK_FILE"; then
+    if type ziyu_font_lock_busy >/dev/null 2>&1; then
+        if ziyu_font_lock_busy "$LOCK_FILE"; then
             printf '{"status":"error","message":"字体正在切换中"}\n'; return
         fi
-        luoshu_font_lock_reap_stale "$LOCK_FILE" >/dev/null 2>&1 || true
+        ziyu_font_lock_reap_stale "$LOCK_FILE" >/dev/null 2>&1 || true
     else
         [ ! -e "$LOCK_FILE" ] || { printf '{"status":"error","message":"字体正在切换中"}\n'; return; }
     fi
@@ -691,8 +691,8 @@ start_mix() {
     }
     write_task "$_request" queued '任务已进入后台队列' "$_cjk" "$_latin" "$_digit" \
         "$_cjk_axes" "$_latin_axes" "$_digit_axes" "$_root" '' "$(date +%s)" '' 1
-    if type luoshu_start_detached >/dev/null 2>&1; then
-        luoshu_start_detached "$WORKER_PID" "$_request" "$LOG_FILE" sh "$0" worker "$_request" || {
+    if type ziyu_start_detached >/dev/null 2>&1; then
+        ziyu_start_detached "$WORKER_PID" "$_request" "$LOG_FILE" sh "$0" worker "$_request" || {
             update_task "$_request" failed '无法启动独立后台任务' 100 '' "$(date +%s)"
             printf '{"status":"error","message":"无法启动独立后台任务"}\n'
             return

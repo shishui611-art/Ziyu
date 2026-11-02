@@ -30,17 +30,17 @@ grep -q 'exec sh "$CURRENT_MANAGER" "$@"' "$ROUTER"
 # or rewrite it. It can only move the isolated staging tree into -next. Repeated
 # switches must be able to clone an already activated payload even when hard-link
 # or metadata-preserving copies are rejected by the current root/kernel setup.
-grep -q 'STAGE_PAYLOAD=.*\.luoshu-payload-stage' "$SAFE_BACKEND"
-grep -q 'NEXT_PAYLOAD=.*\.luoshu-payload-next' "$SAFE_BACKEND"
+grep -q 'STAGE_PAYLOAD=.*\.ziyu-payload-stage' "$SAFE_BACKEND"
+grep -q 'NEXT_PAYLOAD=.*\.ziyu-payload-next' "$SAFE_BACKEND"
 grep -q 'payload_clone_source' "$SAFE_BACKEND"
 grep -q 'cleanup_stale_stages' "$SAFE_BACKEND"
-grep -q 'luoshu_clone_payload_metadata "$_clone_source" "$STAGE_PAYLOAD"' "$SAFE_BACKEND"
-grep -q '\.luoshu-retired/\*' "$SAFE_BACKEND"
-grep -q 'luoshu_next_transaction_begin "$MODDIR" "$STAGE_PAYLOAD"' "$SAFE_BACKEND"
+grep -q 'ziyu_clone_payload_metadata "$_clone_source" "$STAGE_PAYLOAD"' "$SAFE_BACKEND"
+grep -q '\.ziyu-retired/\*' "$SAFE_BACKEND"
+grep -q 'ziyu_next_transaction_begin "$MODDIR" "$STAGE_PAYLOAD"' "$SAFE_BACKEND"
 ! grep -q 'mv "$LIVE_PAYLOAD"' "$SAFE_BACKEND"
 ! grep -q 'rm -rf "$LIVE_PAYLOAD"' "$SAFE_BACKEND"
 grep -q 'next-boot-stage' "$SAFE_BACKEND"
-grep -q 'LUOSHU_SWITCH_PROGRESS_FILE' "$SAFE_BACKEND"
+grep -q 'ZIYU_SWITCH_PROGRESS_FILE' "$SAFE_BACKEND"
 grep -q 'apply_font_by_rom' "$SAFE_BACKEND"
 
 # Only the early-boot helper is allowed to activate -next as live, before self-mount.
@@ -48,23 +48,23 @@ test -f "$NEXT_BOOT"
 grep -q 'mv "$_lnba_live" "$_lnba_retired"' "$NEXT_BOOT"
 grep -q 'mv "$_lnba_next" "$_lnba_live"' "$NEXT_BOOT"
 grep -q 'next_boot_payload.sh' "$POSTFS"
-grep -q 'luoshu_next_boot_activate' "$POSTFS"
+grep -q 'ziyu_next_boot_activate' "$POSTFS"
 
 # Functional early-boot activation fixture: current payload remains untouched until
 # activation, then becomes retired while the prepared payload becomes live.
-NEXT_TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-next-boot)
-mkdir -p "$NEXT_TMP/module/.luoshu-payload/system/fonts" \
-         "$NEXT_TMP/module/.luoshu-payload-next/system/fonts" \
+NEXT_TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-next-boot)
+mkdir -p "$NEXT_TMP/module/.ziyu-payload/system/fonts" \
+         "$NEXT_TMP/module/.ziyu-payload-next/system/fonts" \
          "$NEXT_TMP/module/config"
 mkdir -p "$NEXT_TMP/module/common"
 cp "$ROOT/common/action_control.sh" "$NEXT_TMP/module/common/"
-cp "$ROOT/common/font_live_state.sh" "$NEXT_TMP/module/common/"
+cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$NEXT_TMP/module/common/"
 cp "$ROOT/common/font_live_switch.sh" "$NEXT_TMP/module/common/"
 cp "$ROOT/common/font_next_transaction.sh" "$NEXT_TMP/module/common/"
 cp "$ROOT/common/font_switch_lock.sh" "$NEXT_TMP/module/common/"
 cp "$ROOT/common/physical_payload_manifest.sh" "$NEXT_TMP/module/common/"
-printf 'old-live\n' > "$NEXT_TMP/module/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
-printf 'next-live\n' > "$NEXT_TMP/module/.luoshu-payload-next/system/fonts/Roboto-Regular.ttf"
+printf 'old-live\n' > "$NEXT_TMP/module/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
+printf 'next-live\n' > "$NEXT_TMP/module/.ziyu-payload-next/system/fonts/Roboto-Regular.ttf"
 printf 'default\n' > "$NEXT_TMP/module/config/active_font.conf"
 cat > "$NEXT_TMP/module/config/font-payload-next.conf" <<'EOF_NEXT_STATE'
 state=prepared
@@ -79,21 +79,21 @@ previousLegacy=false
 time=1
 EOF_NEXT_STATE
 MODDIR="$NEXT_TMP/module" MODULE_DIR="$NEXT_TMP/module" \
-    sh -c '. "$1"; luoshu_next_boot_activate' sh "$NEXT_BOOT"
-grep -q '^next-live$' "$NEXT_TMP/module/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+    sh -c '. "$1"; ziyu_next_boot_activate' sh "$NEXT_BOOT"
+grep -q '^next-live$' "$NEXT_TMP/module/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 grep -q '^DemoFont$' "$NEXT_TMP/module/config/active_font.conf"
 grep -q '^requestId=request-demo$' "$NEXT_TMP/module/config/font-payload-activated.conf"
 grep -q '^latin=LatinDemo$' "$NEXT_TMP/module/config/font-payload-activated.conf"
 grep -q '^digit=DigitDemo$' "$NEXT_TMP/module/config/font-payload-activated.conf"
 grep -q '^compositeHash=digest-demo$' "$NEXT_TMP/module/config/font-payload-activated.conf"
 grep -q '^core=physical-safe-v1$' "$NEXT_TMP/module/config/font_runtime_legacy_v14_4.conf"
-test ! -d "$NEXT_TMP/module/.luoshu-payload-next"
-find "$NEXT_TMP/module/.luoshu-retired" -type f -name Roboto-Regular.ttf -exec grep -q '^old-live$' {} \;
+test ! -d "$NEXT_TMP/module/.ziyu-payload-next"
+find "$NEXT_TMP/module/.ziyu-retired" -type f -name Roboto-Regular.ttf -exec grep -q '^old-live$' {} \;
 rm -rf "$NEXT_TMP"
 
 # Old compatibility backend remains available only as fallback/reference.
 grep -q 'apply_font_by_rom' "$LEGACY_BACKEND"
-grep -q '\.luoshu-payload' "$LEGACY_BACKEND"
+grep -q '\.ziyu-payload' "$LEGACY_BACKEND"
 grep -q 'physical-file-map' "$LEGACY_BACKEND"
 grep -q 'MiSansLatinVF.ttf' "$ROM"
 grep -q 'GoogleSans' "$ROM"
@@ -113,16 +113,16 @@ grep -q 'stage_hyperos_complete()' "$SAFE_BACKEND"
 grep -q 'hyperos_stage_complete.sh' "$SAFE_BACKEND"
 grep -q 'complete_hyperos_stage()' "$LEGACY_MIX_ROUTER"
 grep -q 'hyperos_stage_complete.sh' "$LEGACY_MIX_ROUTER"
-! grep -qE 'hyperos_full_coverage.sh|luoshu_hyperos_full_payload_ensure' "$POSTFS" "$POSTMOUNT"
+! grep -qE 'hyperos_full_coverage.sh|ziyu_hyperos_full_payload_ensure' "$POSTFS" "$POSTMOUNT"
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|font_config_batch|device_font_payload_build' "$HYPEROS_COMPAT"
 
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-safe-switch)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-safe-switch)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 mkdir -p \
-    "$TMP/module/.luoshu-payload/system/fonts" \
+    "$TMP/module/.ziyu-payload/system/fonts" \
     "$TMP/stock/system" "$TMP/stock/system_ext" "$TMP/stock/product" \
     "$TMP/stock/mi_ext" "$TMP/stock/vendor"
-printf 'selected-font-anchor\n' > "$TMP/module/.luoshu-payload/system/fonts/MiSansVF.ttf"
+printf 'selected-font-anchor\n' > "$TMP/module/.ziyu-payload/system/fonts/MiSansVF.ttf"
 : > "$TMP/stock/mi_ext/MitypeClock.ttf"
 : > "$TMP/stock/product/MiClock.ttf"
 : > "$TMP/stock/system_ext/GoogleSansText-Regular.ttf"
@@ -133,29 +133,29 @@ printf 'selected-font-anchor\n' > "$TMP/module/.luoshu-payload/system/fonts/MiSa
 : > "$TMP/stock/product/XiaomiSansCollection.ttc"
 IS_HYPEROS=true \
 MODDIR="$TMP/module" \
-LUOSHU_HYPEROS_CLOCK_PAYLOAD_ROOT="$TMP/module/.luoshu-payload" \
-LUOSHU_SYSTEM_FONTS_ROOT="$TMP/stock/system" \
-LUOSHU_SYSTEM_EXT_FONTS_ROOT="$TMP/stock/system_ext" \
-LUOSHU_PRODUCT_FONTS_ROOT="$TMP/stock/product" \
-LUOSHU_MI_EXT_FONTS_ROOT="$TMP/stock/mi_ext" \
-LUOSHU_VENDOR_FONTS_ROOT="$TMP/stock/vendor" \
-LUOSHU_ODM_FONTS_ROOT="$TMP/stock/odm" \
-LUOSHU_OEM_FONTS_ROOT="$TMP/stock/oem" \
-LUOSHU_MY_PRODUCT_FONTS_ROOT="$TMP/stock/my_product" \
-LUOSHU_HW_PRODUCT_FONTS_ROOT="$TMP/stock/hw_product" \
-LUOSHU_CUST_FONTS_ROOT="$TMP/stock/cust" \
-    sh -c '. "$1"; luoshu_hyperos_full_payload_ensure' sh "$HYPEROS_COMPAT"
+ZIYU_HYPEROS_CLOCK_PAYLOAD_ROOT="$TMP/module/.ziyu-payload" \
+ZIYU_SYSTEM_FONTS_ROOT="$TMP/stock/system" \
+ZIYU_SYSTEM_EXT_FONTS_ROOT="$TMP/stock/system_ext" \
+ZIYU_PRODUCT_FONTS_ROOT="$TMP/stock/product" \
+ZIYU_MI_EXT_FONTS_ROOT="$TMP/stock/mi_ext" \
+ZIYU_VENDOR_FONTS_ROOT="$TMP/stock/vendor" \
+ZIYU_ODM_FONTS_ROOT="$TMP/stock/odm" \
+ZIYU_OEM_FONTS_ROOT="$TMP/stock/oem" \
+ZIYU_MY_PRODUCT_FONTS_ROOT="$TMP/stock/my_product" \
+ZIYU_HW_PRODUCT_FONTS_ROOT="$TMP/stock/hw_product" \
+ZIYU_CUST_FONTS_ROOT="$TMP/stock/cust" \
+    sh -c '. "$1"; ziyu_hyperos_full_payload_ensure' sh "$HYPEROS_COMPAT"
 for generated in \
-    "$TMP/module/.luoshu-payload/mi_ext/fonts/MitypeClock.ttf" \
-    "$TMP/module/.luoshu-payload/product/fonts/MiClock.ttf" \
-    "$TMP/module/.luoshu-payload/system_ext/fonts/GoogleSansText-Regular.ttf" \
-    "$TMP/module/.luoshu-payload/product/fonts/NotoSansUI-Medium.ttf" \
-    "$TMP/module/.luoshu-payload/vendor/fonts/MiLanProVF.ttf" \
-    "$TMP/module/.luoshu-payload/system_ext/fonts/MiSansGlobalVF.ttf" \
-    "$TMP/module/.luoshu-payload/product/fonts/XiaomiSansUI-Regular.ttf"; do
-    cmp -s "$TMP/module/.luoshu-payload/system/fonts/MiSansVF.ttf" "$generated"
+    "$TMP/module/.ziyu-payload/mi_ext/fonts/MitypeClock.ttf" \
+    "$TMP/module/.ziyu-payload/product/fonts/MiClock.ttf" \
+    "$TMP/module/.ziyu-payload/system_ext/fonts/GoogleSansText-Regular.ttf" \
+    "$TMP/module/.ziyu-payload/product/fonts/NotoSansUI-Medium.ttf" \
+    "$TMP/module/.ziyu-payload/vendor/fonts/MiLanProVF.ttf" \
+    "$TMP/module/.ziyu-payload/system_ext/fonts/MiSansGlobalVF.ttf" \
+    "$TMP/module/.ziyu-payload/product/fonts/XiaomiSansUI-Regular.ttf"; do
+    cmp -s "$TMP/module/.ziyu-payload/system/fonts/MiSansVF.ttf" "$generated"
 done
-test ! -e "$TMP/module/.luoshu-payload/product/fonts/XiaomiSansCollection.ttc"
+test ! -e "$TMP/module/.ziyu-payload/product/fonts/XiaomiSansCollection.ttc"
 
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|font_config_batch|device_font_payload_build' \
     "$SAFE_BACKEND" "$LEGACY_BACKEND"
@@ -171,15 +171,15 @@ grep -q 'BASE_ENGINE=.*font_mix.sh' "$LEGACY_WEIGHTED"
 grep -q '中文字体保留为完整基底' "$LEGACY_MIX_ENGINE"
 grep -q '不裁剪 ROM 字体槽' "$LEGACY_MIX_ENGINE"
 grep -q '\.legacy-v14-runtime' "$LEGACY_MIX_ROUTER"
-grep -q '\.luoshu-payload' "$LEGACY_MIX_ROUTER"
+grep -q '\.ziyu-payload' "$LEGACY_MIX_ROUTER"
 grep -q 'font_mix_engine.sh' "$LEGACY_MIX_ROUTER"
 # Composite staging must have the same repeat-switch fallback as normal font
 # staging. A live payload that is already an active mount source must not make the
 # second composite attempt fail just because hard-link/preserve copy is rejected.
 grep -q 'mix_clone_source' "$LEGACY_MIX_ROUTER"
 grep -q 'clone_mix_tree' "$LEGACY_MIX_ROUTER"
-grep -q 'luoshu_clone_payload_metadata "$_source" "$MIX_STAGE"' "$LEGACY_MIX_ROUTER"
-grep -q '\.luoshu-retired/\*' "$LEGACY_MIX_ROUTER"
+grep -q 'ziyu_clone_payload_metadata "$_source" "$MIX_STAGE"' "$LEGACY_MIX_ROUTER"
+grep -q '\.ziyu-retired/\*' "$LEGACY_MIX_ROUTER"
 ! grep -q 'cp -af "$LIVE_PAYLOAD/\." "$MIX_STAGE/"' "$LEGACY_MIX_ROUTER"
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|font_config_batch|device_font_payload_build' \
     "$LEGACY_MIX_ROUTER" "$LEGACY_MIX_BRIDGE" "$LEGACY_WEIGHTED" "$LEGACY_AUTO" "$LEGACY_MIX_ENGINE"
@@ -192,18 +192,18 @@ test -f "$BACKEND_RUNTIME"
 grep -q 'mount_backend_runtime.sh' "$POSTFS"
 grep -q 'mount_backend_runtime.sh' "$POSTMOUNT"
 grep -q 'font_config_partitions mount_compat mount_self_backend' "$BACKEND_RUNTIME"
-grep -q 'luoshu_private_self_mount_ensure' "$BACKEND_RUNTIME"
+grep -q 'ziyu_private_self_mount_ensure' "$BACKEND_RUNTIME"
 grep -q 'runtime-loader-missing' "$POSTFS"
 grep -q 'runtime-loader-missing' "$POSTMOUNT"
-MODDIR="$ROOT" MODULE_DIR="$ROOT" sh -c '. "$1"; type luoshu_private_self_mount_ensure >/dev/null 2>&1' sh "$MOUNT_COMPAT"
+MODDIR="$ROOT" MODULE_DIR="$ROOT" sh -c '. "$1"; type ziyu_private_self_mount_ensure >/dev/null 2>&1' sh "$MOUNT_COMPAT"
 
 for file in "$SERVICE" "$POSTFS" "$POSTMOUNT"; do
     grep -q 'font_runtime_legacy_v14_4.conf' "$file"
     sh -n "$file"
 done
-grep -q '.luoshu-runtime/core/service.sh' "$SERVICE"
-grep -q '.luoshu-runtime/core/post-fs-data.sh' "$POSTFS"
-grep -q '.luoshu-runtime/core/post-mount.sh' "$POSTMOUNT"
+grep -q '.ziyu-runtime/core/service.sh' "$SERVICE"
+grep -q '.ziyu-runtime/core/post-fs-data.sh' "$POSTFS"
+grep -q '.ziyu-runtime/core/post-mount.sh' "$POSTMOUNT"
 ! grep -q 'device_font_template.sh' "$SERVICE"
 
 sh -n "$ROUTER"
@@ -219,8 +219,8 @@ sh -n "$LEGACY_AUTO"
 sh -n "$LEGACY_MIX_ENGINE"
 sh -n "$ROOT/common/font_switch_task.sh"
 sh -n "$ROOT/customize.sh"
-sh -n "$ROOT/.luoshu-runtime/core/service.sh"
-sh -n "$ROOT/.luoshu-runtime/core/post-fs-data.sh"
-sh -n "$ROOT/.luoshu-runtime/core/post-mount.sh"
+sh -n "$ROOT/.ziyu-runtime/core/service.sh"
+sh -n "$ROOT/.ziyu-runtime/core/post-fs-data.sh"
+sh -n "$ROOT/.ziyu-runtime/core/post-mount.sh"
 
 echo 'foreground switch and composite staging both support repeat payload cloning without mutating live payload; early boot activates next payload; real self-mount runtime is loaded before legacy boot mount; HyperOS physical UI coverage remains guarded.'

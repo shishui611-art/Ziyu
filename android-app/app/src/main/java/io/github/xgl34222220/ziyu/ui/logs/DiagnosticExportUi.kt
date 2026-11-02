@@ -1,6 +1,7 @@
 package io.github.xgl34222220.ziyu.ui.logs
 
 import android.content.Context
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,17 +15,22 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Warning
 import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
-import io.github.xgl34222220.ziyu.ui.design.ZiyuCircularProgressIndicator as CircularProgressIndicator
+import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon as Icon
-import io.github.xgl34222220.ziyu.ui.design.ZiyuIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import io.github.xgl34222220.ziyu.ui.design.ZiyuSurface as Surface
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
-import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +52,12 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
         MOD=/data/adb/modules/ziyu
         CFG="${'$'}MOD/config"
         LOG="${'$'}MOD/logs/fontswitch.log"
-        OUT_DIR=/sdcard/Ziyu/reports
+        unset ZIYU_PUBLIC_DIR
+        if [ -f "${'$'}MOD/common/user_storage.sh" ]; then
+            . "${'$'}MOD/common/user_storage.sh"
+            ziyu_user_storage_environment "${'$'}MOD" || exit 20
+        fi
+        OUT_DIR="${'$'}{ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/reports"
         OUT="${'$'}OUT_DIR/Ziyu-diagnostic-${'$'}(date '+%Y%m%d-%H%M%S').txt"
         mkdir -p "${'$'}OUT_DIR" 2>/dev/null || exit 20
         read_value() {
@@ -81,15 +92,15 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
         rootManager=unknown
         if [ -f "${'$'}MOD/common/root_manager_detection.sh" ]; then
             . "${'$'}MOD/common/root_manager_detection.sh" >/dev/null 2>&1 || true
-            if type luoshu_detect_root_manager >/dev/null 2>&1; then
-                rootManager="${'$'}(luoshu_detect_root_manager 2>/dev/null)"
+            if type ziyu_detect_root_manager >/dev/null 2>&1; then
+                rootManager="${'$'}(ziyu_detect_root_manager 2>/dev/null)"
             fi
         fi
         mountEngine=unknown
         if [ -f "${'$'}MOD/common/mount_compat.sh" ]; then
             . "${'$'}MOD/common/mount_compat.sh" >/dev/null 2>&1 || true
-            if type luoshu_detect_mount_engine >/dev/null 2>&1; then
-                mountEngine="${'$'}(luoshu_detect_mount_engine 2>/dev/null)"
+            if type ziyu_detect_mount_engine >/dev/null 2>&1; then
+                mountEngine="${'$'}(ziyu_detect_mount_engine 2>/dev/null)"
             fi
         fi
         logHealth="${'$'}(MODDIR="${'$'}MOD" sh "${'$'}MOD/common/action_control.sh" log-health 2>/dev/null)"
@@ -162,12 +173,13 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             config/mount-backend-preference.conf config/provider-reload-check.conf config/apatch-pre-mount.conf \
             .ziyu-state/provider-published.conf .ziyu-state/provider-reload.started config/font-payload-manifest.conf \
             config/temporary-root-soft-reboot.conf config/stock-font-snapshot/manifest.json logs/stock-font-snapshot.log \
+            config/adb-storage-migration.conf config/stock-scan-source.conf logs/adb-storage.log \
             config/font-payload-next.conf config/font-payload-activated.conf \
             config/font-live.conf config/font-live-previous.conf config/font-live-boot-previous.conf \
             config/font-live-transaction.conf config/font-live-attempt.conf config/font-ui-cache.json \
             config/universal-font-next.conf config/universal-font-cutover.conf \
             config/switch_task_worker.pid.cleanup.json config/text_reboot_required.conf \
-            .luoshu-state/backup/next-transaction/journal.conf \
+            .ziyu-state/backup/next-transaction/journal.conf \
             config/font-apply-result.conf config/font-mount-warnings.conf config/device_font_partitions.conf \
             config/device-font-load-verification.conf config/device-font-load-route-verification.json \
             logs/mount-backend.log logs/self-mount.log logs/mount-diagnostics.log \
@@ -186,8 +198,8 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
                 printf 'unavailable\n' >> "${'$'}OUT"
             fi
         done
-        for path in /data/adb/.ziyu-luoshu-stock-rescan.lock/state \
-            /data/adb/.ziyu-luoshu-stock-rescan.lock/worker.pid.cleanup.json; do
+        for path in /data/adb/ziyu/locks/.ziyu-stock-rescan.lock/state \
+            /data/adb/ziyu/locks/.ziyu-stock-rescan.lock/worker.pid.cleanup.json; do
             printf '\n[stock-rescan:%s]\n' "${'$'}path" >> "${'$'}OUT"
             if [ -r "${'$'}path" ]; then head -c 8192 "${'$'}path" >> "${'$'}OUT"
             else printf 'unavailable\n' >> "${'$'}OUT"; fi
@@ -225,7 +237,7 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             if [ -r "${'$'}file" ]; then head -c 16384 "${'$'}file" >> "${'$'}OUT"; else printf 'unavailable\n' >> "${'$'}OUT"; fi
         done
         printf '\n[font-mountinfo]\n' >> "${'$'}OUT"
-        grep -E '/fonts|/data/adb/(metamodule|modules/[^/]+/mnt|luoshu/(self-mount|live-mount))' /proc/1/mountinfo 2>/dev/null | head -n 160 >> "${'$'}OUT"
+        grep -E '/fonts|/data/adb/(metamodule|modules/[^/]+/mnt|ziyu/(self-mount|live-mount))' /proc/1/mountinfo 2>/dev/null | head -n 160 >> "${'$'}OUT"
         printf '\n[recent-operation-log]\n' >> "${'$'}OUT"
         tail -n 180 "${'$'}LOG" 2>/dev/null | tail -c 196608 >> "${'$'}OUT"
         printf '\n[persistent-font-diagnostics]\n' >> "${'$'}OUT"
@@ -238,7 +250,7 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             printf '\n' >> "${'$'}OUT"
         done
         LAYOUT_HELPER="${'$'}MOD/common/font_layout_diagnostic.sh"
-        LAYOUT_OUT="${'$'}OUT_DIR/Ziyu-font-layout.json"
+        LAYOUT_OUT="${'$'}{OUT%.txt}-font-layout.json"
         if [ -f "${'$'}LAYOUT_HELPER" ]; then
             if MODDIR="${'$'}MOD" sh "${'$'}LAYOUT_HELPER" --output "${'$'}LAYOUT_OUT" >/dev/null 2>&1; then
                 printf '\n[font-layout]\n' >> "${'$'}OUT"
@@ -288,6 +300,8 @@ internal fun DiagnosticExportDialog(
     onDismiss: () -> Unit,
 ) {
     val failed = state.error.isNotBlank()
+    val clipboard = LocalClipboardManager.current
+    var pathCopied by remember(state.path) { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(if (style == UiStyle.MIUIX) 34.dp else 28.dp),
@@ -324,6 +338,19 @@ internal fun DiagnosticExportDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } },
+        confirmButton = {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!failed) {
+                    ZiyuOutlinedButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(state.path))
+                            pathCopied = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (pathCopied) "已复制保存位置" else "复制保存位置") }
+                }
+                ZiyuButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("完成") }
+            }
+        },
     )
 }

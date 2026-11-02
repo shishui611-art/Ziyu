@@ -92,8 +92,8 @@ def main() -> None:
         source_dir = root / "sources"
         output_dir = root / "payload"
         source_dir.mkdir()
-        shutil.copyfile(args.font, source_dir / "LuoShu-400.ttf")
-        shutil.copyfile(args.font, source_dir / "LuoShu-700.ttf")
+        shutil.copyfile(args.font, source_dir / "Ziyu-400.ttf")
+        shutil.copyfile(args.font, source_dir / "Ziyu-700.ttf")
 
         payload = payload_builder.build_payload(
             template,

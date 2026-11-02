@@ -7,50 +7,50 @@ trap 'rm -rf "$ROOT"' EXIT HUP INT TERM
 
 MODULE_DIR="$ROOT/module"
 MODDIR="$MODULE_DIR"
-LUOSHU_PUBLIC_DIR="$ROOT/public"
-USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
-LUOSHU_SYSTEM_FONTS_ROOT="$ROOT/real/system/fonts"
-LUOSHU_PRODUCT_FONTS_ROOT="$ROOT/real/product/fonts"
-LUOSHU_SYSTEM_EXT_FONTS_ROOT="$ROOT/real/system_ext/fonts"
-LUOSHU_MI_EXT_FONTS_ROOT="$ROOT/real/mi_ext/fonts"
-LUOSHU_ODM_FONTS_ROOT="$ROOT/real/odm/fonts"
-LUOSHU_CUST_FONTS_ROOT="$ROOT/real/cust/fonts"
-export MODULE_DIR MODDIR LUOSHU_PUBLIC_DIR USER_FONTS_DIR LUOSHU_SYSTEM_FONTS_ROOT LUOSHU_PRODUCT_FONTS_ROOT LUOSHU_SYSTEM_EXT_FONTS_ROOT LUOSHU_MI_EXT_FONTS_ROOT LUOSHU_ODM_FONTS_ROOT LUOSHU_CUST_FONTS_ROOT
+ZIYU_PUBLIC_DIR="$ROOT/public"
+USER_FONTS_DIR="$ZIYU_PUBLIC_DIR/fonts"
+ZIYU_SYSTEM_FONTS_ROOT="$ROOT/real/system/fonts"
+ZIYU_PRODUCT_FONTS_ROOT="$ROOT/real/product/fonts"
+ZIYU_SYSTEM_EXT_FONTS_ROOT="$ROOT/real/system_ext/fonts"
+ZIYU_MI_EXT_FONTS_ROOT="$ROOT/real/mi_ext/fonts"
+ZIYU_ODM_FONTS_ROOT="$ROOT/real/odm/fonts"
+ZIYU_CUST_FONTS_ROOT="$ROOT/real/cust/fonts"
+export MODULE_DIR MODDIR ZIYU_PUBLIC_DIR USER_FONTS_DIR ZIYU_SYSTEM_FONTS_ROOT ZIYU_PRODUCT_FONTS_ROOT ZIYU_SYSTEM_EXT_FONTS_ROOT ZIYU_MI_EXT_FONTS_ROOT ZIYU_ODM_FONTS_ROOT ZIYU_CUST_FONTS_ROOT
 
 mkdir -p "$MODULE_DIR/system/fonts" "$MODULE_DIR/product/fonts" "$MODULE_DIR/system_ext/fonts" "$MODULE_DIR/mi_ext/fonts" \
-    "$USER_FONTS_DIR" "$LUOSHU_SYSTEM_FONTS_ROOT" "$LUOSHU_PRODUCT_FONTS_ROOT" "$LUOSHU_SYSTEM_EXT_FONTS_ROOT" "$LUOSHU_MI_EXT_FONTS_ROOT" \
-    "$LUOSHU_ODM_FONTS_ROOT" "$LUOSHU_CUST_FONTS_ROOT"
+    "$USER_FONTS_DIR" "$ZIYU_SYSTEM_FONTS_ROOT" "$ZIYU_PRODUCT_FONTS_ROOT" "$ZIYU_SYSTEM_EXT_FONTS_ROOT" "$ZIYU_MI_EXT_FONTS_ROOT" \
+    "$ZIYU_ODM_FONTS_ROOT" "$ZIYU_CUST_FONTS_ROOT"
 printf 'regular-source\n' > "$USER_FONTS_DIR/Demo-Regular.ttf"
 printf 'medium-source\n' > "$USER_FONTS_DIR/Demo-Medium.ttf"
 printf 'bold-source\n' > "$USER_FONTS_DIR/Demo-Bold.ttf"
-printf 'stock-core\n' > "$LUOSHU_PRODUCT_FONTS_ROOT/MiSansVF.ttf"
-printf 'stock-overlay\n' > "$LUOSHU_SYSTEM_EXT_FONTS_ROOT/MiSansVF_Overlay.ttf"
-printf 'stock-400\n' > "$LUOSHU_SYSTEM_FONTS_ROOT/400.ttf"
-printf 'stock-700\n' > "$LUOSHU_PRODUCT_FONTS_ROOT/700.ttf"
-printf 'stock-metrics\n' > "$LUOSHU_SYSTEM_FONTS_ROOT/Roboto-Regular.ttf"
-printf 'stock-italic\n' > "$LUOSHU_SYSTEM_FONTS_ROOT/Roboto-Italic.ttf"
-printf 'stock-google-regular\n' > "$LUOSHU_PRODUCT_FONTS_ROOT/GoogleSansText-Regular.ttf"
-printf 'stock-google-medium\n' > "$LUOSHU_PRODUCT_FONTS_ROOT/GoogleSansText-Medium.ttf"
-printf 'stock-google-bold\n' > "$LUOSHU_PRODUCT_FONTS_ROOT/GoogleSansText-Bold.ttf"
-printf 'stock-clock\n' > "$LUOSHU_MI_EXT_FONTS_ROOT/MiClock.otf"
-printf 'stock-mitype\n' > "$LUOSHU_PRODUCT_FONTS_ROOT/MitypeClock.otf"
-printf 'stock-noto\n' > "$LUOSHU_ODM_FONTS_ROOT/NotoSansUI-Regular.ttf"
-printf 'stock-source\n' > "$LUOSHU_CUST_FONTS_ROOT/SourceSansPro-Bold.ttf"
+printf 'stock-core\n' > "$ZIYU_PRODUCT_FONTS_ROOT/MiSansVF.ttf"
+printf 'stock-overlay\n' > "$ZIYU_SYSTEM_EXT_FONTS_ROOT/MiSansVF_Overlay.ttf"
+printf 'stock-400\n' > "$ZIYU_SYSTEM_FONTS_ROOT/400.ttf"
+printf 'stock-700\n' > "$ZIYU_PRODUCT_FONTS_ROOT/700.ttf"
+printf 'stock-metrics\n' > "$ZIYU_SYSTEM_FONTS_ROOT/Roboto-Regular.ttf"
+printf 'stock-italic\n' > "$ZIYU_SYSTEM_FONTS_ROOT/Roboto-Italic.ttf"
+printf 'stock-google-regular\n' > "$ZIYU_PRODUCT_FONTS_ROOT/GoogleSansText-Regular.ttf"
+printf 'stock-google-medium\n' > "$ZIYU_PRODUCT_FONTS_ROOT/GoogleSansText-Medium.ttf"
+printf 'stock-google-bold\n' > "$ZIYU_PRODUCT_FONTS_ROOT/GoogleSansText-Bold.ttf"
+printf 'stock-clock\n' > "$ZIYU_MI_EXT_FONTS_ROOT/MiClock.otf"
+printf 'stock-mitype\n' > "$ZIYU_PRODUCT_FONTS_ROOT/MitypeClock.otf"
+printf 'stock-noto\n' > "$ZIYU_ODM_FONTS_ROOT/NotoSansUI-Regular.ttf"
+printf 'stock-source\n' > "$ZIYU_CUST_FONTS_ROOT/SourceSansPro-Bold.ttf"
 printf 'stale-overlay\n' > "$MODULE_DIR/system/fonts/Roboto-Regular.ttf"
 for _name in NotoSansAdlam-VF.ttf NotoSansAhom-Regular.ttf NotoSansCuneiform-Regular.ttf NotoSansEgyptianHieroglyphs-Regular.ttf; do
-    printf 'stock-language\n' > "$LUOSHU_SYSTEM_FONTS_ROOT/$_name"
+    printf 'stock-language\n' > "$ZIYU_SYSTEM_FONTS_ROOT/$_name"
 done
 for _name in NotoSans.ttf NotoSansUI.ttf NotoSansSC-Regular.ttf NotoSansCJKsc-Regular.ttf NotoSansHant-Regular.ttf; do
-    printf 'stock-ui\n' > "$LUOSHU_SYSTEM_FONTS_ROOT/$_name"
+    printf 'stock-ui\n' > "$ZIYU_SYSTEM_FONTS_ROOT/$_name"
 done
 
 _font_store_reset() {
-    rm -rf "$1/.luoshu-font-store"
-    mkdir -p "$1/.luoshu-font-store"
+    rm -rf "$1/.ziyu-font-store"
+    mkdir -p "$1/.ziyu-font-store"
 }
 _font_anchor() {
-    cp -f "$1" "$2/.luoshu-font-store/$3.font"
-    printf '%s\n' "$2/.luoshu-font-store/$3.font"
+    cp -f "$1" "$2/.ziyu-font-store/$3.font"
+    printf '%s\n' "$2/.ziyu-font-store/$3.font"
 }
 _font_alias() {
     mkdir -p "${2%/*}"
@@ -100,15 +100,15 @@ ok test "$(cat "$MODULE_DIR/cust/fonts/SourceSansPro-Bold.ttf")" = 'bold-source'
 ok test "$(cat "$NORMALIZE_COUNT_FILE")" -eq 11
 for _name in NotoSansAdlam-VF.ttf NotoSansAhom-Regular.ttf NotoSansCuneiform-Regular.ttf NotoSansEgyptianHieroglyphs-Regular.ttf; do
     no test -e "$MODULE_DIR/system/fonts/$_name"
-    ok test "$(cat "$LUOSHU_SYSTEM_FONTS_ROOT/$_name")" = 'stock-language'
+    ok test "$(cat "$ZIYU_SYSTEM_FONTS_ROOT/$_name")" = 'stock-language'
 done
 for _name in NotoSans.ttf NotoSansUI.ttf NotoSansSC-Regular.ttf NotoSansCJKsc-Regular.ttf NotoSansHant-Regular.ttf; do
     ok test "$(cat "$MODULE_DIR/system/fonts/$_name")" = 'regular-source'
 done
-_luoshu_hyperos_root_pairs > "$ROOT/hyperos-root-pairs"
-ok grep -qF "$LUOSHU_MI_EXT_FONTS_ROOT|$MODULE_DIR/mi_ext/fonts" "$ROOT/hyperos-root-pairs"
-ok grep -qF "$LUOSHU_ODM_FONTS_ROOT|$MODULE_DIR/odm/fonts" "$ROOT/hyperos-root-pairs"
-ok grep -qF "$LUOSHU_CUST_FONTS_ROOT|$MODULE_DIR/cust/fonts" "$ROOT/hyperos-root-pairs"
+_ziyu_hyperos_root_pairs > "$ROOT/hyperos-root-pairs"
+ok grep -qF "$ZIYU_MI_EXT_FONTS_ROOT|$MODULE_DIR/mi_ext/fonts" "$ROOT/hyperos-root-pairs"
+ok grep -qF "$ZIYU_ODM_FONTS_ROOT|$MODULE_DIR/odm/fonts" "$ROOT/hyperos-root-pairs"
+ok grep -qF "$ZIYU_CUST_FONTS_ROOT|$MODULE_DIR/cust/fonts" "$ROOT/hyperos-root-pairs"
 printf 'HyperOS global mapping and compact-anchor reuse tests passed.\n'
 
 # Execute the production batch builder against different physical slot contracts.

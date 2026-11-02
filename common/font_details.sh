@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v2.0.0：按字体族 ID 返回稳定文件身份与 TTC 字体面详情。
+# 字域 v2.0.0：按字体族 ID 返回稳定文件身份与 TTC 字体面详情。
 set +e
 
 MODDIR="${MODDIR:-}"
@@ -14,9 +14,9 @@ fi
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 INSPECTOR="$MODDIR/common/font_metadata.py"
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 

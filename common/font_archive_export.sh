@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书字体归档只读导出桥：将指定 Family 的真实字体文件复制到 App 私有缓存。
+# 字域字体归档只读导出桥：将指定 Family 的真实字体文件复制到 App 私有缓存。
 set +e
 
 MODDIR="${MODDIR:-}"
@@ -14,7 +14,7 @@ fi
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 
 json_escape() {

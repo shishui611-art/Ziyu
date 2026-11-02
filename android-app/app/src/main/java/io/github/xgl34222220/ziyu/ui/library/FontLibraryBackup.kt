@@ -59,7 +59,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val LIBRARY_BACKUP_SCHEMA = 1
-private const val LIBRARY_BACKUP_TYPE = "luoshu-font-library-backup"
+private const val LIBRARY_BACKUP_TYPE = "ziyu-font-library-backup"
 private const val LIBRARY_BACKUP_MAX_CHARS = 1_048_576
 
 internal enum class FontMigrationSeverity {
@@ -228,7 +228,7 @@ internal fun parseFontLibraryBackup(
         return FontLibraryBackupParseResult(errors = listOf("JSON 格式无效：${it.message ?: "无法解析"}"))
     }
     if (root.optInt("schema", -1) != LIBRARY_BACKUP_SCHEMA) errors += "不支持的备份版本"
-    if (root.optString("type") != LIBRARY_BACKUP_TYPE) errors += "这不是字域字体库备份"
+    if (!io.github.xgl34222220.ziyu.LegacyIdentityCompatibility.matchesFormat(root.optString("type"), LIBRARY_BACKUP_TYPE)) errors += "这不是字域字体库备份"
     val collectionsObject = root.optJSONObject("collections")
     if (collectionsObject == null) errors += "备份缺少收藏与标签配置"
     if (errors.isNotEmpty() || collectionsObject == null) {

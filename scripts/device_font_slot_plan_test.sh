@@ -6,7 +6,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 MOD="$TMP/module"
-PY="$MOD/common/python/bin/luoshu-python"
+PY="$MOD/common/python/bin/ziyu-python"
 PLANNER="$MOD/common/device_font_slot_plan.py"
 SOURCE="$TMP/font.ttf"
 COUNT="$TMP/run-count"
@@ -37,7 +37,7 @@ printf 'planned\n'
 EOF_PY
 chmod +x "$PY" "$MOD/common/device_font_slot_plan.sh"
 
-MODDIR="$MOD" LUOSHU_SLOT_PLAN_TIMEOUT_SECONDS=30 sh "$MOD/common/device_font_slot_plan.sh" build "$SOURCE" Demo
+MODDIR="$MOD" ZIYU_SLOT_PLAN_TIMEOUT_SECONDS=30 sh "$MOD/common/device_font_slot_plan.sh" build "$SOURCE" Demo
 test "$(cat "$COUNT")" = 1
 test -s "$MOD/config/active-font-slot-plan.json"
 grep -q '^slot-plan-v2|' "$MOD/config/active-font-slot-plan.key"

@@ -1,20 +1,20 @@
 #!/system/bin/sh
-# LuoShu automatic runtime proof collector.
+# Ziyu automatic runtime proof collector.
 # The authoritative report is always stored inside the module. Public storage export is
 # best-effort only and never controls font success or rollback.
 set +e
 
 _device_font_report_module() {
-    if type _luoshu_safety_module >/dev/null 2>&1; then
-        _luoshu_safety_module
+    if type _ziyu_safety_module >/dev/null 2>&1; then
+        _ziyu_safety_module
     else
         printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     fi
 }
 
 _device_font_report_root() {
-    if [ -n "${LUOSHU_RUNTIME_REPORT_ROOT:-}" ]; then
-        printf '%s\n' "$LUOSHU_RUNTIME_REPORT_ROOT"
+    if [ -n "${ZIYU_RUNTIME_REPORT_ROOT:-}" ]; then
+        printf '%s\n' "$ZIYU_RUNTIME_REPORT_ROOT"
     else
         printf '%s/reports/v2.2-runtime-latest\n' "$(_device_font_report_module)"
     fi
@@ -25,7 +25,7 @@ _device_font_report_public_root() {
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-    printf '%s/reports/v2.2-runtime-latest\n' "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
+    printf '%s/reports/v2.2-runtime-latest\n' "${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
 }
 
 _device_font_report_log() {
@@ -100,7 +100,7 @@ device_font_runtime_report_collect() {
         printf 'incremental=%s\n' "$(getprop ro.build.version.incremental 2>/dev/null)"
         printf 'sdk=%s\n' "$(getprop ro.build.version.sdk 2>/dev/null)"
         printf 'rom=%s\n' "$(getprop ro.build.display.id 2>/dev/null)"
-        printf 'rootManager=%s\n' "$(type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager || echo unknown)"
+        printf 'rootManager=%s\n' "$(type ziyu_detect_root_manager >/dev/null 2>&1 && ziyu_detect_root_manager || echo unknown)"
     } > "$_dfr_stage/summary.txt" 2>/dev/null || {
         rm -rf "$_dfr_stage" 2>/dev/null || true
         _device_font_report_log '无法写入内部报告摘要'
@@ -139,7 +139,7 @@ EOF_RUNTIME_PAIR
         _device_font_report_copy "$_dfr_config/device-font-payload/manifest.json" "$_dfr_stage/device-font-payload-manifest.json" || true
         _device_font_report_copy "$_dfr_config/device-font-overlay/overlay-manifest.json" "$_dfr_stage/device-font-overlay-manifest.json" || true
     fi
-    _device_font_report_copy "$_dfr_module/system/etc/.luoshu-data-fonts-config.xml" \
+    _device_font_report_copy "$_dfr_module/system/etc/.ziyu-data-fonts-config.xml" \
         "$_dfr_stage/data-fonts-config-view.xml" || true
 
     if [ ! -s "$_dfr_stage/device-font-manager-dump.txt" ]; then
@@ -157,11 +157,11 @@ EOF_RUNTIME_PAIR
         > "$_dfr_stage/font-mounts.txt" || true
     {
         printf '%s\n' '--- private dynamic view ---'
-        sha256sum "$_dfr_module/system/etc/.luoshu-data-fonts-config.xml" 2>/dev/null || true
+        sha256sum "$_dfr_module/system/etc/.ziyu-data-fonts-config.xml" 2>/dev/null || true
         printf '%s\n' '--- current /data font config ---'
         sha256sum /data/fonts/config/config.xml 2>/dev/null || true
         printf '%s\n' '--- google/product named families ---'
-        grep -Ei 'google[-_ ]?sans|product[-_ ]?sans|LuoShuSlot' "$_dfr_stage/font-manager-dump.txt" 2>/dev/null || true
+        grep -Ei 'google[-_ ]?sans|product[-_ ]?sans|ZiyuSlot' "$_dfr_stage/font-manager-dump.txt" 2>/dev/null || true
     } > "$_dfr_stage/dynamic-font-proof.txt"
 
     find "$_dfr_stage" -type f -exec chmod 0644 {} \; 2>/dev/null || true
@@ -185,7 +185,7 @@ EOF_RUNTIME_PAIR
 
 # Preserve the original boot-confirmation contract and collect evidence afterward.
 font_config_mark_boot_success() {
-    _lmbs_config="$(_luoshu_safety_config)"
+    _lmbs_config="$(_ziyu_safety_config)"
     _lmbs_state=$(sed -n 's/^state=//p' "$_lmbs_config/font-payload-boot.conf" 2>/dev/null | head -n1)
     if [ "$_lmbs_state" = booting ]; then
         _lmbs_font=$(sed -n 's/^font=//p' "$_lmbs_config/font-payload-boot.conf" 2>/dev/null | head -n1)
@@ -202,7 +202,7 @@ font_config_mark_boot_success() {
             "$_lmbs_config/font-last-boot-success.conf" 2>/dev/null || true
         chmod 0644 "$_lmbs_config/font-payload-boot.conf" \
             "$_lmbs_config/font-last-boot-success.conf" 2>/dev/null || true
-        _luoshu_safety_log INFO 'Android 已完成开机，字体负载事务确认成功'
+        _ziyu_safety_log INFO 'Android 已完成开机，字体负载事务确认成功'
     fi
     device_font_runtime_report_collect >/dev/null 2>&1 || true
     return 0

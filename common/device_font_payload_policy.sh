@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu v2.2 foreground runtime policy.
+# Ziyu v2.2 foreground runtime policy.
 # Never build or normalize large per-slot/per-weight font payloads in the App switch path.
 # Reuse is allowed only when the cache was built from the current trusted stock template.
 set +e
@@ -17,16 +17,16 @@ _device_font_policy_log() {
 
 _device_font_policy_python_run() {
     _dfppr_module="$(_device_font_policy_module)"
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     _dfppr_root="$_dfppr_module/common/python"
-    [ -x "$_dfppr_root/bin/luoshu-python" ] || return 127
+    [ -x "$_dfppr_root/bin/ziyu-python" ] || return 127
     PYTHONHOME="$_dfppr_root" \
     PYTHONPATH="$_dfppr_module/common:$_dfppr_root/lib/python3.14:$_dfppr_root/lib/python3.14/site-packages" \
     LD_LIBRARY_PATH="$_dfppr_root/lib:$_dfppr_root/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$_dfppr_root/bin/luoshu-python" "$@"
+        "$_dfppr_root/bin/ziyu-python" "$@"
 }
 
 _device_font_coloros_flipfont_hint() {
@@ -40,8 +40,8 @@ _device_font_coloros_flipfont_hint() {
 }
 
 _device_font_policy_trusted_template_key() {
-    if [ -n "${LUOSHU_TRUSTED_TEMPLATE_KEY:-}" ]; then
-        printf '%s\n' "$LUOSHU_TRUSTED_TEMPLATE_KEY"
+    if [ -n "${ZIYU_TRUSTED_TEMPLATE_KEY:-}" ]; then
+        printf '%s\n' "$ZIYU_TRUSTED_TEMPLATE_KEY"
         return 0
     fi
     _dfpp_module="$(_device_font_policy_module)"
@@ -77,7 +77,7 @@ _device_font_coloros_policy_identity() {
 get_all_coloros_files() {
     _dfpp_module="$(_device_font_policy_module)"
     _dfpp_cache="$_dfpp_module/config/coloros-font-targets.cache"
-    _dfpp_key="${LUOSHU_COLOROS_CACHE_KEY:-$(getprop ro.build.fingerprint 2>/dev/null)}"
+    _dfpp_key="${ZIYU_COLOROS_CACHE_KEY:-$(getprop ro.build.fingerprint 2>/dev/null)}"
     [ -n "$_dfpp_key" ] || _dfpp_key="$(getprop ro.build.version.incremental 2>/dev/null)"
     [ -n "$_dfpp_key" ] || _dfpp_key=unknown
     _dfpp_policy_identity=$(_device_font_coloros_policy_identity)
@@ -115,7 +115,7 @@ get_all_coloros_files() {
 }
 
 get_all_coloros_names() {
-    [ "${LUOSHU_COLOROS_TARGETS_MAPPED:-0}" != 1 ] || return 0
+    [ "${ZIYU_COLOROS_TARGETS_MAPPED:-0}" != 1 ] || return 0
     for _dfpp_file in $(get_all_coloros_files); do
         printf '%s\n' "${_dfpp_file%.ttf}"
     done
@@ -146,8 +146,8 @@ _font_anchor() {
     _dffa_src="$1"
     _dffa_dest="$2"
     _dffa_key="$3"
-    _dffa_anchor="$_dffa_dest/.luoshu-font-store/${_dffa_key}.font"
-    mkdir -p "$_dffa_dest/.luoshu-font-store" 2>/dev/null || return 1
+    _dffa_anchor="$_dffa_dest/.ziyu-font-store/${_dffa_key}.font"
+    mkdir -p "$_dffa_dest/.ziyu-font-store" 2>/dev/null || return 1
     rm -f "$_dffa_anchor" 2>/dev/null || true
     ln "$_dffa_src" "$_dffa_anchor" 2>/dev/null || cp -f "$_dffa_src" "$_dffa_anchor" 2>/dev/null || return 1
     chmod 0644 "$_dffa_anchor" 2>/dev/null || true
@@ -160,8 +160,8 @@ _device_font_fast_alias_roots() {
     _dffar_module="$(_device_font_policy_module)"
     _dffar_count=0
     if [ "${IS_COLOROS:-false}" = true ]; then
-        if type _luoshu_coloros_root_pairs >/dev/null 2>&1; then
-            _dffar_roots=$(_luoshu_coloros_root_pairs)
+        if type _ziyu_coloros_root_pairs >/dev/null 2>&1; then
+            _dffar_roots=$(_ziyu_coloros_root_pairs)
         else
             _dffar_roots="/system/fonts|$_dffar_module/system/fonts
 /system_ext/fonts|$_dffar_module/system_ext/fonts
@@ -208,12 +208,12 @@ _device_font_fast_map() {
     _dffm_dest="$_dffm_module/system/fonts"
     mkdir -p "$_dffm_dest" 2>/dev/null || return 1
 
-    _dffm_preserve="${LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE:-0}"
-    LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE=1
-    export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+    _dffm_preserve="${ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE:-0}"
+    ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE=1
+    export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
     type font_config_disable >/dev/null 2>&1 && font_config_disable >/dev/null 2>&1 || true
-    LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE="$_dffm_preserve"
-    export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+    ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE="$_dffm_preserve"
+    export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
 
     type _font_store_reset >/dev/null 2>&1 && _font_store_reset "$_dffm_dest"
     _dffm_anchor=$(_font_anchor "$_dffm_src" "$_dffm_dest" regular) || return 1
@@ -250,7 +250,7 @@ _device_font_fast_map() {
     fi
 
     for _dffm_weight in 100 200 300 400 500 600 700 800 900; do
-        for _dffm_prefix in LuoShu LuoShuMono; do
+        for _dffm_prefix in Ziyu ZiyuMono; do
             _dffm_out="$_dffm_dest/${_dffm_prefix}-${_dffm_weight}.ttf"
             rm -f "$_dffm_out" 2>/dev/null || true
             ln "$_dffm_anchor" "$_dffm_out" 2>/dev/null || cp -f "$_dffm_anchor" "$_dffm_out" 2>/dev/null || return 1
@@ -258,8 +258,8 @@ _device_font_fast_map() {
         done
     done
 
-    LUOSHU_SAFE_PHYSICAL_FALLBACK=1
-    export LUOSHU_SAFE_PHYSICAL_FALLBACK
+    ZIYU_SAFE_PHYSICAL_FALLBACK=1
+    export ZIYU_SAFE_PHYSICAL_FALLBACK
     _device_font_policy_log "前台快速映射完成：font=$_dffm_family aliases=$_dffm_total"
     return 0
 }
@@ -276,12 +276,12 @@ apply_font_by_rom() {
     if [ "$_dfabr_mode" = quick ]; then
         _dfabr_inventory_mapped=0
         if type _copy_as_inventory >/dev/null 2>&1; then
-            _dfabr_preserve="${LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE:-0}"
-            LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE=1
-            export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+            _dfabr_preserve="${ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE:-0}"
+            ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE=1
+            export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
             type font_config_disable >/dev/null 2>&1 && font_config_disable >/dev/null 2>&1 || true
-            LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE="$_dfabr_preserve"
-            export LUOSHU_OEM_PRESERVE_ON_CONFIG_DISABLE
+            ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE="$_dfabr_preserve"
+            export ZIYU_OEM_PRESERVE_ON_CONFIG_DISABLE
             if _copy_as_inventory "$_dfabr_src" "$_dfabr_dest" quick "$_dfabr_family"; then
                 _dfabr_inventory_mapped=1
                 _device_font_policy_log "前台已按设备清单完成真实槽位硬链接映射：$_dfabr_family"
@@ -316,13 +316,13 @@ apply_font_by_rom() {
 
 # Keep the safety contract, but use stat for font aliases instead of reading the same inode dozens
 # of times through wc. XML structure validation remains unchanged.
-luoshu_payload_validate_current() {
+ziyu_payload_validate_current() {
     _lpv_active="${1:-unknown}"
-    _lpv_module="$(_luoshu_safety_module)"
-    _lpv_config="$(_luoshu_safety_config)"
+    _lpv_module="$(_ziyu_safety_module)"
+    _lpv_config="$(_ziyu_safety_config)"
     [ "$_lpv_active" != default ] || return 0
     _lpv_fonts=0
-    for _lpv_part in $(_luoshu_payload_parts); do
+    for _lpv_part in $(_ziyu_payload_parts); do
         _lpv_dir="$_lpv_module/$_lpv_part/fonts"
         [ -d "$_lpv_dir" ] || continue
         for _lpv_file in "$_lpv_dir"/*.ttf "$_lpv_dir"/*.otf "$_lpv_dir"/*.ttc; do
@@ -343,12 +343,12 @@ luoshu_payload_validate_current() {
 
     while IFS='|' read -r _lpv_key _lpv_real _lpv_overlay _lpv_font_dir; do
         [ -f "$_lpv_overlay" ] || continue
-        grep -Eq 'LuoShu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lpv_overlay" 2>/dev/null || continue
-        _luoshu_font_config_validate "$_lpv_overlay" "$_lpv_font_dir" || return 1
-    done <<EOF_LUOSHU_VALIDATE
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_VALIDATE
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
+        grep -Eq 'Ziyu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lpv_overlay" 2>/dev/null || continue
+        _ziyu_font_config_validate "$_lpv_overlay" "$_lpv_font_dir" || return 1
+    done <<EOF_ZIYU_VALIDATE
+$(_ziyu_font_config_specs)
+EOF_ZIYU_VALIDATE
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
     return 0
 }
 
@@ -389,13 +389,13 @@ device_font_payload_build_install() {
         esac
     fi
     if [ -z "$_dfpp_template_key" ]; then
-        if [ "${IS_COLOROS:-false}" = true ] && [ "${LUOSHU_SAFE_PHYSICAL_FALLBACK:-0}" = 1 ]; then
+        if [ "${IS_COLOROS:-false}" = true ] && [ "${ZIYU_SAFE_PHYSICAL_FALLBACK:-0}" = 1 ]; then
             _device_font_policy_log "ColorOS 原厂模板不可用；保留已验证的 system/system_ext/product 物理槽映射，不阻止切换"
             return 3
         fi
         _device_font_policy_log "设备对齐暂不可用：当前 ROM 没有可信原厂槽位模板"
-        LUOSHU_DEVICE_PAYLOAD_ERROR='缺少可信原厂字体模板，未提交不确定的逐槽负载'
-        export LUOSHU_DEVICE_PAYLOAD_ERROR
+        ZIYU_DEVICE_PAYLOAD_ERROR='缺少可信原厂字体模板，未提交不确定的逐槽负载'
+        export ZIYU_DEVICE_PAYLOAD_ERROR
         return 2
     fi
 
@@ -403,11 +403,11 @@ device_font_payload_build_install() {
         type device_font_cache_build_pending >/dev/null 2>&1 && \
         type device_font_cache_activate >/dev/null 2>&1 || return 1
     _device_font_policy_log "设备缓存未命中，正在同一任务生成最终对齐负载：$_dfpp_font"
-    _dfpp_old_autostart="${LUOSHU_CACHE_AUTOSTART:-1}"
-    _dfpp_old_foreground="${LUOSHU_CACHE_FOREGROUND:-0}"
-    LUOSHU_CACHE_AUTOSTART=0
-    LUOSHU_CACHE_FOREGROUND=1
-    export LUOSHU_CACHE_AUTOSTART LUOSHU_CACHE_FOREGROUND
+    _dfpp_old_autostart="${ZIYU_CACHE_AUTOSTART:-1}"
+    _dfpp_old_foreground="${ZIYU_CACHE_FOREGROUND:-0}"
+    ZIYU_CACHE_AUTOSTART=0
+    ZIYU_CACHE_FOREGROUND=1
+    export ZIYU_CACHE_AUTOSTART ZIYU_CACHE_FOREGROUND
     _dfpp_prepare_rc=0
     device_font_cache_schedule "$_dfpp_font" || _dfpp_prepare_rc=$?
     _dfpp_prepare_rc=${_dfpp_prepare_rc:-0}
@@ -415,17 +415,17 @@ device_font_payload_build_install() {
         device_font_cache_build_pending
         _dfpp_prepare_rc=$?
     fi
-    LUOSHU_CACHE_AUTOSTART="$_dfpp_old_autostart"
-    LUOSHU_CACHE_FOREGROUND="$_dfpp_old_foreground"
-    export LUOSHU_CACHE_AUTOSTART LUOSHU_CACHE_FOREGROUND
+    ZIYU_CACHE_AUTOSTART="$_dfpp_old_autostart"
+    ZIYU_CACHE_FOREGROUND="$_dfpp_old_foreground"
+    export ZIYU_CACHE_AUTOSTART ZIYU_CACHE_FOREGROUND
     if [ "$_dfpp_prepare_rc" -ne 0 ]; then
-        LUOSHU_DEVICE_PAYLOAD_ERROR='设备原厂槽位对齐生成失败；旧字体已保留，未提交半成品'
-        export LUOSHU_DEVICE_PAYLOAD_ERROR
+        ZIYU_DEVICE_PAYLOAD_ERROR='设备原厂槽位对齐生成失败；旧字体已保留，未提交半成品'
+        export ZIYU_DEVICE_PAYLOAD_ERROR
         return 1
     fi
     device_font_cache_activate "$_dfpp_font" || {
-        LUOSHU_DEVICE_PAYLOAD_ERROR='设备对齐缓存激活校验失败；旧字体已保留'
-        export LUOSHU_DEVICE_PAYLOAD_ERROR
+        ZIYU_DEVICE_PAYLOAD_ERROR='设备对齐缓存激活校验失败；旧字体已保留'
+        export ZIYU_DEVICE_PAYLOAD_ERROR
         return 1
     }
     _device_font_policy_log "最终设备对齐负载已在当前事务内生成并激活：$_dfpp_font"
@@ -434,29 +434,29 @@ device_font_payload_build_install() {
 
 font_config_enable_for_payload() {
     _dfpp_family="${1:-unknown}"
-    LUOSHU_DEVICE_PAYLOAD_RESULT='preparing'
+    ZIYU_DEVICE_PAYLOAD_RESULT='preparing'
 
     device_font_payload_build_install "$_dfpp_family"
     _dfpp_rc=$?
     case "$_dfpp_rc" in
         0)
-            LUOSHU_DEVICE_PAYLOAD_RESULT='device'
-            [ "${IS_COLOROS:-false}" != true ] || LUOSHU_COLOROS_TARGETS_MAPPED=1
-            export LUOSHU_COLOROS_TARGETS_MAPPED
+            ZIYU_DEVICE_PAYLOAD_RESULT='device'
+            [ "${IS_COLOROS:-false}" != true ] || ZIYU_COLOROS_TARGETS_MAPPED=1
+            export ZIYU_COLOROS_TARGETS_MAPPED
             return 0
             ;;
         1)
-            LUOSHU_DEVICE_PAYLOAD_RESULT='device-failed'
+            ZIYU_DEVICE_PAYLOAD_RESULT='device-failed'
             return 1
             ;;
         3)
-            LUOSHU_DEVICE_PAYLOAD_RESULT='safe-physical-fallback'
+            ZIYU_DEVICE_PAYLOAD_RESULT='safe-physical-fallback'
             return 0
             ;;
     esac
 
     # A final aligned payload is mandatory in v4. Falling through to the old universal-metrics
     # XML/slot path is exactly what caused mixed baselines and only-Chinese replacement on HyperOS.
-    LUOSHU_DEVICE_PAYLOAD_RESULT='device-failed'
+    ZIYU_DEVICE_PAYLOAD_RESULT='device-failed'
     return 1
 }

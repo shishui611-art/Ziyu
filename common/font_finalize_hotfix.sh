@@ -1,9 +1,9 @@
 #!/system/bin/sh
-# 洛书组合字体收尾性能修复：所有大小校验只读取元数据，静态字体权重使用硬链接别名。
+# 字域组合字体收尾性能修复：所有大小校验只读取元数据，静态字体权重使用硬链接别名。
 # 本文件在 font_config_runtime.sh、font_config_weights.sh 和分区清单之后加载，用于覆盖旧实现。
 set +e
 
-_luoshu_fast_filesize() {
+_ziyu_fast_filesize() {
     _lff_file="$1"
     if command -v stat >/dev/null 2>&1; then
         stat -c '%s' "$_lff_file" 2>/dev/null && return 0
@@ -15,9 +15,9 @@ _luoshu_fast_filesize() {
     wc -c < "$_lff_file" 2>/dev/null | tr -d '[:space:]'
 }
 
-_luoshu_fast_font_ok() {
+_ziyu_fast_font_ok() {
     [ -f "$1" ] || return 1
-    _lff_size=$(_luoshu_fast_filesize "$1")
+    _lff_size=$(_ziyu_fast_filesize "$1")
     case "$_lff_size" in ''|*[!0-9]*) return 1 ;; esac
     [ "$_lff_size" -ge 1024 ]
 }
@@ -25,7 +25,7 @@ _luoshu_fast_font_ok() {
 # ROM 文件槽通常是同一 inode 的大量硬链接，禁止逐路径读取完整字体来确认大小。
 _verify_font_copy() {
     _vfc_file="$1"
-    if ! _luoshu_fast_font_ok "$_vfc_file"; then
+    if ! _ziyu_fast_font_ok "$_vfc_file"; then
         type _log_step >/dev/null 2>&1 && _log_step "  警告：$(basename "$_vfc_file") 字体文件为空或异常小"
         return 1
     fi
@@ -33,14 +33,14 @@ _verify_font_copy() {
 }
 
 # 使用 stat 挑选九档来源，避免每个候选都把几十 MB 字体完整读取一遍。
-_luoshu_config_weight_source() {
+_ziyu_config_weight_source() {
     _lcw_weight="$1"
-    _lcw_module="$(_luoshu_config_weight_module)"
-    _lcw_fonts="$(_luoshu_config_weight_fonts)"
-    _lcw_role="$(_luoshu_config_weight_role "$_lcw_weight")"
+    _lcw_module="$(_ziyu_config_weight_module)"
+    _lcw_fonts="$(_ziyu_config_weight_fonts)"
+    _lcw_role="$(_ziyu_config_weight_role "$_lcw_weight")"
 
     for _lcw_file in \
-        "$_lcw_fonts/.luoshu-font-store/wght-${_lcw_weight}.font" \
+        "$_lcw_fonts/.ziyu-font-store/wght-${_lcw_weight}.font" \
         "$_lcw_fonts/${_lcw_weight}.ttf" \
         "$_lcw_fonts/Roboto-${_lcw_role}.ttf" \
         "$_lcw_fonts/GoogleSans-${_lcw_role}.ttf" \
@@ -50,14 +50,14 @@ _luoshu_config_weight_source() {
         "$_lcw_fonts/Opposans-En-${_lcw_role}.ttf" \
         "$_lcw_fonts/SourceSansPro-${_lcw_role}.ttf" \
         "$_lcw_fonts/NotoSans-${_lcw_role}.ttf"; do
-        _luoshu_fast_font_ok "$_lcw_file" || continue
+        _ziyu_fast_font_ok "$_lcw_file" || continue
         printf '%s\n' "$_lcw_file"
         return 0
     done
 
     for _lcw_file in \
-        "$_lcw_fonts/.luoshu-font-store/regular.font" \
-        "$_lcw_fonts/.luoshu-font-store/mix-composite.font" \
+        "$_lcw_fonts/.ziyu-font-store/regular.font" \
+        "$_lcw_fonts/.ziyu-font-store/mix-composite.font" \
         "$_lcw_fonts/400.ttf" \
         "$_lcw_fonts/Roboto-Regular.ttf" \
         "$_lcw_fonts/GoogleSans-Regular.ttf" \
@@ -67,22 +67,22 @@ _luoshu_config_weight_source() {
         "$_lcw_fonts/MiSansVF.ttf" \
         "$_lcw_fonts/NotoSansCJK-Regular.ttc" \
         "$_lcw_fonts/NotoSans-Regular.ttf"; do
-        _luoshu_fast_font_ok "$_lcw_file" || continue
+        _ziyu_fast_font_ok "$_lcw_file" || continue
         printf '%s\n' "$_lcw_file"
         return 0
     done
     return 1
 }
 
-_luoshu_fast_link_font() {
+_ziyu_fast_link_font() {
     _lfl_source="$1"
     _lfl_target="$2"
-    _lfl_module="$(_luoshu_config_weight_module)"
+    _lfl_module="$(_ziyu_config_weight_module)"
     _lfl_tool="$_lfl_module/common/font_space_compat.py"
     _lfl_cache_dir="$_lcw_stage/.space-compat"
     _lfl_manifest="$_lfl_cache_dir/sources.tsv"
     _lfl_report="$_lfl_cache_dir/last-report.json"
-    [ -f "$_lfl_tool" ] && type _luoshu_font_config_exec >/dev/null 2>&1 || return 1
+    [ -f "$_lfl_tool" ] && type _ziyu_font_config_exec >/dev/null 2>&1 || return 1
     mkdir -p "$_lfl_cache_dir" 2>/dev/null || return 1
     [ -f "$_lfl_manifest" ] || : > "$_lfl_manifest"
 
@@ -98,7 +98,7 @@ _luoshu_fast_link_font() {
         case "$_lfl_cache_index" in ''|*[!0-9]*) _lfl_cache_index=0 ;; esac
         _lfl_cache_index=$((_lfl_cache_index + 1))
         _lfl_fixed="$_lfl_cache_dir/source-${_lfl_cache_index}.font"
-        _luoshu_font_config_exec "$_lfl_tool" --input "$_lfl_source" --output "$_lfl_fixed" \
+        _ziyu_font_config_exec "$_lfl_tool" --input "$_lfl_source" --output "$_lfl_fixed" \
             > "$_lfl_report" 2>/dev/null || {
             rm -f "$_lfl_fixed" "$_lfl_report" 2>/dev/null || true
             return 1
@@ -114,14 +114,14 @@ _luoshu_fast_link_font() {
     rm -f "$_lfl_target" 2>/dev/null || true
     ln "$_lfl_fixed" "$_lfl_target" 2>/dev/null || cp -f "$_lfl_fixed" "$_lfl_target" 2>/dev/null || return 1
     chmod 0644 "$_lfl_target" 2>/dev/null || true
-    _luoshu_fast_font_ok "$_lfl_target"
+    _ziyu_fast_font_ok "$_lfl_target"
 }
 
 # 静态字体每个唯一来源只检查/修复一次缺失空格字形，再为 UI 九档建立硬链接。
 # 代码等宽字体保持原厂，不再合成/映射 Mono 字库。
 font_config_prepare_payload_weights() {
-    _lcw_module="$(_luoshu_config_weight_module)"
-    _lcw_fonts="$(_luoshu_config_weight_fonts)"
+    _lcw_module="$(_ziyu_config_weight_module)"
+    _lcw_fonts="$(_ziyu_config_weight_fonts)"
     mkdir -p "$_lcw_fonts" "$_lcw_module/config" 2>/dev/null || return 1
 
     _lcw_stage="$_lcw_module/config/font-config-weights.$$"
@@ -130,25 +130,25 @@ font_config_prepare_payload_weights() {
     type mix_stage >/dev/null 2>&1 && mix_stage weight-map '正在准备九档字体映射' 92
 
     for _lcw_weight in 100 200 300 400 500 600 700 800 900; do
-        _lcw_source="$(_luoshu_config_weight_source "$_lcw_weight")" || { rm -rf "$_lcw_stage"; return 1; }
-        _lcw_target="$_lcw_stage/LuoShu-${_lcw_weight}.ttf"
+        _lcw_source="$(_ziyu_config_weight_source "$_lcw_weight")" || { rm -rf "$_lcw_stage"; return 1; }
+        _lcw_target="$_lcw_stage/Ziyu-${_lcw_weight}.ttf"
         _lcw_magic=$(dd if="$_lcw_source" bs=4 count=1 2>/dev/null)
         if [ "$_lcw_magic" = ttcf ]; then
             rm -rf "$_lcw_stage" 2>/dev/null || true
             return 1
         fi
         if type is_variable_font >/dev/null 2>&1 && is_variable_font "$_lcw_source"; then
-            _luoshu_config_normalize_weight "$_lcw_source" "$_lcw_target" "$_lcw_weight" || { rm -rf "$_lcw_stage"; return 1; }
+            _ziyu_config_normalize_weight "$_lcw_source" "$_lcw_target" "$_lcw_weight" || { rm -rf "$_lcw_stage"; return 1; }
         else
-            _luoshu_fast_link_font "$_lcw_source" "$_lcw_target" || { rm -rf "$_lcw_stage"; return 1; }
+            _ziyu_fast_link_font "$_lcw_source" "$_lcw_target" || { rm -rf "$_lcw_stage"; return 1; }
         fi
     done
 
     # Code monospace stays in the ROM. Do not construct nine proportional
     # aliases and assign them to the stock monospace family.
     for _lcw_weight in 100 200 300 400 500 600 700 800 900; do
-        _lcw_ready="$_lcw_stage/LuoShu-${_lcw_weight}.ttf"
-        _lcw_dest="$_lcw_fonts/LuoShu-${_lcw_weight}.ttf"
+        _lcw_ready="$_lcw_stage/Ziyu-${_lcw_weight}.ttf"
+        _lcw_dest="$_lcw_fonts/Ziyu-${_lcw_weight}.ttf"
         rm -f "$_lcw_dest" 2>/dev/null || true
         mv -f "$_lcw_ready" "$_lcw_dest" 2>/dev/null || { rm -rf "$_lcw_stage"; return 1; }
     done
@@ -158,17 +158,17 @@ font_config_prepare_payload_weights() {
 }
 
 # 动态物理槽映射只检查 inode 元数据，不读取每个硬链接的字体内容。
-luoshu_dynamic_targets_apply() {
-    _ldt_module="$(_luoshu_safety_module)"
-    _ldt_config="$(_luoshu_safety_config)"
+ziyu_dynamic_targets_apply() {
+    _ldt_module="$(_ziyu_safety_module)"
+    _ldt_config="$(_ziyu_safety_config)"
     _ldt_backup="$_ldt_config/font-config-source"
     _ldt_tool="$_ldt_module/common/font_config_targets.py"
     _ldt_manifest_tmp="$_ldt_config/font-target-aliases.conf.tmp.$$"
     _ldt_coverage_tmp="$_ldt_config/font-target-coverage.conf.tmp.$$"
-    [ -f "$_ldt_tool" ] && type _luoshu_font_config_exec >/dev/null 2>&1 || return 2
+    [ -f "$_ldt_tool" ] && type _ziyu_font_config_exec >/dev/null 2>&1 || return 2
     type font_config_capture_original >/dev/null 2>&1 && font_config_capture_original >/dev/null 2>&1 || true
 
-    luoshu_dynamic_targets_clear
+    ziyu_dynamic_targets_clear
     : > "$_ldt_manifest_tmp" 2>/dev/null || return 1
     _ldt_targets=0; _ldt_mapped=0; _ldt_configs=0; _ldt_scan_failed=0
     # One interpreter scans every document. The per-document form paid a full embedded-CPython start
@@ -184,13 +184,13 @@ luoshu_dynamic_targets_apply() {
         [ -s "$_ldt_input" ] || continue
         printf '%s\n' "$_ldt_input" >> "$_ldt_jobs"
         printf '%s\t%s\t%s\n' "$_ldt_input" "$_ldt_key" "$_ldt_font_dir" >> "$_ldt_map"
-    done <<EOF_LUOSHU_DYNAMIC_TARGETS
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_DYNAMIC_TARGETS
+    done <<EOF_ZIYU_DYNAMIC_TARGETS
+$(_ziyu_font_config_specs)
+EOF_ZIYU_DYNAMIC_TARGETS
 
     : > "$_ldt_out"
     if [ -s "$_ldt_jobs" ]; then
-        _luoshu_font_config_exec "$_ldt_tool" --batch "$_ldt_jobs" > "$_ldt_out" 2>/dev/null || \
+        _ziyu_font_config_exec "$_ldt_tool" --batch "$_ldt_jobs" > "$_ldt_out" 2>/dev/null || \
             _ldt_scan_failed=$((_ldt_scan_failed + 1))
     fi
 
@@ -223,19 +223,19 @@ EOF_LUOSHU_DYNAMIC_TARGETS
         _ldt_family="$_ldt_c"
         _ldt_role="$_ldt_d"
         [ "$_ldt_role" = mono ] && continue
-        case "$_ldt_file" in */*|*'..'*|LuoShu-*.ttf|LuoShuMono-*.ttf) continue ;; *.ttf|*.otf|*.ttc) ;; *) continue ;; esac
+        case "$_ldt_file" in */*|*'..'*|Ziyu-*.ttf|ZiyuMono-*.ttf) continue ;; *.ttf|*.otf|*.ttc) ;; *) continue ;; esac
         case "$_ldt_weight" in 100|200|300|400|500|600|700|800|900) ;; *) _ldt_weight=400 ;; esac
         _ldt_rel="${_ldt_font_dir#$_ldt_module/}/$_ldt_file"
         grep -Fq "$_ldt_rel|" "$_ldt_manifest_tmp" 2>/dev/null && continue
         _ldt_targets=$((_ldt_targets + 1))
-        _ldt_source="$_ldt_module/system/fonts/LuoShu-${_ldt_weight}.ttf"
+        _ldt_source="$_ldt_module/system/fonts/Ziyu-${_ldt_weight}.ttf"
         _ldt_dest="$_ldt_font_dir/$_ldt_file"
-        _luoshu_fast_font_ok "$_ldt_source" || continue
+        _ziyu_fast_font_ok "$_ldt_source" || continue
         mkdir -p "$_ldt_font_dir" 2>/dev/null || continue
         rm -f "$_ldt_dest" 2>/dev/null || true
         if ln "$_ldt_source" "$_ldt_dest" 2>/dev/null || cp -f "$_ldt_source" "$_ldt_dest" 2>/dev/null; then
             chmod 0644 "$_ldt_dest" 2>/dev/null || true
-            if _luoshu_fast_font_ok "$_ldt_dest"; then
+            if _ziyu_fast_font_ok "$_ldt_dest"; then
                 printf '%s|%s|%s|%s\n' "$_ldt_rel" "$_ldt_key" "$_ldt_weight" "$_ldt_family" >> "$_ldt_manifest_tmp"
                 _ldt_mapped=$((_ldt_mapped + 1))
             else
@@ -250,14 +250,14 @@ EOF_LUOSHU_DYNAMIC_TARGETS
     if [ "$_ldt_mapped" -eq 0 ]; then
         while IFS='|' read -r _ldt_rel _ldt_rest; do rm -f "$_ldt_module/$_ldt_rel" 2>/dev/null || true; done < "$_ldt_manifest_tmp"
         rm -f "$_ldt_manifest_tmp" "$_ldt_coverage_tmp" 2>/dev/null || true
-        _luoshu_safety_log ERROR "动态字体目标映射失败：targets=$_ldt_targets mapped=0 scanFailed=$_ldt_scan_failed"
+        _ziyu_safety_log ERROR "动态字体目标映射失败：targets=$_ldt_targets mapped=0 scanFailed=$_ldt_scan_failed"
         return 1
     fi
     if [ "$_ldt_mapped" -eq "$_ldt_targets" ] && [ "$_ldt_scan_failed" -eq 0 ]; then
         _ldt_coverage_status=full
     else
         _ldt_coverage_status=partial
-        _luoshu_safety_log WARN "部分字体目标未能映射，未映射项保留原厂字体：targets=$_ldt_targets mapped=$_ldt_mapped scanFailed=$_ldt_scan_failed"
+        _ziyu_safety_log WARN "部分字体目标未能映射，未映射项保留原厂字体：targets=$_ldt_targets mapped=$_ldt_mapped scanFailed=$_ldt_scan_failed"
     fi
     {
         printf 'configs=%s\n' "$_ldt_configs"
@@ -273,26 +273,26 @@ EOF_LUOSHU_DYNAMIC_TARGETS
     chmod 0644 "$_ldt_config/font-target-aliases.conf" "$_ldt_config/font-target-coverage.conf" 2>/dev/null || true
     [ "$_ldt_targets" -gt 0 ] || return 2
     if [ "$_ldt_coverage_status" = full ]; then
-        _luoshu_safety_log INFO "已按设备真实 XML 完整映射 $_ldt_mapped/$_ldt_targets 个 UI 字体目标"
+        _ziyu_safety_log INFO "已按设备真实 XML 完整映射 $_ldt_mapped/$_ldt_targets 个 UI 字体目标"
     else
-        _luoshu_safety_log WARN "已按设备真实 XML 部分映射 $_ldt_mapped/$_ldt_targets 个 UI 字体目标"
+        _ziyu_safety_log WARN "已按设备真实 XML 部分映射 $_ldt_mapped/$_ldt_targets 个 UI 字体目标"
     fi
     return 0
 }
 
 # 94% 阶段只做存在性与文件大小元数据校验；禁止对每个别名重复顺序读取整份字体。
-luoshu_payload_validate_current() {
+ziyu_payload_validate_current() {
     _lpv_active="${1:-unknown}"
-    _lpv_module="$(_luoshu_safety_module)"
-    _lpv_config="$(_luoshu_safety_config)"
+    _lpv_module="$(_ziyu_safety_module)"
+    _lpv_config="$(_ziyu_safety_config)"
     [ "$_lpv_active" != default ] || return 0
     _lpv_fonts=0
-    for _lpv_part in $(_luoshu_payload_parts); do
+    for _lpv_part in $(_ziyu_payload_parts); do
         _lpv_dir="$_lpv_module/$_lpv_part/fonts"
         [ -d "$_lpv_dir" ] || continue
         for _lpv_file in "$_lpv_dir"/*.ttf "$_lpv_dir"/*.otf "$_lpv_dir"/*.ttc; do
             [ -f "$_lpv_file" ] || continue
-            _luoshu_fast_font_ok "$_lpv_file" || return 1
+            _ziyu_fast_font_ok "$_lpv_file" || return 1
             _lpv_fonts=$((_lpv_fonts + 1))
         done
     done
@@ -321,8 +321,8 @@ luoshu_payload_validate_current() {
         [ -n "$_lpv_rel" ] || continue
         case "$_lpv_rel" in */fonts/*.ttf|*/fonts/*.otf|*/fonts/*.ttc) ;; *) return 1 ;; esac
         [ -f "$_lpv_module/$_lpv_rel" ] || return 1
-        if type _luoshu_fast_font_ok >/dev/null 2>&1; then
-            _luoshu_fast_font_ok "$_lpv_module/$_lpv_rel" || return 1
+        if type _ziyu_fast_font_ok >/dev/null 2>&1; then
+            _ziyu_fast_font_ok "$_lpv_module/$_lpv_rel" || return 1
         fi
     done < "$_lpv_manifest"
 fi
@@ -330,11 +330,11 @@ fi
 
     while IFS='|' read -r _lpv_key _lpv_real _lpv_overlay _lpv_font_dir; do
         [ -f "$_lpv_overlay" ] || continue
-        grep -Eq 'LuoShu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lpv_overlay" 2>/dev/null || continue
-        _luoshu_font_config_validate "$_lpv_overlay" "$_lpv_font_dir" || return 1
-    done <<EOF_LUOSHU_VALIDATE
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_VALIDATE
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
+        grep -Eq 'Ziyu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lpv_overlay" 2>/dev/null || continue
+        _ziyu_font_config_validate "$_lpv_overlay" "$_lpv_font_dir" || return 1
+    done <<EOF_ZIYU_VALIDATE
+$(_ziyu_font_config_specs)
+EOF_ZIYU_VALIDATE
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE="$_lpv_active"
     return 0
 }

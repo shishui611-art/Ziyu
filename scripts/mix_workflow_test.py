@@ -28,7 +28,7 @@ class MixWorkflowTest(unittest.TestCase):
             shutil.copyfile(ROOT / "common/composite_tune.sh", module / "common/composite_tune.sh")
             (module / "config").mkdir()
             (module / "logs").mkdir()
-            stage = module / ".luoshu-mix-stage"
+            stage = module / ".ziyu-mix-stage"
             stage.mkdir()
             source = root / "source.ttf"
             fixture(source, 220, svg=False)
@@ -55,8 +55,8 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
                    "HOST_PYTHON": Path(sys.executable).as_posix(),
                    "ENGINE_DIR": (ROOT / "common/legacy_v14_4").as_posix(),
                    "PYTHONPATH": os.pathsep.join((str(ROOT / "common"), os.environ.get("PYTHONPATH", ""))),
-                   "LUOSHU_MIX_PREPARE_ONLY": "true", "LUOSHU_MIX_REQUEST_ID": "prepare-real",
-                   "LUOSHU_MIX_MANIFEST": (stage / ".luoshu-mix-generation.conf").as_posix()}
+                   "ZIYU_MIX_PREPARE_ONLY": "true", "ZIYU_MIX_REQUEST_ID": "prepare-real",
+                   "ZIYU_MIX_MANIFEST": (stage / ".ziyu-mix-generation.conf").as_posix()}
             result = subprocess.run([shell, runner.as_posix()], env=env, capture_output=True,
                                     text=True, encoding="utf-8", timeout=25)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -66,7 +66,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
                 self.assertIn(ord("1"), font.getBestCmap())
             for name in ("active_font.conf", "text_reboot_required.conf", "font_mix.conf"):
                 self.assertEqual((module / "config" / name).read_text(), "preserved:" + name)
-            self.assertFalse((module / ".luoshu-payload-next").exists())
+            self.assertFalse((module / ".ziyu-payload-next").exists())
             self.assertFalse((module / ".font_switch.lock").exists())
 
     def test_cache_import_works_through_the_packaged_runtime_symlink(self):
@@ -101,7 +101,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             env = {**os.environ, "PYTHONPATH": os.pathsep.join(search_paths), "PYTHONUTF8": "1"}
             env.pop("PYTHONHOME", None)
             for index, entry in enumerate(((runtime / "font_instance.py").resolve(), runtime / "font_instance.py")):
-                env["LUOSHU_PREPARE_CACHE"] = str(root / f"cache-{index}")
+                env["ZIYU_PREPARE_CACHE"] = str(root / f"cache-{index}")
                 for expected_hit in (False, True):
                     result = subprocess.run([sys.executable, str(entry),
                                              "--input", str(source), "--output", str(output),
@@ -165,16 +165,16 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             (module / "logs").mkdir()
             for name in ("mix_library.py", "font_structure.py", "composite_tune.sh", "user_storage.sh"):
                 shutil.copyfile(ROOT / "common" / name, module / "common" / name)
-            store = module / ".luoshu-mix-stage"
+            store = module / ".ziyu-mix-stage"
             store.mkdir(parents=True)
             fixture(store / "mix-composite.ttf", 220, svg=False)
             (config / "mix-stage-next.conf").write_text(
                 f"font=mix\nmixName=我的组合\nrequestId=request-library\npublicRoot={root.as_posix()}\n", encoding="utf-8")
-            (store / ".luoshu-mix-generation.conf").write_text("requestId=request-library\ncompositeHash=test-hash\n")
+            (store / ".ziyu-mix-generation.conf").write_text("requestId=request-library\ncompositeHash=test-hash\n")
             protected = ("active_font.conf", "text_reboot_required.conf", "font-payload-next.conf", "font_runtime_legacy_v14_4.conf")
             for name in protected:
                 (config / name).write_text("unchanged:" + name)
-            live = module / ".luoshu-payload"
+            live = module / ".ziyu-payload"
             live.mkdir()
             (live / "font.ttf").write_bytes(b"existing-live-payload")
             (config / "axes_task.conf").write_text("task=axes-1\nstate=success\npercent=100\n", encoding="utf-8")
@@ -212,11 +212,11 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             for name in protected:
                 self.assertEqual((config / name).read_text(), "unchanged:" + name)
             self.assertEqual((live / "font.ttf").read_bytes(), b"existing-live-payload")
-            self.assertFalse((module / ".luoshu-payload-next").exists())
+            self.assertFalse((module / ".ziyu-payload-next").exists())
             bridge_definitions = (ROOT / "common/app_bridge.sh").read_text(encoding="utf-8").split('\ncase "${1:-status}" in', 1)[0]
             preview_runner = root / "preview-lookup.sh"
             preview_runner.write_text(bridge_definitions + '\npreview_source_json "$1" 400\n', encoding="utf-8")
-            preview_env = {**env, "LUOSHU_PUBLIC_DIR": root.as_posix()}
+            preview_env = {**env, "ZIYU_PUBLIC_DIR": root.as_posix()}
             preview = subprocess.run([shell, preview_runner.as_posix(), status["data"]["generatedFontId"]],
                                      env=preview_env, capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)

@@ -3,24 +3,24 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-coloros)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-coloros)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 MODULE_DIR="$TMP/module"
 MODDIR="$MODULE_DIR"
-LUOSHU_PUBLIC_DIR="$TMP/public"
-USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
-LUOSHU_COLOROS_SYSTEM_FONTS_ROOT="$TMP/real/system/fonts"
-LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT="$TMP/real/system_ext/fonts"
-LUOSHU_COLOROS_PRODUCT_FONTS_ROOT="$TMP/real/product/fonts"
-LUOSHU_COLOROS_MY_PRODUCT_FONTS_ROOT="$TMP/real/my_product/fonts"
-export MODULE_DIR MODDIR LUOSHU_PUBLIC_DIR USER_FONTS_DIR \
-    LUOSHU_COLOROS_SYSTEM_FONTS_ROOT LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT \
-    LUOSHU_COLOROS_PRODUCT_FONTS_ROOT LUOSHU_COLOROS_MY_PRODUCT_FONTS_ROOT
+ZIYU_PUBLIC_DIR="$TMP/public"
+USER_FONTS_DIR="$ZIYU_PUBLIC_DIR/fonts"
+ZIYU_COLOROS_SYSTEM_FONTS_ROOT="$TMP/real/system/fonts"
+ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT="$TMP/real/system_ext/fonts"
+ZIYU_COLOROS_PRODUCT_FONTS_ROOT="$TMP/real/product/fonts"
+ZIYU_COLOROS_MY_PRODUCT_FONTS_ROOT="$TMP/real/my_product/fonts"
+export MODULE_DIR MODDIR ZIYU_PUBLIC_DIR USER_FONTS_DIR \
+    ZIYU_COLOROS_SYSTEM_FONTS_ROOT ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT \
+    ZIYU_COLOROS_PRODUCT_FONTS_ROOT ZIYU_COLOROS_MY_PRODUCT_FONTS_ROOT
 
 mkdir -p "$MODULE_DIR/common" "$MODULE_DIR/system/fonts" "$USER_FONTS_DIR" \
-    "$LUOSHU_COLOROS_SYSTEM_FONTS_ROOT" "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT" \
-    "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT" "$LUOSHU_COLOROS_MY_PRODUCT_FONTS_ROOT"
+    "$ZIYU_COLOROS_SYSTEM_FONTS_ROOT" "$ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT" \
+    "$ZIYU_COLOROS_PRODUCT_FONTS_ROOT" "$ZIYU_COLOROS_MY_PRODUCT_FONTS_ROOT"
 cp "$ROOT/common/coloros_global.sh" "$MODULE_DIR/common/coloros_global.sh"
 
 make_font() {
@@ -37,18 +37,18 @@ make_font Demo-Medium.ttf medium-source
 make_font Demo-Bold.ttf bold-source
 
 # Safe ColorOS mapping deliberately covers system/system_ext/product only. my_product is present
-# in the fixture to prove LuoShu does not recreate the bootloop-prone broad OEM overlay.
-touch "$LUOSHU_COLOROS_SYSTEM_FONTS_ROOT/SysFont-Regular.ttf"
-touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Regular.ttf"
-touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Medium.ttf"
-touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Bold.ttf"
-touch "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-VF.ttf"
-touch "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT/Roboto-Medium.ttf"
-touch "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT/OSans-Solid-Digits-VF.ttf"
-touch "$LUOSHU_COLOROS_MY_PRODUCT_FONTS_ROOT/Opposans-En-Bold.ttf"
+# in the fixture to prove Ziyu does not recreate the bootloop-prone broad OEM overlay.
+touch "$ZIYU_COLOROS_SYSTEM_FONTS_ROOT/SysFont-Regular.ttf"
+touch "$ZIYU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Regular.ttf"
+touch "$ZIYU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Medium.ttf"
+touch "$ZIYU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-Bold.ttf"
+touch "$ZIYU_COLOROS_PRODUCT_FONTS_ROOT/GoogleSansText-VF.ttf"
+touch "$ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT/Roboto-Medium.ttf"
+touch "$ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT/OSans-Solid-Digits-VF.ttf"
+touch "$ZIYU_COLOROS_MY_PRODUCT_FONTS_ROOT/Opposans-En-Bold.ttf"
 
 _log_step() { :; }
-_luoshu_font_config_module() { printf '%s\n' "$MODULE_DIR"; }
+_ziyu_font_config_module() { printf '%s\n' "$MODULE_DIR"; }
 . "$ROOT/common/util_functions.sh"
 . "$ROOT/common/rom_adapters.sh"
 . "$ROOT/common/font_config_partitions.sh"
@@ -89,22 +89,22 @@ FAST_MODULE="$TMP/fast-module"
 MODULE_DIR="$FAST_MODULE"
 MODDIR="$FAST_MODULE"
 IS_COLOROS=true
-LUOSHU_COLOROS_CACHE_KEY=coloros-fast-route-fixture
-LUOSHU_COLOROS_SYSTEM_FONTS_ROOT="$TMP/fast-real/system/fonts"
-LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT="$TMP/fast-real/system_ext/fonts"
-LUOSHU_COLOROS_PRODUCT_FONTS_ROOT="$TMP/fast-real/product/fonts"
-export MODULE_DIR MODDIR IS_COLOROS LUOSHU_COLOROS_CACHE_KEY \
-    LUOSHU_COLOROS_SYSTEM_FONTS_ROOT LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT \
-    LUOSHU_COLOROS_PRODUCT_FONTS_ROOT
+ZIYU_COLOROS_CACHE_KEY=coloros-fast-route-fixture
+ZIYU_COLOROS_SYSTEM_FONTS_ROOT="$TMP/fast-real/system/fonts"
+ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT="$TMP/fast-real/system_ext/fonts"
+ZIYU_COLOROS_PRODUCT_FONTS_ROOT="$TMP/fast-real/product/fonts"
+export MODULE_DIR MODDIR IS_COLOROS ZIYU_COLOROS_CACHE_KEY \
+    ZIYU_COLOROS_SYSTEM_FONTS_ROOT ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT \
+    ZIYU_COLOROS_PRODUCT_FONTS_ROOT
 mkdir -p "$FAST_MODULE/config" "$FAST_MODULE/logs" \
-    "$LUOSHU_COLOROS_SYSTEM_FONTS_ROOT" "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT" \
-    "$LUOSHU_COLOROS_PRODUCT_FONTS_ROOT"
+    "$ZIYU_COLOROS_SYSTEM_FONTS_ROOT" "$ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT" \
+    "$ZIYU_COLOROS_PRODUCT_FONTS_ROOT"
 make_fixture_link() {
     _mfl_target="$1"
     _mfl_link="$2"
-    if [ -n "${LUOSHU_TEST_PYTHON:-}" ]; then
+    if [ -n "${ZIYU_TEST_PYTHON:-}" ]; then
         command -v cygpath >/dev/null 2>&1 && _mfl_link=$(cygpath -w "$_mfl_link")
-        "$LUOSHU_TEST_PYTHON" -c 'import os,sys; os.symlink(sys.argv[1],sys.argv[2])' \
+        "$ZIYU_TEST_PYTHON" -c 'import os,sys; os.symlink(sys.argv[1],sys.argv[2])' \
             "$_mfl_target" "$_mfl_link"
     elif command -v python3 >/dev/null 2>&1; then
         python3 -c 'import os,sys; os.symlink(sys.argv[1],sys.argv[2])' \
@@ -113,9 +113,9 @@ make_fixture_link() {
         ln -s "$_mfl_target" "$_mfl_link"
     fi
 }
-make_fixture_link missing-stock-target.ttf "$LUOSHU_COLOROS_SYSTEM_FONTS_ROOT/SysFont-Dangling-Regular.ttf"
-make_fixture_link SysFont-Cycle-Regular.ttf "$LUOSHU_COLOROS_SYSTEM_FONTS_ROOT/SysFont-Cycle-Regular.ttf"
-make_fixture_link missing-digit-target.ttf "$LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT/OSans-Solid-Digits-VF.ttf"
+make_fixture_link missing-stock-target.ttf "$ZIYU_COLOROS_SYSTEM_FONTS_ROOT/SysFont-Dangling-Regular.ttf"
+make_fixture_link SysFont-Cycle-Regular.ttf "$ZIYU_COLOROS_SYSTEM_FONTS_ROOT/SysFont-Cycle-Regular.ttf"
+make_fixture_link missing-digit-target.ttf "$ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT/OSans-Solid-Digits-VF.ttf"
 
 . "$ROOT/common/coloros_global.sh"
 . "$ROOT/common/device_font_payload_policy.sh"
@@ -138,9 +138,9 @@ ok cmp -s "$USER_FONTS_DIR/Demo-Regular.ttf" "$FAST_MODULE/system_ext/fonts/OSan
 
 . "$ROOT/common/font_safety.sh"
 . "$ROOT/common/font_runtime_policy.sh"
-ok luoshu_payload_validate_current ColorOsFixture
-ok luoshu_payload_build_manifest
-ok luoshu_payload_validate_manifest_full
+ok ziyu_payload_validate_current ColorOsFixture
+ok ziyu_payload_build_manifest
+ok ziyu_payload_validate_manifest_full
 ok grep -q '^system/fonts/SysFont-Dangling-Regular.ttf|' "$FAST_MODULE/config/font-payload-manifest.conf"
 ok grep -q '^system/fonts/SysFont-Cycle-Regular.ttf|' "$FAST_MODULE/config/font-payload-manifest.conf"
 ok grep -q '^system_ext/fonts/OSans-Solid-Digits-VF.ttf|' "$FAST_MODULE/config/font-payload-manifest.conf"
@@ -151,8 +151,8 @@ printf '%s\n' "$FAST_TARGETS" > "$TMP/fast-targets-disabled"
 no grep -qx 'OSans-Solid-Digits-VF.ttf' "$TMP/fast-targets-disabled"
 ok _device_font_fast_map "$USER_FONTS_DIR/Demo-Regular.ttf" Demo quick Demo
 no test -e "$FAST_MODULE/system_ext/fonts/OSans-Solid-Digits-VF.ttf"
-ok luoshu_payload_build_manifest
-ok luoshu_payload_validate_manifest_full
+ok ziyu_payload_build_manifest
+ok ziyu_payload_validate_manifest_full
 no grep -q '^system_ext/fonts/OSans-Solid-Digits-VF.ttf|' "$FAST_MODULE/config/font-payload-manifest.conf"
 
 printf 'ColorOS safe partition mapping tests passed.\n'

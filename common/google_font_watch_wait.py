@@ -153,9 +153,9 @@ class EventWait:
 
 
 def configure(watcher: EventWait, module: Path):
-    watcher.directory(module, {'disable', 'remove', '.luoshu-payload'})
+    watcher.directory(module, {'disable', 'remove', '.ziyu-payload'})
     watcher.directory(module / 'config', {'active_font.conf'})
-    override = os.environ.get('LUOSHU_GOOGLE_FONT_WATCH_ROOTS')
+    override = os.environ.get('ZIYU_GOOGLE_FONT_WATCH_ROOTS')
     if override is not None:
         roots = [Path(p) for p in override.splitlines() if p]
     else:
@@ -200,7 +200,7 @@ def main() -> int:
         module = Path(sys.argv[1])
         if not module.is_dir():
             return 3
-        return wait(module, float(sys.argv[2]), Path(os.environ.get('LUOSHU_PROC_ROOT', '/proc')))
+        return wait(module, float(sys.argv[2]), Path(os.environ.get('ZIYU_PROC_ROOT', '/proc')))
     except (OSError, AttributeError, ValueError):
         return 3
 

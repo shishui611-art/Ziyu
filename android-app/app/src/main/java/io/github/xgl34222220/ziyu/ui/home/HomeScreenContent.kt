@@ -144,7 +144,7 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
         onClick = actions.openLogs,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        color = if (failed) scheme.errorContainer else palette.cardBackground,
+        color = (if (failed) scheme.errorContainer else palette.cardBackground).withCardTransparency(),
         contentColor = if (failed) scheme.onErrorContainer else palette.textPrimary,
         border = ZiyuCardDefaults.border(if (failed) scheme.errorContainer else palette.cardBackground),
         shadowElevation = LocalZiyuThemeTokens.current.layout.cardElevation,
@@ -188,7 +188,7 @@ internal fun HomeNavigation(style: UiStyle, actions: HomeActions) {
         ZiyuSurface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
-            color = palette.cardBackground,
+            color = palette.cardBackground.withCardTransparency(),
             border = ZiyuCardDefaults.border(),
             shadowElevation = LocalZiyuThemeTokens.current.layout.cardElevation,
         ) {
@@ -232,7 +232,7 @@ internal fun HomeDevicePanel(state: HomeUiState, trustContent: @Composable () ->
     val palette = LocalZiyuPaletteTokens.current
     ZiyuSurface(
         modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-        color = palette.cardBackground, border = ZiyuCardDefaults.border(),
+        color = palette.cardBackground.withCardTransparency(), border = ZiyuCardDefaults.border(),
         shadowElevation = LocalZiyuThemeTokens.current.layout.cardElevation,
     ) {
         Column {

@@ -2,14 +2,14 @@
 set -eux
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-stability)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-stability)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 MODULE="$TMP/module"
 mkdir -p "$MODULE/common/legacy_v14_4" "$MODULE/config"
 cp "$ROOT/common/module_status.sh" "$MODULE/common/module_status.sh"
 cp "$ROOT/common/font_switch_task.sh" "$MODULE/common/font_switch_task.sh"
-cp "$ROOT/common/font_live_state.sh" "$MODULE/common/font_live_state.sh"
+cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODULE/common/"
 cp "$ROOT/common/font_mix_controller.sh" "$MODULE/common/font_mix_controller.sh"
 cp "$ROOT/common/legacy_v14_4/mix_router.sh" "$MODULE/common/legacy_v14_4/mix_router.sh"
 cp "$ROOT/common/composite_tune.sh" "$MODULE/common/composite_tune.sh"
@@ -69,27 +69,27 @@ MODDIR="$MODULE" sh "$MODULE/common/module_status.sh" mix >/dev/null
 grep -q '当前字体：组合：中文甲 / Latin B / DIN C$' "$MODULE/module.prop"
 ! grep -q '待验证' "$MODULE/module.prop"
 
-# 私有字体负载只保存在 .luoshu-payload 中，不再投影到模块常规目录；
+# 私有字体负载只保存在 .ziyu-payload 中，不再投影到模块常规目录；
 # 卸载时仍能清理旧版本遗留的临时符号链接记录。
 PRIVATE_MODULE="$TMP/private-module"
 PRIVATE_STATE="$TMP/private-state"
-mkdir -p "$PRIVATE_MODULE/.luoshu-payload/system/fonts" "$PRIVATE_MODULE/system"
-printf 'font-payload\n' > "$PRIVATE_MODULE/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+mkdir -p "$PRIVATE_MODULE/.ziyu-payload/system/fonts" "$PRIVATE_MODULE/system"
+printf 'font-payload\n' > "$PRIVATE_MODULE/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 mkdir -p "$PRIVATE_STATE"
 rmdir "$PRIVATE_MODULE/system"
-ln -s "$PRIVATE_MODULE/.luoshu-payload/system" "$PRIVATE_MODULE/system"
-printf '%s|%s\n' "$PRIVATE_MODULE/system" "$PRIVATE_MODULE/.luoshu-payload/system" > "$PRIVATE_STATE/module-view.symlinks"
+ln -s "$PRIVATE_MODULE/.ziyu-payload/system" "$PRIVATE_MODULE/system"
+printf '%s|%s\n' "$PRIVATE_MODULE/system" "$PRIVATE_MODULE/.ziyu-payload/system" > "$PRIVATE_STATE/module-view.symlinks"
 MODULE_DIR="$PRIVATE_MODULE" \
-LUOSHU_PRIVATE_STATE_ROOT="$PRIVATE_STATE" \
-LUOSHU_PRIVATE_MOUNT_COMMAND=false \
+ZIYU_PRIVATE_STATE_ROOT="$PRIVATE_STATE" \
+ZIYU_PRIVATE_MOUNT_COMMAND=false \
     sh -c '
         . "$1/common/private_payload.sh"
-        test -f "$MODULE_DIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
-        ! type luoshu_private_mount_module_view >/dev/null 2>&1
-        luoshu_private_unmount_module_view "$MODULE_DIR"
+        test -f "$MODULE_DIR/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
+        ! type ziyu_private_mount_module_view >/dev/null 2>&1
+        ziyu_private_unmount_module_view "$MODULE_DIR"
         test -d "$MODULE_DIR/system"
         test ! -L "$MODULE_DIR/system"
-        test -f "$MODULE_DIR/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+        test -f "$MODULE_DIR/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
     ' sh "$ROOT"
 
 # 原生 App 字体管理器必须使用原生索引，且不再携带 WebUI 预览、热刷新或回滚入口。
@@ -98,7 +98,7 @@ grep -q 'CURRENT_MANAGER=' "$ROOT/common/font_manager.sh"
 grep -q 'native_font_index.json' "$ROOT/common/font_manager_v4.sh"
 grep -q 'native_font_index.key' "$ROOT/common/font_manager_v4.sh"
 ! grep -qE 'webroot|sync_preview_fonts|restart_ui|previous_font\.conf' "$ROOT/common/font_manager.sh"
-! grep -qE '重启界面|刷新字体缓存|回滚' "$ROOT/common/luoshu_cli.sh"
+! grep -qE '重启界面|刷新字体缓存|回滚' "$ROOT/common/ziyu_cli.sh"
 test ! -d "$ROOT/webroot"
 test ! -e "$ROOT/scripts/prepare_webui.sh"
 
@@ -110,14 +110,14 @@ if [ -s "$FONT" ]; then
     REAL_DD=$(command -v dd)
     cat > "$TMP/bin/dd" <<'EOS'
 #!/bin/sh
-_count=$(cat "$LUOSHU_DD_COUNT" 2>/dev/null || printf '0')
+_count=$(cat "$ZIYU_DD_COUNT" 2>/dev/null || printf '0')
 case "$_count" in ''|*[!0-9]*) _count=0 ;; esac
-printf '%s\n' "$((_count + 1))" > "$LUOSHU_DD_COUNT"
-exec "$LUOSHU_REAL_DD" "$@"
+printf '%s\n' "$((_count + 1))" > "$ZIYU_DD_COUNT"
+exec "$ZIYU_REAL_DD" "$@"
 EOS
     chmod 0755 "$TMP/bin/dd"
     printf '0\n' > "$TMP/dd-count"
-    PATH="$TMP/bin:$PATH" LUOSHU_REAL_DD="$REAL_DD" LUOSHU_DD_COUNT="$TMP/dd-count" \
+    PATH="$TMP/bin:$PATH" ZIYU_REAL_DD="$REAL_DD" ZIYU_DD_COUNT="$TMP/dd-count" \
         sh -c '
             . "$1/common/font_check.sh"
             font_validate "$2" text
@@ -140,18 +140,18 @@ sh "$ROOT/scripts/font_library_cache_test.sh"
 # 模块刷写阶段严禁同步重建字体。跨 schema 更新只能保留当前可工作负载并登记
 # 重启后由 App 显式重应用；Root 管理器刷写进程不得调用字体切换/复合重建器。
 # customize.sh is now a safety wrapper; the delegated verified installer owns update-state loading.
-grep -q '.luoshu-runtime/compat/v227/customize.sh' "$ROOT/customize.sh"
-grep -q 'module_update_state.sh' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
-! grep -q 'luoshu_rebuild_preserved_payload.*MODPATH' "$ROOT/customize.sh"
-grep -q 'font-payload-rebuild-pending.conf' "$ROOT/.luoshu-runtime/core/post-fs-data.sh"
+grep -q '.ziyu-runtime/compat/v227/customize.sh' "$ROOT/customize.sh"
+grep -q 'module_update_state.sh' "$ROOT/.ziyu-runtime/compat/v227/customize.sh"
+! grep -q 'ziyu_rebuild_preserved_payload.*MODPATH' "$ROOT/customize.sh"
+grep -q 'font-payload-rebuild-pending.conf' "$ROOT/.ziyu-runtime/core/post-fs-data.sh"
 grep -q 'LEGACY_MODE=' "$ROOT/post-fs-data.sh"
 grep -q 'exec sh "$V4_POST_FS"' "$ROOT/post-fs-data.sh"
 ! grep -q 'font-payload-rebuild-pending.conf' "$ROOT/post-fs-data.sh"
-! grep -q 'luoshu_rebuild_preserved_payload' "$ROOT/service.sh"
-grep -q 'LUOSHU_UPDATE_REBUILD_REQUIRED' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
-! grep -q 'luoshu_v4_update_rebuild_selected' "$ROOT/customize.sh"
-grep -q '重启后需在字域重新应用当前字体以升级引擎' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
-grep -q '已保留字体选择与组合偏好' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
+! grep -q 'ziyu_rebuild_preserved_payload' "$ROOT/service.sh"
+grep -q 'ZIYU_UPDATE_REBUILD_REQUIRED' "$ROOT/.ziyu-runtime/compat/v227/customize.sh"
+! grep -q 'ziyu_v4_update_rebuild_selected' "$ROOT/customize.sh"
+grep -q '重启后需在字域重新应用当前字体以升级引擎' "$ROOT/.ziyu-runtime/compat/v227/customize.sh"
+grep -q '已保留字体选择与组合偏好' "$ROOT/.ziyu-runtime/compat/v227/customize.sh"
 sh "$ROOT/scripts/module_update_state_test.sh"
 
 # 所有字体卡片必须使用同一套短双行样张，任何字体字宽都不得把第二行挤掉。
@@ -180,7 +180,7 @@ grep -q 'native_font_index.key' "$ROOT/common/native_import.sh"
 grep -q 'native-v3|' "$ROOT/common/font_manager_v4.sh"
 grep -q 'manifest-fast' "$ROOT/common/font_manager.sh"
 grep -q 'font-index-v4.json' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt"
-grep -q 'LUOSHU_PREPARE_CACHE' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+grep -q 'ZIYU_PREPARE_CACHE' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 grep -q 'supportsCjk' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ZiyuViewModel.kt"
 grep -q 'fontPreviewWeight' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeFontPreview.kt"
 

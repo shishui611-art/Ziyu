@@ -1,7 +1,7 @@
 #!/system/bin/sh
 set +e
 # ============================================================
-# 洛书 - 工具函数库 (util_functions.sh)
+# 字域 - 工具函数库 (util_functions.sh)
 # 作者：惜故里丶
 # 版本：v2.0.0
 # 功能：提供字体模块所需的所有通用工具函数
@@ -18,13 +18,13 @@ LOG_FILE="${LOG_DIR}/fontswitch.log"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
-USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
-USER_REPORT_DIR="$LUOSHU_PUBLIC_DIR/reports"
-USER_IMPORT_DIR="$LUOSHU_PUBLIC_DIR/import"
+ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
+USER_FONTS_DIR="$ZIYU_PUBLIC_DIR/fonts"
+USER_REPORT_DIR="$ZIYU_PUBLIC_DIR/reports"
+USER_IMPORT_DIR="$ZIYU_PUBLIC_DIR/import"
 LEGACY_FONTS_DIR="${LEGACY_FONTS_DIR:-/sdcard/Fonts}"
 
-luoshu_font_lock_pid() {
+ziyu_font_lock_pid() {
     _lflp_path="${1:-$MODULE_DIR/.font_switch.lock}"
     if [ -d "$_lflp_path" ]; then
         cat "$_lflp_path/pid" 2>/dev/null
@@ -33,16 +33,16 @@ luoshu_font_lock_pid() {
     fi
 }
 
-luoshu_font_lock_active() {
-    _lfla_pid="$(luoshu_font_lock_pid "$1")"
+ziyu_font_lock_active() {
+    _lfla_pid="$(ziyu_font_lock_pid "$1")"
     case "$_lfla_pid" in ''|*[!0-9]*) return 1 ;; esac
     kill -0 "$_lfla_pid" 2>/dev/null
 }
 
-luoshu_font_lock_reap_stale() {
+ziyu_font_lock_reap_stale() {
     _lfls_path="${1:-$MODULE_DIR/.font_switch.lock}"
     [ -e "$_lfls_path" ] || return 0
-    luoshu_font_lock_active "$_lfls_path" && return 1
+    ziyu_font_lock_active "$_lfls_path" && return 1
     if [ -d "$_lfls_path" ]; then
         rm -f "$_lfls_path/pid" 2>/dev/null || true
         rmdir "$_lfls_path" 2>/dev/null
@@ -51,7 +51,7 @@ luoshu_font_lock_reap_stale() {
     fi
 }
 
-luoshu_font_lock_acquire() {
+ziyu_font_lock_acquire() {
     _lfla_path="${1:-$MODULE_DIR/.font_switch.lock}"
     _lfla_owner="${2:-$$}"
     _lfla_attempt=0
@@ -64,18 +64,18 @@ luoshu_font_lock_acquire() {
             return 1
         fi
         [ -e "$_lfla_path" ] || { _lfla_attempt=$((_lfla_attempt + 1)); continue; }
-        luoshu_font_lock_active "$_lfla_path" && return 2
-        luoshu_font_lock_reap_stale "$_lfla_path" >/dev/null 2>&1 || true
+        ziyu_font_lock_active "$_lfla_path" && return 2
+        ziyu_font_lock_reap_stale "$_lfla_path" >/dev/null 2>&1 || true
         _lfla_attempt=$((_lfla_attempt + 1))
     done
     return 2
 }
 
-luoshu_font_lock_release() {
+ziyu_font_lock_release() {
     _lflr_path="${1:-$MODULE_DIR/.font_switch.lock}"
     _lflr_owner="${2:-$$}"
     [ -e "$_lflr_path" ] || return 0
-    _lflr_pid="$(luoshu_font_lock_pid "$_lflr_path")"
+    _lflr_pid="$(ziyu_font_lock_pid "$_lflr_path")"
     [ "$_lflr_pid" = "$_lflr_owner" ] || return 1
     if [ -d "$_lflr_path" ]; then
         rm -f "$_lflr_path/pid" 2>/dev/null || return 1
@@ -90,7 +90,7 @@ luoshu_font_lock_release() {
 # 避免用户仍使用旧版模块时找不到原文件。
 ensure_public_storage() {
     mkdir -p "$USER_FONTS_DIR" "$USER_REPORT_DIR" "$USER_IMPORT_DIR" 2>/dev/null || true
-    chmod 0775 "$LUOSHU_PUBLIC_DIR" "$USER_FONTS_DIR" "$USER_REPORT_DIR" "$USER_IMPORT_DIR" 2>/dev/null || true
+    chmod 0775 "$ZIYU_PUBLIC_DIR" "$USER_FONTS_DIR" "$USER_REPORT_DIR" "$USER_IMPORT_DIR" 2>/dev/null || true
     if [ -d "$LEGACY_FONTS_DIR" ]; then
         for _old in "$LEGACY_FONTS_DIR"/*.ttf "$LEGACY_FONTS_DIR"/*.otf "$LEGACY_FONTS_DIR"/*.ttc \
                     "$LEGACY_FONTS_DIR"/*.TTF "$LEGACY_FONTS_DIR"/*.OTF "$LEGACY_FONTS_DIR"/*.TTC; do
@@ -216,8 +216,8 @@ check_magisk_version() {
 
     _root_helper="${MODDIR:-${MODULE_DIR:-${MODPATH:-}}}/common/root_manager_detection.sh"
     [ -f "$_root_helper" ] && . "$_root_helper"
-    if type luoshu_detect_root_manager >/dev/null 2>&1; then
-        luoshu_detect_root_manager >/dev/null 2>&1
+    if type ziyu_detect_root_manager >/dev/null 2>&1; then
+        ziyu_detect_root_manager >/dev/null 2>&1
         ROOT_MANAGER="${ROOT_MANAGER:-unknown}"
         ROOT_MANAGER_VER="${ROOT_VERSION:-unknown}"
         ROOT_MANAGER_VER_CODE="${ROOT_VERSION_CODE:-0}"

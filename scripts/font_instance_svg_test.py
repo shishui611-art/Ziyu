@@ -137,11 +137,11 @@ class SvgInstanceTest(unittest.TestCase):
         # Keep the real App controller, router and runtime setup. Stub only the
         # downstream Android worker so recovery cannot access phone resources.
         (legacy / "v14_mix.sh").write_text("#!/bin/sh\nprintf '{\"status\":\"ok\"}\\n'\n")
-        (module / "module.prop").write_text("id=LuoShu\nversion=test\n")
+        (module / "module.prop").write_text("id=Ziyu\nversion=test\n")
         result = subprocess.run(
             [shutil.which("sh") or r"C:\Program Files\Git\bin\sh.exe", str(common / "font_mix_controller.sh"), "recover"],
             env={**os.environ, "MODDIR": module.as_posix(),
-                 "LUOSHU_PUBLIC_DIR": (self.root / "public").as_posix()},
+                 "ZIYU_PUBLIC_DIR": (self.root / "public").as_posix()},
             capture_output=True, text=True, timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

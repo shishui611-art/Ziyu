@@ -1,12 +1,12 @@
 #!/bin/sh
-# 生成洛书预发行就绪报告。默认只报告；传入 --enforce 时阻断未满足的发布条件。
+# 生成字域预发行就绪报告。默认只报告；传入 --enforce 时阻断未满足的发布条件。
 set -eu
 
 ROOT="${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}"
 TARGET_VERSION=''
 ENFORCE=0
 STABLE=0
-OUTPUT_DIR="${LUOSHU_READINESS_DIR:-$ROOT/dist/pre-release-readiness}"
+OUTPUT_DIR="${ZIYU_READINESS_DIR:-$ROOT/dist/pre-release-readiness}"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -240,7 +240,7 @@ status='ready'
 {
     printf '{\n'
     printf '  "schema": 1,\n'
-    printf '  "type": "luoshu-pre-release-readiness",\n'
+    printf '  "type": "ziyu-pre-release-readiness",\n'
     printf '  "targetVersion": "%s",\n' "$(json_escape "$TARGET_VERSION")"
     printf '  "currentVersion": "%s",\n' "$(json_escape "${current_version:-unknown}")"
     printf '  "status": "%s",\n' "$status"

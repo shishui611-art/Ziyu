@@ -14,7 +14,7 @@ clear_managed_text_fonts() {
         [ -d "$_lfrc_etc" ] || continue
         for _lfrc_xml in "$_lfrc_etc"/*.xml; do
             [ -f "$_lfrc_xml" ] || continue
-            grep -Eq 'LuoShu(Mono)?-' "$_lfrc_xml" 2>/dev/null && rm -f "$_lfrc_xml" 2>/dev/null || true
+            grep -Eq 'Ziyu(Mono)?-' "$_lfrc_xml" 2>/dev/null && rm -f "$_lfrc_xml" 2>/dev/null || true
         done
     done
     mkdir -p "$_lfrc_root/system/fonts" 2>/dev/null || true

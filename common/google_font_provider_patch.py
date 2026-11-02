@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a Google/GMS provider font clone from the active LuoShu weight source.
+"""Build a Google/GMS provider font clone from the active Ziyu weight source.
 
 The provider cache is never modified. The generated clone is stored inside the module
 and later bind-mounted over the provider file in the consumer mount namespaces.

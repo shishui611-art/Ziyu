@@ -1,35 +1,35 @@
 #!/system/bin/sh
 # Root 后台任务启动器：脱离 App 的 su 会话、终端与进程组。
 
-luoshu_current_boot_id() {
+ziyu_current_boot_id() {
     _lcbi_value=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
     [ -n "$_lcbi_value" ] || _lcbi_value=$(getprop ro.runtime.firstboot 2>/dev/null | tr -d '\r\n')
     [ -n "$_lcbi_value" ] || _lcbi_value=unknown
     printf '%s\n' "$_lcbi_value"
 }
 
-luoshu_pid_value() {
+ziyu_pid_value() {
     _lpv_file="$1"
     sed -n '1{s/[^0-9].*$//;p;}' "$_lpv_file" 2>/dev/null
 }
 
-luoshu_task_pid_alive() {
+ziyu_task_pid_alive() {
     _ltpa_pid_file="$1"
     _ltpa_task="${2:-}"
-    _ltpa_pid=$(luoshu_pid_value "$_ltpa_pid_file")
+    _ltpa_pid=$(ziyu_pid_value "$_ltpa_pid_file")
     [ -n "$_ltpa_pid" ] || return 1
 
     # PID 在完整重启后可能被复用。带 boot sidecar 的任务必须属于当前启动周期。
     if [ -s "${_ltpa_pid_file}.boot" ]; then
         _ltpa_expected_boot=$(cat "${_ltpa_pid_file}.boot" 2>/dev/null | tr -d '\r\n')
-        _ltpa_current_boot=$(luoshu_current_boot_id)
+        _ltpa_current_boot=$(ziyu_current_boot_id)
         [ -n "$_ltpa_expected_boot" ] && [ "$_ltpa_expected_boot" = "$_ltpa_current_boot" ] || return 1
     fi
 
     kill -0 "$_ltpa_pid" 2>/dev/null || return 1
     if [ -n "$_ltpa_task" ]; then
         # A numeric PID can be recycled by Android. The task sidecar and, when available,
-        # the worker command line must both still belong to the same LuoShu task.
+        # the worker command line must both still belong to the same Ziyu task.
         [ -s "${_ltpa_pid_file}.task" ] || return 1
         [ "$(cat "${_ltpa_pid_file}.task" 2>/dev/null)" = "$_ltpa_task" ] || return 1
         if [ -r "/proc/$_ltpa_pid/cmdline" ]; then
@@ -40,14 +40,14 @@ luoshu_task_pid_alive() {
     return 0
 }
 
-luoshu_clear_task_pid() {
+ziyu_clear_task_pid() {
     _lctp_pid_file="$1"
     _lctp_task="${2:-}"
     # The one-shot supervisor owns these sidecars until all descendants have
     # exited. A worker must not erase ownership while its children still run.
-    if [ "${LUOSHU_TASK_SCOPE_PID_FILE:-}" = "$_lctp_pid_file" ] && \
-       [ -n "${LUOSHU_TASK_SCOPE_PID:-}" ] && \
-       { [ -z "$_lctp_task" ] || [ "${LUOSHU_TASK_SCOPE_TASK:-}" = "$_lctp_task" ]; }; then
+    if [ "${ZIYU_TASK_SCOPE_PID_FILE:-}" = "$_lctp_pid_file" ] && \
+       [ -n "${ZIYU_TASK_SCOPE_PID:-}" ] && \
+       { [ -z "$_lctp_task" ] || [ "${ZIYU_TASK_SCOPE_TASK:-}" = "$_lctp_task" ]; }; then
         return 0
     fi
     if [ -n "$_lctp_task" ] && [ -s "${_lctp_pid_file}.task" ] && [ "$(cat "${_lctp_pid_file}.task" 2>/dev/null)" != "$_lctp_task" ]; then
@@ -56,25 +56,25 @@ luoshu_clear_task_pid() {
     rm -f "$_lctp_pid_file" "${_lctp_pid_file}.task" "${_lctp_pid_file}.boot" 2>/dev/null || true
 }
 
-luoshu_stop_task_pid() {
+ziyu_stop_task_pid() {
     _lstp_pid_file="$1"
-    _lstp_pid=$(luoshu_pid_value "$_lstp_pid_file")
+    _lstp_pid=$(ziyu_pid_value "$_lstp_pid_file")
     _lstp_task=$(cat "${_lstp_pid_file}.task" 2>/dev/null)
-    if luoshu_task_pid_alive "$_lstp_pid_file" "$_lstp_task"; then
-        luoshu_terminate_task_tree "$_lstp_pid"
+    if ziyu_task_pid_alive "$_lstp_pid_file" "$_lstp_task"; then
+        ziyu_terminate_task_tree "$_lstp_pid"
     fi
-    luoshu_clear_task_pid "$_lstp_pid_file"
+    ziyu_clear_task_pid "$_lstp_pid_file"
 }
 
 # Cancellation is rare: take one process-tree snapshot, rather than running a
 # pgrep for every child. Keep the descendants after their parents exit so a
 # grandchild FontTools worker cannot escape the final KILL by being reparented.
 # Start-time checks keep the saved list from signalling a recycled PID.
-luoshu_terminate_task_tree() (
+ziyu_terminate_task_tree() (
     _ltt_root="$1"
     case "$_ltt_root" in ''|*[!0-9]*|0|1) return 1 ;; esac
     [ "$_ltt_root" != "$$" ] || return 1
-    _ltt_proc_root="${LUOSHU_PROC_ROOT:-/proc}"
+    _ltt_proc_root="${ZIYU_PROC_ROOT:-/proc}"
     _ltt_identity() {
         IFS= read -r _ltt_stat 2>/dev/null < "$_ltt_proc_root/$1/stat" || return 1
         _ltt_tail=${_ltt_stat##*) }
@@ -110,26 +110,26 @@ luoshu_terminate_task_tree() (
     done
 )
 
-luoshu_start_detached() {
+ziyu_start_detached() {
     _lsd_pid_file="$1"
     _lsd_task="$2"
     _lsd_log_file="$3"
     shift 3
     [ "$#" -gt 0 ] || return 2
     mkdir -p "${_lsd_pid_file%/*}" "${_lsd_log_file%/*}" 2>/dev/null || return 1
-    if luoshu_task_pid_alive "$_lsd_pid_file" "$_lsd_task"; then
+    if ziyu_task_pid_alive "$_lsd_pid_file" "$_lsd_task"; then
         return 3
     fi
 
     # Shell function variables are global on Android /system/bin/sh. Keep function-specific
-    # names here: the old generic _task variable was cleared by luoshu_clear_task_pid(), so
+    # names here: the old generic _task variable was cleared by ziyu_clear_task_pid(), so
     # every new worker wrote an empty .task sidecar and was falsely recovered as interrupted.
-    luoshu_clear_task_pid "$_lsd_pid_file"
+    ziyu_clear_task_pid "$_lsd_pid_file"
 
     _lsd_scope="${MODDIR:-}/common/task_scope.sh"
     if [ -f "$_lsd_scope" ]; then
-        [ -x "$MODDIR/common/python/bin/luoshu-python" ] || return 1
-        _lsd_timeout="${LUOSHU_TASK_TIMEOUT_SECONDS:-900}"
+        [ -x "$MODDIR/common/python/bin/ziyu-python" ] || return 1
+        _lsd_timeout="${ZIYU_TASK_TIMEOUT_SECONDS:-900}"
         case "$_lsd_timeout" in ''|*[!0-9]*) _lsd_timeout=900 ;; esac
         [ "$_lsd_timeout" -ge 30 ] 2>/dev/null || _lsd_timeout=30
         [ "$_lsd_timeout" -le 900 ] 2>/dev/null || _lsd_timeout=900
@@ -150,7 +150,7 @@ luoshu_start_detached() {
     case "$_lsd_pid" in ''|*[!0-9]*) return 1 ;; esac
     printf '%s\n' "$_lsd_pid" >"$_lsd_pid_file" 2>/dev/null || return 1
     printf '%s\n' "$_lsd_task" >"${_lsd_pid_file}.task" 2>/dev/null || true
-    luoshu_current_boot_id >"${_lsd_pid_file}.boot" 2>/dev/null || true
+    ziyu_current_boot_id >"${_lsd_pid_file}.boot" 2>/dev/null || true
     chmod 0644 "$_lsd_pid_file" "${_lsd_pid_file}.task" "${_lsd_pid_file}.boot" 2>/dev/null || true
     return 0
 }

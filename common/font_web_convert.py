@@ -2,7 +2,7 @@
 """Convert WOFF/WOFF2 web-font containers to Android-usable SFNT.
 
 WOFF uses FontTools directly. WOFF2 first tries FontTools' Brotli-backed decoder;
-the pruned Android runtime then falls back to LuoShu's pinned ARM64
+the pruned Android runtime then falls back to Ziyu's pinned ARM64
 woff2_decompress helper. An extension rename is never treated as conversion.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ SFNT_MAGIC = {
     b"ttcf": "TTC",
 }
 DEFAULT_WOFF2_DECODER = (
-    Path(__file__).resolve().parents[1] / ".luoshu-runtime/bin/woff2_decompress"
+    Path(__file__).resolve().parents[1] / ".ziyu-runtime/bin/woff2_decompress"
 )
 
 
@@ -100,7 +100,7 @@ def _fonttools_decode(source: Path, output: Path) -> None:
 def _native_woff2_decode(source: Path, output_dir: Path, decoder: Path) -> tuple[Path, str]:
     if not decoder.is_file() or not os.access(decoder, os.X_OK):
         raise ValueError("WOFF2 解码器不可用；字域运行时缺少 ARM64 woff2_decompress")
-    stage = Path(tempfile.mkdtemp(prefix=".luoshu-woff2-", dir=output_dir))
+    stage = Path(tempfile.mkdtemp(prefix=".ziyu-woff2-", dir=output_dir))
     try:
         staged_input = stage / (safe_stem(source.stem) + ".woff2")
         shutil.copyfile(source, staged_input)
@@ -142,14 +142,14 @@ def convert(
     source_hash = sha256(source)
     decoder = (
         woff2_decoder
-        or (Path(os.environ["LUOSHU_WOFF2_DECODER"]) if os.environ.get("LUOSHU_WOFF2_DECODER") else None)
+        or (Path(os.environ["ZIYU_WOFF2_DECODER"]) if os.environ.get("ZIYU_WOFF2_DECODER") else None)
         or DEFAULT_WOFF2_DECODER
     )
     decode_method = "fonttools"
     raw_temp: Path | None = None
 
     with tempfile.NamedTemporaryFile(
-        prefix=".luoshu-webfont-", suffix=".sfnt", dir=output_dir, delete=False
+        prefix=".ziyu-webfont-", suffix=".sfnt", dir=output_dir, delete=False
     ) as handle:
         temp = Path(handle.name)
     try:

@@ -13,7 +13,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 }
 
 # 运行时脚本不得创建或依赖 webroot，也不得重新暴露热刷新入口。
-RUNTIME_FILES="$ROOT/customize.sh $ROOT/post-fs-data.sh $ROOT/post-mount.sh $ROOT/service.sh $ROOT/action.sh $ROOT/common/font_manager.sh $ROOT/common/app_bridge.sh $ROOT/common/luoshu_cli.sh"
+RUNTIME_FILES="$ROOT/customize.sh $ROOT/post-fs-data.sh $ROOT/post-mount.sh $ROOT/service.sh $ROOT/action.sh $ROOT/common/font_manager.sh $ROOT/common/app_bridge.sh $ROOT/common/ziyu_cli.sh"
 HITS=$(grep -InE 'webroot|restart_ui|sync_preview_fonts|重启界面|刷新字体缓存|回滚上一字体' $RUNTIME_FILES 2>/dev/null || true)
 if [ -n "$HITS" ]; then
   echo '=== App-only forbidden runtime inventory ===' >&2
@@ -45,7 +45,7 @@ find "$ROOT/system" -type f -iname '*emoji*' -print -quit 2>/dev/null | grep -q 
 } || true
 
 # 当前构建和工作流只允许单包模式。
-! grep -RIn 'LUOSHU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
+! grep -RIn 'ZIYU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
 ! grep -q '^webroot=' "$ROOT/module.prop"
 grep -q 'native_font_index.json' "$ROOT/common/font_manager.sh"
 grep -q 'native_font_index.json' "$ROOT/service.sh"

@@ -64,7 +64,7 @@ MAX_COLLECTION_FACE_TOTAL = 512
 MAX_STOCK_FILE_BYTES = 128 * 1024 * 1024
 MAX_OUTPUT_FACE_BYTES = 128 * 1024 * 1024
 MAX_MIX_SOURCE_BYTES = 128 * 1024 * 1024
-PROOF_DIRECTORY = '.luoshu-collection-proofs'
+PROOF_DIRECTORY = '.ziyu-collection-proofs'
 MAX_GLYPH_TEMPLATE_BYTES = 64 * 1024 * 1024
 # Only tables which replace_face does not intentionally mutate. The complete
 # canonical contract is checked before any loaded object is discarded.
@@ -1507,7 +1507,7 @@ def owned_workspace():
     next-request stale-stage cleanup after a hard kill own that whole stage.
     Normal completion removes the scratch child here.
     """
-    raw = os.environ.get('LUOSHU_TASK_SCOPE_TMPDIR', '')
+    raw = os.environ.get('ZIYU_TASK_SCOPE_TMPDIR', '')
     scope = Path(raw)
     if not raw or not scope.is_absolute() or scope.is_symlink() or not scope.is_dir():
         raise ValueError('缺少任务专属字体工作区')
@@ -1644,7 +1644,7 @@ def build_payload(module, payload, source, request, task_workspace, mix_config):
         output = _payload_output(payload, logical)
         relative = output.relative_to(payload).as_posix()
         result = build(source, stock, output, workspace, request, logical,
-                       os.environ.get('LUOSHU_COLLECTION_PROGRESS_FILE') or str(module / 'config/composite_progress.json'),
+                       os.environ.get('ZIYU_COLLECTION_PROGRESS_FILE') or str(module / 'config/composite_progress.json'),
                        source_identity=source_before, source_sha256=source_hash,
                        stock_sha256=_snapshot_digest(module, logical, stock),
                        verify_source_hash=False, donor_facts=donor_facts,

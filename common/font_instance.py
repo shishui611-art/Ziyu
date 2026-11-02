@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Materialize a font source at concrete variation-axis values for LuoShu v2.0.0.
+"""Materialize a font source at concrete variation-axis values for Ziyu v2.0.0.
 
 Variable fonts are pinned to every requested fvar axis. TTC/OTC collections are
 reduced to the face whose coverage and weight best match the requested role.
@@ -92,14 +92,14 @@ def report_error(error: Exception, message: str, code: str, exit_code: int, args
         script_digest = "unavailable"
     record = {"schema": "ziyu-font-error-v1", "status": "error", "message": message,
               "errorCode": code, "exitCode": exit_code, "exceptionType": type(error).__name__,
-              "stage": stage, "taskId": os.environ.get("LUOSHU_TASK_ID", "unknown"),
+              "stage": stage, "taskId": os.environ.get("ZIYU_TASK_ID", "unknown"),
               "time": datetime.now(timezone.utc).isoformat(), "monotonicSeconds": time.monotonic(),
               "source": fingerprint, "inputs": inputs, "output": getattr(args, "output", None),
               "role": getattr(args, "role", None),
               "effectiveWeight": getattr(args, "weight", None), "axes": getattr(args, "axes", None),
-              "requestedFamily": os.environ.get("LUOSHU_FONT_FAMILY", ""),
-              "generatedWeight": os.environ.get("LUOSHU_GENERATED_WEIGHT", ""),
-              "weightMode": os.environ.get("LUOSHU_WEIGHT_MODE", ""),
+              "requestedFamily": os.environ.get("ZIYU_FONT_FAMILY", ""),
+              "generatedWeight": os.environ.get("ZIYU_GENERATED_WEIGHT", ""),
+              "weightMode": os.environ.get("ZIYU_WEIGHT_MODE", ""),
               "pythonVersion": sys.version, "fontToolsVersion": FONTTOOLS_VERSION,
               "scriptSha256": script_digest,
               "traceback": traceback.format_exc()[-20000:]}
@@ -172,8 +172,8 @@ def parse_axis_spec(spec: str) -> dict[str, float]:
 
 
 def check_mix_cancellation():
-    task = os.environ.get("LUOSHU_MIX_PARENT_TASK")
-    marker = os.environ.get("LUOSHU_MIX_CANCEL_FILE")
+    task = os.environ.get("ZIYU_MIX_PARENT_TASK")
+    marker = os.environ.get("ZIYU_MIX_CANCEL_FILE")
     if task and marker and Path(marker).is_file():
         if f"task={task}" in Path(marker).read_text(encoding="utf-8").splitlines():
             raise InstanceError("组合任务已取消")

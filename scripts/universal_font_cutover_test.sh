@@ -5,7 +5,7 @@ ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MOD="$TMP/module"
-mkdir -p "$MOD/common/legacy_v14_4" "$MOD/config" "$MOD/logs" "$MOD/.luoshu-retired"
+mkdir -p "$MOD/common/legacy_v14_4" "$MOD/config" "$MOD/logs" "$MOD/.ziyu-retired"
 printf '{}\n' > "$MOD/config/device_font_topology.json"
 printf '{}\n' > "$MOD/config/device_font_roles.json"
 printf 'OldFont\n' > "$MOD/config/active_font.conf"
@@ -41,7 +41,7 @@ case "$1" in
   stage-prepared)
     previous=$(head -n1 "$MODDIR/config/active_font.conf" 2>/dev/null || printf 'default')
     [ -n "$previous" ] || previous=default
-    mkdir -p "$MODDIR/.luoshu-payload-next"
+    mkdir -p "$MODDIR/.ziyu-payload-next"
     {
       printf 'state=prepared\n'
       printf 'font=%s\n' "$2"
@@ -62,7 +62,7 @@ cat > "$MOD/common/legacy_v14_4/font_switch_safe.sh" <<'SH'
 previous=$(head -n1 "$MODDIR/config/active_font.conf" 2>/dev/null || printf 'default')
 [ -n "$previous" ] || previous=default
 printf '%s\n' "${3:-unknown}" >> "$MODDIR/config/legacy-called"
-mkdir -p "$MODDIR/.luoshu-payload-next"
+mkdir -p "$MODDIR/.ziyu-payload-next"
 {
   printf 'state=prepared\n'
   printf 'font=%s\n' "${3:-default}"
@@ -107,7 +107,7 @@ printf '{}\n' > "$MOD/config/deployment.json"
 mkdir -p "$MOD/config/prepared-payload"
 
 OUT="$(
-  MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" FAKE_GATE=pass \
+  MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" FAKE_GATE=pass \
     sh "$ROOT/common/universal_font_cutover.sh" switch DemoFont
 )"
 printf '%s' "$OUT" | grep -q '"pipeline":"universal"'
@@ -118,7 +118,7 @@ grep -q '^font=DemoFont$' "$MOD/config/universal-font-next.conf"
 # Superseding a queued Universal request with a legacy fallback must preserve
 # the font actually running in this boot as the legacy rollback source.
 rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/legacy-called"
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" FAKE_GATE=reject \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" FAKE_GATE=reject \
   sh "$ROOT/common/universal_font_cutover.sh" switch RejectedFont >/dev/null
 grep -q '^RejectedFont$' "$MOD/config/legacy-called"
 grep -q '^state=fallback$' "$MOD/config/universal-font-cutover.conf"
@@ -127,22 +127,22 @@ grep -q '^state=fallback$' "$MOD/config/universal-font-cutover.conf"
 grep -q '^previousFont=OldFont$' "$MOD/config/font-payload-next.conf"
 grep -q '^RejectedFont$' "$MOD/config/active_font.conf"
 
-rm -rf "$MOD/.luoshu-payload-next"
+rm -rf "$MOD/.ziyu-payload-next"
 rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/legacy-called"
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" FAKE_PREPARE=fail \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" FAKE_PREPARE=fail \
   sh "$ROOT/common/universal_font_cutover.sh" switch PrepareFail >/dev/null
 grep -q '^PrepareFail$' "$MOD/config/legacy-called"
 
-rm -rf "$MOD/.luoshu-payload-next"
+rm -rf "$MOD/.ziyu-payload-next"
 rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/legacy-called"
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" \
   sh "$ROOT/common/universal_font_cutover.sh" switch default >/dev/null
 grep -q '^default$' "$MOD/config/legacy-called"
 
-rm -rf "$MOD/.luoshu-payload-next"
+rm -rf "$MOD/.ziyu-payload-next"
 rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/universal-font-next.conf" "$MOD/config/legacy-called"
-mkdir -p "$MOD/.luoshu-retired/universal-boot-legacy/system/fonts"
-printf 'old payload\n' > "$MOD/.luoshu-retired/universal-boot-legacy/system/fonts/Old.ttf"
+mkdir -p "$MOD/.ziyu-retired/universal-boot-legacy/system/fonts"
+printf 'old payload\n' > "$MOD/.ziyu-retired/universal-boot-legacy/system/fonts/Old.ttf"
 cat > "$MOD/config/universal-font-runtime-verification.conf" <<'EOF'
 grade=FAIL
 bootId=boot-legacy
@@ -153,20 +153,20 @@ previousFont=OldFont
 previousMode=legacy
 previousLegacy=true
 recovery=false
-retired=$MOD/.luoshu-retired/universal-boot-legacy
+retired=$MOD/.ziyu-retired/universal-boot-legacy
 bootId=boot-legacy
 EOF
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" \
   sh "$ROOT/common/universal_font_cutover.sh" rollback-from-fail boot-legacy >/dev/null
-[ -f "$MOD/.luoshu-payload-next/system/fonts/Old.ttf" ]
+[ -f "$MOD/.ziyu-payload-next/system/fonts/Old.ttf" ]
 grep -q '^font=OldFont$' "$MOD/config/font-payload-next.conf"
 grep -q '^targetMode=legacy$' "$MOD/config/font-payload-next.conf"
 grep -q '^state=staged$' "$MOD/config/universal-font-rollback.conf"
 grep -q '^reason=universal-runtime-verification-failed-rollback$' "$MOD/config/text_reboot_required.conf"
 
-# Previous system-default mode has no retired LuoShu payload; recovery must
+# Previous system-default mode has no retired Ziyu payload; recovery must
 # still stage a clean default next boot instead of failing on a missing directory.
-rm -rf "$MOD/.luoshu-payload-next"
+rm -rf "$MOD/.ziyu-payload-next"
 rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/universal-font-next.conf" "$MOD/config/universal-font-rollback.conf"
 cat > "$MOD/config/universal-font-runtime-verification.conf" <<'EOF'
 grade=FAIL
@@ -178,12 +178,12 @@ previousFont=default
 previousMode=default
 previousLegacy=false
 recovery=false
-retired=$MOD/.luoshu-retired/universal-boot-default
+retired=$MOD/.ziyu-retired/universal-boot-default
 bootId=boot-default
 EOF
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" \
   sh "$ROOT/common/universal_font_cutover.sh" rollback-from-fail boot-default >/dev/null
-[ -d "$MOD/.luoshu-payload-next" ]
+[ -d "$MOD/.ziyu-payload-next" ]
 grep -q '^font=default$' "$MOD/config/font-payload-next.conf"
 grep -q '^targetMode=default$' "$MOD/config/font-payload-next.conf"
 grep -q '^recovery=true$' "$MOD/config/font-payload-next.conf"
@@ -191,10 +191,10 @@ grep -q '^targetFont=default$' "$MOD/config/universal-font-rollback.conf"
 [ ! -f "$MOD/config/universal-font-next.conf" ]
 
 
-rm -rf "$MOD/.luoshu-payload-next"
+rm -rf "$MOD/.ziyu-payload-next"
 rm -f "$MOD/config/font-payload-next.conf" "$MOD/config/universal-font-next.conf"
-mkdir -p "$MOD/.luoshu-retired/universal-boot-universal/.luoshu-runtime/deployment"
-printf '{}\n' > "$MOD/.luoshu-retired/universal-boot-universal/.luoshu-runtime/deployment/deployment.json"
+mkdir -p "$MOD/.ziyu-retired/universal-boot-universal/.ziyu-runtime/deployment"
+printf '{}\n' > "$MOD/.ziyu-retired/universal-boot-universal/.ziyu-runtime/deployment/deployment.json"
 cat > "$MOD/config/universal-font-runtime-verification.conf" <<'EOF'
 grade=FAIL
 bootId=boot-universal
@@ -205,23 +205,23 @@ previousFont=GoodUniversal
 previousMode=universal
 previousLegacy=false
 recovery=false
-retired=$MOD/.luoshu-retired/universal-boot-universal
+retired=$MOD/.ziyu-retired/universal-boot-universal
 bootId=boot-universal
 EOF
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" \
   sh "$ROOT/common/universal_font_cutover.sh" rollback-from-fail boot-universal >/dev/null
 grep -q '^font=GoodUniversal$' "$MOD/config/universal-font-next.conf"
 grep -q '^recovery=true$' "$MOD/config/universal-font-next.conf"
 [ ! -f "$MOD/config/font-payload-next.conf" ]
 
-rm -rf "$MOD/.luoshu-payload-next"
+rm -rf "$MOD/.ziyu-payload-next"
 rm -f "$MOD/config/universal-font-next.conf" "$MOD/config/font-payload-next.conf"
 sed 's/^recovery=false$/recovery=true/' "$MOD/config/universal-font-activated.conf" > "$MOD/config/universal-font-activated.conf.tmp"
 mv "$MOD/config/universal-font-activated.conf.tmp" "$MOD/config/universal-font-activated.conf"
-MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON="$TMP/fake-python" \
+MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON="$TMP/fake-python" \
   sh "$ROOT/common/universal_font_cutover.sh" rollback-from-fail boot-universal >/dev/null || true
 grep -q '^state=suppressed$' "$MOD/config/universal-font-rollback.conf"
 grep -q '^reason=recovery-already-attempted$' "$MOD/config/universal-font-rollback.conf"
-[ ! -d "$MOD/.luoshu-payload-next" ]
+[ ! -d "$MOD/.ziyu-payload-next" ]
 
 echo "universal_font_cutover_test: PASS"

@@ -318,6 +318,7 @@ internal fun ZiyuAppShell(
             setBackgroundPath = appearanceViewModel::setBackgroundPath,
             setThemeDisplay = appearanceViewModel::setThemeDisplay,
             setPredictiveBack = appearanceViewModel::setPredictiveBack,
+            setCardTransparency = appearanceViewModel::setCardTransparency,
         )
     }
     val validFonts = remember(viewModel.fonts) { viewModel.fonts.filter { it.valid } }

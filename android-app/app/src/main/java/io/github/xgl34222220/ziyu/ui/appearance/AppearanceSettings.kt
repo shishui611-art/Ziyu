@@ -107,6 +107,7 @@ data class AppearanceSettings(
     val highRefreshRate: Boolean = false,
     val predictiveBack: Boolean = true,
     val backgroundPath: String = "",
+    val cardTransparency: Int = 0,
 ) {
     val accent: AccentOption
         get() = accentOptionFor(seedArgb)
@@ -114,5 +115,6 @@ data class AppearanceSettings(
     /** Repairs stale or manually edited preferences before they reach Compose. */
     fun normalized(): AppearanceSettings = copy(
         seedArgb = accentOptionFor(seedArgb).argb,
+        cardTransparency = cardTransparency.coerceIn(0, 100),
     )
 }

@@ -64,7 +64,7 @@ import org.json.JSONObject
 
 private const val FONT_ARCHIVE_BRIDGE = "/data/adb/modules/ziyu/common/font_archive_export.sh"
 private const val FONT_ARCHIVE_SCHEMA = 1
-private const val FONT_ARCHIVE_TYPE = "luoshu-font-archive"
+private const val FONT_ARCHIVE_TYPE = "ziyu-font-archive"
 private const val FONT_ARCHIVE_MAX_FAMILIES = 32
 private const val FONT_ARCHIVE_MAX_BYTES = 1_610_612_736L
 

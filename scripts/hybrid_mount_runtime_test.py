@@ -12,10 +12,10 @@ from hybrid_mount_runtime import module_active  # noqa: E402
 
 
 class HybridRuntimeStatusTests(unittest.TestCase):
-    def test_active_luoshu_record(self) -> None:
+    def test_active_ziyu_record(self) -> None:
         self.assertTrue(module_active({"supported": True, "modules": [{"id": "LuoShu", "active": True, "eligible": True}]}, "LuoShu"))
 
-    def test_inactive_luoshu_record(self) -> None:
+    def test_inactive_ziyu_record(self) -> None:
         self.assertFalse(module_active({"supported": True, "modules": [{"id": "LuoShu", "active": False, "eligible": True}]}, "LuoShu"))
 
     def test_wrapped_status_payload(self) -> None:

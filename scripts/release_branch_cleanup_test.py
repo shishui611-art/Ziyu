@@ -48,13 +48,13 @@ class FakeGitHub:
             "/pulls/203": {"number": 203, "state": "open", "merged": False, "head": side("main", MAIN),
                            "base": side("fix/v4.0.0-usable-release", "ac472d90ffb1edb57eb845701817081c78e9c411")},
         }
-        for name in ("LuoShu-v4.2.0.zip", "LuoShu-v4.2.0.zip.sha256", "LuoShu-App-v4.2.0.apk", "LuoShu-App-v4.2.0.apk.sha256"):
+        for name in ("Ziyu-v4.2.0.zip", "Ziyu-v4.2.0.zip.sha256", "Ziyu-App-v4.2.0.apk", "Ziyu-App-v4.2.0.apk.sha256"):
             self.data["/releases/tags/v4.2.0"]["assets"].append({"name": name, "size": 100, "state": "uploaded",
                 "browser_download_url": f"https://github.com/{REPO}/releases/download/v4.2.0/{name}"})
         self.branches = [{"name": "main", "protected": True, "commit": {"sha": MAIN}}]
         self.branches += [{"name": b["name"], "protected": False, "commit": {"sha": b.get("sha", MERGED_HEAD)}} for b in MANIFEST["branches"]]
         self.open_prs = [copy.deepcopy(self.data["/pulls/202"]), copy.deepcopy(self.data["/pulls/203"])]
-        self.props = "id=luoshu\nversion=v4.2.0\nversionCode=40200\n"
+        self.props = "id=ziyu\nversion=v4.2.0\nversionCode=40200\n"
         self.metadata = build_metadata(repository=REPO, version="v4.2.0", version_code=40200, tag="v4.2.0", notes_file="RELEASE_NOTES_v4.2.0.md")
 
     def get(self, path):

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Phase 3 source-font profile bridge.
+# Ziyu Phase 3 source-font profile bridge.
 # Read-only for source fonts: writes only cached JSON under the module config directory.
 set +e
 
@@ -9,18 +9,18 @@ MODULE_DIR="$MODDIR"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 PROFILE_DIR="$MODDIR/config/source-font-profiles"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 ANALYZER="$MODDIR/common/font_source_profile.py"
 CONVERTER="$MODDIR/common/font_web_convert.py"
 
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 
 _profile_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127

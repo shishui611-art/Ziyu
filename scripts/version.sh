@@ -11,17 +11,17 @@ version_prop_get() {
     sed -n "s/^${_vp_key}=//p" "$_vp_root/module.prop" | head -n1
 }
 
-LUOSHU_VERSION=$(version_prop_get version)
-LUOSHU_VERSION_CODE=$(version_prop_get versionCode)
-LUOSHU_ARTIFACT_VERSION=$(printf '%s' "$LUOSHU_VERSION" | sed 's#[ /]#-#g')
+ZIYU_VERSION=$(version_prop_get version)
+ZIYU_VERSION_CODE=$(version_prop_get versionCode)
+ZIYU_ARTIFACT_VERSION=$(printf '%s' "$ZIYU_VERSION" | sed 's#[ /]#-#g')
 case "$(version_prop_get versionSeries)" in
-    ziyu) LUOSHU_APP_VERSION_CODE="$LUOSHU_VERSION_CODE" ;;
-    *) LUOSHU_APP_VERSION_CODE=$((LUOSHU_VERSION_CODE * 100 + 1)) ;;
+    ziyu) ZIYU_APP_VERSION_CODE="$ZIYU_VERSION_CODE" ;;
+    *) ZIYU_APP_VERSION_CODE=$((ZIYU_VERSION_CODE * 100 + 1)) ;;
 esac
 
-LUOSHU_RELEASE_TAG=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field tag --check) || return 1
-LUOSHU_RELEASE_NOTES="更新日志/RELEASE_NOTES_${LUOSHU_RELEASE_TAG}.md"
-LUOSHU_RELEASE_TITLE=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field title) || return 1
+ZIYU_RELEASE_TAG=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field tag --check) || return 1
+ZIYU_RELEASE_NOTES="更新日志/RELEASE_NOTES_${ZIYU_RELEASE_TAG}.md"
+ZIYU_RELEASE_TITLE=$(python3 "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/scripts/release_version_policy.py" --module "${ROOT:-${GITHUB_WORKSPACE:-$(pwd)}}/module.prop" --field title) || return 1
 
-export LUOSHU_VERSION LUOSHU_VERSION_CODE LUOSHU_ARTIFACT_VERSION LUOSHU_APP_VERSION_CODE
-export LUOSHU_RELEASE_TAG LUOSHU_RELEASE_NOTES LUOSHU_RELEASE_TITLE
+export ZIYU_VERSION ZIYU_VERSION_CODE ZIYU_ARTIFACT_VERSION ZIYU_APP_VERSION_CODE
+export ZIYU_RELEASE_TAG ZIYU_RELEASE_NOTES ZIYU_RELEASE_TITLE

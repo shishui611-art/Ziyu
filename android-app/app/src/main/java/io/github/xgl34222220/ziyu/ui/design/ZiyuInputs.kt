@@ -317,6 +317,15 @@ fun ZiyuSlider(
     }
 }
 
+/** Shared search-field slot: retain a visible inset in every design system. */
+@Composable
+fun ZiyuSearchIconSlot(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.width(48.dp).padding(start = 16.dp, end = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
 @Composable
 fun ZiyuTextField(
     value: String,

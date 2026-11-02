@@ -5,7 +5,7 @@ on:
     branches:
       - 'feat/**'
     paths:
-      - 'system/bin/luoshu-health'
+      - 'system/bin/ziyu-health'
       - 'scripts/system_health_test.sh'
       - 'scripts/sync_update_metadata.py'
       - 'scripts/sync_update_metadata_test.py'
@@ -16,7 +16,7 @@ on:
     branches:
       - main
     paths:
-      - 'system/bin/luoshu-health'
+      - 'system/bin/ziyu-health'
       - 'scripts/system_health_test.sh'
       - 'scripts/sync_update_metadata.py'
       - 'scripts/sync_update_metadata_test.py'
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate health and update metadata helpers
         run: |
-          sh -n system/bin/luoshu-health
+          sh -n system/bin/ziyu-health
           sh scripts/system_health_test.sh
           python3 -m py_compile scripts/sync_update_metadata.py
           python3 scripts/sync_update_metadata_test.py

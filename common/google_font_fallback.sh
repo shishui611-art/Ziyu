@@ -9,10 +9,10 @@ esac
 if [ "$(id -u)" != 0 ]; then
     printf '%s\n' '{"status":"error","message":"请在 Root 管理器中为字域授予 Root 权限。"}'; exit 1
 fi
-if [ ! -x "$PYROOT/bin/luoshu-python" ]; then
+if [ ! -x "$PYROOT/bin/ziyu-python" ]; then
     printf '%s\n' '{"status":"error","message":"模块运行环境缺失，请安装配套模块并完整重启。"}'; exit 1
 fi
 export PYTHONHOME="$PYROOT"
 export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
 export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$PYROOT/bin/luoshu-python" "$HERE/google_font_fallback.py" "$@"
+exec "$PYROOT/bin/ziyu-python" "$HERE/google_font_fallback.py" "$@"

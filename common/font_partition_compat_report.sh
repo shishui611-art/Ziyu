@@ -3,6 +3,7 @@
 # Run from a root shell when possible: su -c sh /path/to/font_partition_compat_report.sh
 # The report is written beside this script. This script never invokes the App.
 set +e
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
 
 case "$0" in
     */*) _fpc_self_dir=${0%/*} ;;
@@ -26,7 +27,7 @@ _fpc_find_module() {
         for _fpc_candidate in "$_fpc_root"/*; do
             [ -f "$_fpc_candidate/module.prop" ] || continue
             _fpc_id=$(sed -n 's/^id=//p' "$_fpc_candidate/module.prop" 2>/dev/null | head -n1)
-            case "$_fpc_id" in LuoShu|Ziyu) printf '%s\n' "$_fpc_candidate"; return ;; esac
+            case "$_fpc_id" in Ziyu|Ziyu) printf '%s\n' "$_fpc_candidate"; return ;; esac
         done
     done
 }
@@ -78,7 +79,7 @@ else
         *oppo*|*oplus*|*oneplus*|*realme*) _fpc_profile=coloros ;;
     esac
 fi
-_fpc_python="$_fpc_moddir/common/python/bin/luoshu-python"
+_fpc_python="$_fpc_moddir/common/python/bin/ziyu-python"
 _fpc_pyroot="$_fpc_moddir/common/python"
 _fpc_parser="$_fpc_moddir/common/font_scan_profile.py"
 _fpc_python_xml() {
@@ -418,7 +419,7 @@ printf '扫描完成：字体 XML %s 个，提取具体字体路由 %s 条。正
 
         printf '\n%s\n' 'Universal 编译 artifact manifest 中的阻止/拒绝原因'
         _json_count=0
-        for _file in "$_fpc_moddir/.luoshu-payload/.luoshu-runtime/deployment/artifact-manifest.json" \
+        for _file in "$(ziyu_legacy_path "$_fpc_moddir/.ziyu-payload/.ziyu-runtime/deployment/artifact-manifest.json")" \
           "$_fpc_moddir"/config/universal-font-artifact-manifests/*.json \
           "$_fpc_moddir"/cache/universal-font-artifacts/*/manifest.json; do
             [ -s "$_file" ] || continue

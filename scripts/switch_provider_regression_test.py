@@ -41,8 +41,8 @@ class SwitchProviderTest(unittest.TestCase):
 
     def test_both_service_routes_launch_provider_once(self):
         shutil.copyfile(ROOT / 'service.sh', self.module / 'service.sh')
-        (self.module / '.luoshu-runtime/core').mkdir(parents=True)
-        (self.module / '.luoshu-runtime/core/service.sh').write_text('exit 0\n')
+        (self.module / '.ziyu-runtime/core').mkdir(parents=True)
+        (self.module / '.ziyu-runtime/core/service.sh').write_text('exit 0\n')
         marker = self.root / 'provider-starts'
         (self.module / 'common/google_font_provider_service.sh').write_text(
             'printf "started\\n" >> "$TEST_STARTS"\n')
@@ -81,8 +81,8 @@ class SwitchProviderTest(unittest.TestCase):
         lock.mkdir()
         self.executable('getprop', 'echo 1\n')
         subprocess.run(['sh', str(service)], env={**self.env,
-            'TEST_APPLIED': str(marker), 'LUOSHU_FONT_LOCK_INIT_GRACE_SECONDS': '0.01',
-            'LUOSHU_GOOGLE_FONT_RETRIES': '1', 'LUOSHU_GOOGLE_FONT_WATCH_CYCLES': '0'},
+            'TEST_APPLIED': str(marker), 'ZIYU_FONT_LOCK_INIT_GRACE_SECONDS': '0.01',
+            'ZIYU_GOOGLE_FONT_RETRIES': '1', 'ZIYU_GOOGLE_FONT_WATCH_CYCLES': '0'},
             capture_output=True, check=True, timeout=5)
         self.assertEqual(marker.read_text().splitlines(), ['applied'])
         self.assertFalse(lock.exists())
@@ -90,19 +90,19 @@ class SwitchProviderTest(unittest.TestCase):
         (self.module / 'config/active_font.conf').write_text('default\n')
         # Default restores and exits; later selections require a new explicit pass.
         subprocess.run(['sh', str(service)], env={**self.env,
-            'TEST_APPLIED': str(marker), 'LUOSHU_GOOGLE_FONT_RETRIES': '1',
-            'LUOSHU_GOOGLE_FONT_WATCH_CYCLES': '0'}, check=True, timeout=5)
+            'TEST_APPLIED': str(marker), 'ZIYU_GOOGLE_FONT_RETRIES': '1',
+            'ZIYU_GOOGLE_FONT_WATCH_CYCLES': '0'}, check=True, timeout=5)
         self.assertFalse(marker.exists(), 'default font must not run provider replacement')
         self.assertFalse(lock.exists(), 'finite test run must release the guard lock')
 
     def test_provider_reads_current_physical_payload_before_old_cache(self):
-        live = self.module / '.luoshu-payload/system/fonts'
+        live = self.module / '.ziyu-payload/system/fonts'
         live.mkdir(parents=True)
         selected = live / '400.ttf'
         selected.write_bytes(b'current selection' * 200)
         stale = self.module / 'config/device-font-sources'
         stale.mkdir()
-        (stale / 'LuoShu-400.ttf').write_bytes(b'old selection' * 200)
+        (stale / 'Ziyu-400.ttf').write_bytes(b'old selection' * 200)
         self.assertEqual(self.provider_source(400).stdout.strip(), str(selected))
         selected.unlink()
         selected = live / 'SysSans-En-Regular.ttf'
@@ -113,26 +113,26 @@ class SwitchProviderTest(unittest.TestCase):
                             'missing current source must not revive stale cache')
 
     def test_provider_keeps_weight_and_legacy_layout_support(self):
-        live = self.module / '.luoshu-payload/system/fonts'
+        live = self.module / '.ziyu-payload/system/fonts'
         live.mkdir(parents=True)
         for weight in (400, 700):
             (live / f'{weight}.ttf').write_bytes(str(weight).encode() * 500)
         self.assertEqual(self.provider_source(700).stdout.strip(), str(live / '700.ttf'))
-        shutil.rmtree(self.module / '.luoshu-payload')
+        shutil.rmtree(self.module / '.ziyu-payload')
         old = self.module / 'config/device-font-sources'
         old.mkdir()
-        (old / 'LuoShu-700.ttf').write_bytes(b'old layout' * 200)
-        self.assertEqual(self.provider_source(700).stdout.strip(), str(old / 'LuoShu-700.ttf'))
+        (old / 'Ziyu-700.ttf').write_bytes(b'old layout' * 200)
+        self.assertEqual(self.provider_source(700).stdout.strip(), str(old / 'Ziyu-700.ttf'))
 
     def test_staging_never_copies_discarded_font_trees(self):
-        source = self.module / '.luoshu-payload'
-        (source / 'system/fonts/.luoshu-font-store').mkdir(parents=True)
-        (source / 'system/fonts/.luoshu-font-store/old.font').write_bytes(b'x' * 4096)
+        source = self.module / '.ziyu-payload'
+        (source / 'system/fonts/.ziyu-font-store').mkdir(parents=True)
+        (source / 'system/fonts/.ziyu-font-store/old.font').write_bytes(b'x' * 4096)
         (source / 'system/etc').mkdir()
         (source / 'system/etc/retained.conf').write_text('keep config\n')
         (source / '.retained state').write_text('keep metadata\n')
-        (source / '.luoshu-metrics-report.json').write_text('{"slots": ["old selection"]}')
-        original = (source / 'system/fonts/.luoshu-font-store/old.font').read_bytes()
+        (source / '.ziyu-metrics-report.json').write_text('{"slots": ["old selection"]}')
+        original = (source / 'system/fonts/.ziyu-font-store/old.font').read_bytes()
         real_cp = shutil.which('cp')
         self.executable('cp', '''
 [ "$1" != -al ] || exit 1
@@ -159,10 +159,10 @@ exec "$TEST_REAL_CP" "$@"
                     capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertFalse((stage / 'system/fonts').exists())
-                self.assertFalse((stage / '.luoshu-metrics-report.json').exists())
+                self.assertFalse((stage / '.ziyu-metrics-report.json').exists())
                 self.assertEqual((stage / 'system/etc/retained.conf').read_text(), 'keep config\n')
                 self.assertEqual((stage / '.retained state').read_text(), 'keep metadata\n')
-                self.assertEqual((source / 'system/fonts/.luoshu-font-store/old.font').read_bytes(), original)
+                self.assertEqual((source / 'system/fonts/.ziyu-font-store/old.font').read_bytes(), original)
 
     def test_real_switch_router_commits_only_successful_stages(self):
         install_task_scope(self.module)
@@ -177,7 +177,7 @@ exec "$TEST_REAL_CP" "$@"
                      'originos_stage_complete.py', 'font_clipping_compat.sh',
                      'font_clipping_compat.py'):
             shutil.copyfile(ROOT / 'common' / name, self.module / 'common' / name)
-        runtime = self.module / 'common/python/bin/luoshu-python'
+        runtime = self.module / 'common/python/bin/ziyu-python'
         runtime.write_text(
             '#!/bin/sh\n'
             'case "$1" in */originos_stage_complete.py) exit 0;; esac\n'
@@ -194,19 +194,19 @@ detect_font_family() { printf '%s\\n' "${1%.ttf}"; }
         (legacy / 'rom_adapters.sh').write_text('''
 apply_font_by_rom() {
     [ "${TEST_MAPPING_FAIL:-0}" != 1 ] || return 7
-    mkdir -p "$2/.luoshu-font-store"
-    cp "$1" "$2/.luoshu-font-store/regular.font" || return 1
+    mkdir -p "$2/.ziyu-font-store"
+    cp "$1" "$2/.ziyu-font-store/regular.font" || return 1
     cp "$1" "$2/Roboto-Regular.ttf"
 }
 ''')
         public = self.root / 'public'
         (public / 'fonts').mkdir(parents=True)
         (public / 'fonts/Selected.ttf').write_bytes(b'new selected font' * 300)
-        live = self.module / '.luoshu-payload/system/fonts'
+        live = self.module / '.ziyu-payload/system/fonts'
         live.mkdir(parents=True)
         old = live / 'Roboto-Regular.ttf'
         old.write_bytes(b'old active font' * 300)
-        dynamic = self.module / '.luoshu-payload/future_oem/fonts'
+        dynamic = self.module / '.ziyu-payload/future_oem/fonts'
         dynamic.mkdir(parents=True)
         (dynamic / 'OldDynamic.ttf').write_bytes(b'stale dynamic font' * 300)
         (self.module / 'config/device_font_partitions.conf').write_text('future_oem\n')
@@ -220,19 +220,19 @@ case "${{1:-}}" in
     *) exec {shlex.quote(real_readlink)} "$@" ;;
 esac
 ''')
-        env = {**self.env, 'LUOSHU_PUBLIC_DIR': str(public)}
+        env = {**self.env, 'ZIYU_PUBLIC_DIR': str(public)}
         # Prewarming must never commit a pending payload or alter the live tree.
         (self.module / 'config/device_font_inventory.json').write_text('{}')
         prewarm = subprocess.run(prewarm_command, env=env, capture_output=True, text=True, timeout=5)
         self.assertEqual(prewarm.returncode, 0, prewarm.stdout + prewarm.stderr)
         self.assertEqual(old.read_bytes(), before)
-        self.assertFalse((self.module / '.luoshu-payload-next').exists())
+        self.assertFalse((self.module / '.ziyu-payload-next').exists())
         cache_confs = list((self.module / 'config/safe-switch-cache').glob('*/cache.conf'))
         self.assertFalse(cache_confs, 'retired background prewarm must not generate caches')
         success = subprocess.run(command, env=env, capture_output=True, text=True, timeout=5)
         self.assertEqual(success.returncode, 0, success.stdout + success.stderr)
         self.assertIn('"status":"ok"', success.stdout)
-        pending = self.module / '.luoshu-payload-next'
+        pending = self.module / '.ziyu-payload-next'
         self.assertFalse((pending / 'future_oem/fonts/OldDynamic.ttf').exists(),
                          'explicit switch must discard stale discovered partition payloads')
         self.assertEqual((pending / 'system/fonts/Roboto-Regular.ttf').read_bytes(),
@@ -248,7 +248,7 @@ esac
         self.assertNotEqual(failed.returncode, 0)
         self.assertFalse(pending.exists())
         self.assertEqual(old.read_bytes(), before)
-        self.assertFalse(list(self.module.glob('.luoshu-payload-stage.*')))
+        self.assertFalse(list(self.module.glob('.ziyu-payload-stage.*')))
 
 
 if __name__ == '__main__':

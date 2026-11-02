@@ -1,13 +1,17 @@
 # Explicit release payload. New runtime files must be reviewed and listed here.
-# Standard partition payloads are migrated into .luoshu-payload during installation.
-# Root-manager hooks stay at module root; internal cores and compatibility layers live under .luoshu-runtime.
+# Standard partition payloads are migrated into .ziyu-payload during installation.
+# Root-manager hooks stay at module root; internal cores and compatibility layers live under .ziyu-runtime.
 common/app_bridge.sh
+common/ziyu_health.sh
+common/adb_storage.sh
+common/adb_storage.py
+common/legacy_identity.sh
+common/legacy_identity.py
 common/app_handshake.sh
 common/app_rom_monitor.sh
 common/font_preload_helper.sh
 common/font_preload_control.sh
 common/font_preload_state.py
-common/font_preload_module
 common/apatch_boot_prepare.sh
 common/temporary_root_mode.sh
 common/soft_reboot.sh
@@ -138,8 +142,8 @@ common/hyperos_theme_font_patch.py
 common/hyperos_physical_policy.py
 common/legacy_v14_4_switch.sh
 common/legacy_v14_4
-common/luoshu_cli.sh
-common/luoshu_composite.sh
+common/ziyu_cli.sh
+common/ziyu_composite.sh
 common/mix_task_handoff.sh
 common/mix_weight_mode.sh
 common/module_status.sh
@@ -188,7 +192,7 @@ common/universal_font_cutover_gate.py
 common/universal_font_cutover.sh
 common/weighted_mix_task.sh
 common/python
-.luoshu-runtime
+.ziyu-runtime
 config/active_font.conf
 config/version_notes.conf
 fonts

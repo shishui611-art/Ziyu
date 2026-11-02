@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the canonical LuoShu source-font compiler input.
+"""Build the canonical Ziyu source-font compiler input.
 
 Phase 3 is capability discovery only. The profile describes what imported font
 faces contain; it never selects Android targets, patches XML, mounts files, or
@@ -446,7 +446,7 @@ def _inspect_file(path: Path) -> dict[str, Any]:
 
     try:
         if source_container == "WOFF2":
-            temp_context = tempfile.TemporaryDirectory(prefix="luoshu-woff2-profile-")
+            temp_context = tempfile.TemporaryDirectory(prefix="ziyu-woff2-profile-")
             conversion = font_web_convert.convert(path, Path(temp_context.name))
             analysis_path = Path(str(conversion["outputPath"]))
             analysis_container = _source_container(analysis_path)

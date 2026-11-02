@@ -2,6 +2,7 @@
 # Boot-loop and OTA hold for Ziyu's font mount generation.
 # Only owned disable files are ever removed. Font selections, payloads and XML stay intact.
 set +e
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
 
 _zbg_module() {
     if [ -n "$1" ]; then printf '%s\n' "$1"
@@ -41,7 +42,9 @@ _zbg_read_candidates() {
 }
 
 _zbg_value() {
-    sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
+    _zbg_read_value=$(sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n')
+    if [ "$2" = schema ]; then ziyu_legacy_schema "$_zbg_read_value"
+    else printf '%s' "$_zbg_read_value"; fi
 }
 
 _zbg_boot_id() {
@@ -106,10 +109,10 @@ _zbg_effective_font() {
            [ -n "$(_zbg_value "$_zbg_universal" font)" ]; then
             _zbg_font=$(_zbg_value "$_zbg_universal" font)
             if [ "$_zbg_font" = default ] || {
-                [ -d "$_zbg_candidate/.luoshu-payload-next" ] && [ ! -L "$_zbg_candidate/.luoshu-payload-next" ] &&
+                [ -d "$_zbg_candidate/.ziyu-payload-next" ] && [ ! -L "$_zbg_candidate/.ziyu-payload-next" ] &&
                 [ -n "$(_zbg_value "$_zbg_universal" deploymentId)" ] &&
                 [ -n "$(_zbg_value "$_zbg_universal" payloadDigest)" ] &&
-                [ -s "$_zbg_candidate/.luoshu-payload-next/.luoshu-runtime/deployment/deployment.json" ];
+                [ -s "$(ziyu_legacy_path "$_zbg_candidate/.ziyu-payload-next/.ziyu-runtime/deployment/deployment.json")" ];
             }; then
                 printf '%s\n' "$_zbg_font"
                 return 0
@@ -120,9 +123,9 @@ _zbg_effective_font() {
            [ -n "$(_zbg_value "$_zbg_physical" font)" ]; then
             _zbg_font=$(_zbg_value "$_zbg_physical" font)
             if [ "$_zbg_font" = default ] || {
-                [ -d "$_zbg_candidate/.luoshu-payload-next" ] && [ ! -L "$_zbg_candidate/.luoshu-payload-next" ] &&
-                [ "$(_zbg_value "$_zbg_candidate/.luoshu-payload-next/.luoshu-next-transaction.conf" font)" = "$_zbg_font" ] &&
-                [ -n "$(_zbg_value "$_zbg_candidate/.luoshu-payload-next/.luoshu-next-transaction.conf" requestId)" ];
+                [ -d "$_zbg_candidate/.ziyu-payload-next" ] && [ ! -L "$_zbg_candidate/.ziyu-payload-next" ] &&
+                [ "$(_zbg_value "$_zbg_candidate/.ziyu-payload-next/.ziyu-next-transaction.conf" font)" = "$_zbg_font" ] &&
+                [ -n "$(_zbg_value "$_zbg_candidate/.ziyu-payload-next/.ziyu-next-transaction.conf" requestId)" ];
             }; then
                 printf '%s\n' "$_zbg_font"
                 return 0
@@ -784,7 +787,7 @@ _zbg_apply_verified() {
 }
 
 _zbg_rescan_lock() {
-    printf '%s/.ziyu-luoshu-stock-rescan.lock\n' "${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}"
+    printf '%s/.ziyu-stock-rescan.lock\n' "${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}"
 }
 
 _zbg_apply_generation_identity() {
@@ -793,15 +796,15 @@ _zbg_apply_generation_identity() {
     _zbg_prefer_next="${4:-1}"
     _zbg_universal="$_zbg_mod/config/universal-font-next.conf"
     _zbg_physical="$_zbg_mod/config/font-payload-next.conf"
-    _zbg_next="$_zbg_mod/.luoshu-payload-next"
+    _zbg_next="$_zbg_mod/.ziyu-payload-next"
     if [ "$_zbg_prefer_next" = 1 ] && [ -f "$_zbg_universal" ] && [ ! -L "$_zbg_universal" ] && \
        [ "$(_zbg_value "$_zbg_universal" state)" = prepared ] && \
        [ "$(_zbg_value "$_zbg_universal" font)" = "$_zbg_font" ]; then
         _zbg_id=$(_zbg_value "$_zbg_universal" deploymentId)
         _zbg_digest=$(_zbg_value "$_zbg_universal" payloadDigest)
-        _zbg_json="$_zbg_next/.luoshu-runtime/deployment/deployment.json"
+        _zbg_json="$(ziyu_legacy_path "$_zbg_next/.ziyu-runtime/deployment/deployment.json")"
         _zbg_pyroot="$_zbg_mod/common/python"
-        _zbg_py="$_zbg_pyroot/bin/luoshu-python"
+        _zbg_py="$_zbg_pyroot/bin/ziyu-python"
         [ -n "$_zbg_id" ] && [ -n "$_zbg_digest" ] && [ -s "$_zbg_json" ] && [ -x "$_zbg_py" ] || return 1
         if [ "$_zbg_validate" = 1 ]; then
             PYTHONHOME="$_zbg_pyroot" PYTHONPATH="$_zbg_mod/common:$_zbg_pyroot/lib/python3.14:$_zbg_pyroot/lib/python3.14/site-packages" \
@@ -816,8 +819,8 @@ _zbg_apply_generation_identity() {
        [ "$(_zbg_value "$_zbg_physical" state)" = prepared ] && \
        [ "$(_zbg_value "$_zbg_physical" font)" = "$_zbg_font" ] && \
        [ -d "$_zbg_next" ] && [ ! -L "$_zbg_next" ]; then
-        _zbg_payload_marker="$_zbg_next/.luoshu-next-transaction.conf"
-        [ "$(_zbg_value "$_zbg_payload_marker" schema)" = luoshu-next-payload-v1 ] && \
+        _zbg_payload_marker="$_zbg_next/.ziyu-next-transaction.conf"
+        [ "$(_zbg_value "$_zbg_payload_marker" schema)" = ziyu-next-payload-v1 ] && \
         [ "$(_zbg_value "$_zbg_payload_marker" font)" = "$_zbg_font" ] || return 1
         _zbg_request=$(_zbg_value "$_zbg_payload_marker" requestId)
         [ -n "$_zbg_request" ] && [ -n "$(_zbg_value "$_zbg_physical" requestId)" ] && \
@@ -828,7 +831,7 @@ _zbg_apply_generation_identity() {
         return 0
     fi
     _zbg_universal_runtime="$_zbg_mod/config/universal-font-runtime.conf"
-    _zbg_live_json="$_zbg_mod/.luoshu-payload/.luoshu-runtime/deployment/deployment.json"
+    _zbg_live_json="$(ziyu_legacy_path "$_zbg_mod/.ziyu-payload/.ziyu-runtime/deployment/deployment.json")"
     if [ -f "$_zbg_universal_runtime" ] && [ ! -L "$_zbg_universal_runtime" ] && \
        [ "$(_zbg_value "$_zbg_universal_runtime" font)" = "$_zbg_font" ] && [ -s "$_zbg_live_json" ]; then
         _zbg_id=$(_zbg_value "$_zbg_universal_runtime" deploymentId)
@@ -837,8 +840,8 @@ _zbg_apply_generation_identity() {
         printf 'universal|%s|%s|%s\n' "$_zbg_id" "$_zbg_digest" "$(sha256sum "$_zbg_live_json" 2>/dev/null | awk '{print $1}')"
         return 0
     fi
-    _zbg_live_marker="$_zbg_mod/.luoshu-payload/.luoshu-next-transaction.conf"
-    if [ "$(_zbg_value "$_zbg_live_marker" schema)" = luoshu-next-payload-v1 ] && \
+    _zbg_live_marker="$_zbg_mod/.ziyu-payload/.ziyu-next-transaction.conf"
+    if [ "$(_zbg_value "$_zbg_live_marker" schema)" = ziyu-next-payload-v1 ] && \
        [ "$(_zbg_value "$_zbg_live_marker" font)" = "$_zbg_font" ]; then
         _zbg_request=$(_zbg_value "$_zbg_live_marker" requestId)
         [ -n "$_zbg_request" ] || return 1
@@ -916,9 +919,9 @@ _zbg_schedule_watcher() {
     [ "$ZIYU_BOOT_OTA_DISABLE_WORKER" != 1 ] || return 0
     [ -f "$_zbg_mod/common/font_manager.sh" ] || return 0
     [ -f "$_zbg_mod/common/background_task.sh" ] && [ -f "$_zbg_mod/common/task_scope.sh" ] || return 1
-    mkdir -p "$_zbg_mod/logs" "${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}" 2>/dev/null || return 1
-    _zbg_lock_root=${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}
-    _zbg_lock="$_zbg_lock_root/.ziyu-luoshu-boot-ota-scan.lock"
+    mkdir -p "$_zbg_mod/logs" "${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}" 2>/dev/null || return 1
+    _zbg_lock_root=${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}
+    _zbg_lock="$_zbg_lock_root/.ziyu-boot-ota-scan.lock"
     _zbg_boot=$(_zbg_boot_id)
     _zbg_task="ziyu-boot-ota-$_zbg_boot"
     if [ -d "$_zbg_lock" ]; then
@@ -969,13 +972,13 @@ _zbg_schedule_watcher() {
         printf 'started=%s\nmodule=%s\nsupervisor_script=%s\nfinished=0\n' "$_zbg_started" "$_zbg_watch_mod" "$_zbg_script"
     } > "$_zbg_lock/state" 2>/dev/null || return 1
     . "$_zbg_mod/common/background_task.sh" || return 1
-    MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" LUOSHU_TASK_TIMEOUT_SECONDS=900 \
-        luoshu_start_detached "$_zbg_lock/worker.pid" "$_zbg_task" \
+    MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" ZIYU_TASK_TIMEOUT_SECONDS=900 \
+        ziyu_start_detached "$_zbg_lock/worker.pid" "$_zbg_task" \
         "$_zbg_mod/logs/boot-ota-guard.log" \
         sh "$_zbg_mod/common/boot_ota_guard.sh" _watcher "$_zbg_watch_mod" "$_zbg_boot"
     _zbg_start_rc=$?
     [ "$_zbg_start_rc" -eq 0 ] || return 1
-    _zbg_pid=$(luoshu_pid_value "$_zbg_lock/worker.pid")
+    _zbg_pid=$(ziyu_pid_value "$_zbg_lock/worker.pid")
     _zbg_pid_start=$(_zbg_proc_starttime "$_zbg_pid")
     _zbg_state_tmp="$_zbg_lock/state.tmp.$$"
     {
@@ -1015,20 +1018,20 @@ _zbg_run_rescan_direct() (
     }
     . "$_zbg_mod/common/font_switch_lock.sh" || return 1
     _zbg_lock_wait=0
-    until luoshu_font_lock_acquire "$_zbg_mod/.font_switch.lock" "$$"; do
+    until ziyu_font_lock_acquire "$_zbg_mod/.font_switch.lock" "$$"; do
         [ "$_zbg_lock_wait" -lt 10 ] || {
             printf 'status=error\nreason=font-switch-busy\nmessage=字体切换尚未结束，本次扫描未修改字体负载，请稍后手动重试\n'; return 1;
         }
         sleep 1; _zbg_lock_wait=$((_zbg_lock_wait + 1))
     done
-    trap 'luoshu_font_lock_release "$_zbg_mod/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    trap 'ziyu_font_lock_release "$_zbg_mod/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
     : > "$_zbg_mod/config/stock_inventory_scan_pending" || return 1
-    _zbg_out=$(MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" LUOSHU_FRESH_STOCK_SCAN=1 LUOSHU_REQUIRE_TOPOLOGY=1 \
-        LUOSHU_SCAN_ROM_IDENTITY="$_zbg_rom" \
+    _zbg_out=$(MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" ZIYU_FRESH_STOCK_SCAN=1 ZIYU_REQUIRE_TOPOLOGY=1 \
+        ZIYU_SCAN_ROM_IDENTITY="$_zbg_rom" \
         sh "$_zbg_mod/common/font_manager.sh" action stock_scan 2>&1)
     _zbg_rc=$?
     printf '[%s] [BOOT-OTA-GUARD] trusted stock rescan rc=%s deadline=%ss: %s\n' \
-        "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$_zbg_rc" "${LUOSHU_TASK_TIMEOUT_SECONDS:-900}" \
+        "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$_zbg_rc" "${ZIYU_TASK_TIMEOUT_SECONDS:-900}" \
         "$(printf '%s' "$_zbg_out" | tr '\n\r' '  ' | cut -c1-900)" \
         >> "$_zbg_mod/logs/boot-ota-guard.log" 2>/dev/null || true
     if [ "$_zbg_rc" -eq 0 ] && [ "$(_zbg_rom_identity)" = "$_zbg_rom" ] && _zbg_scan_output_trusted "$_zbg_mod"; then
@@ -1056,7 +1059,7 @@ _zbg_rescan_worker() {
         [ "$(_zbg_value "$_zbg_lock/state" task)" = "$_zbg_task" ] || return 1
     # Only the worker publishes running/terminal state. A fast worker must not
     # have its terminal receipt overwritten by the launcher after fork.
-    _zbg_pid="${LUOSHU_TASK_SCOPE_PID:-}"
+    _zbg_pid="${ZIYU_TASK_SCOPE_PID:-}"
     case "$_zbg_pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
     _zbg_state_tmp="$_zbg_lock/state.tmp.$$"
     awk '$1 !~ /^pid=/ && $1 !~ /^proc_starttime=/' "$_zbg_lock/state" > "$_zbg_state_tmp" || return 1
@@ -1182,6 +1185,7 @@ _zbg_reap_rescan() {
 _zbg_queue_rescan() (
     # Serialize retries, including stale-lock retirement, without holding this
     # short lock during the scan. Workers retain the existing bounded scope.
+    mkdir -p "${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}" || return 1
     _zbg_request="$(_zbg_rescan_lock).request.$(_zbg_boot_id)"
     if ! mkdir "$_zbg_request" 2>/dev/null; then
         [ -d "$_zbg_request" ] && [ ! -L "$_zbg_request" ] && [ ! -L "$_zbg_request/owner" ] && \
@@ -1235,7 +1239,7 @@ _zbg_queue_rescan_locked() {
         printf "status=error\nscan_state=error\nreason=worker-disabled\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 1;
     }
     [ -f "$_zbg_mod/common/background_task.sh" ] && [ -f "$_zbg_mod/common/task_scope.sh" ] && \
-    [ -x "$_zbg_mod/common/python/bin/luoshu-python" ] && [ -f "$_zbg_mod/common/task_scope.py" ] && \
+    [ -x "$_zbg_mod/common/python/bin/ziyu-python" ] && [ -f "$_zbg_mod/common/task_scope.py" ] && \
     [ -f "$_zbg_mod/common/font_manager.sh" ] || {
         printf "status=error\nscan_state=error\nreason=task-supervisor-unavailable\nota_pending=${_zbg_ota%%\|*}\nscan_complete=0\n"; return 1;
     }
@@ -1293,12 +1297,12 @@ _zbg_queue_rescan_locked() {
     (umask 077; printf 'schema=ziyu-stock-auto-attempt-v1\nrom_identity=%s\n' "$_zbg_rom" > "$_zbg_attempt.tmp.$$") && \
         mv -f "$_zbg_attempt.tmp.$$" "$_zbg_attempt" || return 1
     . "$_zbg_mod/common/background_task.sh" || return 1
-    _zbg_scan_timeout=${LUOSHU_BOOT_OTA_SCAN_TIMEOUT_SECONDS:-300}
+    _zbg_scan_timeout=${ZIYU_BOOT_OTA_SCAN_TIMEOUT_SECONDS:-300}
     case "$_zbg_scan_timeout" in ''|*[!0-9]*) _zbg_scan_timeout=300 ;; esac
     [ "$_zbg_scan_timeout" -ge 30 ] 2>/dev/null || _zbg_scan_timeout=30
     [ "$_zbg_scan_timeout" -le 600 ] 2>/dev/null || _zbg_scan_timeout=600
-    MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" LUOSHU_TASK_TIMEOUT_SECONDS="$_zbg_scan_timeout" \
-        luoshu_start_detached "$_zbg_lock/worker.pid" "$_zbg_task" \
+    MODDIR="$_zbg_mod" MODULE_DIR="$_zbg_mod" ZIYU_TASK_TIMEOUT_SECONDS="$_zbg_scan_timeout" \
+        ziyu_start_detached "$_zbg_lock/worker.pid" "$_zbg_task" \
             "$_zbg_mod/logs/boot-ota-guard.log" \
             sh "$_zbg_mod/common/boot_ota_guard.sh" _rescan-run "$_zbg_watch_mod" "$_zbg_boot" "$_zbg_task" "$_zbg_rom"
     _zbg_start_rc=$?
@@ -1312,7 +1316,7 @@ _zbg_queue_rescan_locked() {
 _zbg_watcher() {
     local _zbg_boot _zbg_lock _zbg_mod _zbg_ota _zbg_rc _zbg_state_tmp _zbg_wait
     _zbg_mod="$1"; _zbg_boot="$2"; _zbg_wait=0
-    _zbg_lock="${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}/.ziyu-luoshu-boot-ota-scan.lock"
+    _zbg_lock="${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}/.ziyu-boot-ota-scan.lock"
     [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$_zbg_boot" ] || return 1
     (umask 077; printf '%s\n' "$_zbg_boot" > "$_zbg_lock/worker.ready") || return 1
     while ! _zbg_boot_completed && [ "$_zbg_wait" -lt 600 ]; do
@@ -1327,7 +1331,7 @@ _zbg_watcher() {
             _zbg_queue_rescan "$_zbg_mod" >/dev/null || _zbg_rc=$?
         fi
     fi
-    _zbg_lock="${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}/.ziyu-luoshu-boot-ota-scan.lock"
+    _zbg_lock="${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}/.ziyu-boot-ota-scan.lock"
     if [ "$(_zbg_value "$_zbg_lock/state" boot_id)" = "$_zbg_boot" ]; then
         _zbg_state_tmp="$_zbg_lock/state.tmp.$$"
         awk '$1 !~ /^finished=/ && $1 !~ /^result=/' "$_zbg_lock/state" > "$_zbg_state_tmp" 2>/dev/null || return 1
@@ -1379,7 +1383,7 @@ _zbg_cleanup_task_lock() {
                 return 1
             }
             . "$_zbg_mod/common/background_task.sh" || return 1
-            luoshu_terminate_task_tree "$_zbg_pid" || {
+            ziyu_terminate_task_tree "$_zbg_pid" || {
                 printf 'status=error\nreason=%s-worker-stop-failed\n' "$_zbg_kind"
                 return 1
             }
@@ -1687,9 +1691,9 @@ _zbg_cli() {
         rom-identity) _zbg_rom_identity ;;
         schedule-watcher) _zbg_schedule_watcher "$_zbg_mod" ;;
         uninstall-cleanup)
-            _zbg_lock_root=${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb}
-            _zbg_cleanup_task_lock "$_zbg_lock_root/.ziyu-luoshu-boot-ota-scan.lock" "$_zbg_mod" watcher || return 1
-            _zbg_cleanup_task_lock "$_zbg_lock_root/.ziyu-luoshu-stock-rescan.lock" "$_zbg_mod" rescan || return 1
+            _zbg_lock_root=${ZIYU_BOOT_OTA_TEST_LOCK_ROOT:-/data/adb/ziyu/locks}
+            _zbg_cleanup_task_lock "$_zbg_lock_root/.ziyu-boot-ota-scan.lock" "$_zbg_mod" watcher || return 1
+            _zbg_cleanup_task_lock "$_zbg_lock_root/.ziyu-stock-rescan.lock" "$_zbg_mod" rescan || return 1
             _zbg_release_disable "$_zbg_mod" safe_mode || return 1
             _zbg_release_disable "$_zbg_mod" ota_hold || return 1
             printf 'status=ok\nreason=owned-boot-guard-state-cleaned\n'

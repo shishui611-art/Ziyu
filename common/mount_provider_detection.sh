@@ -12,18 +12,18 @@ ziyu_mount_provider_detect() {
     PROVIDER_CONTENT_ROOT="$_zpd_module"
     PROVIDER_REASON=not-evaluated
 
-    if [ "${LUOSHU_PROVIDER_TEST_MODE:-0}" = 1 ]; then
-        PROVIDER_STATE="${LUOSHU_PROVIDER_TEST_STATE:-unknown}"
-        PROVIDER_ID="${LUOSHU_PROVIDER_TEST_ID:-test-provider}"
-        PROVIDER_LAYOUT="${LUOSHU_PROVIDER_TEST_LAYOUT:-nested-system}"
-        PROVIDER_REASON="${LUOSHU_PROVIDER_TEST_REASON:-test}"
+    if [ "${ZIYU_PROVIDER_TEST_MODE:-0}" = 1 ]; then
+        PROVIDER_STATE="${ZIYU_PROVIDER_TEST_STATE:-unknown}"
+        PROVIDER_ID="${ZIYU_PROVIDER_TEST_ID:-test-provider}"
+        PROVIDER_LAYOUT="${ZIYU_PROVIDER_TEST_LAYOUT:-nested-system}"
+        PROVIDER_REASON="${ZIYU_PROVIDER_TEST_REASON:-test}"
         case "$PROVIDER_STATE" in available|absent|unknown|excluded) return 0 ;; *) PROVIDER_STATE=unknown; PROVIDER_REASON=invalid-test-state; return 0 ;; esac
     fi
 
     # A declared selector with unreadable/unknown metadata is not an absence.
-    _zpd_selector="${LUOSHU_META_DETECT_ROOT:-/data/adb}/metamodule"
+    _zpd_selector="${ZIYU_META_DETECT_ROOT:-/data/adb}/metamodule"
     if [ -z "${META_ACTIVE_DIR:-}" ] && \
-       { [ -e "$_zpd_selector" ] || [ -L "$_zpd_selector" ] || [ -n "${LUOSHU_META_TEST_ACTIVE_DIR:-}" ]; }; then
+       { [ -e "$_zpd_selector" ] || [ -L "$_zpd_selector" ] || [ -n "${ZIYU_META_TEST_ACTIVE_DIR:-}" ]; }; then
         PROVIDER_REASON=active-meta-identity-unavailable
         return 0
     fi
@@ -55,7 +55,7 @@ ziyu_mount_provider_detect() {
             *) PROVIDER_STATE=unknown; PROVIDER_LAYOUT=unknown; PROVIDER_REASON=unsupported-meta-engine; return 0 ;;
         esac
         if [ "$META_ENGINE" = meta-overlayfs ]; then
-            _zpd_content_base=$(_luoshu_meta_overlay_content_base)
+            _zpd_content_base=$(_ziyu_meta_overlay_content_base)
             if [ -z "$_zpd_content_base" ]; then
                 PROVIDER_STATE=unknown
                 PROVIDER_REASON=provider-content-image-not-mounted
@@ -77,7 +77,7 @@ ziyu_mount_provider_detect() {
             fi
             _zpd_image_root="$_zpd_content_base"
             case "$_zpd_image_root" in */"$_zpd_module_id") _zpd_image_root="${_zpd_image_root%/*}" ;; esac
-            if ! type luoshu_mountpoint_ready >/dev/null 2>&1 || ! luoshu_mountpoint_ready "$_zpd_image_root"; then
+            if ! type ziyu_mountpoint_ready >/dev/null 2>&1 || ! ziyu_mountpoint_ready "$_zpd_image_root"; then
                 PROVIDER_STATE=unknown
                 PROVIDER_REASON=provider-content-image-not-mounted
                 return 0

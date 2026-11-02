@@ -108,7 +108,7 @@ def target(path: str, role: str, family: str) -> dict:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="luoshu-phase8-") as raw:
+    with tempfile.TemporaryDirectory(prefix="ziyu-phase8-") as raw:
         temp = Path(raw)
         visible = temp / "visible"
         physical_path = "/system/fonts/SystemLatin.ttf"
@@ -155,7 +155,7 @@ def main() -> int:
             }],
             "dynamicMounts": [{
                 "targetPath": dynamic_path,
-                "sourcePayloadPath": ".luoshu-dynamic/ufc-dynamic.ttf",
+                "sourcePayloadPath": ".ziyu-dynamic/ufc-dynamic.ttf",
                 "sha256": dynamic_sha,
                 "artifactId": "ufc:dynamic",
                 "readOnly": True,
@@ -175,7 +175,7 @@ def main() -> int:
         mountinfo = {
             str(dynamic): {
                 "readOnly": True,
-                "source": str(temp / "payload/.luoshu-dynamic/ufc-dynamic.ttf"),
+                "source": str(temp / "payload/.ziyu-dynamic/ufc-dynamic.ttf"),
                 "options": ["ro"],
                 "superOptions": ["ro"],
             }
@@ -248,7 +248,7 @@ def main() -> int:
         partial_mounts = {
             str(partial_dynamic): {
                 "readOnly": True,
-                "source": str(temp / "payload/.luoshu-dynamic/ufc-dynamic.ttf"),
+                "source": str(temp / "payload/.ziyu-dynamic/ufc-dynamic.ttf"),
                 "options": ["ro"],
                 "superOptions": ["ro"],
             }

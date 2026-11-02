@@ -2,30 +2,30 @@
 # Detect external font mount engines without modifying their settings.
 set +e
 
-_luoshu_meta_root() {
-    printf '%s\n' "${LUOSHU_META_DETECT_ROOT:-/data/adb}"
+_ziyu_meta_root() {
+    printf '%s\n' "${ZIYU_META_DETECT_ROOT:-/data/adb}"
 }
 
-_luoshu_meta_prop() {
+_ziyu_meta_prop() {
     sed -n "s/^$2=//p" "$1/module.prop" 2>/dev/null | head -n1 | tr -d '\r\n'
 }
 
-_luoshu_meta_truthy() {
+_ziyu_meta_truthy() {
     case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
         1|true|yes|on|enabled) return 0 ;;
         *) return 1 ;;
     esac
 }
 
-_luoshu_meta_enabled() {
+_ziyu_meta_enabled() {
     [ -f "$1/module.prop" ] && [ ! -e "$1/disable" ] && [ ! -e "$1/remove" ]
 }
 
-_luoshu_meta_type_for_dir() {
+_ziyu_meta_type_for_dir() {
     _lmtd_dir="$1"
-    _lmtd_id=$(_luoshu_meta_prop "$_lmtd_dir" id | tr '[:upper:]' '[:lower:]')
-    _lmtd_name=$(_luoshu_meta_prop "$_lmtd_dir" name | tr '[:upper:]' '[:lower:]')
-    _lmtd_desc=$(_luoshu_meta_prop "$_lmtd_dir" description | tr '[:upper:]' '[:lower:]')
+    _lmtd_id=$(_ziyu_meta_prop "$_lmtd_dir" id | tr '[:upper:]' '[:lower:]')
+    _lmtd_name=$(_ziyu_meta_prop "$_lmtd_dir" name | tr '[:upper:]' '[:lower:]')
+    _lmtd_desc=$(_ziyu_meta_prop "$_lmtd_dir" description | tr '[:upper:]' '[:lower:]')
     case "$_lmtd_id $_lmtd_name $_lmtd_desc" in
         *meta-overlayfs*|*meta-overlay*) printf 'meta-overlayfs\n' ;;
         *mountify*) printf 'mountify\n' ;;
@@ -39,17 +39,17 @@ _luoshu_meta_type_for_dir() {
 # Locate a NoMount kernel CLI without assuming one packaging layout. NoMount
 # Suite keeps its kernel-facing nm under bin/<android-abi>/nm; the separate
 # "nomount" manager binary is not the preferred driver probe.
-_luoshu_nomount_cli_for_dir() {
+_ziyu_nomount_cli_for_dir() {
     _lnc_dir="${1:-}"
     [ -d "$_lnc_dir" ] || return 1
-    _lnc_abi="${LUOSHU_NOMOUNT_TEST_ABI:-}"
+    _lnc_abi="${ZIYU_NOMOUNT_TEST_ABI:-}"
     if [ -z "$_lnc_abi" ]; then
         _lnc_abi=$(getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r\n')
         [ -n "$_lnc_abi" ] || _lnc_abi=$(getprop ro.product.cpu.abilist 2>/dev/null | cut -d, -f1 | tr -d '\r\n')
     fi
     case "$_lnc_abi" in ''|*[!A-Za-z0-9._-]*) _lnc_abi='' ;; esac
     if [ -n "$_lnc_abi" ]; then
-        for _lnc_path in "$_lnc_dir/bin/$_lnc_abi/nm" "$_lnc_dir/bin/$_lnc_abi/nomount"; do
+        for _lnc_path in "$_lnc_dir/bin/$_lnc_abi/nm"; do
             [ -x "$_lnc_path" ] || continue
             printf '%s\n' "$_lnc_path"
             return 0
@@ -63,13 +63,13 @@ _luoshu_nomount_cli_for_dir() {
     return 1
 }
 
-_luoshu_meta_active_dir() {
-    if [ -n "${LUOSHU_META_TEST_ACTIVE_DIR:-}" ]; then
-        [ -f "$LUOSHU_META_TEST_ACTIVE_DIR/module.prop" ] || return 1
-        printf '%s\n' "$LUOSHU_META_TEST_ACTIVE_DIR"
+_ziyu_meta_active_dir() {
+    if [ -n "${ZIYU_META_TEST_ACTIVE_DIR:-}" ]; then
+        [ -f "$ZIYU_META_TEST_ACTIVE_DIR/module.prop" ] || return 1
+        printf '%s\n' "$ZIYU_META_TEST_ACTIVE_DIR"
         return 0
     fi
-    _lmad_meta="$(_luoshu_meta_root)/metamodule"
+    _lmad_meta="$(_ziyu_meta_root)/metamodule"
     [ -e "$_lmad_meta" ] || [ -L "$_lmad_meta" ] || return 1
     _lmad_target=$(readlink -f "$_lmad_meta" 2>/dev/null)
     [ -n "$_lmad_target" ] || _lmad_target="$_lmad_meta"
@@ -77,15 +77,15 @@ _luoshu_meta_active_dir() {
     printf '%s\n' "$_lmad_target"
 }
 
-_luoshu_meta_find_installed() {
-    _lmfi_root="$(_luoshu_meta_root)/modules"
+_ziyu_meta_find_installed() {
+    _lmfi_root="$(_ziyu_meta_root)/modules"
     _lmfi_type="$1"
     _lmfi_require_enabled="${2:-0}"
     if [ "${_lmd_installed_snapshot_ready:-0}" = 1 ]; then
         while IFS='|' read -r _lmfi_detected _lmfi_dir; do
             [ "$_lmfi_detected" = "$_lmfi_type" ] || continue
-            [ "$(_luoshu_meta_type_for_dir "$_lmfi_dir")" = "$_lmfi_type" ] || continue
-            if [ "$_lmfi_require_enabled" = 1 ]; then _luoshu_meta_enabled "$_lmfi_dir" || continue; fi
+            [ "$(_ziyu_meta_type_for_dir "$_lmfi_dir")" = "$_lmfi_type" ] || continue
+            if [ "$_lmfi_require_enabled" = 1 ]; then _ziyu_meta_enabled "$_lmfi_dir" || continue; fi
             printf '%s\n' "$_lmfi_dir"
             return 0
         done <<EOF_META_INSTALLED
@@ -95,10 +95,10 @@ EOF_META_INSTALLED
     fi
     for _lmfi_dir in "$_lmfi_root"/*; do
         [ -d "$_lmfi_dir" ] || continue
-        _lmfi_detected=$(_luoshu_meta_type_for_dir "$_lmfi_dir") || continue
+        _lmfi_detected=$(_ziyu_meta_type_for_dir "$_lmfi_dir") || continue
         [ "$_lmfi_detected" = "$_lmfi_type" ] || continue
         if [ "$_lmfi_require_enabled" = 1 ]; then
-            _luoshu_meta_enabled "$_lmfi_dir" || continue
+            _ziyu_meta_enabled "$_lmfi_dir" || continue
         fi
         printf '%s\n' "$_lmfi_dir"
         return 0
@@ -106,17 +106,17 @@ EOF_META_INSTALLED
     return 1
 }
 
-_luoshu_meta_installed_snapshot() {
-    _lmis_modules="$(_luoshu_meta_root)/modules"
+_ziyu_meta_installed_snapshot() {
+    _lmis_modules="$(_ziyu_meta_root)/modules"
     for _lmis_dir in "$_lmis_modules"/*; do
         [ -d "$_lmis_dir" ] || continue
         case "$_lmis_dir" in *'|'*) continue ;; esac
-        _lmis_type=$(_luoshu_meta_type_for_dir "$_lmis_dir") || continue
+        _lmis_type=$(_ziyu_meta_type_for_dir "$_lmis_dir") || continue
         printf '%s|%s\n' "$_lmis_type" "$_lmis_dir"
     done
 }
 
-_luoshu_meta_is_owned_skip() {
+_ziyu_meta_is_owned_skip() {
     _lmis_root="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
     case "${1:-skip_mount}" in
         skip_mount)
@@ -129,8 +129,8 @@ _luoshu_meta_is_owned_skip() {
     esac
 }
 
-_luoshu_meta_mountify_selected() {
-    _lmms_root="$(_luoshu_meta_root)"
+_ziyu_meta_mountify_selected() {
+    _lmms_root="$(_ziyu_meta_root)"
     _lmms_config=''
     _lmms_list=''
     for _lmms_candidate in \
@@ -160,17 +160,17 @@ _luoshu_meta_mountify_selected() {
         *) return 1 ;;
     esac
     _lmms_module="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
-    if [ -e "$_lmms_module/skip_mountify" ] && ! _luoshu_meta_is_owned_skip skip_mountify; then
+    if [ -e "$_lmms_module/skip_mountify" ] && ! _ziyu_meta_is_owned_skip skip_mountify; then
         return 1
     fi
-    if [ -e "$_lmms_module/skip_mount" ] && ! _luoshu_meta_is_owned_skip skip_mount; then
+    if [ -e "$_lmms_module/skip_mount" ] && ! _ziyu_meta_is_owned_skip skip_mount; then
         return 1
     fi
     return 0
 }
 
-_luoshu_meta_hybrid_selected() {
-    _lmhs_root="$(_luoshu_meta_root)"
+_ziyu_meta_hybrid_selected() {
+    _lmhs_root="$(_ziyu_meta_root)"
     _lmhs_file=''
     META_HYBRID_CONFIG_PATH=''
     META_HYBRID_DEFAULT_MODE=''
@@ -186,7 +186,7 @@ _luoshu_meta_hybrid_selected() {
     [ -n "$_lmhs_file" ] || return 1
     META_HYBRID_CONFIG_PATH="$_lmhs_file"
     [ -r "$_lmhs_file" ] || { META_HYBRID_ROUTE_REASON=hybrid-config-unreadable; return 1; }
-    _lmhs_id=$(_luoshu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}" id)
+    _lmhs_id=$(_ziyu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}" id)
     [ -n "$_lmhs_id" ] || _lmhs_id=ziyu
     # Upstream Config defaults to Overlay, uses case-sensitive module IDs, and
     # accepts module/path rules. Only prove the ordinary table form here: inline
@@ -252,7 +252,7 @@ EOF_HYBRID_ROUTE
     [ "$META_HYBRID_ROUTE_REASON" = hybrid-pure-vfs-scoped-unload ] || return 1
 
     # Hybrid merges persistent and bundled blacklists. Missing files are normal;
-    # an unreadable or unrecognized blacklist must never silently allow LuoShu.
+    # an unreadable or unrecognized blacklist must never silently allow Ziyu.
     for _lmhs_blacklist in \
         "$_lmhs_root/hybrid-mount/module_blacklist.toml" \
         "${META_MODULE_DIR:-$_lmhs_root/modules/hybrid_mount}/module_blacklist.toml"; do
@@ -284,8 +284,8 @@ EOF_HYBRID_ROUTE
     return 0
 }
 
-_luoshu_meta_hybrid_route_state() {
-    # Same conservative grammar as _luoshu_meta_hybrid_selected, but reports why
+_ziyu_meta_hybrid_route_state() {
+    # Same conservative grammar as _ziyu_meta_hybrid_selected, but reports why
     # a route is not pure VFS so the ensure helper can distinguish an upstream
     # default from an explicit per-module user rule.
     _lmrs_file="$2"
@@ -345,76 +345,76 @@ _luoshu_meta_hybrid_route_state() {
     ' "$_lmrs_file" 2>/dev/null
 }
 
-luoshu_meta_hybrid_ensure_vfs_rule() {
+ziyu_meta_hybrid_ensure_vfs_rule() {
     # Users must not need to edit Hybrid Mount TOML by hand: when they pick the
     # Meta backend and the only blocker is the upstream Overlay default, add a
-    # LuoShu-scoped VFS rule ourselves. Explicit per-module user rules win and
+    # Ziyu-scoped VFS rule ourselves. Explicit per-module user rules win and
     # are never overwritten; the write is backed up and verified by readback.
-    LUOSHU_META_ENSURE_RESULT=error
-    LUOSHU_META_ENSURE_DETAIL=''
+    ZIYU_META_ENSURE_RESULT=error
+    ZIYU_META_ENSURE_DETAIL=''
     [ "${META_ENGINE:-none}" = hybrid-mount ] && [ -n "${META_MODULE_DIR:-}" ] || {
-        LUOSHU_META_ENSURE_RESULT=not-hybrid; return 1
+        ZIYU_META_ENSURE_RESULT=not-hybrid; return 1
     }
     [ "${META_HYBRID_ROUTE_REASON:-}" = hybrid-route-not-pure-vfs ] || {
-        LUOSHU_META_ENSURE_RESULT=not-needed
-        LUOSHU_META_ENSURE_DETAIL="${META_HYBRID_ROUTE_REASON:-unknown}"
+        ZIYU_META_ENSURE_RESULT=not-needed
+        ZIYU_META_ENSURE_DETAIL="${META_HYBRID_ROUTE_REASON:-unknown}"
         return 1
     }
     [ -n "${META_HYBRID_CONFIG_PATH:-}" ] || {
-        LUOSHU_META_ENSURE_RESULT=not-needed
-        LUOSHU_META_ENSURE_DETAIL=hybrid-config-missing
+        ZIYU_META_ENSURE_RESULT=not-needed
+        ZIYU_META_ENSURE_DETAIL=hybrid-config-missing
         return 1
     }
     _lmev_file="$META_HYBRID_CONFIG_PATH"
-    [ -r "$_lmev_file" ] || { LUOSHU_META_ENSURE_RESULT=config-unreadable; return 1; }
-    _lmev_id=$(_luoshu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}" id)
+    [ -r "$_lmev_file" ] || { ZIYU_META_ENSURE_RESULT=config-unreadable; return 1; }
+    _lmev_id=$(_ziyu_meta_prop "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}" id)
     [ -n "$_lmev_id" ] || _lmev_id=ziyu
-    _lmev_state=$(_luoshu_meta_hybrid_route_state "$_lmev_id" "$_lmev_file")
+    _lmev_state=$(_ziyu_meta_hybrid_route_state "$_lmev_id" "$_lmev_file")
     IFS='|' read -r _lmev_kind _lmev_global _lmev_module <<EOF_LMEV
 $_lmev_state
 EOF_LMEV
     case "$_lmev_kind" in
         invalid|'')
-            LUOSHU_META_ENSURE_RESULT=config-unverified; return 1 ;;
+            ZIYU_META_ENSURE_RESULT=config-unverified; return 1 ;;
         module-paths-unsafe|module-overlay|module-magic|module-ignore|module-section-empty|paths-only-safe)
-            LUOSHU_META_ENSURE_RESULT=explicit-rule-wins
-            LUOSHU_META_ENSURE_DETAIL="$_lmev_kind"
+            ZIYU_META_ENSURE_RESULT=explicit-rule-wins
+            ZIYU_META_ENSURE_DETAIL="$_lmev_kind"
             return 2 ;;
         module-vfs)
-            LUOSHU_META_ENSURE_RESULT=not-needed; return 1 ;;
+            ZIYU_META_ENSURE_RESULT=not-needed; return 1 ;;
         no-module) ;;
         *)
-            LUOSHU_META_ENSURE_RESULT=config-unverified; return 1 ;;
+            ZIYU_META_ENSURE_RESULT=config-unverified; return 1 ;;
     esac
-    _lmev_backup="$_lmev_file.luoshu-backup"
+    _lmev_backup="$_lmev_file.ziyu-backup"
     _lmev_tmp="$_lmev_backup.tmp.$$"
-    cp "$_lmev_file" "$_lmev_tmp" 2>/dev/null || { LUOSHU_META_ENSURE_RESULT=backup-write-failed; return 1; }
+    cp "$_lmev_file" "$_lmev_tmp" 2>/dev/null || { ZIYU_META_ENSURE_RESULT=backup-write-failed; return 1; }
     mv -f "$_lmev_tmp" "$_lmev_backup" 2>/dev/null || {
         rm -f "$_lmev_tmp"
-        LUOSHU_META_ENSURE_RESULT=backup-write-failed; return 1
+        ZIYU_META_ENSURE_RESULT=backup-write-failed; return 1
     }
     {
-        printf '\n# >>> ziyu-luoshu-vfs-rule (added by the Ziyu font module for scoped unload)\n'
+        printf '\n# >>> ziyu-vfs-rule (added by the Ziyu font module for scoped unload)\n'
         printf '[rules.%s]\ndefault_mode = "vfs"\n' "$_lmev_id"
-        printf '# <<< ziyu-luoshu-vfs-rule\n'
+        printf '# <<< ziyu-vfs-rule\n'
     } >> "$_lmev_file" 2>/dev/null || {
         cat "$_lmev_backup" > "$_lmev_file" 2>/dev/null
-        LUOSHU_META_ENSURE_RESULT=rule-write-failed; return 1
+        ZIYU_META_ENSURE_RESULT=rule-write-failed; return 1
     }
-    if _luoshu_meta_hybrid_selected; then
-        LUOSHU_META_ENSURE_RESULT=applied
-        LUOSHU_META_ENSURE_DETAIL="$_lmev_backup"
+    if _ziyu_meta_hybrid_selected; then
+        ZIYU_META_ENSURE_RESULT=applied
+        ZIYU_META_ENSURE_DETAIL="$_lmev_backup"
         return 0
     fi
     cat "$_lmev_backup" > "$_lmev_file" 2>/dev/null
-    LUOSHU_META_ENSURE_RESULT=verify-failed
+    ZIYU_META_ENSURE_RESULT=verify-failed
     return 1
 }
 
-_luoshu_meta_active_identity() {
-    [ "${LUOSHU_META_TEST_ASSUME_ACTIVE:-0}" = 1 ] && return 0
+_ziyu_meta_active_identity() {
+    [ "${ZIYU_META_TEST_ASSUME_ACTIVE:-0}" = 1 ] && return 0
     _lmai_dir="$1"
-    _lmai_root="$(_luoshu_meta_root)"
+    _lmai_root="$(_ziyu_meta_root)"
     _lmai_link="$_lmai_root/metamodule"
     [ -L "$_lmai_link" ] || return 1
     _lmai_resolved=$(readlink -f "$_lmai_link" 2>/dev/null)
@@ -422,15 +422,15 @@ _luoshu_meta_active_identity() {
     [ "$_lmai_resolved" = "$(readlink -f "$_lmai_dir" 2>/dev/null)" ]
 }
 
-_luoshu_meta_overlay_content_base() {
+_ziyu_meta_overlay_content_base() {
     # KernelSU may expose the provider's image at MODULE_CONTENT_DIR instead
     # of <metamodule>/mnt. Only accept an existing image mount, never mkdir it.
     for _lmoc_path in "${MODULE_CONTENT_DIR:-}" "${META_ACTIVE_DIR:-${META_MODULE_DIR:-}}/mnt"; do
         case "$_lmoc_path" in /data/adb/*) ;; *) continue ;; esac
         case "$_lmoc_path" in */../*|*/..|*'|'*|*' '*|*'\\'*) continue ;; esac
         _lmoc_image="$_lmoc_path"
-        case "$_lmoc_image" in */ziyu|*/LuoShu) _lmoc_image="${_lmoc_image%/*}" ;; esac
-        if [ -d "$_lmoc_path" ] && type luoshu_mountpoint_ready >/dev/null 2>&1 && luoshu_mountpoint_ready "$_lmoc_image"; then
+        case "$_lmoc_image" in */ziyu|*/Ziyu) _lmoc_image="${_lmoc_image%/*}" ;; esac
+        if [ -d "$_lmoc_path" ] && type ziyu_mountpoint_ready >/dev/null 2>&1 && ziyu_mountpoint_ready "$_lmoc_image"; then
             printf '%s\n' "$_lmoc_path"
             return 0
         fi
@@ -438,7 +438,7 @@ _luoshu_meta_overlay_content_base() {
     return 1
 }
 
-_luoshu_meta_hybrid_runtime_api() {
+_ziyu_meta_hybrid_runtime_api() {
     # Older Hybrid releases have a binary and VFS config but no scoped runtime
     # API. Its read-only status returns supported=false before the boot ledger
     # is ready, which still proves the API exists; active success is committed
@@ -451,7 +451,7 @@ _luoshu_meta_hybrid_runtime_api() {
     printf '%s\n' "$_lmhr_status" | grep -q '"modules"[[:space:]]*:[[:space:]]*\['
 }
 
-luoshu_nomount_kernel_probe() {
+ziyu_nomount_kernel_probe() {
     # Read-only kernel probe: classic NoMount uses "nm version", while
     # NoMount Suite's netlink-facing nm responds to "nm v". Never use the
     # separate Suite manager's "nomount version" as proof of kernel readiness.
@@ -474,7 +474,7 @@ luoshu_nomount_kernel_probe() {
     return 1
 }
 
-luoshu_meta_mount_detect() {
+ziyu_meta_mount_detect() {
     _lmd_installed_snapshot_ready=0
     _lmd_installed_snapshot=''
     META_ENGINE=none
@@ -498,12 +498,12 @@ luoshu_meta_mount_detect() {
     META_HYBRID_ROUTE_REASON=''
     META_DETECTION_CHECKS=''
 
-    if [ -n "${LUOSHU_META_TEST_ENGINE:-}" ]; then
-        META_ENGINE="$LUOSHU_META_TEST_ENGINE"
-        META_INSTALLED=${LUOSHU_META_TEST_INSTALLED:-1}
-        META_ENABLED=${LUOSHU_META_TEST_ENABLED:-1}
-        META_USABLE=${LUOSHU_META_TEST_USABLE:-1}
-        META_READY=${LUOSHU_META_TEST_READY:-$META_USABLE}
+    if [ -n "${ZIYU_META_TEST_ENGINE:-}" ]; then
+        META_ENGINE="$ZIYU_META_TEST_ENGINE"
+        META_INSTALLED=${ZIYU_META_TEST_INSTALLED:-1}
+        META_ENABLED=${ZIYU_META_TEST_ENABLED:-1}
+        META_USABLE=${ZIYU_META_TEST_USABLE:-1}
+        META_READY=${ZIYU_META_TEST_READY:-$META_USABLE}
         META_AVAILABLE=$META_INSTALLED
         META_DETECTION_SOURCE=test
         [ "$META_USABLE" = 1 ] && { META_USABLE_REASON=available; META_CLEANUP_CAPABILITY=test; }
@@ -511,13 +511,13 @@ luoshu_meta_mount_detect() {
         return 0
     fi
 
-    META_ACTIVE_DIR=$(_luoshu_meta_active_dir)
+    META_ACTIVE_DIR=$(_ziyu_meta_active_dir)
     if [ -n "$META_ACTIVE_DIR" ]; then
-        META_ENGINE=$(_luoshu_meta_type_for_dir "$META_ACTIVE_DIR")
+        META_ENGINE=$(_ziyu_meta_type_for_dir "$META_ACTIVE_DIR")
         if [ -n "$META_ENGINE" ]; then
             META_MODULE_DIR="$META_ACTIVE_DIR"
             META_INSTALLED=1
-            _luoshu_meta_enabled "$META_ACTIVE_DIR" && META_ENABLED=1
+            _ziyu_meta_enabled "$META_ACTIVE_DIR" && META_ENABLED=1
         else
             META_ENGINE=none
             META_ACTIVE_DIR=''
@@ -528,7 +528,7 @@ luoshu_meta_mount_detect() {
         # One finite inventory per detection call instead of a complete module
         # directory traversal for every engine and enabled/disabled pass.
         # Matching candidates and disable/remove markers are rechecked on use.
-        _lmd_installed_snapshot=$(_luoshu_meta_installed_snapshot)
+        _lmd_installed_snapshot=$(_ziyu_meta_installed_snapshot)
         _lmd_installed_snapshot_ready=1
     fi
 
@@ -538,7 +538,7 @@ luoshu_meta_mount_detect() {
     # /data/adb/metamodule selector symlink is intentionally absent. Check this
     # specific active Magisk configuration before inactive KSU metamodule installs.
     if [ "$META_ENGINE" = none ] && [ "${ROOT_MANAGER:-unknown}" = Magisk ]; then
-        _lmd_candidate=$(_luoshu_meta_find_installed mountify 1)
+        _lmd_candidate=$(_ziyu_meta_find_installed mountify 1)
         if [ -n "$_lmd_candidate" ]; then
             META_ENGINE=mountify
             META_MODULE_DIR="$_lmd_candidate"
@@ -548,7 +548,7 @@ luoshu_meta_mount_detect() {
     fi
     if [ "$META_ENGINE" = none ]; then
         for _lmd_type in meta-overlayfs hybrid-mount mountify magic-mount nomount; do
-            _lmd_candidate=$(_luoshu_meta_find_installed "$_lmd_type" 1)
+            _lmd_candidate=$(_ziyu_meta_find_installed "$_lmd_type" 1)
             [ -n "$_lmd_candidate" ] || continue
             META_ENGINE="$_lmd_type"
             META_MODULE_DIR="$_lmd_candidate"
@@ -559,7 +559,7 @@ luoshu_meta_mount_detect() {
     fi
     if [ "$META_ENGINE" = none ]; then
         for _lmd_type in meta-overlayfs hybrid-mount mountify magic-mount nomount; do
-            _lmd_candidate=$(_luoshu_meta_find_installed "$_lmd_type" 0)
+            _lmd_candidate=$(_ziyu_meta_find_installed "$_lmd_type" 0)
             [ -n "$_lmd_candidate" ] || continue
             META_ENGINE="$_lmd_type"
             META_MODULE_DIR="$_lmd_candidate"
@@ -576,16 +576,16 @@ luoshu_meta_mount_detect() {
     fi
 
     if [ "$META_INSTALLED" = 1 ] && [ "$META_ENABLED" = 1 ]; then
-        _lmd_flag=$(_luoshu_meta_prop "$META_MODULE_DIR" metamodule | tr '[:upper:]' '[:lower:]')
+        _lmd_flag=$(_ziyu_meta_prop "$META_MODULE_DIR" metamodule | tr '[:upper:]' '[:lower:]')
         _lmd_is_active=0
-        _luoshu_meta_active_identity "$META_MODULE_DIR" && _lmd_is_active=1
+        _ziyu_meta_active_identity "$META_MODULE_DIR" && _lmd_is_active=1
         _lmd_module_dir="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
         _lmd_skip_mount_ok=1
         _lmd_skip_mountify_ok=1
-        if [ -e "$_lmd_module_dir/skip_mount" ] && ! _luoshu_meta_is_owned_skip skip_mount; then
+        if [ -e "$_lmd_module_dir/skip_mount" ] && ! _ziyu_meta_is_owned_skip skip_mount; then
             _lmd_skip_mount_ok=0
         fi
-        if [ -e "$_lmd_module_dir/skip_mountify" ] && ! _luoshu_meta_is_owned_skip skip_mountify; then
+        if [ -e "$_lmd_module_dir/skip_mountify" ] && ! _ziyu_meta_is_owned_skip skip_mountify; then
             _lmd_skip_mountify_ok=0
         fi
         case "$META_ENGINE" in
@@ -593,7 +593,7 @@ luoshu_meta_mount_detect() {
                 _lmd_overlay_flag=0; _lmd_overlay_hook=0; _lmd_overlay_image=0
                 { [ "$_lmd_flag" = 1 ] || [ "$_lmd_flag" = true ]; } && _lmd_overlay_flag=1
                 { [ -f "$META_MODULE_DIR/metamount.sh" ] || [ -x "$META_MODULE_DIR/meta-overlayfs" ] || [ -x "$META_MODULE_DIR/meta-overlay" ]; } && _lmd_overlay_hook=1
-                { [ -f "$META_MODULE_DIR/modules.img" ] || [ -d "$META_MODULE_DIR/mnt" ] || _luoshu_meta_overlay_content_base >/dev/null; } && _lmd_overlay_image=1
+                { [ -f "$META_MODULE_DIR/modules.img" ] || [ -d "$META_MODULE_DIR/mnt" ] || _ziyu_meta_overlay_content_base >/dev/null; } && _lmd_overlay_image=1
                 META_DETECTION_CHECKS="active=$_lmd_is_active,metamodule=$_lmd_overlay_flag,skip_ok=$_lmd_skip_mount_ok,hook=$_lmd_overlay_hook,image=$_lmd_overlay_image"
                 if [ "$_lmd_is_active" -ne 1 ]; then META_USABLE_REASON=overlayfs-not-active
                 elif [ "$_lmd_overlay_flag" != 1 ]; then META_USABLE_REASON=overlayfs-not-metamodule
@@ -624,9 +624,9 @@ luoshu_meta_mount_detect() {
                      [ -e "$_lmd_module_dir/disable" ] || [ -e "$_lmd_module_dir/remove" ]; then
                     META_USABLE_REASON=hybrid-module-excluded
                 else
-                    if _luoshu_meta_hybrid_selected; then
+                    if _ziyu_meta_hybrid_selected; then
                         META_READY=1
-                        if _luoshu_meta_hybrid_runtime_api "$META_MODULE_DIR"; then
+                        if _ziyu_meta_hybrid_runtime_api "$META_MODULE_DIR"; then
                             META_USABLE=1
                             META_USABLE_REASON=hybrid-pure-vfs-scoped-unload
                             META_CLEANUP_CAPABILITY=hybrid-vfs
@@ -675,7 +675,7 @@ luoshu_meta_mount_detect() {
                         META_USABLE_REASON=mountify-runtime-unavailable
                     elif [ "$_lmd_skip_mount_ok" -ne 1 ] || [ "$_lmd_skip_mountify_ok" -ne 1 ]; then
                         META_USABLE_REASON=mountify-module-excluded
-                    elif _luoshu_meta_mountify_selected; then
+                    elif _ziyu_meta_mountify_selected; then
                         META_READY=1
                         META_USABLE=1
                         META_USABLE_REASON=mountify-has-no-module-scoped-unload
@@ -686,7 +686,7 @@ luoshu_meta_mount_detect() {
                 fi
                 ;;
             nomount)
-                META_NOMOUNT_CLI=$(_luoshu_nomount_cli_for_dir "$META_MODULE_DIR")
+                META_NOMOUNT_CLI=$(_ziyu_nomount_cli_for_dir "$META_MODULE_DIR")
                 _lmd_runner=0
                 [ -z "$META_NOMOUNT_CLI" ] || _lmd_runner=1
                 if [ "$_lmd_is_active" -ne 1 ]; then
@@ -695,7 +695,7 @@ luoshu_meta_mount_detect() {
                     META_USABLE_REASON=nomount-cli-unavailable
                 elif [ "$_lmd_skip_mount_ok" -ne 1 ]; then
                     META_USABLE_REASON=nomount-module-excluded
-                elif [ "${LUOSHU_META_PROVIDER_SCAN:-0}" = 1 ]; then
+                elif [ "${ZIYU_META_PROVIDER_SCAN:-0}" = 1 ]; then
                     # NoMount's metamount hook may load the VFS driver after this
                     # module's post-fs-data hook. Provider detection must not use
                     # an early `nm version` result as a capability verdict.
@@ -706,7 +706,7 @@ luoshu_meta_mount_detect() {
                         META_USABLE_REASON=nomount-provider-hook-unavailable
                     fi
                 else
-                    if luoshu_nomount_kernel_probe "$META_NOMOUNT_CLI"; then
+                    if ziyu_nomount_kernel_probe "$META_NOMOUNT_CLI"; then
                         META_READY=1
                         # The VFS interface is live, but this private-payload
                         # backend is intentionally separate from Meta selection.
@@ -745,12 +745,12 @@ luoshu_meta_mount_detect() {
     printf '%s|%s|%s|%s|%s\n' "$META_ENGINE" "$META_INSTALLED" "$META_ENABLED" "$META_USABLE" "$META_DETECTION_SOURCE"
 }
 
-luoshu_detect_mount_engine() {
-    if [ "${LUOSHU_META_FORCE_SELF:-0}" = 1 ]; then
+ziyu_detect_mount_engine() {
+    if [ "${ZIYU_META_FORCE_SELF:-0}" = 1 ]; then
         printf 'self-mount\n'
         return 0
     fi
-    luoshu_meta_mount_detect >/dev/null
+    ziyu_meta_mount_detect >/dev/null
     if [ "$META_USABLE" = 1 ]; then
         printf '%s\n' "$META_ENGINE"
     else
@@ -758,10 +758,10 @@ luoshu_detect_mount_engine() {
     fi
 }
 
-luoshu_mount_backend() {
-    _lmb_engine="${1:-$(luoshu_detect_mount_engine)}"
+ziyu_mount_backend() {
+    _lmb_engine="${1:-$(ziyu_detect_mount_engine)}"
     case "$_lmb_engine" in
-        hybrid-mount) luoshu_hybrid_backend ;;
+        hybrid-mount) ziyu_hybrid_backend ;;
         meta-overlayfs|dual-dir-metamodule) printf 'overlayfs\n' ;;
         mountify) printf 'mountify\n' ;;
         nomount) printf 'nomount\n' ;;
@@ -770,8 +770,8 @@ luoshu_mount_backend() {
     esac
 }
 
-luoshu_meta_detection_info() {
-    luoshu_meta_mount_detect >/dev/null
+ziyu_meta_detection_info() {
+    ziyu_meta_mount_detect >/dev/null
     printf 'META_ENGINE=%s\n' "$META_ENGINE"
     printf 'META_INSTALLED=%s\n' "$META_INSTALLED"
     printf 'META_AVAILABLE=%s\n' "$META_AVAILABLE"

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Normalize generated LuoShu UI font identity without changing glyph geometry.
+"""Normalize generated Ziyu UI font identity without changing glyph geometry.
 
 Android's system font map is keyed by XML family names, but framework caches, OEM aliases and some
 native clients also retain the sfnt Family, Typographic Family and PostScript names. Every generated
-static weight therefore receives one deterministic LuoShu identity before it is referenced by the
+static weight therefore receives one deterministic Ziyu identity before it is referenced by the
 no-Hook XML overlay.
 """
 from __future__ import annotations
@@ -64,8 +64,8 @@ def normalize_font(font: TTFont, weight: int, family: str, source_digest: str, m
         raise ValueError("font has no name table")
 
     role = WEIGHT_NAMES[weight]
-    family = family.strip() or "LuoShu UI"
-    postscript_family = "".join(character for character in family if character.isalnum()) or "LuoShuUI"
+    family = family.strip() or "Ziyu UI"
+    postscript_family = "".join(character for character in family if character.isalnum()) or "ZiyuUI"
     values = {
         "family": family,
         "subfamily": role,
@@ -125,7 +125,7 @@ def main() -> int:
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--weight", required=True, type=int)
-    parser.add_argument("--family", default="LuoShu UI")
+    parser.add_argument("--family", default="Ziyu UI")
     parser.add_argument("--monospace", action="store_true")
     args = parser.parse_args()
 

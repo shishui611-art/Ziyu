@@ -72,7 +72,7 @@ class EventTest(unittest.TestCase):
         self.assertTrue(self.event.changed())
 
     def test_own_journal_writes_do_not_wake(self):
-        with patch.dict(os.environ, {'LUOSHU_GOOGLE_FONT_WATCH_ROOTS': str(self.fonts)}):
+        with patch.dict(os.environ, {'ZIYU_GOOGLE_FONT_WATCH_ROOTS': str(self.fonts)}):
             watch.configure(self.event, self.module)
         (self.module / 'config/google-font-provider-mounts.conf').write_text('journal')
         self.assertFalse(self.event.changed())
@@ -80,7 +80,7 @@ class EventTest(unittest.TestCase):
         self.assertTrue(self.event.changed())
 
     def test_disable_and_remove_are_observed(self):
-        with patch.dict(os.environ, {'LUOSHU_GOOGLE_FONT_WATCH_ROOTS': ''}):
+        with patch.dict(os.environ, {'ZIYU_GOOGLE_FONT_WATCH_ROOTS': ''}):
             watch.configure(self.event, self.module)
         (self.module / 'disable').touch()
         self.assertTrue(self.event.changed())
@@ -126,7 +126,7 @@ class EventTest(unittest.TestCase):
 
     def test_deadline_is_bounded_and_does_not_create_module_files(self):
         before = set(self.module.rglob('*'))
-        with patch.dict(os.environ, {'LUOSHU_GOOGLE_FONT_WATCH_ROOTS': ''}):
+        with patch.dict(os.environ, {'ZIYU_GOOGLE_FONT_WATCH_ROOTS': ''}):
             result = watch.wait(self.module, 0.03, self.proc, tick=0.01)
         self.assertEqual(result, 2)
         self.assertEqual(set(self.module.rglob('*')), before)
@@ -143,7 +143,7 @@ class FingerprintTest(unittest.TestCase):
     pid = EventTest.pid
     # Use the real bridge and its proc discovery, never mock its fingerprint.
     def fingerprint(self):
-        bridge = Path(os.environ.get('LUOSHU_BRIDGE_UNDER_TEST', ROOT / 'common/google_font_provider_bridge.sh'))
+        bridge = Path(os.environ.get('ZIYU_BRIDGE_UNDER_TEST', ROOT / 'common/google_font_provider_bridge.sh'))
         bin_dir = self.root / 'bin'
         bin_dir.mkdir(exist_ok=True)
         (bin_dir / 'pidof').write_text('#!/bin/sh\nexit 1\n')
@@ -151,8 +151,8 @@ class FingerprintTest(unittest.TestCase):
         target = self.fonts / 'google'
         if not target.exists():
             target.write_bytes(b'x' * 2048)
-        env = dict(os.environ, MODDIR=str(self.module), LUOSHU_PROC_ROOT=str(self.proc),
-                   LUOSHU_GOOGLE_FONT_TARGETS=str(target), PATH=f'{bin_dir}:' + os.environ['PATH'])
+        env = dict(os.environ, MODDIR=str(self.module), ZIYU_PROC_ROOT=str(self.proc),
+                   ZIYU_GOOGLE_FONT_TARGETS=str(target), PATH=f'{bin_dir}:' + os.environ['PATH'])
         result = subprocess.run(['sh', str(bridge), 'fingerprint'], env=env, check=True,
                                 capture_output=True, text=True, timeout=5)
         return result.stdout.strip()

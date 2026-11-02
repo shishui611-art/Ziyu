@@ -2,7 +2,7 @@ LuoShu bundles or builds with the following third-party components:
 
 Lazy template indexing/table reads in common/device_font_template_base.py are
 adapted from LuoShu commit 852297117606ca37436b999b6307fd598742bca7,
-GPL-3.0-only; full license: licenses/LuoShu-v3.0.0-GPL-3.0.txt.
+GPL-3.0-only; full license: licenses/upstream-v3.0.0-GPL-3.0.txt.
 
 The v1.3.12 SFNT/TTC table-directory reader in common/font_structure.py and its
 mix-source integration are original Ziyu code, GPL-3.0-only under LICENSE,
@@ -46,3 +46,5 @@ are checked by scripts/build_font_instance.py.
 Ziyu v1.4.53 font_native_cff.py and native/font-instance/cff-cache.hh:
 Original GPL-3.0-only Type 2 writer and cache; CFF donor drawing uses the
 already bundled HarfBuzz 15.0.0 under the licenses listed above.
+
+v1.4.75: common/ziyu_health.sh is relocated from the existing project health CLI; runtime entry points and search icon spacing changes remain GPL-3.0-only. See licenses/Ziyu-GPL-3.0.txt and THIRD_PARTY_NOTICES.md. No new third-party dependency.

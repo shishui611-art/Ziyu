@@ -1,5 +1,9 @@
 # 第三方组件与许可证
 
+`common/legacy_identity.{py,sh}` 与 `LegacyIdentityCompatibility.kt` 为字域原创 GPL-3.0-only 兼容代码，仅识别历史格式和路径，不修改已生成字体的字节或摘要契约。Python 启动器沿用 `scripts/prepare_composite_runtime.sh` 内的本项目启动代码，当前名称为 `common/python/bin/ziyu-python`；未新增第三方依赖。历史项目名称与原版权署名保留，本地许可证文件改名仅整理引用，不改变原文或授权。
+
+原有 C 工具现在以 `system/bin/ziyud` 交付。`scripts/rebrand_cli.py` 固定原二进制 SHA-256 `eec2861c7b014afd880aebac2038ba12fef01c1444e7a3137ce4fd8b31632d46`，仅将 6 处旧品牌帮助文案替换成等长 UTF-8 字域文案；输出 SHA-256 为 `44ce5305bea6a743a278bd6c955bccd5e2a752a22a38a2cee2084ab5c249e27c`。该脚本提供可复现的修改源码，构建时检查输出摘要；原工具版权、GPL 来源和许可继续保留，未宣称重新实现或升级其字体引擎。
+
 `common/stock_readonly_view.py` 为字域原创 GPL-3.0-only 运行文件，许可证见 [Ziyu-GPL-3.0.txt](licenses/Ziyu-GPL-3.0.txt)。它调用设备已有的 Linux 命名空间、loop 与只读 EROFS 挂载接口及系统 losetup，未引入或打包新的第三方库、分区镜像或字体。
 
 
@@ -15,7 +19,7 @@
 
 `common/font_ttf_export.{py,sh}` 与 `FontTtfExport.kt` 为本项目原创 GPL-3.0-only 代码，调用已打包 FontTools 的字体集合、变轴实例与轮廓转换 API，未新增第三方依赖或字体数据。转换文件仅由用户主动导出。轮廓模板复用同样使用现有 FontTools API，无新增原生库；运行文件列入模块清单，项目许可证见 `licenses/Ziyu-GPL-3.0.txt`（随主许可证原文）。
 
-字域当前源码采用 GPL-3.0-only，详见根目录 [`LICENSE`](LICENSE)。历史 MIT 发行版本的许可证文本保存在 [`licenses/LuoShu-MIT-HISTORICAL.txt`](licenses/LuoShu-MIT-HISTORICAL.txt)。
+字域当前源码采用 GPL-3.0-only，详见根目录 [`LICENSE`](LICENSE)。历史 MIT 发行版本的许可证文本保存在 [`licenses/upstream-project-MIT-HISTORICAL.txt`](licenses/upstream-project-MIT-HISTORICAL.txt)。
 
 发布包会包含或在构建过程中引入以下第三方组件。它们不因被字域打包而改变原许可证。
 
@@ -24,7 +28,7 @@
 - 来源：[`xgl34222220-ops/LuoShu`](https://github.com/xgl34222220-ops/LuoShu)，正式标签 `refactor-v3.0.0`，固定提交 `3e7e19b9f2b0899a326d0ce337602c006b90f233`。
 - 移植内容：组合字体平顶探针、中文比例与基线校正、英数微调算法和参数边界，以及西文路由优先诊断、符号链接路由说明。
 - 字域适配：保留当前组合保存与应用流程、字形兼容和错误报告；微调接入三种界面风格、方案备份及任务参数；实例缓存沿用字域实现并补充同源英数复用。
-- 许可证：GPL-3.0-only。上游此标签的许可证文本保存在 [`licenses/LuoShu-v3.0.0-GPL-3.0.txt`](licenses/LuoShu-v3.0.0-GPL-3.0.txt)。完整范围和当前验证状态见 [`docs/UPSTREAM_V3_PORT.md`](docs/UPSTREAM_V3_PORT.md)。
+- 许可证：GPL-3.0-only。上游此标签的许可证文本保存在 [`licenses/upstream-v3.0.0-GPL-3.0.txt`](licenses/upstream-v3.0.0-GPL-3.0.txt)。完整范围和当前验证状态见 [`docs/UPSTREAM_V3_PORT.md`](docs/UPSTREAM_V3_PORT.md)。
 
 ## 字体预加载公共接口
 
@@ -34,7 +38,7 @@
 
 ## 挂载实现参考
 
-`common/device_font_template_base.py` 的按需 PostScript 名称索引及字体表懒加载移植自 LuoShu 提交 [`852297117606ca37436b999b6307fd598742bca7`](https://github.com/xgl34222220-ops/LuoShu/commit/852297117606ca37436b999b6307fd598742bca7)，保持 GPL-3.0-only；许可证完整文本沿用 `licenses/LuoShu-v3.0.0-GPL-3.0.txt`。它仅改变采集读取时机，原有解析、哈希和验证流程保留。
+`common/device_font_template_base.py` 的按需 PostScript 名称索引及字体表懒加载移植自 LuoShu 提交 [`852297117606ca37436b999b6307fd598742bca7`](https://github.com/xgl34222220-ops/LuoShu/commit/852297117606ca37436b999b6307fd598742bca7)，保持 GPL-3.0-only；许可证完整文本沿用 `licenses/upstream-v3.0.0-GPL-3.0.txt`。它仅改变采集读取时机，原有解析、哈希和验证流程保留。
 
 `common/font_structure.py` 中 v1.3.12 新增的 SFNT/TTC 目录读取及 `common/font_check.sh` 的组合源接入为字域自行编写的 GPL-3.0-only 代码，使用 Python 标准库，未引入第三方解析代码。FontTools 的既有完整验证仍按其原许可证使用。
 
@@ -112,7 +116,7 @@ v1.3.3 新增的 `common/font_scan_profile.py` 和 `common/stock_font_snapshot.p
 
 ## LuoShu main 2026-10-13 分项移植（字域 v1.4.2）
 
-- 来源：[LuoShu main `cd90150bb6bfa8081c639e684d421c317e5d436a`](https://github.com/xgl34222220-ops/LuoShu/tree/cd90150bb6bfa8081c639e684d421c317e5d436a)，GPL-3.0-only；完整许可证见 `licenses/LuoShu-main-20261013-GPL-3.0.txt`。
+- 来源：[LuoShu main `cd90150bb6bfa8081c639e684d421c317e5d436a`](https://github.com/xgl34222220-ops/LuoShu/tree/cd90150bb6bfa8081c639e684d421c317e5d436a)，GPL-3.0-only；完整许可证见 `licenses/upstream-main-20261013-GPL-3.0.txt`。
 - 按字体真实声明读取轴、隐藏轴标记、轴名与范围校验、成功元数据缓存及相关回归源自 `4dead61b`；字域保留自己的字体预览与三种主题控件，并增加读取期间源变化核对。
 - 本次 ColorOS 覆盖、App 筛选与轮询/前台服务、只读应用字体来源审计的参考分别为上游 PR #294、#289、#283/#293。实现按字域现有原厂快照、挂载、热切换、任务及三主题设置路径适配。
 - `common/composite_collection_build.py`、`composite_collection_contract.py` 及 Shell 入口参考上游组合字体集合方向，基于字域现有组合输出、fontTools 与可信原厂快照实现逐面构建/证明校验；代码按本仓库 GPL-3.0-only 授权，字体数据的权利仍属于原权利人。
@@ -146,3 +150,7 @@ v1.4.13 的通知授权状态、独立预览通知与 `ui/navigation/PredictiveB
 v1.4.38 的 `common/font_native_glyphs.py`、原生字形缓存协议和 TrueType 分解/缩放代码为本项目原创 GPL-3.0-only 实现；`font_native_instance.py` 的字符裁剪使用上述已固定 HarfBuzz。没有新增外部库或随包字体；运行文件已列入模块清单。
 
 v1.4.53 的 `common/font_native_cff.py`、原生 Type 2 写入器、边界计算和缓存协议为本项目原创 GPL-3.0-only 实现；CFF/CFF2 供体读取使用上述固定版本 HarfBuzz draw API。没有新增外部库。
+
+- `common/adb_storage.py`、`common/adb_storage.sh` 为本项目新增的 GPL-3.0-only 自有目录迁移代码；仅迁移明确列出的字域历史路径。NoMount Suite 命令适配依据 [Bouteillepleine/NoMount-Suite](https://github.com/Bouteillepleine/NoMount-Suite) 的公开 CLI 行为独立实现，未复制其源码。v1.4.71 不再将原生字体预加载配套模块打入交付 ZIP。
+
+- v1.4.75 的 `common/ziyu_health.sh` 由仓库既有体检命令迁移而来，保留原报告、失效任务清理与恢复行为，沿用 GPL-3.0-only（`licenses/Ziyu-GPL-3.0.txt`）。稳定入口与 App 旧路径解析为本项目修改，没有新增第三方依赖或二进制；原项目来源与许可声明继续保留，新增运行文件已进入模块清单。

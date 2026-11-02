@@ -84,7 +84,7 @@ def main() -> int:
     if args.section != 'scripts':
         run('unit-regressions', [sys.executable, '-m', 'unittest', '-v', *UNIT_MODULES])
     if args.section != 'unit':
-        with tempfile.TemporaryDirectory(prefix='luoshu-round2-gate-') as temp:
+        with tempfile.TemporaryDirectory(prefix='ziyu-round2-gate-') as temp:
             font = Path(temp)/'synthetic.ttf'
             create = ('from pathlib import Path;from hyperos_cjk_routing_test import make_font;'
                       'import sys;make_font(Path(sys.argv[1]),tuple(range(32,128)))')

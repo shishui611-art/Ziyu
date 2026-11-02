@@ -24,7 +24,7 @@ from stock_metric_contract_test import make_font  # noqa: E402
 
 class ScannerRefreshTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory(prefix="luoshu-scan-refresh-")
+        self.temp = tempfile.TemporaryDirectory(prefix="ziyu-scan-refresh-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.fonts = self.root / "state/lower/system-fonts"
@@ -40,8 +40,8 @@ class ScannerRefreshTest(unittest.TestCase):
                 setattr(self.args, spec[2], self.root / "absent" / spec[2])
         self.args.system_fonts, self.args.system_etc = self.fonts, self.etc
         self.environment = mock.patch.dict(os.environ, {
-            "LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"),
-            "LUOSHU_STOCK_VIEW_VERIFIED": "",
+            "ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"),
+            "ZIYU_STOCK_VIEW_VERIFIED": "",
         })
         self.environment.start()
         self.addCleanup(self.environment.stop)

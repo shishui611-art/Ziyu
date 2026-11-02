@@ -1,29 +1,29 @@
 #!/system/bin/sh
-# 洛书无 Hook 全局字体覆盖增强层。
+# 字域无 Hook 全局字体覆盖增强层。
 # 必须在 rom_adapters.sh 之后 source；这里重新定义 HyperOS 映射和统一 ROM 分发入口。
 set +e
 
-_luoshu_hyperos_module_dir() {
+_ziyu_hyperos_module_dir() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
-_luoshu_font_config_runtime="$(_luoshu_hyperos_module_dir)/common/font_config_runtime.sh"
-[ -f "$_luoshu_font_config_runtime" ] && . "$_luoshu_font_config_runtime"
-_luoshu_font_config_weights="$(_luoshu_hyperos_module_dir)/common/font_config_weights.sh"
-[ -f "$_luoshu_font_config_weights" ] && . "$_luoshu_font_config_weights"
+_ziyu_font_config_runtime="$(_ziyu_hyperos_module_dir)/common/font_config_runtime.sh"
+[ -f "$_ziyu_font_config_runtime" ] && . "$_ziyu_font_config_runtime"
+_ziyu_font_config_weights="$(_ziyu_hyperos_module_dir)/common/font_config_weights.sh"
+[ -f "$_ziyu_font_config_weights" ] && . "$_ziyu_font_config_weights"
 
-_luoshu_hyperos_root_pairs() {
-    _module="$(_luoshu_hyperos_module_dir)"
-    printf '%s|%s\n' "${LUOSHU_SYSTEM_FONTS_ROOT:-/system/fonts}" "$_module/system/fonts"
-    printf '%s|%s\n' "${LUOSHU_PRODUCT_FONTS_ROOT:-/product/fonts}" "$_module/product/fonts"
-    printf '%s|%s\n' "${LUOSHU_SYSTEM_EXT_FONTS_ROOT:-/system_ext/fonts}" "$_module/system_ext/fonts"
-    printf '%s|%s\n' "${LUOSHU_MI_EXT_FONTS_ROOT:-/mi_ext/fonts}" "$_module/mi_ext/fonts"
-    printf '%s|%s\n' "${LUOSHU_VENDOR_FONTS_ROOT:-/vendor/fonts}" "$_module/vendor/fonts"
-    printf '%s|%s\n' "${LUOSHU_ODM_FONTS_ROOT:-/odm/fonts}" "$_module/odm/fonts"
-    printf '%s|%s\n' "${LUOSHU_OEM_FONTS_ROOT:-/oem/fonts}" "$_module/oem/fonts"
-    printf '%s|%s\n' "${LUOSHU_MY_PRODUCT_FONTS_ROOT:-/my_product/fonts}" "$_module/my_product/fonts"
-    printf '%s|%s\n' "${LUOSHU_HW_PRODUCT_FONTS_ROOT:-/hw_product/fonts}" "$_module/hw_product/fonts"
-    printf '%s|%s\n' "${LUOSHU_CUST_FONTS_ROOT:-/cust/fonts}" "$_module/cust/fonts"
+_ziyu_hyperos_root_pairs() {
+    _module="$(_ziyu_hyperos_module_dir)"
+    printf '%s|%s\n' "${ZIYU_SYSTEM_FONTS_ROOT:-/system/fonts}" "$_module/system/fonts"
+    printf '%s|%s\n' "${ZIYU_PRODUCT_FONTS_ROOT:-/product/fonts}" "$_module/product/fonts"
+    printf '%s|%s\n' "${ZIYU_SYSTEM_EXT_FONTS_ROOT:-/system_ext/fonts}" "$_module/system_ext/fonts"
+    printf '%s|%s\n' "${ZIYU_MI_EXT_FONTS_ROOT:-/mi_ext/fonts}" "$_module/mi_ext/fonts"
+    printf '%s|%s\n' "${ZIYU_VENDOR_FONTS_ROOT:-/vendor/fonts}" "$_module/vendor/fonts"
+    printf '%s|%s\n' "${ZIYU_ODM_FONTS_ROOT:-/odm/fonts}" "$_module/odm/fonts"
+    printf '%s|%s\n' "${ZIYU_OEM_FONTS_ROOT:-/oem/fonts}" "$_module/oem/fonts"
+    printf '%s|%s\n' "${ZIYU_MY_PRODUCT_FONTS_ROOT:-/my_product/fonts}" "$_module/my_product/fonts"
+    printf '%s|%s\n' "${ZIYU_HW_PRODUCT_FONTS_ROOT:-/hw_product/fonts}" "$_module/hw_product/fonts"
+    printf '%s|%s\n' "${ZIYU_CUST_FONTS_ROOT:-/cust/fonts}" "$_module/cust/fonts"
 }
 
 _hyperos_core_files() {
@@ -65,7 +65,7 @@ _hyperos_upright_ui_files() {
                 printf '%s\n' "$_name"
             done
         done <<EOF_UI_ROOTS
-$(_luoshu_hyperos_root_pairs)
+$(_ziyu_hyperos_root_pairs)
 EOF_UI_ROOTS
     } | awk 'NF && !seen[$0]++'
 }
@@ -86,7 +86,7 @@ _hyperos_clock_ui_files() {
                 printf '%s\n' "$_name"
             done
         done <<EOF_CLOCK_ROOTS
-$(_luoshu_hyperos_root_pairs)
+$(_ziyu_hyperos_root_pairs)
 EOF_CLOCK_ROOTS
     } | awk 'NF && !seen[$0]++'
 }
@@ -98,7 +98,7 @@ get_all_hyperos_files() {
 
 _hyperos_remove_overlay_file() {
     _file="$1"
-    _module="$(_luoshu_hyperos_module_dir)"
+    _module="$(_ziyu_hyperos_module_dir)"
     rm -f "$_module/system/fonts/$_file" "$_module/product/fonts/$_file" \
         "$_module/system_ext/fonts/$_file" "$_module/mi_ext/fonts/$_file" \
         "$_module/vendor/fonts/$_file" "$_module/my_product/fonts/$_file" \
@@ -117,7 +117,7 @@ _hyperos_alias_existing_targets() {
             _count=$((_count + 1))
         fi
     done <<EOF_PAIRS
-$(_luoshu_hyperos_root_pairs)
+$(_ziyu_hyperos_root_pairs)
 EOF_PAIRS
     printf '%s\n' "$_count"
 }
@@ -189,7 +189,7 @@ _hyperos_compact_normalize() {
 
 _hyperos_compact_anchor() {
     _source="$1"; _dest_dir="$2"; _key="$3"
-    _output="$_dest_dir/.luoshu-font-store/compact-${_key}.font"
+    _output="$_dest_dir/.ziyu-font-store/compact-${_key}.font"
     if [ -s "$_output" ]; then
         printf '%s\n' "$_output"
         return 0
@@ -206,8 +206,8 @@ _hyperos_compact_anchor() {
 _hyperos_materialize_variable_weight() {
     _source="$1"; _output="$2"; _weight="$3"
     [ -s "$_output" ] && return 0
-    _module="$(_luoshu_hyperos_module_dir)"
-    _pyroot="$_module/common/python"; _python="$_pyroot/bin/luoshu-python"
+    _module="$(_ziyu_hyperos_module_dir)"
+    _pyroot="$_module/common/python"; _python="$_pyroot/bin/ziyu-python"
     _instancer="$_module/common/font_instance.py"; _raw="${_output}.raw"
     [ -x "$_python" ] && [ -f "$_instancer" ] || return 1
     rm -f "$_raw" "$_output" 2>/dev/null || true
@@ -228,7 +228,7 @@ _hyperos_weight_anchor() {
     _source="$(_hyperos_exact_weight_source "$_family" "$_role")"
     [ -f "$_source" ] || _source="$_regular"
     if type is_variable_font >/dev/null 2>&1 && is_variable_font "$_source"; then
-        _output="$_dest_dir/.luoshu-font-store/compact-wght-${_weight}.font"
+        _output="$_dest_dir/.ziyu-font-store/compact-wght-${_weight}.font"
         if _hyperos_materialize_variable_weight "$_source" "$_output" "$_weight" && [ -s "$_output" ]; then
             chmod 0644 "$_output" 2>/dev/null || true
             printf '%s\n' "$_output"
@@ -244,7 +244,7 @@ _hyperos_is_config_weight() {
 
 copy_as_hyperos() {
     src="$1"; dest_dir="$2"; mode="${3:-full}"; font_family="${4:-}"
-    _module="$(_luoshu_hyperos_module_dir)"
+    _module="$(_ziyu_hyperos_module_dir)"
     [ -n "$font_family" ] || font_family=$(detect_font_family "$(basename "$src")")
     regular="$(_hyperos_pick_regular_source "$font_family" "$src")" || return 1
 
@@ -275,7 +275,7 @@ copy_as_hyperos() {
         _added=$(_hyperos_alias_existing_targets "$_anchor" "$_file")
         case "$_added" in ''|*[!0-9]*) _added=0 ;; esac
         weight_count=$((weight_count + _added))
-        if _hyperos_is_config_weight "$_weight" && _font_alias "$_anchor" "$_module/system/fonts/LuoShu-${_weight}.ttf"; then
+        if _hyperos_is_config_weight "$_weight" && _font_alias "$_anchor" "$_module/system/fonts/Ziyu-${_weight}.ttf"; then
             config_weight_count=$((config_weight_count + 1))
         fi
     done

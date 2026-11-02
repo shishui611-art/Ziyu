@@ -61,7 +61,7 @@ def ordered_fonts(paths, proof):
 
 def catalogue(module, proof, root):
     """One post-verification metadata pass; no font content reads or hashes."""
-    payload = module / '.luoshu-payload'
+    payload = module / '.ziyu-payload'
     if proof.get('mode') == 'physical-safe':
         candidates = proof.get('mountedFonts', [])
         if not isinstance(candidates, list) or not candidates:
@@ -136,7 +136,7 @@ def prepare(module):
     module = Path(module)
     config = module / 'config'
     state = config / 'mount-backend.conf'
-    payload = module / '.luoshu-payload'
+    payload = module / '.ziyu-payload'
     proof_file = config / 'mount-backend-verification.json'
     target = config / 'font-preload-generation.conf'
     temporary = target.with_name(target.name + f'.tmp.{os.getpid()}')

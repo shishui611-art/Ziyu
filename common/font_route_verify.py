@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 from font_digest_cache import FontDigestCache
+from legacy_identity import generated_names, owned_path
 
 
 PARTITIONS = (
@@ -24,7 +25,7 @@ PARTITIONS = (
     "mi_ext", "cust", "hw_product", "oplus",
 )
 XML_NAMES = re.compile(r"(?:font|fonts).*\.xml$", re.IGNORECASE)
-CUSTOM_FONT = re.compile(r"(?:LuoShu|SysFont|SysSans|OplusOSUI|OSans-Solid-Digits)", re.IGNORECASE)
+CUSTOM_FONT = re.compile(r"(?:Ziyu|SysFont|SysSans|OplusOSUI|OSans-Solid-Digits)", re.IGNORECASE)
 ROUTE_ROLE = re.compile(r"(?:cjk|han|noto.*(?:cjk|sc)|sans-serif$|sanssc|simplified|chinese)", re.IGNORECASE)
 LATIN_ROLE = re.compile(
     r"(?:latin|english|western|syssans[-_ ]?en|opposans[-_ ]?en|opsans[-_ ]?en|roboto|droid\s*sans)",
@@ -194,7 +195,7 @@ def physical_roles(name: str, family: str = "", language: str = "") -> set[str]:
     roles: set[str] = set()
     label = family + " " + name
     explicitly_other = LATIN_ROLE.search(name) or DIGIT_ROLE.search(name)
-    if not explicitly_other and (re.search(r"(?:han[st]?|cjk|noto.*(?:sc|cjk)|LuoShuSlotCJK|chinese|simplified)", label, re.IGNORECASE) or re.search(r"(?:^|[ ,;])zh(?:[-_]|$)|Hans|Hant", language, re.IGNORECASE)):
+    if not explicitly_other and (re.search(r"(?:han[st]?|cjk|noto.*(?:sc|cjk)|(?:Ziyu|LuoShu)SlotCJK|chinese|simplified)", label, re.IGNORECASE) or re.search(r"(?:^|[ ,;])zh(?:[-_]|$)|Hans|Hant", language, re.IGNORECASE)):
         roles.add("cjk")
     # Vivo's direct Chinese UI slots also require the measured stock-Han
     # coverage proof below; their filename alone never proves activation.
@@ -666,7 +667,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
     hashes = FontDigestCache()
     config = module / "config"
     physical = physical_safe_contract(config)
-    payload = payload_root or module / ".luoshu-payload"
+    payload = payload_root or module / ".ziyu-payload"
     manifest = config / "font-payload-manifest.conf"
     if not manifest.is_file():
         raise RouteError("font-payload-manifest-missing")
@@ -693,7 +694,10 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
         # not an Android pathname to mount. If a symlink needs it at runtime it
         # stays required; never exempt a symlink's actual backing store.
         linked_targets = {payload_file(rel).resolve() for rel in font_paths if payload_file(rel).is_symlink()}
-        source_only = {rel for rel in font_paths if "/fonts/.luoshu-font-store/" in "/" + rel
+        # Preserved pre-rename payloads retain their original bytes and ledger.
+        # Both owned store names describe build anchors, not extra Android slots.
+        stores = generated_names(".ziyu-font-store")
+        source_only = {rel for rel in font_paths if any(f"/fonts/{store}/" in "/" + rel for store in stores)
                        and Path(rel).suffix.lower() == ".font"
                        and payload_file(rel).resolve() not in linked_targets}
         font_paths -= source_only
@@ -817,7 +821,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
     if not cjk_candidates:
         for rel in font_paths:
             name = Path(rel).name
-            if re.search(r"(?:han|cjk|noto.*(?:sc|cjk)|LuoShuSlot)", name, re.IGNORECASE) and name in all_xml_refs:
+            if re.search(r"(?:han|cjk|noto.*(?:sc|cjk)|(?:Ziyu|LuoShu)Slot)", name, re.IGNORECASE) and name in all_xml_refs:
                 cjk_candidates.add(name)
                 role_routes["cjk"].add(name)
     if not cjk_candidates:
@@ -845,9 +849,9 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
 def verify_universal(module: Path, root: Path, mountinfo: Path, require_mounts: bool = True) -> dict[str, Any]:
     hashes = FontDigestCache()
     partitions = device_partitions(module)
-    deployment_path = module / ".luoshu-payload/.luoshu-runtime/deployment/deployment.json"
-    plan_path = module / ".luoshu-payload/.luoshu-runtime/deployment/font-plan.json"
-    artifacts_path = module / ".luoshu-payload/.luoshu-runtime/deployment/artifact-manifest.json"
+    deployment_path = owned_path(module / ".ziyu-payload/.ziyu-runtime/deployment/deployment.json")
+    plan_path = owned_path(module / ".ziyu-payload/.ziyu-runtime/deployment/font-plan.json")
+    artifacts_path = owned_path(module / ".ziyu-payload/.ziyu-runtime/deployment/artifact-manifest.json")
     try:
         deployment = json.loads(deployment_path.read_text(encoding="utf-8"))
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
@@ -870,7 +874,7 @@ def verify_universal(module: Path, root: Path, mountinfo: Path, require_mounts: 
             continue
         logical = str(item.get("logicalPath") or "")
         rel = safe_manifest_path(logical, partitions)
-        source = module / ".luoshu-payload" / rel
+        source = module / ".ziyu-payload" / rel
         visible = visible_path(root, logical)
         if not source.is_file() or size(source) <= 0:
             failures.append(f"source-missing-or-empty:{logical}")
@@ -975,31 +979,18 @@ def main() -> int:
         os.replace(report_temp, args.output)
         if args.output.name in {"mount-backend-verification.json", "device-font-load-route-verification.json"}:
             warnings = result.get("warnings", [])
-            reasons = {
-                "pid1-visible-missing-or-empty": "未挂载或不可读取",
-                "pid1-visible-hash-mismatch": "仍为原厂字体或被其他模块覆盖",
-                "pid1-font-not-world-readable": "字体读取权限不足",
-                "physical-slot-route-not-proven": "文件已挂载，系统加载用途尚未确认",
-                "pid1-mountinfo-route-missing": "分区挂载路由尚未确认",
-                "pid1-artifact-read-failed": "无法读取或解析系统字体路径",
-            }
-            labels = []
-            for warning in warnings[:6]:
-                kind, _, target = warning.partition(":")
-                labels.append(f"/{target}（{reasons[kind]}）" if kind in reasons else warning)
-            detail = "；".join(labels) + (f"；另有 {len(warnings)-6} 项，详见日志" if len(warnings) > 6 else "")
             applied = int(result.get("appliedCount", 0))
             mounted = int(result.get("mountedCount", applied))
             unapplied = len(result.get("unappliedFonts", []))
             unconfirmed = len(result.get("unconfirmedFonts", []))
             message = ""
             if result.get("state") == "partial":
-                message = f"字体应用成功，已确认挂载 {mounted} 个槽位，其中 {applied} 个加载路径已确认"
+                message = "字体已应用"
                 if unapplied:
-                    message += f"；{unapplied} 个槽位未通过挂载验证，其余字体继续生效"
+                    message += f"；另有 {unapplied} 处未通过挂载检查"
                 if unconfirmed:
-                    message += f"；{unconfirmed} 个槽位的文件已挂载，系统加载用途待确认"
-                message += f"。详细提示：{detail}"
+                    message += f"；{unconfirmed} 处尚未确认生效"
+                message += "。详细原因可导出诊断报告查看。"
             config = args.module_root / "config/font-apply-result.conf"
             config.parent.mkdir(parents=True, exist_ok=True)
             values = {"boot_id": result["bootId"],

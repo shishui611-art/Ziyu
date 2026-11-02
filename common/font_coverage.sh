@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v2.0.0：按字体族定位真实源文件并输出字形覆盖诊断。
+# 字域 v2.0.0：按字体族定位真实源文件并输出字形覆盖诊断。
 set +e
 
 MODDIR="${MODDIR:-}"
@@ -15,9 +15,9 @@ fi
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 ANALYZER="$MODDIR/common/font_coverage_info.py"
 
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"

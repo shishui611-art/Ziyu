@@ -1,0 +1,5 @@
+# Keep user-provided corpus bytes and recorded digests stable across checkouts.
+coolapk-*-r*.txt -text
+*.json text eol=lf
+*.tsv text eol=lf
+README.md text eol=lf

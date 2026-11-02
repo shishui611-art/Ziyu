@@ -29,7 +29,7 @@ class ProviderLifecycleTest(unittest.TestCase):
         self.snapshot=self.root/'snapshot';self.snapshot.write_text('boot-cache-and-namespace\n')
         (self.module/'common/google_font_provider_bridge.sh').write_text('''case "$1" in
 fingerprint) cat "$TEST_SNAPSHOT";;
-apply) printf '%s|%s\n' "$(cat "$TEST_SNAPSHOT")" "$LUOSHU_GOOGLE_FONT_ALLOW_RESTART" >> "$TEST_APPLIED"; exit "${TEST_APPLY_RC:-0}";;
+apply) printf '%s|%s\n' "$(cat "$TEST_SNAPSHOT")" "$ZIYU_GOOGLE_FONT_ALLOW_RESTART" >> "$TEST_APPLIED"; exit "${TEST_APPLY_RC:-0}";;
 restore) echo restore >> "$TEST_ROOT/restored"; exit "${TEST_RESTORE_RC:-0}";;
 esac
 ''')
@@ -54,7 +54,7 @@ esac
         self.assertEqual(self.applied(),['boot-cache-and-namespace|0'])
 
     def test_old_infinite_watch_configuration_is_ignored(self):
-        self.assertEqual(self.service(LUOSHU_GOOGLE_FONT_WATCH_CYCLES='-1',LUOSHU_GOOGLE_FONT_RETRIES='24').returncode,0)
+        self.assertEqual(self.service(ZIYU_GOOGLE_FONT_WATCH_CYCLES='-1',ZIYU_GOOGLE_FONT_RETRIES='24').returncode,0)
         self.assertEqual(len(self.applied()),1)
 
     def test_new_download_requires_another_explicit_invocation(self):
@@ -136,8 +136,8 @@ esac
         script = '. "$1"; _gfp_namespace_pids() { cat "$TEST_PIDS"; }; _gfp_fingerprint'
         result = subprocess.run(["sh", "-c", script, "sh",
                                  str(ROOT / "common/google_font_provider_bridge.sh")],
-                                env={**self.env, "LUOSHU_PROC_ROOT": str(self.root / "proc"),
-                                     "LUOSHU_GOOGLE_FONT_TARGETS": "\n".join(map(str, paths)),
+                                env={**self.env, "ZIYU_PROC_ROOT": str(self.root / "proc"),
+                                     "ZIYU_GOOGLE_FONT_TARGETS": "\n".join(map(str, paths)),
                                      "TEST_PIDS": str(pids)},
                                 capture_output=True, text=True, check=True, timeout=5)
         self.assertRegex(result.stdout, r"^[a-f0-9]{64}\n$")

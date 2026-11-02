@@ -68,7 +68,7 @@ chmod 0755 "$MOD/common/minimal_xml_router.py"
 export MODDIR="$MOD"
 export MODULE_DIR="$MOD"
 export CONFIG_DIR="$MOD/config"
-export LUOSHU_PYTHON=python3
+export ZIYU_PYTHON=python3
 
 BUILD=$(sh "$MOD/common/minimal_xml_router.sh" build DemoFamily)
 printf '%s\n' "$BUILD" | grep -q '"status":"ok"'

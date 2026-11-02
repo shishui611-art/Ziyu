@@ -346,7 +346,7 @@ def main() -> int:
     assert router._match_score(unnamed_locator, unnamed_node) is not None
     assert router._match_score(unnamed_locator, named_node) is None
 
-    with tempfile.TemporaryDirectory(prefix="luoshu-phase5-") as raw:
+    with tempfile.TemporaryDirectory(prefix="ziyu-phase5-") as raw:
         temp = Path(raw)
         system_xml = temp / "stock-system-fonts.xml"
         product_xml = temp / "stock-product-custom.xml"

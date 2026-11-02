@@ -111,7 +111,7 @@ def main() -> int:
             command.extend(["--" + name.replace("_", "-") + "-fonts", str(font_dirs[name])])
             command.extend(["--" + name.replace("_", "-") + "-etc", str(etc_dirs[name])])
 
-        scan_env = {**os.environ, "LUOSHU_DYNAMIC_PARTITION_SCAN_ROOTS": str(dynamic_root)}
+        scan_env = {**os.environ, "ZIYU_DYNAMIC_PARTITION_SCAN_ROOTS": str(dynamic_root)}
         first = run(command, scan_env)
         assert first.returncode == 0, first.stderr
         result = json.loads(first.stdout)

@@ -2,6 +2,7 @@
 # Phase 8 universal runtime verification bridge.
 # Finite, boot-scoped verification only; no resident watcher and no target discovery.
 set +e
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
 
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
@@ -15,16 +16,16 @@ ACTIVATED_CONF="$CONFIG_DIR/universal-font-activated.conf"
 CUTOVER_CONTROLLER="$MODDIR/common/universal_font_cutover.sh"
 OUTPUT_JSON="$CONFIG_DIR/universal-font-runtime-verification.json"
 OUTPUT_CONF="$CONFIG_DIR/universal-font-runtime-verification.conf"
-LIVE_DEPLOYMENT="$MODDIR/.luoshu-payload/.luoshu-runtime/deployment/deployment.json"
-LIVE_FONT_PLAN="$MODDIR/.luoshu-payload/.luoshu-runtime/deployment/font-plan.json"
-LIVE_ARTIFACT_MANIFEST="$MODDIR/.luoshu-payload/.luoshu-runtime/deployment/artifact-manifest.json"
-STATE_ROOT="${LUOSHU_VERIFY_STATE_ROOT:-/data/adb/luoshu/runtime-verify}"
+LIVE_DEPLOYMENT="$(ziyu_legacy_path "$MODDIR/.ziyu-payload/.ziyu-runtime/deployment/deployment.json")"
+LIVE_FONT_PLAN="$(ziyu_legacy_path "$MODDIR/.ziyu-payload/.ziyu-runtime/deployment/font-plan.json")"
+LIVE_ARTIFACT_MANIFEST="$(ziyu_legacy_path "$MODDIR/.ziyu-payload/.ziyu-runtime/deployment/artifact-manifest.json")"
+STATE_ROOT="${ZIYU_VERIFY_STATE_ROOT:-/data/adb/ziyu/runtime-verify}"
 PID_FILE="$STATE_ROOT/verify.pid"
 FONT_DUMP="$STATE_ROOT/font-manager.txt"
 LOG_FILE="$MODDIR/logs/universal-runtime-verify.log"
-BOOT_WAIT_LIMIT="${LUOSHU_VERIFY_BOOT_WAIT_LIMIT:-180}"
-POLL_SECONDS="${LUOSHU_VERIFY_POLL_SECONDS:-2}"
-SETTLE_SECONDS="${LUOSHU_VERIFY_SETTLE_SECONDS:-4}"
+BOOT_WAIT_LIMIT="${ZIYU_VERIFY_BOOT_WAIT_LIMIT:-180}"
+POLL_SECONDS="${ZIYU_VERIFY_POLL_SECONDS:-2}"
+SETTLE_SECONDS="${ZIYU_VERIFY_SETTLE_SECONDS:-4}"
 
 _uvr_log() {
     mkdir -p "$MODDIR/logs" 2>/dev/null || true
@@ -45,12 +46,12 @@ _uvr_value() {
 }
 
 _uvr_python() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     _uvr_root="$MODDIR/common/python"
-    _uvr_bin="$_uvr_root/bin/luoshu-python"
+    _uvr_bin="$_uvr_root/bin/ziyu-python"
     [ -x "$_uvr_bin" ] || return 127
     PYTHONHOME="$_uvr_root" \
     PYTHONPATH="$MODDIR/common:$_uvr_root/lib/python3.14:$_uvr_root/lib/python3.14/site-packages" \
@@ -65,7 +66,7 @@ _uvr_boot_id() {
 }
 
 _uvr_boot_completed() {
-    [ "${LUOSHU_VERIFY_BOOT_COMPLETED:-}" = 1 ] && return 0
+    [ "${ZIYU_VERIFY_BOOT_COMPLETED:-}" = 1 ] && return 0
     [ "$(getprop sys.boot_completed 2>/dev/null)" = 1 ]
 }
 
@@ -85,7 +86,7 @@ _uvr_family() {
 }
 
 _uvr_font_plan() {
-    [ -n "${LUOSHU_VERIFY_FONT_PLAN:-}" ] && { printf '%s\n' "$LUOSHU_VERIFY_FONT_PLAN"; return 0; }
+    [ -n "${ZIYU_VERIFY_FONT_PLAN:-}" ] && { printf '%s\n' "$ZIYU_VERIFY_FONT_PLAN"; return 0; }
     # Phase 8 prefers the contract snapshot sealed into the active payload.
     [ -s "$LIVE_FONT_PLAN" ] && { printf '%s\n' "$LIVE_FONT_PLAN"; return 0; }
     [ -f "$PLAN_BRIDGE" ] || return 1
@@ -93,27 +94,27 @@ _uvr_font_plan() {
 }
 
 _uvr_artifacts() {
-    [ -n "${LUOSHU_VERIFY_ARTIFACT_MANIFEST:-}" ] && { printf '%s\n' "$LUOSHU_VERIFY_ARTIFACT_MANIFEST"; return 0; }
+    [ -n "${ZIYU_VERIFY_ARTIFACT_MANIFEST:-}" ] && { printf '%s\n' "$ZIYU_VERIFY_ARTIFACT_MANIFEST"; return 0; }
     [ -s "$LIVE_ARTIFACT_MANIFEST" ] && { printf '%s\n' "$LIVE_ARTIFACT_MANIFEST"; return 0; }
     [ -f "$COMPILER_BRIDGE" ] || return 1
     MODDIR="$MODDIR" CONFIG_DIR="$CONFIG_DIR" sh "$COMPILER_BRIDGE" manifest "$1"
 }
 
 _uvr_deployment() {
-    [ -n "${LUOSHU_VERIFY_DEPLOYMENT:-}" ] && { printf '%s\n' "$LUOSHU_VERIFY_DEPLOYMENT"; return 0; }
+    [ -n "${ZIYU_VERIFY_DEPLOYMENT:-}" ] && { printf '%s\n' "$ZIYU_VERIFY_DEPLOYMENT"; return 0; }
     printf '%s\n' "$LIVE_DEPLOYMENT"
 }
 
 _uvr_mountinfo() {
-    [ -n "${LUOSHU_VERIFY_MOUNTINFO:-}" ] && { printf '%s\n' "$LUOSHU_VERIFY_MOUNTINFO"; return 0; }
-    [ "${LUOSHU_VERIFY_MAIN_NAMESPACE:-0}" != 1 ] || { printf '/proc/1/mountinfo\n'; return 0; }
+    [ -n "${ZIYU_VERIFY_MOUNTINFO:-}" ] && { printf '%s\n' "$ZIYU_VERIFY_MOUNTINFO"; return 0; }
+    [ "${ZIYU_VERIFY_MAIN_NAMESPACE:-0}" != 1 ] || { printf '/proc/1/mountinfo\n'; return 0; }
     printf '/proc/self/mountinfo\n'
 }
 
 _uvr_collect_font_dump() {
     mkdir -p "$STATE_ROOT" 2>/dev/null || return 1
-    if [ -n "${LUOSHU_VERIFY_FONT_DUMP:-}" ] && [ -f "$LUOSHU_VERIFY_FONT_DUMP" ]; then
-        cp -f "$LUOSHU_VERIFY_FONT_DUMP" "$FONT_DUMP" 2>/dev/null || return 1
+    if [ -n "${ZIYU_VERIFY_FONT_DUMP:-}" ] && [ -f "$ZIYU_VERIFY_FONT_DUMP" ]; then
+        cp -f "$ZIYU_VERIFY_FONT_DUMP" "$FONT_DUMP" 2>/dev/null || return 1
         return 0
     fi
     : > "$FONT_DUMP" 2>/dev/null || return 1
@@ -152,7 +153,7 @@ _uvr_terminal_failure() {
     chmod 0644 "$OUTPUT_CONF" 2>/dev/null || true
     _uvr_log "FAIL reason=$_uvr_reason font=$_uvr_font"
     _uvr_guard_action apply-failed "universal-verification:${_uvr_reason:-failed}" || true
-    if [ "${LUOSHU_VERIFY_NO_CUTOVER:-0}" != 1 ]; then
+    if [ "${ZIYU_VERIFY_NO_CUTOVER:-0}" != 1 ]; then
         [ -f "$CUTOVER_CONTROLLER" ] && MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
             sh "$CUTOVER_CONTROLLER" rollback-from-fail "$_uvr_boot" >> "$LOG_FILE" 2>&1 || true
     fi
@@ -161,9 +162,9 @@ _uvr_terminal_failure() {
 _uvr_cleanup_retired_on_pass() {
     [ "$(_uvr_value "$OUTPUT_CONF" grade)" = PASS ] || return 0
     [ -f "$MODDIR/common/action_control.sh" ] || return 0
-    LUOSHU_ACTION_CONTROL_LIBRARY=true . "$MODDIR/common/action_control.sh" || return 1
-    LUOSHU_ACTION_CONTROL_LIBRARY=false
-    luoshu_undo_prune_retired "$MODDIR" >> "$LOG_FILE" 2>&1 || return 1
+    ZIYU_ACTION_CONTROL_LIBRARY=true . "$MODDIR/common/action_control.sh" || return 1
+    ZIYU_ACTION_CONTROL_LIBRARY=false
+    ziyu_undo_prune_retired "$MODDIR" >> "$LOG_FILE" 2>&1 || return 1
     return 0
 }
 
@@ -184,8 +185,8 @@ _uvr_run() {
     _uvr_artifacts=$(_uvr_artifacts "$_uvr_font")
     _uvr_deployment=$(_uvr_deployment)
     _uvr_mountinfo=$(_uvr_mountinfo)
-    _uvr_visible_root="${LUOSHU_VERIFY_VISIBLE_ROOT:-}"
-    if [ "${LUOSHU_VERIFY_MAIN_NAMESPACE:-0}" = 1 ] && [ -z "$_uvr_visible_root" ]; then
+    _uvr_visible_root="${ZIYU_VERIFY_VISIBLE_ROOT:-}"
+    if [ "${ZIYU_VERIFY_MAIN_NAMESPACE:-0}" = 1 ] && [ -z "$_uvr_visible_root" ]; then
         _uvr_visible_root=/proc/1/root
     fi
 
@@ -237,7 +238,7 @@ _uvr_run() {
         else
             _uvr_cleanup_retired_on_pass
         fi
-    elif [ "$_uvr_grade" = FAIL ] && [ -f "$CUTOVER_CONTROLLER" ] && [ "${LUOSHU_VERIFY_NO_CUTOVER:-0}" != 1 ]; then
+    elif [ "$_uvr_grade" = FAIL ] && [ -f "$CUTOVER_CONTROLLER" ] && [ "${ZIYU_VERIFY_NO_CUTOVER:-0}" != 1 ]; then
         _uvr_guard_action apply-failed "universal-verification:${_uvr_reason:-failed}" || true
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
             sh "$CUTOVER_CONTROLLER" rollback-from-fail "$_uvr_boot" >> "$LOG_FILE" 2>&1 || true

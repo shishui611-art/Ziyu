@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fast role coverage gate used before a LuoShu composite task is queued."""
+"""Fast role coverage gate used before a Ziyu composite task is queued."""
 from __future__ import annotations
 
 import argparse

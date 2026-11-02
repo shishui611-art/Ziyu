@@ -62,7 +62,7 @@ def main():
                     assert result.read(info.filename)==baseline.read(info.filename),info.filename
             for name,data in payload.items():
                 assert result.read(name)==data,name
-            report['unchangedApkSha256']=hashlib.sha256(result.read('bundled/LuoShu-App.apk')).hexdigest()
+            report['unchangedApkSha256']=hashlib.sha256(result.read('bundled/Ziyu-App.apk')).hexdigest()
     report['zipSha256']=hashlib.sha256(args.output.read_bytes()).hexdigest()
     report['zipBytes']=args.output.stat().st_size
     report['zipIntegrityVerified']=True

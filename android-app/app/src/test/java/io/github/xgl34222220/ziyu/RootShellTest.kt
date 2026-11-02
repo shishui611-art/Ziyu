@@ -55,7 +55,7 @@ class RootShellTest {
 
     @Test
     fun cancellationReapsTheRequestInsteadOfWaitingForItsTimeout() = runBlocking {
-        val directory = Files.createTempDirectory("luoshu-cancel").toFile()
+        val directory = Files.createTempDirectory("ziyu-cancel").toFile()
         val pidFile = directory.resolve("request.pid")
         var pid = 0L
         try {
@@ -78,7 +78,7 @@ class RootShellTest {
 
     @Test
     fun timeoutReturnsPartialOutputAndTerminatesTheRequest() = runBlocking {
-        val directory = Files.createTempDirectory("luoshu-timeout").toFile()
+        val directory = Files.createTempDirectory("ziyu-timeout").toFile()
         val pidFile = directory.resolve("request.pid")
         try {
             val result = withTimeout(3_000L) {
@@ -105,7 +105,7 @@ class RootShellTest {
     @Test
     fun cancellingARequestDoesNotKillItsDetachedFontWorker() = runBlocking {
         assumeFalse("Requires Android/Linux detached-shell process semantics", windowsHost)
-        val directory = Files.createTempDirectory("luoshu-detached").toFile()
+        val directory = Files.createTempDirectory("ziyu-detached").toFile()
         val ready = directory.resolve("ready")
         val finished = directory.resolve("finished")
         try {

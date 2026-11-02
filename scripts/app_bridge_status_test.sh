@@ -2,12 +2,12 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-app-status)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-app-status)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MODULE="$TMP/module"
 CONFIG="$MODULE/config"
 mkdir -p "$CONFIG"
-printf 'id=LuoShu\nversion=test\nversionCode=1\n' >"$MODULE/module.prop"
+printf 'id=Ziyu\nversion=test\nversionCode=1\n' >"$MODULE/module.prop"
 
 assert_status() {
     _expected_effective="$1"
@@ -70,12 +70,12 @@ assert_status unknown pending-reboot ''
 
 # A valid prepared transaction remains pending even if a prior service version
 # accidentally removed the reboot marker and relabelled the old boot proof.
-mkdir -p "$MODULE/common" "$MODULE/.luoshu-payload-next"
-cp "$ROOT/common/font_live_state.sh" "$MODULE/common/"
+mkdir -p "$MODULE/common" "$MODULE/.ziyu-payload-next"
+cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODULE/common/"
 rm -f "$CONFIG/text_reboot_required.conf"
 printf 'NextFont\n' > "$CONFIG/active_font.conf"
 printf 'state=prepared\nfont=NextFont\npreviousFont=DemoFont\nrequestId=req-1\n' > "$CONFIG/font-payload-next.conf"
-printf 'schema=luoshu-next-payload-v1\nfont=NextFont\nrequestId=req-1\n' > "$MODULE/.luoshu-payload-next/.luoshu-next-transaction.conf"
+printf 'schema=ziyu-next-payload-v1\nfont=NextFont\nrequestId=req-1\n' > "$MODULE/.ziyu-payload-next/.ziyu-next-transaction.conf"
 printf 'state=verified\nmode=mount-verified\nactiveFont=NextFont\n' > "$CONFIG/device-font-load-verification.conf"
 assert_status unknown pending-reboot next-boot-payload-prepared
 _output=$(MODDIR="$MODULE" sh "$ROOT/common/app_bridge.sh" status)

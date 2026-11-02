@@ -4,13 +4,13 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
 
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-digest)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-digest)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 MODULE_DIR="$TMP/module"
 MODDIR="$MODULE_DIR"
-LUOSHU_DIGEST_MEMO="$TMP/digest.memo"
-export MODULE_DIR MODDIR LUOSHU_DIGEST_MEMO
+ZIYU_DIGEST_MEMO="$TMP/digest.memo"
+export MODULE_DIR MODDIR ZIYU_DIGEST_MEMO
 mkdir -p "$MODULE_DIR/config" "$TMP/bin"
 
 REAL_SHA256SUM=$(command -v sha256sum)

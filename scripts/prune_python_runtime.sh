@@ -1,5 +1,5 @@
 #!/bin/sh
-# Remove CPython components that LuoShu's offline font tools never import.
+# Remove CPython components that Ziyu's offline font tools never import.
 set -eu
 
 STAGE_ROOT="${1:?usage: prune_python_runtime.sh <module-stage>}"
@@ -11,7 +11,7 @@ DYN="$PYLIB/lib-dynload"
 [ -d "$PYLIB" ] || { echo "Python runtime not found: $PYLIB" >&2; exit 1; }
 
 # hashlib is used for font/cache identities and links to libcrypto_python.so. Keep that private
-# library, but remove the unused duplicate OpenSSL ABI and the complete SSL client stack. LuoShu
+# library, but remove the unused duplicate OpenSSL ABI and the complete SSL client stack. Ziyu
 # only computes local hashes; it never opens TLS connections or loads legacy crypto providers.
 rm -f \
   "$LIB/libcrypto.so" \
@@ -21,7 +21,7 @@ rm -f \
   "$PYLIB/ssl.py"
 rm -rf "$LIB/engines-3" "$LIB/ossl-modules"
 
-# LuoShu stores its state in small text/JSON files. No font path imports sqlite3, so shipping three
+# Ziyu stores its state in small text/JSON files. No font path imports sqlite3, so shipping three
 # SQLite library aliases plus the extension module wastes several compressed megabytes.
 rm -f \
   "$LIB/libsqlite3.so" \
@@ -31,7 +31,7 @@ rm -f \
 rm -rf "$PYLIB/sqlite3"
 
 # Android font input is restricted to TTF/OTF/TTC. Zstandard is a two-megabyte extension used only
-# for optional archive compression and is absent from every LuoShu/FontTools execution trace.
+# for optional archive compression and is absent from every Ziyu/FontTools execution trace.
 rm -f "$DYN"/_zstd.*.so
 rm -rf "$PYLIB/compression/zstd"
 
@@ -67,7 +67,7 @@ rm -f \
   "$PYLIB/modulefinder.py" \
   "$PYLIB/compileall.py"
 
-# Package metadata is only used by installers and importlib.metadata queries. LuoShu imports the
+# Package metadata is only used by installers and importlib.metadata queries. Ziyu imports the
 # vendored FontTools package directly and never performs package discovery on-device.
 rm -rf "$PYLIB/site-packages/fonttools-4.63.0.dist-info"
 
@@ -88,7 +88,7 @@ find "$DYN" -maxdepth 1 -type f \( \
 rm -rf "$PYLIB/config-3.14-aarch64-linux-android"
 
 # Interactive demonstrations/debug helpers are pure development payload. Keep argparse, pathlib,
-# tempfile, XML, encodings, hashlib and all FontTools packages used by LuoShu.
+# tempfile, XML, encodings, hashlib and all FontTools packages used by Ziyu.
 rm -rf "$PYLIB/__phello__" "$PYLIB/_pyrepl"
 rm -f \
   "$PYLIB/__hello__.py" \
@@ -106,7 +106,7 @@ rm -f \
 find "$RUNTIME" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 find "$RUNTIME" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete 2>/dev/null || true
 
-# Hard requirements for all current LuoShu Python tools.
+# Hard requirements for all current Ziyu Python tools.
 test -s "$LIB/libpython3.14.so"
 test -s "$LIB/libcrypto_python.so"
 find "$DYN" -maxdepth 1 -type f -name '_hashlib.*.so' -print -quit | grep -q .

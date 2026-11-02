@@ -53,7 +53,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val DEVICE_MATRIX_SCHEMA = 1
-private const val DEVICE_MATRIX_TYPE = "luoshu-device-test-matrix"
+private const val DEVICE_MATRIX_TYPE = "ziyu-device-test-matrix"
 private const val DEVICE_MATRIX_MAX_RECORDS = 24
 private const val DEVICE_MATRIX_MAX_NOTE = 200
 

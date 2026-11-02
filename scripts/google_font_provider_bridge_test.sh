@@ -12,7 +12,7 @@ SOURCE=$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit)
 TARGET_SOURCE=$(find /usr/share/fonts -type f -iname 'DejaVuSans-Bold.ttf' -print -quit)
 [ -s "$SOURCE" ] && [ -s "$TARGET_SOURCE" ]
 TARGET="$TMP/Google_Sans-700-100_0-0_0.ttf"
-cp "$SOURCE" "$MOD/config/device-font-sources/LuoShu-700.ttf"
+cp "$SOURCE" "$MOD/config/device-font-sources/Ziyu-700.ttf"
 cp "$TARGET_SOURCE" "$TARGET"
 python3 - "$TARGET" <<'PY'
 import sys
@@ -24,9 +24,9 @@ for record in font['name'].names:
 font.save(sys.argv[1])
 font.close()
 PY
-LUOSHU_GOOGLE_FONT_PYTHON="$(command -v python3)" \
-LUOSHU_GOOGLE_FONT_TARGETS="$TARGET" \
-LUOSHU_GOOGLE_FONT_DRY_RUN=1 \
+ZIYU_GOOGLE_FONT_PYTHON="$(command -v python3)" \
+ZIYU_GOOGLE_FONT_TARGETS="$TARGET" \
+ZIYU_GOOGLE_FONT_DRY_RUN=1 \
 MODDIR="$MOD" \
     sh "$MOD/common/google_font_provider_bridge.sh" apply
 [ -s "$MOD/config/google-font-provider-mounts.conf" ]

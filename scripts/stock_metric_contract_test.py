@@ -62,7 +62,7 @@ class StockMetricContractTest(unittest.TestCase):
     def setUp(self) -> None:
         scanner._property_rom_kind.cache_clear()
         self.addCleanup(scanner._property_rom_kind.cache_clear)
-        self.temp = tempfile.TemporaryDirectory(prefix="luoshu-stock-metrics-")
+        self.temp = tempfile.TemporaryDirectory(prefix="ziyu-stock-metrics-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.path = self.root / "MiClock-Regular.ttf"
@@ -139,7 +139,7 @@ class StockMetricContractTest(unittest.TestCase):
     def test_legacy_metrics_automatically_refresh_once_from_stock_lower(self) -> None:
         args, previous = self.legacy_scan_fixture(trusted_lower=True)
         self.assertFalse(scanner._can_reuse(json.loads(previous), "stock-metrics-test"))
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
@@ -157,7 +157,7 @@ class StockMetricContractTest(unittest.TestCase):
 
     def test_metrics_refresh_cannot_read_unverified_live_fonts(self) -> None:
         args, previous = self.legacy_scan_fixture()
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "no-stock"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "no-stock"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         stderr = io.StringIO()
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with mock.patch.object(inventory, "_read_metrics") as reader, contextlib.redirect_stderr(stderr):
@@ -171,7 +171,7 @@ class StockMetricContractTest(unittest.TestCase):
     def test_failed_lower_rescan_retains_old_valid_inventory_and_retry(self) -> None:
         args, previous = self.legacy_scan_fixture(trusted_lower=True)
         (args.system_fonts / self.path.name).write_bytes(b"broken stock font")
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 2)
@@ -185,7 +185,7 @@ class StockMetricContractTest(unittest.TestCase):
         args, previous = self.legacy_scan_fixture()
         args.force = True  # Matches stock_scan from the existing early-boot hook.
         make_font(args.system_fonts / self.path.name, ascent=950)
-        with mock.patch.dict(scanner.os.environ, {"LUOSHU_STOCK_VIEW_VERIFIED": "1"}):
+        with mock.patch.dict(scanner.os.environ, {"ZIYU_STOCK_VIEW_VERIFIED": "1"}):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
         refreshed = json.loads(args.output.read_text(encoding="utf-8"))
@@ -202,7 +202,7 @@ class StockMetricContractTest(unittest.TestCase):
         data["slotCount"] = len(data["slots"])
         args.output.write_text(json.dumps(data), encoding="utf-8")
         previous = args.output.read_bytes()
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 2)
@@ -375,7 +375,7 @@ class StockMetricContractTest(unittest.TestCase):
             return "V16.1.0" if name == "ro.build.version.oplusrom" else ""
 
         with mock.patch.object(inventory, "_getprop", side_effect=fake_getprop), \
-             mock.patch.dict(scanner.os.environ, {"LUOSHU_STOCK_VIEW_VERIFIED": "1"}):
+             mock.patch.dict(scanner.os.environ, {"ZIYU_STOCK_VIEW_VERIFIED": "1"}):
             scanner._property_rom_kind.cache_clear()
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
@@ -403,7 +403,7 @@ class StockMetricContractTest(unittest.TestCase):
             return "V16.1.0" if name == "ro.build.version.oplusrom" else ""
 
         with mock.patch.object(inventory, "_getprop", side_effect=fake_getprop), \
-             mock.patch.dict(scanner.os.environ, {"LUOSHU_FRESH_STOCK_SCAN": "1"}):
+             mock.patch.dict(scanner.os.environ, {"ZIYU_FRESH_STOCK_SCAN": "1"}):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
 
@@ -430,7 +430,7 @@ class StockMetricContractTest(unittest.TestCase):
         args.output.write_text(json.dumps(previous), encoding="utf-8")
         args.force = True
 
-        with mock.patch.dict(scanner.os.environ, {"LUOSHU_STOCK_VIEW_VERIFIED": "1"}):
+        with mock.patch.dict(scanner.os.environ, {"ZIYU_STOCK_VIEW_VERIFIED": "1"}):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
         refreshed = json.loads(args.output.read_text(encoding="utf-8"))
@@ -524,7 +524,7 @@ class StockMetricContractTest(unittest.TestCase):
             "metricsReferencePath": "/system/fonts/Roboto-Regular.ttf"}
         previous["slotCount"] = len(previous["slots"])
         args.output.write_text(json.dumps(previous))
-        with mock.patch.dict(scanner.os.environ, {"LUOSHU_STOCK_VIEW_VERIFIED": "1"}):
+        with mock.patch.dict(scanner.os.environ, {"ZIYU_STOCK_VIEW_VERIFIED": "1"}):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
         refreshed = json.loads(args.output.read_text())
@@ -567,7 +567,7 @@ class StockMetricContractTest(unittest.TestCase):
     def test_hyperos_coverage_upgrade_requires_stock_lower_even_with_current_metrics(self) -> None:
         args, _values = self.physical_scan_fixture()
         previous = self.old_physical_inventory(args)
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "no-stock"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "no-stock"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with mock.patch.object(inventory, "_read_metrics") as reader, contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 2)
@@ -577,7 +577,7 @@ class StockMetricContractTest(unittest.TestCase):
     def test_hyperos_coverage_upgrade_adds_slots_from_verified_lower_and_then_reuses(self) -> None:
         args, values = self.physical_scan_fixture(trusted_lower=True)
         self.old_physical_inventory(args)
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 0)
@@ -593,7 +593,7 @@ class StockMetricContractTest(unittest.TestCase):
         args, _values = self.physical_scan_fixture(trusted_lower=True)
         previous = self.old_physical_inventory(args)
         (args.system_fonts / "MiSansVF.ttf").write_bytes(b"invalid original font")
-        env = {"LUOSHU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "LUOSHU_STOCK_VIEW_VERIFIED": ""}
+        env = {"ZIYU_SELF_MOUNT_STATE_ROOT": str(self.root / "state"), "ZIYU_STOCK_VIEW_VERIFIED": ""}
         with mock.patch.dict(scanner.os.environ, env), mock.patch.object(inventory, "MIRROR_PREFIXES", ()):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(scanner.scan(args), 2)
@@ -618,7 +618,7 @@ class StockMetricContractTest(unittest.TestCase):
         ))
         result = subprocess.run(
             ["sh", "-c", command, "policy-check", str(ROOT / "common/legacy_v14_4/hyperos_full_coverage.sh"), *names],
-            env={**os.environ, "LUOSHU_REAL_MODDIR": str(ROOT)}, capture_output=True, text=True, check=True,
+            env={**os.environ, "ZIYU_REAL_MODDIR": str(ROOT)}, capture_output=True, text=True, check=True,
         )
         actual = [value == "yes" for value in result.stdout.splitlines()]
         self.assertEqual(len(actual), len(names))

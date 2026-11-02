@@ -44,7 +44,7 @@ class StockReadonlyView:
         if libc.mount(None, b'/', None, 16384 | (1 << 18), None) != 0:
             raise OSError(ctypes.get_errno(), 'cannot isolate stock scan mount propagation')
         self.libc = libc
-        parent = Path('/data/adb/luoshu/stock-readonly')
+        parent = Path('/data/adb/ziyu/stock-readonly')
         parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if parent.is_symlink():
             raise OSError('stock view parent must not be a link')

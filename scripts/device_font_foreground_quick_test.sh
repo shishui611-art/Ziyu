@@ -36,11 +36,11 @@ for marker in called-copy-as-hyperos called-normalize called-instance called-wei
     test ! -e "$TMP/$marker"
 done
 
-ANCHOR="$MODDIR/system/fonts/.luoshu-font-store/regular.font"
+ANCHOR="$MODDIR/system/fonts/.ziyu-font-store/regular.font"
 test -s "$ANCHOR"
 anchor_inode="$(stat -c '%d:%i' "$ANCHOR")"
 for weight in 100 200 300 400 500 600 700 800 900; do
-    for prefix in LuoShu LuoShuMono; do
+    for prefix in Ziyu ZiyuMono; do
         file="$MODDIR/system/fonts/${prefix}-${weight}.ttf"
         test -s "$file"
         test "$(stat -c '%d:%i' "$file")" = "$anchor_inode"

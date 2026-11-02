@@ -3,7 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
 CASE='ColorOS 一致性映射'
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-coloros-consistency)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-coloros-consistency)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MODULE="$TMP/module"
 PUBLIC="$TMP/public"
@@ -25,21 +25,21 @@ for name in OplusOSUI-XThin.ttf OplusSans-SemiBold.ttf GoogleSansText-Regular.tt
 done
 
 MODULE_DIR="$MODULE"
-LUOSHU_PUBLIC_DIR="$PUBLIC"
+ZIYU_PUBLIC_DIR="$PUBLIC"
 USER_FONTS_DIR="$PUBLIC/fonts"
 . "$MODULE/common/util_functions.sh"
 . "$MODULE/common/rom_adapters.sh"
-LUOSHU_COLOROS_SYSTEM_FONTS_ROOT="$REAL_SYSTEM"
-LUOSHU_COLOROS_PRODUCT_FONTS_ROOT="$REAL_PRODUCT"
-LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT="$TMP/none-system-ext"
-LUOSHU_COLOROS_VENDOR_FONTS_ROOT="$TMP/none-vendor"
-LUOSHU_COLOROS_ODM_FONTS_ROOT="$TMP/none-odm"
-LUOSHU_COLOROS_OEM_FONTS_ROOT="$TMP/none-oem"
-LUOSHU_COLOROS_MY_PRODUCT_FONTS_ROOT="$TMP/none-my-product"
-LUOSHU_COLOROS_OPLUS_PRODUCT_FONTS_ROOT="$TMP/none-oplus-product"
-LUOSHU_COLOROS_OPLUS_ENGINEERING_FONTS_ROOT="$TMP/none-oplus-engineering"
-LUOSHU_COLOROS_OPLUS_VERSION_FONTS_ROOT="$TMP/none-oplus-version"
-LUOSHU_COLOROS_OPLUS_REGION_FONTS_ROOT="$TMP/none-oplus-region"
+ZIYU_COLOROS_SYSTEM_FONTS_ROOT="$REAL_SYSTEM"
+ZIYU_COLOROS_PRODUCT_FONTS_ROOT="$REAL_PRODUCT"
+ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT="$TMP/none-system-ext"
+ZIYU_COLOROS_VENDOR_FONTS_ROOT="$TMP/none-vendor"
+ZIYU_COLOROS_ODM_FONTS_ROOT="$TMP/none-odm"
+ZIYU_COLOROS_OEM_FONTS_ROOT="$TMP/none-oem"
+ZIYU_COLOROS_MY_PRODUCT_FONTS_ROOT="$TMP/none-my-product"
+ZIYU_COLOROS_OPLUS_PRODUCT_FONTS_ROOT="$TMP/none-oplus-product"
+ZIYU_COLOROS_OPLUS_ENGINEERING_FONTS_ROOT="$TMP/none-oplus-engineering"
+ZIYU_COLOROS_OPLUS_VERSION_FONTS_ROOT="$TMP/none-oplus-version"
+ZIYU_COLOROS_OPLUS_REGION_FONTS_ROOT="$TMP/none-oplus-region"
 . "$MODULE/common/coloros_global.sh"
 
 copy_as_coloros "$PUBLIC/fonts/Demo-Regular.ttf" "$MODULE/system/fonts" quick Demo

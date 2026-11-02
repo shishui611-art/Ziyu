@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-font-cache)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-font-cache)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 USER_FONTS_DIR="$TMP/fonts"
@@ -68,13 +68,13 @@ exit 0
 EOF_PLANNER
 chmod +x "$DIRECT_MOD/common/device_font_template.sh" "$DIRECT_MOD/common/device_font_slot_plan.sh"
 
-MODDIR="$DIRECT_MOD" LUOSHU_PUBLIC_DIR="$DIRECT_PUBLIC" sh "$DIRECT_MOD/common/font_library_cache.sh" value >/dev/null
+MODDIR="$DIRECT_MOD" ZIYU_PUBLIC_DIR="$DIRECT_PUBLIC" sh "$DIRECT_MOD/common/font_library_cache.sh" value >/dev/null
 sleep 0.2
 test ! -e "$PLAN_MARKER"
-MODDIR="$DIRECT_MOD" LUOSHU_PUBLIC_DIR="$DIRECT_PUBLIC" sh "$DIRECT_MOD/common/font_library_cache.sh" fingerprint >/dev/null
+MODDIR="$DIRECT_MOD" ZIYU_PUBLIC_DIR="$DIRECT_PUBLIC" sh "$DIRECT_MOD/common/font_library_cache.sh" fingerprint >/dev/null
 sleep 0.2
 test ! -e "$PLAN_MARKER"
-MODDIR="$DIRECT_MOD" LUOSHU_PUBLIC_DIR="$DIRECT_PUBLIC" sh "$DIRECT_MOD/common/font_library_cache.sh" prepare-plan >/dev/null
+MODDIR="$DIRECT_MOD" ZIYU_PUBLIC_DIR="$DIRECT_PUBLIC" sh "$DIRECT_MOD/common/font_library_cache.sh" prepare-plan >/dev/null
 test -e "$PLAN_MARKER"
 
 printf 'Font library fingerprint tests passed.\n'

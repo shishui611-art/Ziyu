@@ -32,18 +32,18 @@ def fixture(base: Path) -> tuple[Path, Path, Path, Path, str, str]:
     su = base / "su"
     mountinfo = base / "mountinfo"
     xml_rel = "system/etc/fonts.xml"
-    font_rel = "system/fonts/LuoShuSlotCJK-Regular.ttf"
+    font_rel = "system/fonts/ZiyuSlotCJK-Regular.ttf"
     latin_rel = "system/fonts/SysSans-En-Regular.ttf"
     digit_rel = "system/fonts/OSans-Solid-Digits-VF.ttf"
     xml = (
-        b'<familyset><family name="NotoSansCJKsc"><font>LuoShuSlotCJK-Regular.ttf</font>'
+        b'<familyset><family name="NotoSansCJKsc"><font>ZiyuSlotCJK-Regular.ttf</font>'
         b'<font>SysSans-En-Regular.ttf</font><font>OSans-Solid-Digits-VF.ttf</font></family></familyset>'
     )
     font = b"fixture-font-data"
-    xml_hash = write(module / ".luoshu-payload" / xml_rel, xml)
-    font_hash = write(module / ".luoshu-payload" / font_rel, font)
-    latin_hash = write(module / ".luoshu-payload" / latin_rel, b"fixture-latin")
-    digit_hash = write(module / ".luoshu-payload" / digit_rel, b"fixture-digits")
+    xml_hash = write(module / ".ziyu-payload" / xml_rel, xml)
+    font_hash = write(module / ".ziyu-payload" / font_rel, font)
+    latin_hash = write(module / ".ziyu-payload" / latin_rel, b"fixture-latin")
+    digit_hash = write(module / ".ziyu-payload" / digit_rel, b"fixture-digits")
     write(pid1 / xml_rel, xml)
     write(pid1 / font_rel, font)
     write(pid1 / latin_rel, b"fixture-latin")
@@ -73,19 +73,19 @@ def universal_fixture(base: Path) -> tuple[Path, Path, Path, Path, str]:
     pid1 = base / "universal-pid1"
     su = base / "universal-su"
     mountinfo = base / "universal-mountinfo"
-    deployment_root = module / ".luoshu-payload/.luoshu-runtime/deployment"
+    deployment_root = module / ".ziyu-payload/.ziyu-runtime/deployment"
     xml_rel = "system/etc/fonts.xml"
     fonts = {
-        "cjk": ("system/fonts/LuoShuSlotCJK-Regular.ttf", b"universal-cjk"),
+        "cjk": ("system/fonts/ZiyuSlotCJK-Regular.ttf", b"universal-cjk"),
         "latin": ("system/fonts/SysSans-En-Regular.ttf", b"universal-latin"),
         "digit": ("system/fonts/OSans-Solid-Digits-VF.ttf", b"universal-digits"),
     }
     xml = (
-        b'<familyset><family name="NotoSansCJKsc"><font>LuoShuSlotCJK-Regular.ttf</font>'
+        b'<familyset><family name="NotoSansCJKsc"><font>ZiyuSlotCJK-Regular.ttf</font>'
         b'<font>SysSans-En-Regular.ttf</font><font>OSans-Solid-Digits-VF.ttf</font></family></familyset>'
     )
     files: list[dict[str, str]] = []
-    xml_hash = write(module / ".luoshu-payload" / xml_rel, xml)
+    xml_hash = write(module / ".ziyu-payload" / xml_rel, xml)
     files.append({"logicalPath": xml_rel, "sha256": xml_hash, "kind": "xml", "artifactId": "xml"})
     write(pid1 / xml_rel, xml)
     write(su / xml_rel, xml)
@@ -94,7 +94,7 @@ def universal_fixture(base: Path) -> tuple[Path, Path, Path, Path, str]:
     targets = {xml_rel: {"role": "xml"}}
     roles = {"cjk": "system/fonts/cjk", "latin": "system/fonts/latin", "digit": "system/fonts/digit"}
     for role, (rel, data) in fonts.items():
-        digest = write(module / ".luoshu-payload" / rel, data)
+        digest = write(module / ".ziyu-payload" / rel, data)
         files.append({"logicalPath": rel, "sha256": digest, "kind": "physical-font", "artifactId": role})
         write(pid1 / rel, data)
         write(su / rel, data)
@@ -140,7 +140,7 @@ def phone_readback_fixture(readback: Path) -> dict:
         for name in names:
             rel = "system/fonts/" + name
             data = ("synthetic matching physical slot: " + name).encode()
-            digest = write(module / ".luoshu-payload" / rel, data)
+            digest = write(module / ".ziyu-payload" / rel, data)
             write(pid1 / rel, data)
             records.append(f"{rel}|{digest}\n")
         (config / "font-payload-manifest.conf").write_text("".join(records))
@@ -156,7 +156,14 @@ def phone_readback_fixture(readback: Path) -> dict:
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="ziyu-route-verify-") as tmp:
+    host_read_text = Path.read_text
+
+    def fixture_read_text(path: Path, *args, **kwargs):
+        if path.as_posix() == "/proc/sys/kernel/random/boot_id":
+            return "route-fixture-boot\n"
+        return host_read_text(path, *args, **kwargs)
+
+    with patch.object(Path, "read_text", fixture_read_text), tempfile.TemporaryDirectory(prefix="ziyu-route-verify-") as tmp:
         base = Path(tmp)
         module, pid1, _su, mountinfo, _xml_rel, font_rel = fixture(base)
         good = MODULE.verify_legacy(module, pid1, mountinfo)
@@ -184,7 +191,7 @@ def main() -> None:
         pm, pr, _ps, pi, px, pf = fixture(physical)
         (pm / "config/font_runtime_legacy_v14_4.conf").write_text("enabled=true\ncore=physical-safe-v1\n")
         (pm / "config/font-payload-schema.conf").write_text("schema=legacy-physical-safe-v1\n")
-        (pm / ".luoshu-payload" / px).unlink()
+        (pm / ".ziyu-payload" / px).unlink()
         manifest = pm / "config/font-payload-manifest.conf"
         manifest.write_text("".join(line + "\n" for line in manifest.read_text().splitlines() if not line.startswith(px + "|")))
         (pm / "config/font-target-aliases.conf").unlink()
@@ -193,6 +200,43 @@ def main() -> None:
         assert physical_ok["mode"] == "physical-safe", physical_ok
         assert physical_ok["checkedXml"] >= 1, physical_ok
         assert physical_ok["roleRoutes"]["cjk"] == [Path(pf).name], physical_ok
+
+        # Upgraded payloads keep old hidden anchors and hashes. These are not
+        # missing Android routes, while their source integrity remains required.
+        original_physical_manifest = manifest.read_text()
+        for store in (".ziyu-font-store", ".luoshu-font-store"):
+            anchor_rel = f"system/fonts/{store}/regular.font"
+            anchor = pm / ".ziyu-payload" / anchor_rel
+            anchor.parent.mkdir(parents=True, exist_ok=True)
+            os.link(pm / ".ziyu-payload" / pf, anchor)
+            anchor_hash = hashlib.sha256(anchor.read_bytes()).hexdigest()
+            manifest.write_text(original_physical_manifest + f"{anchor_rel}|{anchor_hash}\n")
+            anchored = MODULE.verify_legacy(pm, pr, pi)
+            assert anchored["state"] == "verified", anchored
+            assert anchored["checkedFonts"] == physical_ok["checkedFonts"], anchored
+            assert anchored["sourceOnlyArtifacts"] == [anchor_rel], anchored
+            assert not anchored["unconfirmedFonts"], anchored
+
+            # Excluding a build anchor from route counts must not accept damage.
+            anchor.unlink()
+            write(anchor, b"damaged-anchor-with-valid-public-slots")
+            damaged = MODULE.verify_legacy(pm, pr, pi)
+            assert damaged["state"] == "failed", damaged
+            assert f"source-hash-mismatch:{anchor_rel}" in damaged["failures"], damaged
+            anchor.unlink()
+
+            # A public slot that actually resolves through the anchor still
+            # requires PID 1 route/content proof; do not hide its backing file.
+            if os.name != "nt":
+                source_slot = pm / ".ziyu-payload" / pf
+                source_slot.rename(anchor)
+                source_slot.symlink_to(anchor)
+                linked = MODULE.verify_legacy(pm, pr, pi)
+                assert anchor_rel not in linked["sourceOnlyArtifacts"], linked
+                assert any(anchor_rel in item for item in linked["warnings"] + linked["failures"]), linked
+                source_slot.unlink()
+                anchor.rename(source_slot)
+            manifest.write_text(original_physical_manifest)
 
         # Merely deleting XML from a legacy payload never opts into physical.
         (pm / "config/font-payload-schema.conf").unlink()
@@ -213,7 +257,7 @@ def main() -> None:
         assert stale_physical["state"] == "partial", stale_physical
         assert stale_physical["appliedCount"] > 0 and not stale_physical["failures"], stale_physical
         assert "pid1-visible-hash-mismatch:" + pf in stale_physical["warnings"], stale_physical
-        write(pr / pf, (pm / ".luoshu-payload" / pf).read_bytes())
+        write(pr / pf, (pm / ".ziyu-payload" / pf).read_bytes())
         stock_xml = (pr / px).read_bytes()
         write(pr / px, b'<familyset><family name="sans-serif"><font>SysSans-En-Regular.ttf</font></family></familyset>')
         no_cjk_route = MODULE.verify_legacy(pm, pr, pi)
@@ -228,7 +272,7 @@ def main() -> None:
 
         # Explicit physical contract never excuses a rewritten XML from
         # payload verification, nor accepts it as unchanged stock topology.
-        xml_digest = write(pm / ".luoshu-payload" / px, stock_xml)
+        xml_digest = write(pm / ".ziyu-payload" / px, stock_xml)
         original_manifest = manifest.read_text()
         manifest.write_text(original_manifest + f"{px}|{xml_digest}\n")
         write(pr / px, b'<familyset><family name="sans-serif"/></familyset>')
@@ -236,13 +280,13 @@ def main() -> None:
         assert rewritten_xml["state"] == "failed", rewritten_xml
         assert "pid1-visible-hash-mismatch:" + px in rewritten_xml["failures"], rewritten_xml
         assert "physical-safe-payload-must-not-rewrite-xml" in rewritten_xml["failures"], rewritten_xml
-        (pm / ".luoshu-payload" / px).unlink()
+        (pm / ".ziyu-payload" / px).unlink()
         manifest.write_text(original_manifest)
         write(pr / px, stock_xml)
 
         # OEM direct clock/Latin slots require an exact ready stock inventory;
         # a matched basename in an unrelated partition is not sufficient.
-        direct_xml = b'<familyset><family name="NotoSansCJKsc"><font>LuoShuSlotCJK-Regular.ttf</font></family></familyset>'
+        direct_xml = b'<familyset><family name="NotoSansCJKsc"><font>ZiyuSlotCJK-Regular.ttf</font></family></familyset>'
         write(pr / px, direct_xml)
         no_direct_evidence = MODULE.verify_legacy(pm, pr, pi)
         assert no_direct_evidence["state"] == "partial", no_direct_evidence
@@ -267,7 +311,7 @@ def main() -> None:
         # The global ColorOS composite slot is named SysFont-Regular, unlike a
         # dedicated Latin Roboto; it still needs a real stock XML route.
         coloros_rel = "system/fonts/SysFont-Regular.ttf"
-        coloros_digest = write(pm / ".luoshu-payload" / coloros_rel, b"coloros-composite")
+        coloros_digest = write(pm / ".ziyu-payload" / coloros_rel, b"coloros-composite")
         write(pr / coloros_rel, b"coloros-composite")
         manifest.write_text(f"{coloros_rel}|{coloros_digest}\n")
         write(pr / px, b'<familyset><family name="sans-serif"><font>SysFont-Regular.ttf</font></family></familyset>')
@@ -314,7 +358,7 @@ def main() -> None:
         module2, _pid1, _su2, mountinfo2, _xml2, font_rel2 = fixture(missing_cjk)
         (visible_missing / font_rel2).parent.mkdir(parents=True, exist_ok=True)
         # Keep the XML visible while the CJK artifact is absent from PID 1.
-        write(visible_missing / "system/etc/fonts.xml", (module2 / ".luoshu-payload/system/etc/fonts.xml").read_bytes())
+        write(visible_missing / "system/etc/fonts.xml", (module2 / ".ziyu-payload/system/etc/fonts.xml").read_bytes())
         bad_cjk = MODULE.verify_legacy(module2, visible_missing, mountinfo2)
         assert bad_cjk["state"] == "failed", bad_cjk
         assert any("pid1-visible-missing-or-empty:" in item for item in bad_cjk["failures"]), bad_cjk
@@ -328,7 +372,7 @@ def main() -> None:
         # the Chinese font, so passing the su root must not mask the failure.
         assert (su3 / font_rel3).is_file()
         pid1_root = namespace / "pid1-only-xml"
-        write(pid1_root / "system/etc/fonts.xml", (module3 / ".luoshu-payload/system/etc/fonts.xml").read_bytes())
+        write(pid1_root / "system/etc/fonts.xml", (module3 / ".ziyu-payload/system/etc/fonts.xml").read_bytes())
         bad_namespace = MODULE.verify_legacy(module3, pid1_root, mountinfo3)
         assert bad_namespace["state"] == "failed", bad_namespace
         assert "pid1-visible-missing-or-empty:" + font_rel3 in bad_namespace["failures"], bad_namespace
@@ -346,7 +390,7 @@ def main() -> None:
         missing_u = base / "universal-missing-cjk"
         module_um, _pid1_um, _su_um, mountinfo_um, cjk_um = universal_fixture(missing_u)
         pid1_missing_u = missing_u / "pid1-missing-cjk"
-        write(pid1_missing_u / "system/etc/fonts.xml", (module_um / ".luoshu-payload/system/etc/fonts.xml").read_bytes())
+        write(pid1_missing_u / "system/etc/fonts.xml", (module_um / ".ziyu-payload/system/etc/fonts.xml").read_bytes())
         bad_u = MODULE.verify_universal(module_um, pid1_missing_u, mountinfo_um)
         assert bad_u["state"] == "failed", bad_u
         assert "pid1-visible-missing-or-empty:" + cjk_um in bad_u["failures"], bad_u
@@ -355,7 +399,7 @@ def main() -> None:
         # its own route lacks the CJK file.
         assert (su_u / cjk_u).is_file()
         pid1_u_only_xml = universal_root / "pid1-only-xml"
-        write(pid1_u_only_xml / "system/etc/fonts.xml", (module_u / ".luoshu-payload/system/etc/fonts.xml").read_bytes())
+        write(pid1_u_only_xml / "system/etc/fonts.xml", (module_u / ".ziyu-payload/system/etc/fonts.xml").read_bytes())
         bad_u_namespace = MODULE.verify_universal(module_u, pid1_u_only_xml, mountinfo_u)
         assert bad_u_namespace["state"] == "failed", bad_u_namespace
         assert "pid1-visible-missing-or-empty:" + cjk_u in bad_u_namespace["failures"], bad_u_namespace

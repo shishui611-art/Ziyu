@@ -4,10 +4,10 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
 
 MODULE_DIR="$ROOT"
-LUOSHU_PUBLIC_DIR="${TMPDIR:-/tmp}/luoshu-font-import-compat-$$"
-USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
+ZIYU_PUBLIC_DIR="${TMPDIR:-/tmp}/ziyu-font-import-compat-$$"
+USER_FONTS_DIR="$ZIYU_PUBLIC_DIR/fonts"
 mkdir -p "$USER_FONTS_DIR"
-trap 'rm -rf "$LUOSHU_PUBLIC_DIR"' EXIT HUP INT TERM
+trap 'rm -rf "$ZIYU_PUBLIC_DIR"' EXIT HUP INT TERM
 
 . "$ROOT/common/util_functions.sh"
 . "$ROOT/common/font_import.sh"

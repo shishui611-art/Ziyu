@@ -1,29 +1,29 @@
 #!/system/bin/sh
-# Canonical payload lives under .luoshu-payload. The early boot publisher creates
+# Canonical payload lives under .ziyu-payload. The early boot publisher creates
 # ordinary partition files for an external provider; imports never mount a view.
 set +e
 
-_luoshu_private_module() {
+_ziyu_private_module() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
-_luoshu_private_root() {
-    _lpp_module="${1:-$(_luoshu_private_module)}"
-    printf '%s/.luoshu-payload\n' "${_lpp_module%/}"
+_ziyu_private_root() {
+    _lpp_module="${1:-$(_ziyu_private_module)}"
+    printf '%s/.ziyu-payload\n' "${_lpp_module%/}"
 }
 
-_luoshu_private_state_root() {
-    printf '%s\n' "${LUOSHU_PRIVATE_STATE_ROOT:-/data/adb/luoshu/private-payload}"
+_ziyu_private_state_root() {
+    printf '%s\n' "${ZIYU_PRIVATE_STATE_ROOT:-/data/adb/ziyu/private-payload}"
 }
 
-_lpp_skip_helper="$(_luoshu_private_module)/common/skip_mount_ownership.sh"
+_lpp_skip_helper="$(_ziyu_private_module)/common/skip_mount_ownership.sh"
 [ ! -f "$_lpp_skip_helper" ] || . "$_lpp_skip_helper"
 
-_luoshu_private_base_partitions() {
+_ziyu_private_base_partitions() {
     printf '%s\n' 'system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product'
 }
 
-_luoshu_private_partition_safe() {
+_ziyu_private_partition_safe() {
     case "$1" in
         ''|*[!A-Za-z0-9_]*|[0-9]*|_* ) return 1 ;;
         data|proc|sys|dev|mnt|storage|sdcard|apex|metadata|cache|tmp|config|acct|linkerconfig|debug_ramdisk|vendor_dlkm|odm_dlkm|system_dlkm) return 1 ;;
@@ -31,22 +31,22 @@ _luoshu_private_partition_safe() {
     return 0
 }
 
-luoshu_private_partitions() {
-    _lpp_base=$(_luoshu_private_base_partitions)
+ziyu_private_partitions() {
+    _lpp_base=$(_ziyu_private_base_partitions)
     printf '%s\n' "$_lpp_base"
-    _lpp_manifest="$(_luoshu_private_module)/config/device_font_partitions.conf"
+    _lpp_manifest="$(_ziyu_private_module)/config/device_font_partitions.conf"
     [ -f "$_lpp_manifest" ] || return 0
     _lpp_seen=" $_lpp_base "
     while IFS= read -r _lpp_part; do
-        _luoshu_private_partition_safe "$_lpp_part" || continue
+        _ziyu_private_partition_safe "$_lpp_part" || continue
         case "$_lpp_seen" in *" $_lpp_part "*) continue ;; esac
         printf '%s\n' "$_lpp_part"
         _lpp_seen="$_lpp_seen$_lpp_part "
     done < "$_lpp_manifest"
 }
 
-_luoshu_private_mount_cmd() {
-    if [ -n "${LUOSHU_PRIVATE_MOUNT_COMMAND:-}" ]; then "$LUOSHU_PRIVATE_MOUNT_COMMAND" "$@"
+_ziyu_private_mount_cmd() {
+    if [ -n "${ZIYU_PRIVATE_MOUNT_COMMAND:-}" ]; then "$ZIYU_PRIVATE_MOUNT_COMMAND" "$@"
     elif command -v mount >/dev/null 2>&1; then mount "$@"
     elif command -v toybox >/dev/null 2>&1; then toybox mount "$@"
     elif [ -x /data/adb/magisk/busybox ]; then /data/adb/magisk/busybox mount "$@"
@@ -55,8 +55,8 @@ _luoshu_private_mount_cmd() {
     fi
 }
 
-_luoshu_private_umount_cmd() {
-    if [ -n "${LUOSHU_PRIVATE_UMOUNT_COMMAND:-}" ]; then "$LUOSHU_PRIVATE_UMOUNT_COMMAND" "$@"
+_ziyu_private_umount_cmd() {
+    if [ -n "${ZIYU_PRIVATE_UMOUNT_COMMAND:-}" ]; then "$ZIYU_PRIVATE_UMOUNT_COMMAND" "$@"
     elif command -v umount >/dev/null 2>&1; then umount "$@"
     elif command -v toybox >/dev/null 2>&1; then toybox umount "$@"
     elif [ -x /data/adb/magisk/busybox ]; then /data/adb/magisk/busybox umount "$@"
@@ -65,20 +65,20 @@ _luoshu_private_umount_cmd() {
     fi
 }
 
-_luoshu_private_is_mountpoint() {
+_ziyu_private_is_mountpoint() {
     _lpp_path="$1"
     if command -v mountpoint >/dev/null 2>&1; then
         mountpoint -q "$_lpp_path" 2>/dev/null && return 0
     fi
-    awk -v path="$_lpp_path" '$2 == path { found=1 } END { exit !found }' "${LUOSHU_PRIVATE_MOUNTINFO:-/proc/mounts}" 2>/dev/null
+    awk -v path="$_lpp_path" '$2 == path { found=1 } END { exit !found }' "${ZIYU_PRIVATE_MOUNTINFO:-/proc/mounts}" 2>/dev/null
 }
 
-luoshu_private_install_migrate() {
-    _lpp_module="${1:-$(_luoshu_private_module)}"
-    _lpp_root=$(_luoshu_private_root "$_lpp_module")
+ziyu_private_install_migrate() {
+    _lpp_module="${1:-$(_ziyu_private_module)}"
+    _lpp_root=$(_ziyu_private_root "$_lpp_module")
     mkdir -p "$_lpp_root" "$_lpp_module/config" 2>/dev/null || return 1
 
-    for _lpp_part in $(luoshu_private_partitions); do
+    for _lpp_part in $(ziyu_private_partitions); do
         _lpp_source="$_lpp_module/$_lpp_part"
         _lpp_dest="$_lpp_root/$_lpp_part"
         if [ -d "$_lpp_source" ]; then
@@ -100,14 +100,14 @@ luoshu_private_install_migrate() {
     fi
     find "$_lpp_root" -type d -exec chmod 0755 {} \; 2>/dev/null || true
     find "$_lpp_root" -type f -exec chmod 0644 {} \; 2>/dev/null || true
-    chmod 0755 "$_lpp_root/system/bin/ziyu" "$_lpp_root/system/bin/luoshud" 2>/dev/null || true
+    chmod 0755 "$_lpp_root/system/bin/ziyu" "$_lpp_root/system/bin/ziyud" 2>/dev/null || true
     return 0
 }
 
 # Legacy view cleanup is retained only for uninstalling/upgrading old releases.
-luoshu_private_unmount_module_view() {
-    _lpp_module="${1:-$(_luoshu_private_module)}"
-    _lpp_state=$(_luoshu_private_state_root)
+ziyu_private_unmount_module_view() {
+    _lpp_module="${1:-$(_ziyu_private_module)}"
+    _lpp_state=$(_ziyu_private_state_root)
     _lpp_list="$_lpp_state/module-view.mounts"
     _lpp_symlinks="$_lpp_state/module-view.symlinks"
     [ -d "$_lpp_state" ] || return 0
@@ -126,9 +126,9 @@ luoshu_private_unmount_module_view() {
                 "${_lpp_module%/}"/*) ;;
                 *) printf '%s\n' "$_lpp_target" >> "$_lpp_remaining_reverse" || _lpp_failed=1; continue ;;
             esac
-            if _luoshu_private_is_mountpoint "$_lpp_target"; then
-                _luoshu_private_umount_cmd "$_lpp_target" >/dev/null 2>&1 || true
-                if _luoshu_private_is_mountpoint "$_lpp_target"; then
+            if _ziyu_private_is_mountpoint "$_lpp_target"; then
+                _ziyu_private_umount_cmd "$_lpp_target" >/dev/null 2>&1 || true
+                if _ziyu_private_is_mountpoint "$_lpp_target"; then
                     printf '%s\n' "$_lpp_target" >> "$_lpp_remaining_reverse" || _lpp_failed=1
                     _lpp_failed=1
                 fi

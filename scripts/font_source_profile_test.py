@@ -150,7 +150,7 @@ def main() -> int:
 
         native_profile = temp / "native-profile.json"
         native_env = dict(os.environ)
-        native_env["LUOSHU_WOFF2_DECODER"] = str(fake_decoder)
+        native_env["ZIYU_WOFF2_DECODER"] = str(fake_decoder)
         native_profile_result = subprocess.run(
             [
                 sys.executable, str(analyzer),

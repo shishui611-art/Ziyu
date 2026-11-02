@@ -185,12 +185,12 @@ def main() -> int:
             print(f'字域：任务计时状态写入失败，监督器仍保留总时限：{error}', file=sys.stderr)
 
     env = dict(os.environ)
-    env['LUOSHU_TASK_SCOPE_PID'] = str(os.getpid())
-    env['LUOSHU_TASK_SCOPE_PID_FILE'] = args.pid_file
-    env['LUOSHU_TASK_SCOPE_TASK'] = args.task
+    env['ZIYU_TASK_SCOPE_PID'] = str(os.getpid())
+    env['ZIYU_TASK_SCOPE_PID_FILE'] = args.pid_file
+    env['ZIYU_TASK_SCOPE_TASK'] = args.task
     started = time.monotonic()
     if clock_file is not None:
-        env['LUOSHU_TASK_CLOCK_FILE'] = str(clock_file)
+        env['ZIYU_TASK_CLOCK_FILE'] = str(clock_file)
         publish_clock(0)
     clock_tick = 0
     proc = None
@@ -200,8 +200,8 @@ def main() -> int:
     leftovers: list[int] = []
     try:
         proc = subprocess.Popen(
-            ['sh', '-c', 'LUOSHU_SCOPE_WORKER_PID=$$; export LUOSHU_SCOPE_WORKER_PID; exec "$@"',
-             'luoshu-task', *command], env=env, start_new_session=True)
+            ['sh', '-c', 'ZIYU_SCOPE_WORKER_PID=$$; export ZIYU_SCOPE_WORKER_PID; exec "$@"',
+             'ziyu-task', *command], env=env, start_new_session=True)
         while proc.poll() is None:
             if interrupted:
                 result = 128 + interrupted
@@ -228,7 +228,7 @@ def main() -> int:
             result = 128 + interrupted
         if leftovers:
             result = 125
-        report = {'schema': 'luoshu-task-cleanup-v1', 'task': args.task,
+        report = {'schema': 'ziyu-task-cleanup-v1', 'task': args.task,
                   'result': result, 'deadlineExceeded': timed_out,
                   'terminationSignal': interrupted, 'terminated': terminated,
                   'reaped': reaped, 'leftoverPids': leftovers,

@@ -11,7 +11,7 @@ class StudioPresetStoreTest {
         val item = StoredStudioPreset(
             id = "preset-1",
             name = "日常方案",
-            profileRaw = """{"schema":1,"type":"luoshu-studio-profile","slots":{}}""",
+            profileRaw = """{"schema":1,"type":"ziyu-studio-profile","slots":{}}""",
             createdAt = 10L,
             updatedAt = 20L,
             lastUsedAt = 30L,

@@ -6,13 +6,13 @@ verify_body="$(awk '/^_verify_font_copy\(\)/,/^}/' "$ROOT/common/rom_adapters.sh
 printf '%s\n' "$verify_body" | grep -q '_font_file_size_fast'
 ! printf '%s\n' "$verify_body" | grep -q 'wc -c'
 
-payload_body="$(awk '/^luoshu_payload_validate_current\(\)/,/^}/' "$ROOT/common/font_safety.sh")"
+payload_body="$(awk '/^ziyu_payload_validate_current\(\)/,/^}/' "$ROOT/common/font_safety.sh")"
 ! printf '%s\n' "$payload_body" | grep -q 'wc -c'
-dynamic_body="$(awk '/^luoshu_dynamic_targets_apply\(\)/,/^}/' "$ROOT/common/font_safety.sh")"
+dynamic_body="$(awk '/^ziyu_dynamic_targets_apply\(\)/,/^}/' "$ROOT/common/font_safety.sh")"
 ! printf '%s\n' "$dynamic_body" | grep -q 'wc -c'
 
-grep -q 'LUOSHU_SWITCH_TIMEOUT_SECONDS:-360' "$ROOT/common/font_switch_task.sh"
-grep -q 'luoshu_start_detached' "$ROOT/common/font_switch_task.sh"
+grep -q 'ZIYU_SWITCH_TIMEOUT_SECONDS:-360' "$ROOT/common/font_switch_task.sh"
+grep -q 'ziyu_start_detached' "$ROOT/common/font_switch_task.sh"
 grep -q 'START_LOCK=' "$ROOT/common/font_switch_task.sh"
 grep -q 'start_lock_acquire' "$ROOT/common/font_switch_task.sh"
 grep -q 'mark_load_verification_pending' "$ROOT/common/font_switch_task.sh"
@@ -21,10 +21,10 @@ grep -q 'timeout=%s' "$ROOT/common/font_switch_task.sh"
 
 # The full v4 manager is preserved behind the router for inventory and regression coverage.
 # Its performance markers remain pinned here, but final App apply no longer enters this body.
-grep -q 'luoshu_switch_perf_mark complete' "$ROOT/common/font_manager_v4.sh"
-grep -q 'LUOSHU_FOREGROUND_QUICK_SWITCH=1' "$ROOT/common/font_manager_v4.sh"
-grep -q 'luoshu_font_lock_acquire' "$ROOT/common/font_manager_v4.sh"
-grep -q 'luoshu_switch_signal_exit 143' "$ROOT/common/font_manager_v4.sh"
+grep -q 'ziyu_switch_perf_mark complete' "$ROOT/common/font_manager_v4.sh"
+grep -q 'ZIYU_FOREGROUND_QUICK_SWITCH=1' "$ROOT/common/font_manager_v4.sh"
+grep -q 'ziyu_font_lock_acquire' "$ROOT/common/font_manager_v4.sh"
+grep -q 'ziyu_switch_signal_exit 143' "$ROOT/common/font_manager_v4.sh"
 
 # Final apply is intentionally the v14.4 physical-file path. Keep the modern identity lock,
 # but never reconnect the device-template/slot/XML payload pipeline that caused the 94% stall.
@@ -32,7 +32,7 @@ grep -q 'legacy_v14_4_switch.sh' "$ROOT/common/font_manager.sh"
 grep -q 'legacy_lock_acquire' "$ROOT/common/legacy_v14_4_switch.sh"
 grep -q 'safe_switch_cache_restore' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -q 'safe_switch_cache_store' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
-grep -q 'LUOSHU_SWITCH_CACHE_MAX_KB:-786432' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
+grep -q 'ZIYU_SWITCH_CACHE_MAX_KB:-786432' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -q 'safe_switch_cache_dir_kb' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -q 'safe_validation_restore' "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -q "progress 80 '已复用本机字体对齐缓存'" "$ROOT/common/legacy_v14_4/font_switch_safe.sh"
@@ -79,7 +79,7 @@ grep -q 'DeviceTrustLevel.COMPATIBILITY' \
     "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/DeviceTrustUi.kt"
 grep -q 'attempt < 9' \
     "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/home/HomeRoute.kt"
-grep -q 'LUOSHU_BOOT_VERIFY_RETRY_LIMIT:-3' "$ROOT/common/device_font_boot_verify.sh"
+grep -q 'ZIYU_BOOT_VERIFY_RETRY_LIMIT:-3' "$ROOT/common/device_font_boot_verify.sh"
 
 sh "$ROOT/scripts/font_switch_task_test.sh"
 sh "$ROOT/scripts/font_switch_lock_test.sh"
@@ -102,10 +102,10 @@ _fsp_tmp="$(mktemp -d)"
     font_config_generate() { : > "$_fsp_tmp/heavy-xml"; return 0; }
     font_config_disable() { : > "$_fsp_tmp/heavy-disable"; return 0; }
     IS_COLOROS=false
-    LUOSHU_FOREGROUND_QUICK_SWITCH=1
-    export IS_COLOROS LUOSHU_FOREGROUND_QUICK_SWITCH
+    ZIYU_FOREGROUND_QUICK_SWITCH=1
+    export IS_COLOROS ZIYU_FOREGROUND_QUICK_SWITCH
     font_config_enable_for_payload FastFixture || exit 1
-    test "$LUOSHU_DEVICE_PAYLOAD_RESULT" = device
+    test "$ZIYU_DEVICE_PAYLOAD_RESULT" = device
     test "$(wc -l < "$_fsp_tmp/final-builder-calls" | tr -d '[:space:]')" -eq 1
     test ! -e "$_fsp_tmp/heavy-weights"
     test ! -e "$_fsp_tmp/heavy-xml"
@@ -125,22 +125,22 @@ test "$(printf '%s\n' "$manager_switch_body" | grep -c 'font_config_enable_for_p
 _fsp_tmp="$(mktemp -d)"
 (
     export MODULE_DIR="$_fsp_tmp/module" MODDIR="$_fsp_tmp/module"
-    mkdir -p "$MODULE_DIR/config" "$MODULE_DIR/.luoshu-payload/system/fonts"
+    mkdir -p "$MODULE_DIR/config" "$MODULE_DIR/.ziyu-payload/system/fonts"
     . "$ROOT/common/font_safety.sh"
     . "$ROOT/common/font_runtime_policy.sh"
     _lfrp_partitions() { printf '%s\n' system; }
-    dd if=/dev/zero of="$MODULE_DIR/.luoshu-payload/system/fonts/regular.font" bs=2048 count=1 2>/dev/null
+    dd if=/dev/zero of="$MODULE_DIR/.ziyu-payload/system/fonts/regular.font" bs=2048 count=1 2>/dev/null
     for _fsp_name in MiSansVF.ttf MiSansLatinVF.ttf Roboto-Regular.ttf GoogleSans-Regular.ttf \
         100.ttf 200.ttf 300.ttf 400.ttf 500.ttf 600.ttf 700.ttf 800.ttf 900.ttf MitypeMonoVF.ttf; do
-        ln "$MODULE_DIR/.luoshu-payload/system/fonts/regular.font" \
-           "$MODULE_DIR/.luoshu-payload/system/fonts/$_fsp_name"
+        ln "$MODULE_DIR/.ziyu-payload/system/fonts/regular.font" \
+           "$MODULE_DIR/.ziyu-payload/system/fonts/$_fsp_name"
     done
-    _luoshu_checksum_original="$(command -v cksum)"
-    _luoshu_checksum() {
+    _ziyu_checksum_original="$(command -v cksum)"
+    _ziyu_checksum() {
         printf 'x\n' >> "$_fsp_tmp/checksum-calls"
-        "$_luoshu_checksum_original" "$1" | awk '{print $1 "|" $2}'
+        "$_ziyu_checksum_original" "$1" | awk '{print $1 "|" $2}'
     }
-    luoshu_payload_build_manifest
+    ziyu_payload_build_manifest
     test "$(wc -l < "$_fsp_tmp/checksum-calls" | tr -d '[:space:]')" -eq 1
     test "$(wc -l < "$MODULE_DIR/config/font-payload-manifest.conf" | tr -d '[:space:]')" -eq 15
 )

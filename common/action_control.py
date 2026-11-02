@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from legacy_identity import owned_path
 import os
 import re
 from pathlib import Path
@@ -178,7 +179,7 @@ def status(module: Path) -> dict:
     if previous and target != 'default':
         try:
             retired = owned_path(module, retired)
-            available = retired.is_relative_to((module/'.luoshu-retired').resolve()) and retired.is_dir()
+            available = retired.is_relative_to((module/'.ziyu-retired').resolve()) and retired.is_dir()
         except ValueError:
             available = False
     return {'undoAvailable': available, 'targetFont': target, 'rebootRequired': False,
@@ -200,7 +201,7 @@ def discard_pending(module: Path, task: str) -> dict:
         previous = pending.get('previousFont', 'default')
         if live:
             previous = live['font']
-        remove_owned(module, module/'.luoshu-payload-next')
+        remove_owned(module, module/'.ziyu-payload-next')
         (cfg/name).unlink(missing_ok=True)
         (cfg/'text_reboot_required.conf').unlink(missing_ok=True)
         atomic(cfg/'active_font.conf', previous+'\n')
@@ -220,7 +221,7 @@ def prune_retired(module: Path) -> dict:
     for name in ('switch_task.conf', 'axes_task.conf', 'mix_task.conf'):
         if values(cfg/name).get('state') in ('queued', 'running', 'cancelling'):
             return {'removed': 0, 'reason': 'task-active'}
-    retired_root = module/'.luoshu-retired'
+    retired_root = module/'.ziyu-retired'
     if not retired_root.is_dir() or retired_root.is_symlink():
         return {'removed': 0, 'reason': 'no-owned-snapshots'}
     owned_path(module, retired_root)
@@ -258,14 +259,14 @@ def undo(module: Path) -> dict:
             if previous.get('schema') != 'ziyu-live-previous-v1' or previous.get('boot_id') != live['boot_id']:
                 raise ValueError('上一套热切换字体记录不可用')
             source = Path(previous.get('source', ''))
-            if source != module/'.luoshu-payload' and (source.parent != module/'.luoshu-state/cache/live'/live['boot_id'] or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name)):
+            if source != module/'.ziyu-payload' and (source.parent != module/'.ziyu-state/cache/live'/live['boot_id'] or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name)):
                 raise ValueError('上一套字体来源不在模块目录')
             if not source.is_dir() or source.is_symlink():
                 raise ValueError('上一套字体来源不可读取')
-            temporary = module/'.luoshu-state/tmp'/f'live-undo-{os.getpid()}'
+            temporary = module/'.ziyu-state/tmp'/f'live-undo-{os.getpid()}'
             shutil.copytree(source, temporary, symlinks=True)
-            remove_owned(module, module/'.luoshu-payload-next')
-            os.replace(temporary, module/'.luoshu-payload-next')
+            remove_owned(module, module/'.ziyu-payload-next')
+            os.replace(temporary, module/'.ziyu-payload-next')
             font = previous['font']
             conf(cfg/'font-payload-next.conf', dict(state='prepared', font=font, previousFont=live['font'],
                  previousLegacy='true', targetMode='legacy', undo='true', requestId=f'live-undo-{time.time_ns()}'))
@@ -279,7 +280,7 @@ def undo(module: Path) -> dict:
             previous = pending.get('previousFont', 'default')
             # Staged selection is only an App label. Cancel the stage and restore
             # that label; leave runtime mode and mounted payload completely alone.
-            remove_owned(module, module/'.luoshu-payload-next')
+            remove_owned(module, module/'.ziyu-payload-next')
             for marker in ('font-payload-next.conf', 'universal-font-next.conf',
                            'text_reboot_required.conf'):
                 (cfg/marker).unlink(missing_ok=True)
@@ -299,13 +300,13 @@ def undo(module: Path) -> dict:
     retired = Path(previous.get('retired', ''))
     if mode != 'default':
         retired = owned_path(module, retired)
-        retired_root = (module/'.luoshu-retired').resolve()
+        retired_root = (module/'.ziyu-retired').resolve()
         if not retired.is_relative_to(retired_root) or not retired.is_dir():
             raise ValueError('上一套字体负载缺失，无法安全撤销')
-    next_payload = module/'.luoshu-payload-next'
+    next_payload = module/'.ziyu-payload-next'
     if next_payload.exists():
         raise ValueError('已有未提交的字体负载，请刷新后重试')
-    temporary = module/f'.luoshu-undo-stage.{os.getpid()}'
+    temporary = module/f'.ziyu-undo-stage.{os.getpid()}'
     try:
         if mode == 'default':
             temporary.mkdir()
@@ -318,7 +319,7 @@ def undo(module: Path) -> dict:
                 'previousLegacy': 'false', 'recovery': 'true', 'undo': 'true',
                 'time': int(time.time())}
         if mode == 'universal':
-            manifest = json.loads((next_payload/'.luoshu-runtime/deployment/deployment.json').read_text())
+            manifest = json.loads(owned_path(next_payload/'.ziyu-runtime/deployment/deployment.json').read_text())
             data.update(deploymentId=manifest['deploymentId'], payloadDigest=manifest['payloadDigest'],
                         previousMode='universal')
             conf(cfg/'universal-font-next.conf', data)

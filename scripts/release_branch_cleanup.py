@@ -74,7 +74,7 @@ class GitHub:
 
 def validate_manifest(manifest: dict) -> None:
     require(manifest.get("schema") == 1, "Unsupported cleanup manifest")
-    require(manifest.get("repository") == "xgl34222220-ops/LuoShu", "Cleanup is scoped to LuoShu")
+    require(manifest.get("repository") == "xgl34222220-ops/Ziyu", "Cleanup is scoped to Ziyu")
     require(manifest.get("default_branch") == "main", "Default branch must remain main")
     require(manifest.get("tag") == "v4.2.0", "Only v4.2.0 cleanup is authorized")
     require(manifest.get("archive_prefix") == "archive/v4.2.0/", "Invalid archive prefix")
@@ -130,7 +130,7 @@ def plan_cleanup(manifest: dict, api: GitHub, *, tag: str, release_sha: str, run
             and bool(release.get("published_at")), "A published stable release is required")
     assets = {a["name"]: a for a in release.get("assets", [])}
     release_root = f"https://github.com/{repository}/releases/download/{tag}"
-    for name in (f"LuoShu-{tag}.zip", f"LuoShu-{tag}.zip.sha256", f"LuoShu-App-{tag}.apk", f"LuoShu-App-{tag}.apk.sha256"):
+    for name in (f"Ziyu-{tag}.zip", f"Ziyu-{tag}.zip.sha256", f"Ziyu-App-{tag}.apk", f"Ziyu-App-{tag}.apk.sha256"):
         asset = assets.get(name, {})
         require(asset.get("state") == "uploaded" and asset.get("size", 0) > 0
                 and asset.get("browser_download_url") == f"{release_root}/{name}", f"Missing published asset: {name}")

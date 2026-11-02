@@ -36,7 +36,7 @@ internal object RootShell {
 
     suspend fun exec(command: String, timeoutMs: Long = 600_000L): ShellResult = withContext(Dispatchers.IO) {
         try {
-            executeProcess(listOf("su", "-c", resolveCommand(command)), timeoutMs)
+            executeProcess(listOf("su", "-c", LegacyIdentityCompatibility.commandFallbacks(command) + resolveCommand(command)), timeoutMs)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (interrupted: InterruptedException) {

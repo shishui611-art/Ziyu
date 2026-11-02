@@ -12,8 +12,8 @@ _dfload_module() {
 
 _dfload_visible_path() {
     _dfload_rel="${1#/}"
-    if [ -n "${LUOSHU_VISIBLE_ROOT:-}" ]; then
-        printf '%s/%s\n' "${LUOSHU_VISIBLE_ROOT%/}" "$_dfload_rel"
+    if [ -n "${ZIYU_VISIBLE_ROOT:-}" ]; then
+        printf '%s/%s\n' "${ZIYU_VISIBLE_ROOT%/}" "$_dfload_rel"
     else
         printf '/%s\n' "$_dfload_rel"
     fi
@@ -74,8 +74,8 @@ _dfload_state_value() {
 }
 
 _dfload_boot_id() {
-    if [ -n "${LUOSHU_BACKEND_TEST_BOOT_ID:-}" ]; then
-        printf '%s\n' "$LUOSHU_BACKEND_TEST_BOOT_ID"
+    if [ -n "${ZIYU_BACKEND_TEST_BOOT_ID:-}" ]; then
+        printf '%s\n' "$ZIYU_BACKEND_TEST_BOOT_ID"
     else
         cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n'
     fi
@@ -83,7 +83,7 @@ _dfload_boot_id() {
 
 _dfload_backend_route_verify() {
     _dfload_route_module="$(_dfload_module)"
-    _dfload_route_python="${LUOSHU_PYTHON:-$_dfload_route_module/common/python/bin/luoshu-python}"
+    _dfload_route_python="${ZIYU_PYTHON:-$_dfload_route_module/common/python/bin/ziyu-python}"
     _dfload_route_script="$_dfload_route_module/common/font_route_verify.py"
     _dfload_route_mode=auto
     _dfload_route_state="$_dfload_route_module/config/mount-backend.conf"
@@ -94,11 +94,11 @@ _dfload_backend_route_verify() {
     fi
     [ -f "$_dfload_route_script" ] || return 1
     mkdir -p "$_dfload_route_module/logs" 2>/dev/null || return 1
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
         "$_dfload_route_python" "$_dfload_route_script" \
             --module-root "$_dfload_route_module" \
-            --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
-            --mountinfo "${LUOSHU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
+            --visible-root "${ZIYU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
+            --mountinfo "${ZIYU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
             --mode "$_dfload_route_mode" --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
             --active-font "$(_dfload_active_font)" \
             >> "$_dfload_route_module/logs/device-font-load-verify.log" 2>&1
@@ -109,8 +109,8 @@ _dfload_backend_route_verify() {
         LD_LIBRARY_PATH="$_dfload_route_pyroot/lib:$_dfload_route_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
             "$_dfload_route_python" "$_dfload_route_script" \
             --module-root "$_dfload_route_module" \
-            --visible-root "${LUOSHU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
-            --mountinfo "${LUOSHU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
+            --visible-root "${ZIYU_FONT_VERIFY_VISIBLE_ROOT:-/proc/1/root}" \
+            --mountinfo "${ZIYU_FONT_VERIFY_MOUNTINFO:-/proc/1/mountinfo}" \
             --mode "$_dfload_route_mode" --output "$_dfload_route_module/config/device-font-load-route-verification.json" \
             --active-font "$(_dfload_active_font)" \
             >> "$_dfload_route_module/logs/device-font-load-verify.log" 2>&1
@@ -230,7 +230,7 @@ _dfload_quick_fingerprint() {
 
 # v2.3.9 compared against the public compatibility view. On KernelSU/meta-overlayfs
 # that directory can be an empty or stale namespace view while the real payload lives
-# under .luoshu-payload and is already mounted in PID 1. Always resolve the canonical
+# under .ziyu-payload and is already mounted in PID 1. Always resolve the canonical
 # private payload first.
 _dfload_payload_file() {
     _dfload_rel="${1#/}"
@@ -241,7 +241,7 @@ _dfload_payload_file() {
         printf '%s/%s\n' "$_dfload_live" "$_dfload_rel"; return 0
     fi
     for _dfload_candidate in \
-        "$_dfload_module_dir/.luoshu-payload/$_dfload_rel" \
+        "$_dfload_module_dir/.ziyu-payload/$_dfload_rel" \
         "$_dfload_module_dir/$_dfload_rel"; do
         if [ -f "$_dfload_candidate" ]; then
             printf '%s\n' "$_dfload_candidate"
@@ -266,7 +266,7 @@ _dfload_manifest_font_count() {
         done < "$_dfload_manifest"
     fi
     if [ "$_dfload_count" -eq 0 ] 2>/dev/null; then
-        _dfload_count=$(find "$_dfload_module_dir/.luoshu-payload" \
+        _dfload_count=$(find "$_dfload_module_dir/.ziyu-payload" \
             -type f \( -name '*.ttf' -o -name '*.otf' -o -name '*.ttc' \) \
             2>/dev/null | wc -l | tr -d '[:space:]')
         case "$_dfload_count" in ''|*[!0-9]*) _dfload_count=0 ;; esac
@@ -319,8 +319,8 @@ _dfload_mount_guard() {
     MODDIR="$_dfload_module_dir"
     MODULE_DIR="$_dfload_module_dir"
     . "$_dfload_mount_compat"
-    type luoshu_mount_verify_active >/dev/null 2>&1 || return 1
-    luoshu_mount_verify_active "$_dfload_active"
+    type ziyu_mount_verify_active >/dev/null 2>&1 || return 1
+    ziyu_mount_verify_active "$_dfload_active"
 }
 
 # Medium-strength evidence. It is intentionally accepted because KernelSU and OEM
@@ -421,17 +421,17 @@ device_font_load_verify() (
     _dfload_lock_module="$(_dfload_module)"
     . "$_dfload_lock_module/common/font_switch_lock.sh" || return 2
     _dfload_lock="$_dfload_lock_module/.font_switch.lock"
-    if [ -n "$(luoshu_font_lock_owned_record "$_dfload_lock" "$$")" ] &&
-       luoshu_font_lock_active "$_dfload_lock"; then
+    if [ -n "$(ziyu_font_lock_owned_record "$_dfload_lock" "$$")" ] &&
+       ziyu_font_lock_active "$_dfload_lock"; then
         # Called from a switch which already owns this lock; do not release it.
         _dfload_verify_unlocked
         return $?
     fi
-    luoshu_font_lock_acquire "$_dfload_lock" "$$" || {
+    ziyu_font_lock_acquire "$_dfload_lock" "$$" || {
         _dfload_log '字体切换正在进行，加载路径复核延后；保留已有结果'
         return 2
     }
-    trap 'luoshu_font_lock_release "$_dfload_lock" "$$" >/dev/null 2>&1' EXIT
+    trap 'ziyu_font_lock_release "$_dfload_lock" "$$" >/dev/null 2>&1' EXIT
     _dfload_verify_unlocked
 )
 

@@ -29,7 +29,7 @@ on:
       - common/rom_adapters.sh
       - common/device_font_payload_policy.sh
       - customize.sh
-      - .luoshu-runtime/compat/v227/customize.sh
+      - .ziyu-runtime/compat/v227/customize.sh
       - scripts/font_inventory_test.py
       - scripts/font_inventory_scan_test.py
       - scripts/font_topology_snapshot_test.py
@@ -89,7 +89,7 @@ jobs:
       - name: Validate install-stage and fallback contracts
         run: |
           set -eu
-          INSTALLER='.luoshu-runtime/compat/v227/customize.sh'
+          INSTALLER='.ziyu-runtime/compat/v227/customize.sh'
           sh -n customize.sh
           sh -n "$INSTALLER"
           sh -n common/rom_adapters.sh
@@ -104,7 +104,7 @@ jobs:
           sh -n common/universal_mount_runtime.sh
           sh -n common/device_font_payload_policy.sh
           sh -n common/font_manager.sh
-          grep -q 'luoshu_private_install_migrate' customize.sh
+          grep -q 'ziyu_private_install_migrate' customize.sh
           grep -q 'FONT_INVENTORY_SCRIPT=.*font_inventory_scan.py' "$INSTALLER"
           grep -q 'stockFontFileCount' "$INSTALLER"
           grep -q '"$FONT_INVENTORY_PYTHON" "$FONT_INVENTORY_SCRIPT" --scan' "$INSTALLER"
@@ -137,4 +137,4 @@ jobs:
           grep -qx 'common/universal_next_boot.sh' scripts/module_payload_manifest.txt
           grep -qx 'common/universal_mount_runtime.sh' scripts/module_payload_manifest.txt
           grep -qx 'common/stock_inventory_scan.py' scripts/module_payload_manifest.txt
-          grep -qx '.luoshu-runtime' scripts/module_payload_manifest.txt
+          grep -qx '.ziyu-runtime' scripts/module_payload_manifest.txt

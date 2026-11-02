@@ -1,5 +1,5 @@
 #!/bin/sh
-# 洛书 - provider 桥命名空间挂载回归测试
+# 字域 - provider 桥命名空间挂载回归测试
 set -eu
 
 ROOT="${ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." 2>/dev/null && pwd)}"
@@ -17,7 +17,7 @@ grep -q 'cat "$proc_src" > "$stage"' "$BRIDGE" ||
     fail '仍在无条件把 /proc/1/root 当作 bind 源'
 
 # 2. staging 必须落在目标 namespace 的普通路径，成功后立即清理。
-grep -q 'LUOSHU_GOOGLE_FONT_STAGE_DIR:-/data/local/tmp' "$BRIDGE" ||
+grep -q 'ZIYU_GOOGLE_FONT_STAGE_DIR:-/data/local/tmp' "$BRIDGE" ||
     fail '缺少目标 namespace staging 目录'
 grep -q 'ok:plain' "$BRIDGE" || fail '缺少普通路径成功模式'
 grep -q 'ok:staging' "$BRIDGE" || fail '缺少 staging 成功模式'

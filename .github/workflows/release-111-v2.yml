@@ -6,7 +6,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: luoshu-stable-v2-111
+  group: ziyu-stable-v2-111
   cancel-in-progress: false
 jobs:
   package:
@@ -34,9 +34,9 @@ jobs:
           test "$(cat "$RUNNER_TEMP/signed/verification/commit.txt")" = "$src"
           changes=$(git diff --name-only "$src" HEAD -- | grep -Ev '^(\.github/workflows/|scripts/font_library_ui_layout_test\.sh$|scripts/v2_flashing_ui_smoke\.py$)' || true)
           test -z "$changes" || { printf 'Unverified runtime changes: %s\n' "$changes"; exit 2; }
-          echo '57d86a4b5d87a7baf2f4cba8c13fcabb940ffd6d00f662d2313d91da2f4950b8  '"$RUNNER_TEMP/signed/verification/LuoShu-App-v2.0.0.apk" | sha256sum -c -
+          echo '57d86a4b5d87a7baf2f4cba8c13fcabb940ffd6d00f662d2313d91da2f4950b8  '"$RUNNER_TEMP/signed/verification/Ziyu-App-v2.0.0.apk" | sha256sum -c -
           grep -q 'certificate SHA-256 digest: e0043b560a10111d3ffddd3a7afba680b854e14ed793c7a3fdb7f8b7aa95ff27' "$RUNNER_TEMP/signed/verification/signature.txt"
-          grep -q "name='io.github.xgl34222220.luoshu' versionCode='7000001' versionName='2.0.0'" "$RUNNER_TEMP/signed/verification/apk-badging.txt"
+          grep -q "name='io.github.xgl34222220.ziyu.legacy' versionCode='7000001' versionName='2.0.0'" "$RUNNER_TEMP/signed/verification/apk-badging.txt"
       - name: Prepare reproducible module runtime
         shell: bash
         run: |
@@ -46,25 +46,25 @@ jobs:
           curl -fL --retry 2 --max-time 120 https://github.com/xgl34222220-ops/LuoShu/releases/download/refactor-v1.1.1/LuoShu-v1.1.1.zip -o "$RUNNER_TEMP/baseline.zip"
           echo 'c5c8fa86af4ac196107ba05c5ee8cc1944140ae033cc9e763cec8c76f40c848a  '"$RUNNER_TEMP/baseline.zip" | sha256sum -c -
           unzip -oq "$RUNNER_TEMP/baseline.zip" 'common/python/*'
-          chmod +x common/python/bin/luoshu-python
+          chmod +x common/python/bin/ziyu-python
       - name: Full backend checks and package
         shell: bash
         env:
-          LUOSHU_APP_PACKAGE: io.github.xgl34222220.luoshu
-          LUOSHU_APP_VERSION_CODE: '7000001'
+          ZIYU_APP_PACKAGE: io.github.xgl34222220.ziyu.legacy
+          ZIYU_APP_VERSION_CODE: '7000001'
         run: |
           set -euo pipefail
           mkdir -p verification dist
           git rev-parse HEAD > verification/commit.txt
-          export LUOSHU_APP_APK="$RUNNER_TEMP/signed/verification/LuoShu-App-v2.0.0.apk"
+          export ZIYU_APP_APK="$RUNNER_TEMP/signed/verification/Ziyu-App-v2.0.0.apk"
           sh scripts/build.sh 2>&1 | tee verification/full-backend-and-package.log
-          cp "$LUOSHU_APP_APK" dist/LuoShu-App-v2.0.0.apk
-          (cd dist && sha256sum LuoShu-App-v2.0.0.apk > LuoShu-App-v2.0.0.apk.sha256 && sha256sum -c LuoShu-v2.0.0.zip.sha256 && sha256sum -c LuoShu-App-v2.0.0.apk.sha256)
-          unzip -p dist/LuoShu-v2.0.0.zip bundled/LuoShu-App.apk > "$RUNNER_TEMP/embedded.apk"
-          cmp "$LUOSHU_APP_APK" "$RUNNER_TEMP/embedded.apk"
+          cp "$ZIYU_APP_APK" dist/Ziyu-App-v2.0.0.apk
+          (cd dist && sha256sum Ziyu-App-v2.0.0.apk > Ziyu-App-v2.0.0.apk.sha256 && sha256sum -c Ziyu-v2.0.0.zip.sha256 && sha256sum -c Ziyu-App-v2.0.0.apk.sha256)
+          unzip -p dist/Ziyu-v2.0.0.zip bundled/Ziyu-App.apk > "$RUNNER_TEMP/embedded.apk"
+          cmp "$ZIYU_APP_APK" "$RUNNER_TEMP/embedded.apk"
           cp "$RUNNER_TEMP/signed/verification/signature.txt" verification/
           cp "$RUNNER_TEMP/signed/verification/apk-badging.txt" verification/
-          git archive --format=zip HEAD > dist/LuoShu-v2.0.0-source.zip
+          git archive --format=zip HEAD > dist/Ziyu-v2.0.0-source.zip
       - name: Enforce authorized release readiness without claiming device tests
         shell: bash
         run: |
@@ -77,7 +77,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LuoShu-v2.0.0-verified-release
+          name: Ziyu-v2.0.0-verified-release
           path: |
             dist/
             verification/
@@ -92,7 +92,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: LuoShu-v2.0.0-verified-release
+          name: Ziyu-v2.0.0-verified-release
           path: candidate
       - uses: actions/setup-java@v4
         with:
@@ -117,11 +117,11 @@ jobs:
           emulator-boot-timeout: 600
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: python3 scripts/v2_flashing_ui_smoke.py --apk candidate/dist/LuoShu-App-v2.0.0.apk --package io.github.xgl34222220.luoshu --output ui-smoke-output --serial emulator-5554
+          script: python3 scripts/v2_flashing_ui_smoke.py --apk candidate/dist/Ziyu-App-v2.0.0.apk --package io.github.xgl34222220.ziyu.legacy --output ui-smoke-output --serial emulator-5554
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LuoShu-v2.0.0-signed-UI-smoke
+          name: Ziyu-v2.0.0-signed-UI-smoke
           path: ui-smoke-output/
           retention-days: 14
   publish:
@@ -138,7 +138,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: LuoShu-v2.0.0-verified-release
+          name: Ziyu-v2.0.0-verified-release
           path: candidate
       - name: Publish immutable v2.0.0 stable assets
         shell: bash
@@ -150,6 +150,6 @@ jobs:
           test "$(git ls-remote origin refs/heads/release/2.0.0-111 | cut -f1)" = "$GITHUB_SHA"
           test -z "$(git ls-remote origin refs/tags/refactor-v2.0.0)"
           if gh release view refactor-v2.0.0 >/dev/null 2>&1; then echo 'Release already exists; will not overwrite.' >&2; exit 4; fi
-          (cd candidate/dist && sha256sum -c LuoShu-v2.0.0.zip.sha256 && sha256sum -c LuoShu-App-v2.0.0.apk.sha256)
-          gh release create refactor-v2.0.0 candidate/dist/LuoShu-v2.0.0.zip candidate/dist/LuoShu-v2.0.0.zip.sha256 candidate/dist/LuoShu-App-v2.0.0.apk candidate/dist/LuoShu-App-v2.0.0.apk.sha256 --target "$GITHUB_SHA" --title '洛书 2.0.0 正式版' --notes-file 更新日志/RELEASE_NOTES_refactor-v2.0.0.md --latest
+          (cd candidate/dist && sha256sum -c Ziyu-v2.0.0.zip.sha256 && sha256sum -c Ziyu-App-v2.0.0.apk.sha256)
+          gh release create refactor-v2.0.0 candidate/dist/Ziyu-v2.0.0.zip candidate/dist/Ziyu-v2.0.0.zip.sha256 candidate/dist/Ziyu-App-v2.0.0.apk candidate/dist/Ziyu-App-v2.0.0.apk.sha256 --target "$GITHUB_SHA" --title '洛书 2.0.0 正式版' --notes-file 更新日志/RELEASE_NOTES_refactor-v2.0.0.md --latest
           gh api repos/${GITHUB_REPOSITORY}/releases/tags/refactor-v2.0.0 --jq '{tag_name,draft,prerelease,assets:[.assets[].name]}'

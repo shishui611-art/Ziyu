@@ -3,7 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
 CASE='合成收尾性能'
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-mix-finalize)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-mix-finalize)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 # Hard-linked aliases must be checksummed once, not once per path.
@@ -11,24 +11,24 @@ MODULE="$TMP/module"
 mkdir -p "$MODULE/common" "$MODULE/config" "$MODULE/system/fonts" "$TMP/bin"
 cp "$ROOT/common/font_safety.sh" "$MODULE/common/font_safety.sh"
 cp "$ROOT/common/font_finalize_hotfix.sh" "$MODULE/common/font_finalize_hotfix.sh"
-printf 'font payload\n' > "$MODULE/system/fonts/LuoShu-400.ttf"
+printf 'font payload\n' > "$MODULE/system/fonts/Ziyu-400.ttf"
 # Make the test file large enough for payload validation and add aliases to the same inode.
-dd if=/dev/zero bs=1024 count=4 >> "$MODULE/system/fonts/LuoShu-400.ttf" 2>/dev/null
-ln "$MODULE/system/fonts/LuoShu-400.ttf" "$MODULE/system/fonts/Roboto-Regular.ttf"
-ln "$MODULE/system/fonts/LuoShu-400.ttf" "$MODULE/system/fonts/GoogleSans-Regular.ttf"
+dd if=/dev/zero bs=1024 count=4 >> "$MODULE/system/fonts/Ziyu-400.ttf" 2>/dev/null
+ln "$MODULE/system/fonts/Ziyu-400.ttf" "$MODULE/system/fonts/Roboto-Regular.ttf"
+ln "$MODULE/system/fonts/Ziyu-400.ttf" "$MODULE/system/fonts/GoogleSans-Regular.ttf"
 REAL_CKSUM=$(command -v cksum)
 printf '0\n' > "$TMP/cksum-count"
 cat > "$TMP/bin/cksum" <<'EOS'
 #!/bin/sh
-count=$(cat "$LUOSHU_CKSUM_COUNT" 2>/dev/null || printf '0')
-printf '%s\n' "$((count + 1))" > "$LUOSHU_CKSUM_COUNT"
-exec "$LUOSHU_REAL_CKSUM" "$@"
+count=$(cat "$ZIYU_CKSUM_COUNT" 2>/dev/null || printf '0')
+printf '%s\n' "$((count + 1))" > "$ZIYU_CKSUM_COUNT"
+exec "$ZIYU_REAL_CKSUM" "$@"
 EOS
 chmod 0755 "$TMP/bin/cksum"
-PATH="$TMP/bin:$PATH" LUOSHU_REAL_CKSUM="$REAL_CKSUM" LUOSHU_CKSUM_COUNT="$TMP/cksum-count" \
+PATH="$TMP/bin:$PATH" ZIYU_REAL_CKSUM="$REAL_CKSUM" ZIYU_CKSUM_COUNT="$TMP/cksum-count" \
 MODULE_DIR="$MODULE" MODDIR="$MODULE" sh -c '
     . "$1/common/font_safety.sh"
-    luoshu_payload_build_manifest
+    ziyu_payload_build_manifest
 ' sh "$MODULE"
 ok test "$(cat "$TMP/cksum-count")" -eq 1
 eq "$(wc -l < "$MODULE/config/font-payload-manifest.conf" | tr -d '[:space:]')" 3
@@ -39,30 +39,30 @@ printf '0\n' > "$TMP/wc-count"
 REAL_WC=$(command -v wc)
 cat > "$TMP/bin/wc" <<'EOS'
 #!/bin/sh
-count=$(cat "$LUOSHU_WC_COUNT" 2>/dev/null || printf '0')
-printf '%s\n' "$((count + 1))" > "$LUOSHU_WC_COUNT"
-exec "$LUOSHU_REAL_WC" "$@"
+count=$(cat "$ZIYU_WC_COUNT" 2>/dev/null || printf '0')
+printf '%s\n' "$((count + 1))" > "$ZIYU_WC_COUNT"
+exec "$ZIYU_REAL_WC" "$@"
 EOS
 chmod 0755 "$TMP/bin/wc"
-PATH="$TMP/bin:$PATH" LUOSHU_REAL_WC="$REAL_WC" LUOSHU_WC_COUNT="$TMP/wc-count" \
+PATH="$TMP/bin:$PATH" ZIYU_REAL_WC="$REAL_WC" ZIYU_WC_COUNT="$TMP/wc-count" \
 MODULE_DIR="$MODULE" MODDIR="$MODULE" sh -c '
     . "$1/common/font_safety.sh"
     . "$1/common/font_finalize_hotfix.sh"
-    _luoshu_font_config_specs() { :; }
-    _luoshu_font_config_validate() { return 0; }
-    luoshu_payload_validate_current mix
+    _ziyu_font_config_specs() { :; }
+    _ziyu_font_config_validate() { return 0; }
+    ziyu_payload_validate_current mix
 ' sh "$MODULE"
 ok test "$(cat "$TMP/wc-count")" -eq 0
 
-ok grep -q '_luoshu_fast_filesize' "$ROOT/common/font_finalize_hotfix.sh"
+ok grep -q '_ziyu_fast_filesize' "$ROOT/common/font_finalize_hotfix.sh"
 ok grep -q "mix_stage weight-map '正在准备九档字体映射' 92" "$ROOT/common/font_finalize_hotfix.sh"
 no grep -q "mix_stage mono-map" "$ROOT/common/font_finalize_hotfix.sh"
-no grep -q '_luoshu_config_make_mono_weight' "$ROOT/common/font_finalize_hotfix.sh"
+no grep -q '_ziyu_config_make_mono_weight' "$ROOT/common/font_finalize_hotfix.sh"
 
 # Selected generation finishes at a reusable library artifact and preserves the
 # base engine's content cache, without constructing mount/manifest transactions.
 ok grep -q 'full-composite-v8' "$ROOT/common/legacy_v14_4/font_mix_engine.sh"
-ok grep -q 'LUOSHU_MIX_PREPARE_ONLY' "$ROOT/common/legacy_v14_4/font_mix_engine.sh"
+ok grep -q 'ZIYU_MIX_PREPARE_ONLY' "$ROOT/common/legacy_v14_4/font_mix_engine.sh"
 ok grep -q 'publish_named_mix' "$ROOT/common/legacy_v14_4/mix_router.sh"
 ok grep -q '正在保存组合到字体库' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 ! sed -n '/^finalize_mix_stage()/,/^}/p' "$ROOT/common/legacy_v14_4/mix_router.sh" | grep -q 'commit_mix_stage_if_needed'

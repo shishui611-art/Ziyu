@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Phase 5 Minimal XML Router bridge.
+# Ziyu Phase 5 Minimal XML Router bridge.
 # Planning/capture only. Never publishes XML overlays or mounts anything.
 set +e
 
@@ -11,14 +11,14 @@ UNIVERSAL_PLAN="$MODDIR/common/universal_font_plan.sh"
 ROUTE_DIR="$CONFIG_DIR/minimal-xml-route-plans"
 SNAPSHOT_ROOT="$CONFIG_DIR/font-config-source"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 
 [ -f "$MODDIR/common/font_config_runtime.sh" ] && . "$MODDIR/common/font_config_runtime.sh"
 [ -f "$MODDIR/common/font_config_partitions.sh" ] && . "$MODDIR/common/font_config_partitions.sh"
 
 _mxr_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127
@@ -73,7 +73,7 @@ _mxr_build() {
 
     _mxr_capture_stock >/dev/null 2>&1 || true
     rm -rf "$CONFIG_DIR/universal-font-artifact-manifests" 2>/dev/null || true
-    rm -rf "${LUOSHU_COMPILER_CACHE:-$MODDIR/cache/universal-font-artifacts}" 2>/dev/null || true
+    rm -rf "${ZIYU_COMPILER_CACHE:-$MODDIR/cache/universal-font-artifacts}" 2>/dev/null || true
     mkdir -p "$ROUTE_DIR" 2>/dev/null || {
         printf '{"status":"error","message":"无法创建 XML Route Plan 缓存目录"}\n'
         return 1

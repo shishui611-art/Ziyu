@@ -31,7 +31,7 @@ fi
 [ -f "$MODDIR/common/mount_self_backend.sh" ] && . "$MODDIR/common/mount_self_backend.sh"
 [ -f "$MODDIR/common/font_boot_state.sh" ] && . "$MODDIR/common/font_boot_state.sh"
 
-luoshu_font_rebuild_marker_reconcile >/dev/null 2>&1 || true
+ziyu_font_rebuild_marker_reconcile >/dev/null 2>&1 || true
 _lfbc_active=$(head -n1 "$MODDIR/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
 [ -n "$_lfbc_active" ] || _lfbc_active=default
 if [ "$_lfbc_active" != default ]; then
@@ -55,7 +55,7 @@ fi
 
 _lfbc_attempt=1
 while [ "$_lfbc_attempt" -le 5 ]; do
-    luoshu_text_reboot_reconcile >/dev/null 2>&1 && exit 0
+    ziyu_text_reboot_reconcile >/dev/null 2>&1 && exit 0
     [ "$_lfbc_attempt" -ge 5 ] || sleep 3
     _lfbc_attempt=$((_lfbc_attempt + 1))
 done

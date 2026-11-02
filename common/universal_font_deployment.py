@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a backend-neutral LuoShu Phase 7 deployment payload.
+"""Build a backend-neutral Ziyu Phase 7 deployment payload.
 
 Consumes validated Phase 4/5/6 artifacts. It never reclassifies fonts and never
 chooses new targets. The exact same payload is consumed by Magisk, KernelSU and
@@ -11,6 +11,7 @@ import argparse
 import copy
 import hashlib
 import json
+from legacy_identity import generated_names
 import os
 import shutil
 import tempfile
@@ -175,7 +176,7 @@ def _artifact_destination_for_xml(target_path: str, filename: str) -> Path:
 
 
 def _write_dynamic_runtime(stage: Path, mounts: list[dict[str, Any]]) -> None:
-    runtime = stage / ".luoshu-runtime/deployment"
+    runtime = stage / ".ziyu-runtime/deployment"
     runtime.mkdir(parents=True, exist_ok=True)
     conf = runtime / "dynamic-mounts.conf"
     with conf.open("w", encoding="utf-8") as stream:
@@ -346,7 +347,7 @@ def build_deployment(
 
         # Dynamic targets are not placed in the partition overlay. They are kept
         # in a private source directory and read-only bind-mounted to /data/fonts.
-        dynamic_source_root = stage / ".luoshu-dynamic"
+        dynamic_source_root = stage / ".ziyu-dynamic"
         for target_value, artifact_id_raw in sorted(dynamic_map.items()):
             target = _safe_logical(str(target_value), dynamic=True)
             target_text = str(target)
@@ -359,7 +360,7 @@ def build_deployment(
                 raise DeploymentError(f"Dynamic target 缺少 ready artifact：{artifact_id}")
             suffix = Path(str(compiled.get("output") or "")).suffix.lower()
             safe_id = artifact_id.replace(":", "-")
-            source_rel = Path(".luoshu-dynamic") / f"{safe_id}{suffix}"
+            source_rel = Path(".ziyu-dynamic") / f"{safe_id}{suffix}"
             details = _copy_verified(
                 Path(str(compiled["output"])),
                 str(compiled["sha256"]),
@@ -381,7 +382,7 @@ def build_deployment(
         # Freeze the exact Phase 4/6 verification contracts inside this payload.
         # Phase 8 must verify the deployment that was actually staged, not a
         # mutable config copy that may be rebuilt after stage-next.
-        contract_root = stage / ".luoshu-runtime/deployment"
+        contract_root = stage / ".ziyu-runtime/deployment"
         plan_snapshot = contract_root / "font-plan.json"
         artifact_snapshot = contract_root / "artifact-manifest.json"
 
@@ -400,12 +401,12 @@ def build_deployment(
         _atomic_json(artifact_snapshot, artifact_contract)
         verification_contracts = {
             "fontPlan": {
-                "payloadPath": ".luoshu-runtime/deployment/font-plan.json",
+                "payloadPath": ".ziyu-runtime/deployment/font-plan.json",
                 "sha256": _sha256(plan_snapshot),
                 "planId": font_plan.get("planId"),
             },
             "artifactManifest": {
-                "payloadPath": ".luoshu-runtime/deployment/artifact-manifest.json",
+                "payloadPath": ".ziyu-runtime/deployment/artifact-manifest.json",
                 "sha256": _sha256(artifact_snapshot),
                 "manifestId": artifact_manifest.get("manifestId"),
             },
@@ -459,9 +460,9 @@ def build_deployment(
             "verificationContracts": verification_contracts,
         }
 
-        runtime_manifest = stage / ".luoshu-runtime/deployment/deployment.json"
+        runtime_manifest = stage / ".ziyu-runtime/deployment/deployment.json"
         payload["runtimeManifest"] = {
-            "payloadPath": ".luoshu-runtime/deployment/deployment.json",
+            "payloadPath": ".ziyu-runtime/deployment/deployment.json",
             "deploymentId": deployment_id,
         }
         _atomic_json(runtime_manifest, payload)
@@ -549,14 +550,15 @@ def validate_payload_integrity(
         if not isinstance(verification_contracts, dict):
             raise DeploymentError("Deployment verificationContracts 无效")
         specs = (
-            ("fontPlan", "planId", deployment.get("fontPlanId"), ".luoshu-runtime/deployment/font-plan.json"),
-            ("artifactManifest", "manifestId", deployment.get("artifactManifestId"), ".luoshu-runtime/deployment/artifact-manifest.json"),
+            ("fontPlan", "planId", deployment.get("fontPlanId"), ".ziyu-runtime/deployment/font-plan.json"),
+            ("artifactManifest", "manifestId", deployment.get("artifactManifestId"), ".ziyu-runtime/deployment/artifact-manifest.json"),
         )
         for name, id_key, expected_id_value, expected_path in specs:
             contract = verification_contracts.get(name)
             if not isinstance(contract, dict):
                 raise DeploymentError(f"Deployment verification contract 缺失：{name}")
-            if contract.get("payloadPath") != expected_path:
+            contract_path = contract.get("payloadPath")
+            if contract_path not in generated_names(expected_path):
                 raise DeploymentError(f"Deployment verification contract 路径无效：{name}")
             if contract.get(id_key) != expected_id_value:
                 raise DeploymentError(f"Deployment verification contract 身份不一致：{name}")
@@ -564,7 +566,7 @@ def validate_payload_integrity(
             if len(digest) != 64:
                 raise DeploymentError(f"Deployment verification contract 摘要无效：{name}")
             if payload_root is not None:
-                snapshot = payload_root / expected_path
+                snapshot = payload_root / contract_path
                 if not snapshot.is_file() or _sha256(snapshot) != digest:
                     raise DeploymentError(f"Deployment verification contract 缺失或摘要变化：{name}")
 

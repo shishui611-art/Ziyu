@@ -3,7 +3,7 @@
 Official release icon for LuoShu.
 
 - Stable path: `design/app-icons/official-icon.webp`
-- Source variant: `design/app-icons/luoshu-magic-square.webp`
+- Source variant: `design/app-icons/ziyu-magic-square.webp`
 - Size: 512×512
 - Approved: 2026-09-18
 

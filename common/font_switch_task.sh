@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu foreground font switch task guard.
+# Ziyu foreground font switch task guard.
 # The worker is detached from the App. Task ownership is verified with PID + task
 # sidecar + boot ID so recycled Android PIDs can never keep a dead task locked.
 set +e
@@ -14,19 +14,19 @@ if [ -z "$MODDIR" ]; then
 fi
 MODULE_DIR="$MODDIR"
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
-MANAGER="${LUOSHU_FONT_MANAGER:-$MODDIR/common/font_manager.sh}"
-TASK_FILE="${LUOSHU_SWITCH_TASK_FILE:-$MODDIR/config/switch_task.conf}"
-LOG_FILE="${LUOSHU_SWITCH_LOG:-$MODDIR/logs/fontswitch.log}"
+MANAGER="${ZIYU_FONT_MANAGER:-$MODDIR/common/font_manager.sh}"
+TASK_FILE="${ZIYU_SWITCH_TASK_FILE:-$MODDIR/config/switch_task.conf}"
+LOG_FILE="${ZIYU_SWITCH_LOG:-$MODDIR/logs/fontswitch.log}"
 STATUS_SCRIPT="$MODDIR/common/module_status.sh"
-HISTORY_TOOL="$MODDIR/.luoshu-payload/system/bin/luoshu-history"
-[ -f "$HISTORY_TOOL" ] || HISTORY_TOOL="$MODDIR/system/bin/luoshu-history"
+HISTORY_TOOL="$MODDIR/.ziyu-payload/system/bin/ziyu-history"
+[ -f "$HISTORY_TOOL" ] || HISTORY_TOOL="$MODDIR/system/bin/ziyu-history"
 BACKGROUND_TASK="$MODDIR/common/background_task.sh"
-WORKER_PID_FILE="${LUOSHU_SWITCH_WORKER_PID_FILE:-$MODDIR/config/switch_task_worker.pid}"
+WORKER_PID_FILE="${ZIYU_SWITCH_WORKER_PID_FILE:-$MODDIR/config/switch_task_worker.pid}"
 LOAD_VERIFY_STATE="$MODDIR/config/device-font-load-verification.conf"
 [ -f "$BACKGROUND_TASK" ] && . "$BACKGROUND_TASK"
-START_LOCK="${LUOSHU_SWITCH_START_LOCK:-$MODDIR/.font_switch_start.lock}"
+START_LOCK="${ZIYU_SWITCH_START_LOCK:-$MODDIR/.font_switch_start.lock}"
 
-TIMEOUT_SECONDS="${LUOSHU_SWITCH_TIMEOUT_SECONDS:-360}"
+TIMEOUT_SECONDS="${ZIYU_SWITCH_TIMEOUT_SECONDS:-360}"
 case "$TIMEOUT_SECONDS" in ''|*[!0-9]*) TIMEOUT_SECONDS=360 ;; esac
 [ "$TIMEOUT_SECONDS" -ge 30 ] 2>/dev/null || TIMEOUT_SECONDS=30
 [ "$TIMEOUT_SECONDS" -le 900 ] 2>/dev/null || TIMEOUT_SECONDS=900
@@ -35,7 +35,7 @@ case "$TIMEOUT_SECONDS" in ''|*[!0-9]*) TIMEOUT_SECONDS=360 ;; esac
 COLLECTION_TIMEOUT_SECONDS=$((TIMEOUT_SECONDS + 360))
 [ "$COLLECTION_TIMEOUT_SECONDS" -le 885 ] || COLLECTION_TIMEOUT_SECONDS=885
 [ "$COLLECTION_TIMEOUT_SECONDS" -ge "$TIMEOUT_SECONDS" ] || COLLECTION_TIMEOUT_SECONDS=$TIMEOUT_SECONDS
-HEARTBEAT_INTERVAL="${LUOSHU_SWITCH_HEARTBEAT_INTERVAL:-2}"
+HEARTBEAT_INTERVAL="${ZIYU_SWITCH_HEARTBEAT_INTERVAL:-2}"
 case "$HEARTBEAT_INTERVAL" in ''|*[!0-9]*) HEARTBEAT_INTERVAL=2 ;; esac
 [ "$HEARTBEAT_INTERVAL" -ge 1 ] 2>/dev/null || HEARTBEAT_INTERVAL=1
 [ "$HEARTBEAT_INTERVAL" -le 10 ] 2>/dev/null || HEARTBEAT_INTERVAL=10
@@ -45,8 +45,8 @@ json_escape() {
 }
 
 current_boot_id() {
-    if type luoshu_current_boot_id >/dev/null 2>&1; then
-        luoshu_current_boot_id
+    if type ziyu_current_boot_id >/dev/null 2>&1; then
+        ziyu_current_boot_id
         return
     fi
     _id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
@@ -140,16 +140,16 @@ pid_alive() {
 
 worker_alive() {
     _task="$1"; _pid="$2"
-    if type luoshu_task_pid_alive >/dev/null 2>&1; then
-        luoshu_task_pid_alive "$WORKER_PID_FILE" "$_task"
+    if type ziyu_task_pid_alive >/dev/null 2>&1; then
+        ziyu_task_pid_alive "$WORKER_PID_FILE" "$_task"
         return $?
     fi
     pid_alive "$_pid"
 }
 
 start_lock_acquire() {
-    if type luoshu_font_lock_acquire >/dev/null 2>&1; then
-        luoshu_font_lock_acquire "$START_LOCK" "$$"
+    if type ziyu_font_lock_acquire >/dev/null 2>&1; then
+        ziyu_font_lock_acquire "$START_LOCK" "$$"
         return $?
     fi
     mkdir "$START_LOCK" 2>/dev/null || return 2
@@ -157,8 +157,8 @@ start_lock_acquire() {
 }
 
 start_lock_release() {
-    if type luoshu_font_lock_release >/dev/null 2>&1; then
-        luoshu_font_lock_release "$START_LOCK" "$$" >/dev/null 2>&1 || true
+    if type ziyu_font_lock_release >/dev/null 2>&1; then
+        ziyu_font_lock_release "$START_LOCK" "$$" >/dev/null 2>&1 || true
         return 0
     fi
     _owner=$(sed -n '1p' "$START_LOCK/pid" 2>/dev/null)
@@ -184,7 +184,7 @@ reconcile_task() {
         fi
         write_task "$_task" "$_reconciled_state" "$_font" "$_reconciled_message" \
             "$_started" "$(date +%s 2>/dev/null || echo 0)" '' '' '' "${_elapsed:-0}" "$_now_boot" false 100
-        type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_task"
+        type ziyu_clear_task_pid >/dev/null 2>&1 && ziyu_clear_task_pid "$WORKER_PID_FILE" "$_task"
         return 0
     fi
 
@@ -214,13 +214,13 @@ reconcile_task() {
     write_task "$_task" "$_reconciled_state" "$_font" "$_reconciled_message" \
         "$_started" "$_now" '' '' '' "${_elapsed:-0}" "$_now_boot" false 100
     if [ "$_scope_cleanup_confirmed" = true ]; then
-        type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_task"
+        type ziyu_clear_task_pid >/dev/null 2>&1 && ziyu_clear_task_pid "$WORKER_PID_FILE" "$_task"
     fi
 }
 
 terminate_child_tree() {
-    if type luoshu_terminate_task_tree >/dev/null 2>&1; then
-        luoshu_terminate_task_tree "$1"
+    if type ziyu_terminate_task_tree >/dev/null 2>&1; then
+        ziyu_terminate_task_tree "$1"
     else
         kill -TERM "$1" 2>/dev/null || true
     fi
@@ -245,7 +245,7 @@ run_bounded() {
     _font="$1"; _output="$2"; _task="$3"; _started="$4"; _progress_file="$5"
     _collection_progress="${_progress_file}.collection"
     rm -f "$_collection_progress" 2>/dev/null || true
-    LUOSHU_SWITCH_PROGRESS_FILE="$_progress_file" LUOSHU_COLLECTION_PROGRESS_FILE="$_collection_progress" \
+    ZIYU_SWITCH_PROGRESS_FILE="$_progress_file" ZIYU_COLLECTION_PROGRESS_FILE="$_collection_progress" \
         sh "$MANAGER" action switch "$_font" > "$_output" 2>&1 &
     _child=$!; _switch_child=$_child; _elapsed=0; _next_heartbeat=0
     _collection_budget_granted=false
@@ -253,7 +253,7 @@ run_bounded() {
     while pid_alive "$_child"; do
         # The owning subreaper publishes CLOCK_MONOTONIC seconds. Without
         # that sidecar, count loop ticks; the outer supervisor still bounds us.
-        _clock_elapsed=$(head -n1 "${LUOSHU_TASK_CLOCK_FILE:-/dev/null}" 2>/dev/null)
+        _clock_elapsed=$(head -n1 "${ZIYU_TASK_CLOCK_FILE:-/dev/null}" 2>/dev/null)
         case "$_clock_elapsed" in ''|*[!0-9]*) ;; *) _elapsed=$_clock_elapsed ;; esac
         if [ "$_collection_budget_granted" = false ] &&
            grep -qx 'percent=88' "$_progress_file" 2>/dev/null; then
@@ -328,7 +328,7 @@ run_worker() {
     _worker_task=$_task
     _output="${TASK_FILE}.output.${_task}"
     _progress="${TASK_FILE}.progress.${_task}"
-    trap 'rm -f "$_progress" "$_progress.warning" 2>/dev/null || true; type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$WORKER_PID_FILE" "$_worker_task"' EXIT
+    trap 'rm -f "$_progress" "$_progress.warning" 2>/dev/null || true; type ziyu_clear_task_pid >/dev/null 2>&1 && ziyu_clear_task_pid "$WORKER_PID_FILE" "$_worker_task"' EXIT
     trap 'worker_signal_exit 129' HUP
     trap 'worker_signal_exit 130' INT
     trap 'worker_signal_exit 143' TERM
@@ -446,15 +446,15 @@ start_task() {
         printf '{"status":"error","message":"无法创建字体切换任务"}\n'; return 0
     }
 
-    export MODDIR LUOSHU_FONT_MANAGER="$MANAGER" LUOSHU_SWITCH_TASK_FILE="$TASK_FILE" \
-        LUOSHU_SWITCH_LOG="$LOG_FILE" LUOSHU_SWITCH_TIMEOUT_SECONDS="$TIMEOUT_SECONDS" \
-        LUOSHU_SWITCH_HEARTBEAT_INTERVAL="$HEARTBEAT_INTERVAL" LUOSHU_SWITCH_WORKER_PID_FILE="$WORKER_PID_FILE"
-    LUOSHU_TASK_TIMEOUT_SECONDS=$((COLLECTION_TIMEOUT_SECONDS + 15))
-    [ "$LUOSHU_TASK_TIMEOUT_SECONDS" -le 900 ] || LUOSHU_TASK_TIMEOUT_SECONDS=900
-    export LUOSHU_TASK_TIMEOUT_SECONDS
+    export MODDIR ZIYU_FONT_MANAGER="$MANAGER" ZIYU_SWITCH_TASK_FILE="$TASK_FILE" \
+        ZIYU_SWITCH_LOG="$LOG_FILE" ZIYU_SWITCH_TIMEOUT_SECONDS="$TIMEOUT_SECONDS" \
+        ZIYU_SWITCH_HEARTBEAT_INTERVAL="$HEARTBEAT_INTERVAL" ZIYU_SWITCH_WORKER_PID_FILE="$WORKER_PID_FILE"
+    ZIYU_TASK_TIMEOUT_SECONDS=$((COLLECTION_TIMEOUT_SECONDS + 15))
+    [ "$ZIYU_TASK_TIMEOUT_SECONDS" -le 900 ] || ZIYU_TASK_TIMEOUT_SECONDS=900
+    export ZIYU_TASK_TIMEOUT_SECONDS
 
-    if type luoshu_start_detached >/dev/null 2>&1; then
-        luoshu_start_detached "$WORKER_PID_FILE" "$_task" "$LOG_FILE" sh "$0" run "$_task" "$_font" "$_started"
+    if type ziyu_start_detached >/dev/null 2>&1; then
+        ziyu_start_detached "$WORKER_PID_FILE" "$_task" "$LOG_FILE" sh "$0" run "$_task" "$_font" "$_started"
         _start_rc=$?
         if [ "$_start_rc" -ne 0 ] && [ "$_start_rc" -ne 3 ]; then
             write_task "$_task" failed "$_font" '无法启动独立字体切换任务' "$_started" "$(date +%s 2>/dev/null || echo 0)" '' '' '' 0 '' false 100

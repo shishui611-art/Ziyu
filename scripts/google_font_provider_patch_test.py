@@ -136,8 +136,8 @@ class ProviderPatchTest(unittest.TestCase):
             path = commands / name
             path.write_text(f"#!/bin/sh\n{content}\n")
             path.chmod(0o755)
-        env = dict(os.environ, MODDIR=str(module), LUOSHU_GOOGLE_FONT_RETRIES="3",
-                   LUOSHU_GOOGLE_FONT_WATCH_CYCLES="0",
+        env = dict(os.environ, MODDIR=str(module), ZIYU_GOOGLE_FONT_RETRIES="3",
+                   ZIYU_GOOGLE_FONT_WATCH_CYCLES="0",
                    PROVIDER_TEST_MARKER=str(marker), PATH=f"{commands}:{os.environ['PATH']}")
         subprocess.run(["sh", str(ROOT / "common/google_font_provider_service.sh")], env=env, check=True, timeout=10)
         self.assertEqual(marker.read_text().splitlines(), ["pass"])
@@ -154,7 +154,7 @@ class ProviderPatchTest(unittest.TestCase):
         mount = commands / "mount"
         mount.write_text('#!/bin/sh\necho unexpected-mount >&2\nexit 90\n')
         mount.chmod(0o755)
-        env = dict(os.environ, PATH=f"{commands}:{os.environ['PATH']}", LUOSHU_GOOGLE_FONT_NS_SHELL="/bin/sh")
+        env = dict(os.environ, PATH=f"{commands}:{os.environ['PATH']}", ZIYU_GOOGLE_FONT_NS_SHELL="/bin/sh")
         result = subprocess.run(["sh", "-c", '. "$1"; _gfp_mount_in_pid 1 "$2" "$3"; '
                                  'code=$?; printf "%s:%s" "$code" "$_gfp_mount_mode"; '
                                  'printf "%s" "$_gfp_mount_detail" >&2', "sh",
@@ -173,7 +173,7 @@ class ProviderPatchTest(unittest.TestCase):
         cache.mkdir()
         old_clone = cache / "previous-selection.ttf"
         shutil.copyfile(source, old_clone)
-        shutil.copyfile(source, module / "config/device-font-sources/LuoShu-400.ttf")
+        shutil.copyfile(source, module / "config/device-font-sources/Ziyu-400.ttf")
         shutil.copyfile(ROOT / "common/google_font_provider_patch.py", module / "common/google_font_provider_patch.py")
         script = '''. "$1"
 _gfp_unique_namespace_pids() { printf '10\\n20\\n'; }
@@ -184,8 +184,8 @@ _gfp_mount_in_pid() {
 }
 _gfp_apply_once
 '''
-        env = dict(os.environ, MODDIR=str(module), LUOSHU_GOOGLE_FONT_PYTHON=sys.executable,
-                   LUOSHU_GOOGLE_FONT_TARGETS=str(target))
+        env = dict(os.environ, MODDIR=str(module), ZIYU_GOOGLE_FONT_PYTHON=sys.executable,
+                   ZIYU_GOOGLE_FONT_TARGETS=str(target))
         result = subprocess.run(["sh", "-c", script, "sh", str(ROOT / "common/google_font_provider_bridge.sh")],
                                 env=env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -199,7 +199,7 @@ _gfp_apply_once
         (module / "config/active_font.conf").write_text("fixture\n")
         target = self.font("opaque")
         source = self.font("source.ttf", family="Custom")
-        shutil.copyfile(source, module / "config/device-font-sources/LuoShu-400.ttf")
+        shutil.copyfile(source, module / "config/device-font-sources/Ziyu-400.ttf")
         shutil.copyfile(ROOT / "common/google_font_provider_patch.py", module / "common/google_font_provider_patch.py")
         cache = module / "config/google-font-provider"
         cache.mkdir()
@@ -210,8 +210,8 @@ _gfp_unique_namespace_pids() { printf '10\\n'; }
 _gfp_mount_in_pid() { _gfp_mount_mode=already; return 0; }
 _gfp_apply_once
 '''
-        env = dict(os.environ, MODDIR=str(module), LUOSHU_GOOGLE_FONT_PYTHON=sys.executable,
-                   LUOSHU_GOOGLE_FONT_TARGETS=str(target), LUOSHU_GOOGLE_FONT_ALLOW_RESTART="0")
+        env = dict(os.environ, MODDIR=str(module), ZIYU_GOOGLE_FONT_PYTHON=sys.executable,
+                   ZIYU_GOOGLE_FONT_TARGETS=str(target), ZIYU_GOOGLE_FONT_ALLOW_RESTART="0")
         subprocess.run(["sh", "-c", script, "sh", str(ROOT / "common/google_font_provider_bridge.sh")],
                        env=env, capture_output=True, check=True)
         current = Path((module / "config/google-font-provider-mounts.conf").read_text().split("|")[1])
@@ -226,10 +226,10 @@ _gfp_apply_once
         (module / "config/active_font.conf").write_text("fixture\n")
         target = self.font("opaque")
         source = self.font("source.ttf", family="Custom")
-        shutil.copyfile(source, module / "config/device-font-sources/LuoShu-400.ttf")
+        shutil.copyfile(source, module / "config/device-font-sources/Ziyu-400.ttf")
         shutil.copyfile(ROOT / "common/google_font_provider_patch.py", module / "common/google_font_provider_patch.py")
-        env = dict(os.environ, MODDIR=str(module), LUOSHU_GOOGLE_FONT_PYTHON=sys.executable,
-                   LUOSHU_GOOGLE_FONT_TARGETS=str(target), LUOSHU_GOOGLE_FONT_DRY_RUN="1")
+        env = dict(os.environ, MODDIR=str(module), ZIYU_GOOGLE_FONT_PYTHON=sys.executable,
+                   ZIYU_GOOGLE_FONT_TARGETS=str(target), ZIYU_GOOGLE_FONT_DRY_RUN="1")
         command = ["sh", str(ROOT / "common/google_font_provider_bridge.sh"), "apply"]
         subprocess.run(command, env=env, check=True, capture_output=True)
         state = module / "config/google-font-provider-mounts.conf"
@@ -247,7 +247,7 @@ _gfp_apply_once
         (module / "config/active_font.conf").write_text("fixture\n")
         target = self.font("opaque")
         source = self.font("source.ttf", family="Custom")
-        shutil.copyfile(source, module / "config/device-font-sources/LuoShu-400.ttf")
+        shutil.copyfile(source, module / "config/device-font-sources/Ziyu-400.ttf")
         shutil.copyfile(ROOT / "common/google_font_provider_patch.py", module / "common/google_font_provider_patch.py")
         script = '''. "$1"
 _gfp_unique_namespace_pids() { :; }
@@ -255,8 +255,8 @@ _gfp_apply_once || exit 10
 _gfp_python() { echo unexpected-python >&2; return 99; }
 _gfp_apply_once || exit 11
 '''
-        env = dict(os.environ, MODDIR=str(module), LUOSHU_GOOGLE_FONT_PYTHON=sys.executable,
-                   LUOSHU_GOOGLE_FONT_TARGETS=str(target), LUOSHU_GOOGLE_FONT_DRY_RUN="1")
+        env = dict(os.environ, MODDIR=str(module), ZIYU_GOOGLE_FONT_PYTHON=sys.executable,
+                   ZIYU_GOOGLE_FONT_TARGETS=str(target), ZIYU_GOOGLE_FONT_DRY_RUN="1")
         result = subprocess.run(["sh", "-c", script, "sh", str(ROOT / "common/google_font_provider_bridge.sh")],
                                 env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -325,7 +325,7 @@ _gfp_inspect_targets "$TEST_ROOT/targets" "$TEST_ROOT/out" || exit 11
         (module / "config/active_font.conf").write_text("fixture\n")
         targets = [self.font("regular", weight=400), self.font("bold", weight=700)]
         source = self.font("source.ttf", family="Custom")
-        donor = module / "config/device-font-sources/LuoShu-400.ttf"
+        donor = module / "config/device-font-sources/Ziyu-400.ttf"
         shutil.copyfile(source, donor)
         shutil.copyfile(ROOT / "common/google_font_provider_patch.py", module / "common/google_font_provider_patch.py")
         script = '''. "$1"
@@ -333,8 +333,8 @@ _gfp_hash_raw() { printf '%s\n' "$1" >> "$TEST_ROOT/hashed"; sha256sum "$1" | aw
 _gfp_apply_once
 '''
         env = dict(os.environ, MODDIR=str(module), TEST_ROOT=str(self.root),
-                   LUOSHU_GOOGLE_FONT_PYTHON=sys.executable,
-                   LUOSHU_GOOGLE_FONT_TARGETS="\n".join(map(str, targets)), LUOSHU_GOOGLE_FONT_DRY_RUN="1")
+                   ZIYU_GOOGLE_FONT_PYTHON=sys.executable,
+                   ZIYU_GOOGLE_FONT_TARGETS="\n".join(map(str, targets)), ZIYU_GOOGLE_FONT_DRY_RUN="1")
         subprocess.run(["sh", "-c", script, "sh", str(ROOT / "common/google_font_provider_bridge.sh")],
                        env=env, capture_output=True, text=True, check=True)
         self.assertEqual((self.root / "hashed").read_text().splitlines().count(str(donor)), 1)
@@ -346,7 +346,7 @@ _gfp_apply_once
         (module / "config/active_font.conf").write_text("fixture\n")
         target = self.font("opaque")
         source = self.font("source.ttf", family="Custom")
-        shutil.copyfile(source, module / "config/device-font-sources/LuoShu-400.ttf")
+        shutil.copyfile(source, module / "config/device-font-sources/Ziyu-400.ttf")
         shutil.copyfile(ROOT / "common/google_font_provider_patch.py", module / "common/google_font_provider_patch.py")
         marker = self.root / "force-stopped"
         script = '''. "$1"
@@ -355,9 +355,9 @@ _gfp_mount_in_pid() { _gfp_mount_mode=plain; return 0; }
 am() { printf '%s\\n' "$*" >> "$TEST_RESTARTS"; }
 _gfp_apply_once
 '''
-        env = dict(os.environ, MODDIR=str(module), LUOSHU_GOOGLE_FONT_PYTHON=sys.executable,
-                   LUOSHU_GOOGLE_FONT_TARGETS=str(target), TEST_RESTARTS=str(marker),
-                   LUOSHU_GOOGLE_FONT_ALLOW_RESTART="0")
+        env = dict(os.environ, MODDIR=str(module), ZIYU_GOOGLE_FONT_PYTHON=sys.executable,
+                   ZIYU_GOOGLE_FONT_TARGETS=str(target), TEST_RESTARTS=str(marker),
+                   ZIYU_GOOGLE_FONT_ALLOW_RESTART="0")
         subprocess.run(["sh", "-c", script, "sh", str(ROOT / "common/google_font_provider_bridge.sh")],
                        env=env, capture_output=True, check=True)
         self.assertFalse(marker.exists(), "background repair interrupted the foreground Play app")

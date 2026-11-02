@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 
-SCHEMA = "luoshu-coloros-flipfont-v1"
+SCHEMA = "ziyu-coloros-flipfont-v1"
 UI_PREFIXES = ("oplusosui-", "colorosui-")
 FONT_SUFFIXES = {".ttf", ".otf", ".ttc"}
 SYSTEM_FONT_PREFIX = "/system/fonts/"

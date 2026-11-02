@@ -451,7 +451,7 @@ def build(module: Path, stage: Path, names: list[str]) -> dict:
     names = list(dict.fromkeys([*names, *(Path(logical).name for logical in sorted(trusted)
                                                 if not safe_physical_font_name(Path(logical).name))]))
     for part in PARTS:
-        root = Path(os.environ.get(f'LUOSHU_{part.upper()}_FONTS_ROOT', f'/{part}/fonts'))
+        root = Path(os.environ.get(f'ZIYU_{part.upper()}_FONTS_ROOT', f'/{part}/fonts'))
         staged_fonts = stage / part / 'fonts'
         if staged_fonts.is_dir():
             for alias in staged_fonts.iterdir():
@@ -485,7 +485,7 @@ def build(module: Path, stage: Path, names: list[str]) -> dict:
     if not jobs:
         raise ValueError('没有找到当前 ROM 的 HyperOS 字体目标')
     cjk_fallback = _staged_cjk_fallback(data, jobs, stage)
-    store = fonts / '.luoshu-font-store'
+    store = fonts / '.ziyu-font-store'
     store.mkdir(parents=True, exist_ok=True)
     outputs = Path(tempfile.mkdtemp(prefix='hyperos-metrics-', dir=store))
     cache = {}
@@ -556,8 +556,8 @@ def build(module: Path, stage: Path, names: list[str]) -> dict:
             # absence exposes the ROM lower symlink in OverlayFS and leaves it
             # untouched in per-file bind mode. Framework changes keep working.
             alias.unlink(missing_ok=True)
-        report = stage / '.luoshu-metrics-report.json'
-        report.write_text(json.dumps({'schema': 'luoshu-slot-metrics-v1',
+        report = stage / '.ziyu-metrics-report.json'
+        report.write_text(json.dumps({'schema': 'ziyu-slot-metrics-v1',
                                       'slots': slot_report,
                                       'preservedDynamicAliases': [
                                           '/' + alias.relative_to(stage).as_posix()

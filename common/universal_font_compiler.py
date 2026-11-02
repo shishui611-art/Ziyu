@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LuoShu Phase 6 universal metrics / variable font compiler.
+"""Ziyu Phase 6 universal metrics / variable font compiler.
 
 Consumes validated Phase 4/5 plans. It compiles artifacts but never publishes
 them into Android partitions and never mounts anything.
@@ -1113,8 +1113,8 @@ def _set_postscript_name(font: TTFont, required: str, artifact_id: str) -> str:
         if required:
             raise CompilerError("目标要求 PostScriptName，但字体缺少 name 表")
         return ""
-    safe = re.sub(r"[^A-Za-z0-9-]+", "-", artifact_id.replace("ufc:", "LuoShuUF-"))[:55].strip("-")
-    postscript = required or safe or "LuoShuUF"
+    safe = re.sub(r"[^A-Za-z0-9-]+", "-", artifact_id.replace("ufc:", "ZiyuUF-"))[:55].strip("-")
+    postscript = required or safe or "ZiyuUF"
     table = font["name"]
     table.setName(postscript, 6, 3, 1, 0x409)
     return postscript
@@ -1255,7 +1255,7 @@ def _physical_artifact(target: dict[str, Any], font_plan: dict[str, Any]) -> dic
     ext = _artifact_extension(target)
     return {
         "artifactId": f"ufc:{digest[:32]}",
-        "suggestedFileName": f"LuoShu-UF-{digest[:20]}{ext}",
+        "suggestedFileName": f"Ziyu-UF-{digest[:20]}{ext}",
         "container": "collection" if ext in {".ttc", ".otc"} else "sfnt",
         "requiredFaceIndex": max(0, _int(contract.get("faceIndex"), 0)),
         "requiredPostScriptName": "",
@@ -2029,7 +2029,7 @@ def _compile_all(font_plan, route_plan, stock_paths, output_dir, allow_live_stoc
     # Production cutover requires every unit. Do not spend minutes compiling
     # expensive VF shells when a known blocked unit already makes deployment
     # impossible. Standalone diagnostic compilation keeps its detailed manifest.
-    if os.environ.get("LUOSHU_COMPILER_REQUIRE_DEPLOYABLE") == "1":
+    if os.environ.get("ZIYU_COMPILER_REQUIRE_DEPLOYABLE") == "1":
         blockers = []
         for unit in units:
             target = unit["target"]

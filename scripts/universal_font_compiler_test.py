@@ -225,7 +225,7 @@ def assert_ready(manifest: dict) -> None:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="luoshu-phase6-") as raw:
+    with tempfile.TemporaryDirectory(prefix="ziyu-phase6-") as raw:
         temp = Path(raw)
 
         # 1) Static TTF, source-as-base, both XML and physical artifacts.

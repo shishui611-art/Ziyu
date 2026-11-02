@@ -4,7 +4,9 @@
 
 ## 识别方式
 
-检测到 KernelSU 系列本身不代表它处于临时 Root。官方 `late-load` 提供 `KSU_LATE_LOAD=1` / `KSU_RUNTIME_MODE=late-load`，字域在 `late-load.sh` 记录当前内核 boot ID，自动启用临时 Root 提示。其他 KernelSU 系列用户如果依赖软重启，可在 App「设置 → 安全与维护 → KernelSU 软重启」手动开启。普通 Root 用户不会仅因安装了 KernelSU/SukiSU 就自动进入临时 Root 模式。
+检测到 KernelSU 系列本身不代表它处于临时 Root。刷入模块时，音量上键（+）选择普通 Root，音量下键（-）选择临时 Root；安装和升级均可选择，结果保存在 App 与模块共用的 `config/temporary-root-mode.conf`。每次刷入默认普通 Root，不沿用旧配置中的临时 Root 作为默认；等待 30 秒未选择或环境无法读取按键时均保存普通 Root。KernelSU 系列也可在 App「设置 → 安全与维护 → KernelSU 软重启」修改。
+
+官方 `late-load` 提供 `KSU_LATE_LOAD=1` / `KSU_RUNTIME_MODE=late-load`，字域在 `late-load.sh` 记录当前内核 boot ID，自动启用临时 Root 提示；这个真实会话识别不受持久选择覆盖。普通 Root 用户不会仅因安装了 KernelSU/SukiSU 就自动进入临时 Root 模式。选择只保存流程偏好，不改变管理器能力，也不自动重启；从旧命名目录升级时仍需完整重启一次，再重新获取临时 Root 并加载模块。
 
 ## 字体生效
 

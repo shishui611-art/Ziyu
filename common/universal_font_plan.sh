@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Phase 4 universal FontPlan bridge. Planning only; never mutates Android fonts.
+# Ziyu Phase 4 universal FontPlan bridge. Planning only; never mutates Android fonts.
 set +e
 
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
@@ -11,11 +11,11 @@ PROFILE_BRIDGE="$MODDIR/common/font_source_profile.sh"
 PLANNER="$MODDIR/common/universal_font_plan.py"
 PLAN_DIR="$CONFIG_DIR/universal-font-plans"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 
 _ufp_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127
@@ -71,7 +71,7 @@ _ufp_build() {
         --output "$_ufb_output"
     # Automatic switching can select the existing compatibility engine before
     # XML routing and artifact compilation. Standalone planning stays unchanged.
-    if [ "${LUOSHU_COMPILER_REQUIRE_DEPLOYABLE:-0}" = 1 ]; then
+    if [ "${ZIYU_COMPILER_REQUIRE_DEPLOYABLE:-0}" = 1 ]; then
         set -- "$@" --select-engine
     fi
     _ufp_exec "$@"

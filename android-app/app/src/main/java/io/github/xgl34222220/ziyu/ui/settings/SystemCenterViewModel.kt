@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.xgl34222220.ziyu.RootShell
+import io.github.xgl34222220.ziyu.LegacyIdentityCompatibility
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -153,7 +154,6 @@ internal fun isNewerZiyuVersion(candidate: String, candidateCode: Int, current: 
 
 internal class SystemCenterViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
-    private val healthScript = "/data/adb/modules/ziyu/.luoshu-payload/system/bin/luoshu-health"
     private val updater = ModuleReleaseUpdater(context)
     var moduleUpdate by mutableStateOf(ModuleUpdateState())
         private set
@@ -214,7 +214,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         health = health.copy(loading = true, error = "")
         healthJob = viewModelScope.launch {
             val result = RootShell.exec(
-                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/ziyu/system/bin/luoshu-health; sh \"${'$'}script\" report",
+                LegacyIdentityCompatibility.healthCommand("report"),
                 timeoutMs = 25_000L,
             )
             health = if (result.code == 0) {
@@ -249,7 +249,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         maintenance = MaintenanceState(busy = true, message = "正在清理失效锁与残留 PID…")
         viewModelScope.launch {
             val result = RootShell.exec(
-                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/ziyu/system/bin/luoshu-health; sh \"${'$'}script\" repair-stale",
+                LegacyIdentityCompatibility.healthCommand("repair-stale"),
                 timeoutMs = 20_000L,
             )
             maintenance = if (result.code == 0 && result.stdout.lineSequence().any { it == "status=ok" }) {
@@ -271,7 +271,7 @@ internal class SystemCenterViewModel(application: Application) : AndroidViewMode
         maintenance = MaintenanceState(busy = true, message = "正在准备恢复系统默认字体…")
         viewModelScope.launch {
             val result = RootShell.exec(
-                "script=${RootShell.quote(healthScript)}; [ -f \"${'$'}script\" ] || script=/data/adb/modules/ziyu/system/bin/luoshu-health; sh \"${'$'}script\" restore-default",
+                LegacyIdentityCompatibility.healthCommand("restore-default"),
                 timeoutMs = 120_000L,
             )
             val restored = result.code == 0 && result.stdout.lineSequence().any { line ->

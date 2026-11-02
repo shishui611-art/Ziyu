@@ -17,18 +17,18 @@ import stock_inventory_scan as stock  # noqa: E402
 
 def main() -> int:
     assert stock.scanner.SCANNER_REVISION >= 5, "manual/install scan must use the topology-aware inventory"
-    installer = (ROOT / ".luoshu-runtime/compat/v227/customize.sh").read_text(encoding="utf-8")
+    installer = (ROOT / ".ziyu-runtime/compat/v227/customize.sh").read_text(encoding="utf-8")
     wrapper = (ROOT / "customize.sh").read_text(encoding="utf-8")
     service = (ROOT / "service.sh").read_text(encoding="utf-8")
     post_mount = (ROOT / "post-mount.sh").read_text(encoding="utf-8")
     manager = (ROOT / "common/font_manager.sh").read_text(encoding="utf-8")
     assert "stock_inventory_scan_pending" in installer
-    assert "LUOSHU_FRESH_STOCK_SCAN=1" in installer
-    assert 'LUOSHU_FRESH_STOCK_SCAN=1 MODDIR="$MODDIR" sh "$MODDIR/common/font_manager.sh" action stock_scan' in service
-    assert "LUOSHU_FRESH_STOCK_SCAN=1" not in post_mount
+    assert "ZIYU_FRESH_STOCK_SCAN=1" in installer
+    assert 'ZIYU_FRESH_STOCK_SCAN=1 MODDIR="$MODDIR" sh "$MODDIR/common/font_manager.sh" action stock_scan' in service
+    assert "ZIYU_FRESH_STOCK_SCAN=1" not in post_mount
     assert "当前字体负载迁移失败" in installer and "原模块负载未删除" in installer
     assert 'Migrate directly from durable private payloads' in wrapper
-    assert 'luoshu_private_install_migrate "$MODPATH"' in wrapper
+    assert 'ziyu_private_install_migrate "$MODPATH"' in wrapper
     assert "abort '无法读取旧版洛书私有字体负载'" not in wrapper
     assert "action stock_scan" in service
     assert 'rm -f "$MODDIR/config/stock_inventory_scan_pending"' in manager
@@ -37,23 +37,23 @@ def main() -> int:
         module = temp / "module"
         (module / "config").mkdir(parents=True)
         (module / "config/active_font.conf").write_text("mix\n", encoding="utf-8")
-        private_fonts = module / ".luoshu-payload/system/fonts"
+        private_fonts = module / ".ziyu-payload/system/fonts"
         private_fonts.mkdir(parents=True)
         (private_fonts / "sentinel.ttf").write_bytes(b"overlay")
         assert stock._private_overlay_risk(module), "private payload must be treated as overlay risk"
 
-        os.environ["LUOSHU_STOCK_VIEW_VERIFIED"] = "1"
+        os.environ["ZIYU_STOCK_VIEW_VERIFIED"] = "1"
         try:
             assert not stock._private_overlay_risk(module), "pre-mount stock namespace must be trusted"
         finally:
-            os.environ.pop("LUOSHU_STOCK_VIEW_VERIFIED", None)
+            os.environ.pop("ZIYU_STOCK_VIEW_VERIFIED", None)
 
         (module / "config/active_font.conf").write_text("default\n", encoding="utf-8")
         assert not stock._private_overlay_risk(module), "default selection must not force overlay risk"
 
         logical = temp / "system/fonts"
         logical.mkdir(parents=True)
-        private_logical = module / ".luoshu-payload" / logical.relative_to("/")
+        private_logical = module / ".ziyu-payload" / logical.relative_to("/")
         private_logical.mkdir(parents=True)
         (private_logical / "active.ttf").write_bytes(b"overlay")
         (module / "config/active_font.conf").write_text("mix\n", encoding="utf-8")
@@ -67,8 +67,8 @@ def main() -> int:
             f"10 1 0:1 / {child_target} rw - ext4 /dev/fake rw\n",
             encoding="utf-8",
         )
-        old_mountinfo = os.environ.get("LUOSHU_MOUNTINFO")
-        os.environ["LUOSHU_MOUNTINFO"] = str(mountinfo)
+        old_mountinfo = os.environ.get("ZIYU_MOUNTINFO")
+        os.environ["ZIYU_MOUNTINFO"] = str(mountinfo)
         try:
             assert stock._child_mount_targets(logical) == [str(child_target)]
             mountinfo.write_text(
@@ -79,18 +79,18 @@ def main() -> int:
             assert stock._child_mount_targets(logical) == []
         finally:
             if old_mountinfo is None:
-                os.environ.pop("LUOSHU_MOUNTINFO", None)
+                os.environ.pop("ZIYU_MOUNTINFO", None)
             else:
-                os.environ["LUOSHU_MOUNTINFO"] = old_mountinfo
+                os.environ["ZIYU_MOUNTINFO"] = old_mountinfo
 
         state_root = temp / "state"
         key = f"{logical.parts[1]}-{logical.parts[2]}"
         lower = state_root / "lower" / key
         lower.mkdir(parents=True)
-        old_state = os.environ.get("LUOSHU_SELF_MOUNT_STATE_ROOT")
+        old_state = os.environ.get("ZIYU_SELF_MOUNT_STATE_ROOT")
         old_mirrors = inventory.MIRROR_PREFIXES
         try:
-            os.environ["LUOSHU_SELF_MOUNT_STATE_ROOT"] = str(state_root)
+            os.environ["ZIYU_SELF_MOUNT_STATE_ROOT"] = str(state_root)
             inventory.MIRROR_PREFIXES = ()
             resolved = stock._safe_pick_actual_root(logical, None, True)
             assert resolved == lower, (resolved, lower)
@@ -114,9 +114,9 @@ def main() -> int:
         finally:
             inventory.MIRROR_PREFIXES = old_mirrors
             if old_state is None:
-                os.environ.pop("LUOSHU_SELF_MOUNT_STATE_ROOT", None)
+                os.environ.pop("ZIYU_SELF_MOUNT_STATE_ROOT", None)
             else:
-                os.environ["LUOSHU_SELF_MOUNT_STATE_ROOT"] = old_state
+                os.environ["ZIYU_SELF_MOUNT_STATE_ROOT"] = old_state
 
         calls: list[tuple[Path, bool]] = []
         original_picker = inventory._pick_actual_root

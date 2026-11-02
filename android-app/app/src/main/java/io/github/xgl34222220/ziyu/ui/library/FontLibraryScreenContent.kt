@@ -1,5 +1,6 @@
 package io.github.xgl34222220.ziyu.ui.library
 
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
 import android.view.Gravity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -141,9 +142,7 @@ internal fun FontLibraryPageContent(
                 singleLine = true,
                 shape = RoundedCornerShape(20.dp),
                 leadingIcon = {
-                    Box(Modifier.padding(start = 12.dp, end = 4.dp)) {
-                        Icon(Icons.Rounded.Search, contentDescription = null)
-                    }
+                    ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, contentDescription = null) }
                 },
                 trailingIcon = {
                     if (state.query.isNotEmpty()) {
@@ -169,6 +168,11 @@ internal fun FontLibraryPageContent(
                 selectedIndex = FontLibraryFilter.entries.indexOf(state.filter),
                 onSelected = { FontLibraryFilter.entries.getOrNull(it)?.let(actions.setFilter) },
             )
+        }
+        item(key = "preview_text") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = actions.editPreviewText) { Text("预览文字") }
+            }
         }
         item(key = "collection_heading") {
             Column {
@@ -294,7 +298,7 @@ internal fun FontLibraryPageContent(
                 font = font, active = state.activeFontId == font.id, pending = state.activeFontPending, busy = state.operationBusy,
                 cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
                 onDetails = { actions.details(font) }, onApply = { actions.apply(font) },
-                onDelete = { actions.delete(font) }, style = style,
+                onDelete = { actions.delete(font) }, style = style, previewText = state.previewText,
             )
         }
     }
@@ -343,7 +347,7 @@ private fun LibraryFontCard(
     font: FontItem, active: Boolean, pending: Boolean, busy: Boolean, cardColor: Color,
     textPrimary: Color, textSecondary: Color,
     onDetails: () -> Unit, onApply: () -> Unit, onDelete: () -> Unit,
-    style: UiStyle,
+    style: UiStyle, previewText: String,
 ) {
     val scheme = MaterialTheme.colorScheme
     val layout = LocalZiyuThemeTokens.current.layout
@@ -392,7 +396,7 @@ private fun LibraryFontCard(
                 ) {
                     NativeFontPreview(
                         font = font,
-                        text = if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123",
+                        text = previewText.ifBlank { if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123" },
                         axes = if (font.variable) mapOf("wght" to 400f) else emptyMap(),
                         modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 14.dp),
                         textSizeSp = 23f, gravity = Gravity.CENTER_VERTICAL, maxLines = 1,

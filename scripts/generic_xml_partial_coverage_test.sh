@@ -12,7 +12,7 @@ mkdir -p \
     "$MOD/common" \
     "$TMP/real-fonts"
 
-dd if=/dev/zero of="$MOD/system/fonts/LuoShu-400.ttf" bs=2048 count=1 2>/dev/null
+dd if=/dev/zero of="$MOD/system/fonts/Ziyu-400.ttf" bs=2048 count=1 2>/dev/null
 printf '<familyset/>\n' > "$MOD/config/font-config-source/system/fonts.xml"
 printf 'stock-good\n' > "$TMP/real-fonts/Good.ttf"
 printf 'stock-bad\n' > "$TMP/real-fonts/Bad.ttf"
@@ -26,11 +26,11 @@ export MODULE_DIR MODDIR CONFIG_DIR
 . "$ROOT/common/font_safety.sh"
 set -eu
 
-_luoshu_font_real_path() {
+_ziyu_font_real_path() {
     printf '%s/%s\n' "$TMP/real-fonts" "$1"
 }
 
-_luoshu_font_config_specs() {
+_ziyu_font_config_specs() {
     printf 'system/fonts.xml|%s|%s|%s\n' \
         "$TMP/real-fonts.xml" \
         "$MOD/system/etc/fonts.xml" \
@@ -41,7 +41,7 @@ font_config_capture_original() { :; }
 
 # The scanner now runs as a single batch over every document, so the stub speaks the batch
 # protocol: one TARGET line per discovered slot, then one DOC status line per document.
-_luoshu_font_config_exec() {
+_ziyu_font_config_exec() {
     _stub_jobs=''
     while [ "$#" -gt 0 ]; do
         case "$1" in --batch) _stub_jobs="$2"; shift 2 ;; *) shift ;; esac
@@ -55,7 +55,7 @@ _luoshu_font_config_exec() {
     done < "$_stub_jobs"
 }
 
-_luoshu_safety_log() { :; }
+_ziyu_safety_log() { :; }
 
 # Deliberately make only Bad.ttf fail. Good.ttf must still commit as partial coverage.
 ln() {
@@ -68,7 +68,7 @@ cp() {
     command cp "$@"
 }
 
-luoshu_dynamic_targets_apply
+ziyu_dynamic_targets_apply
 
 test -s "$MOD/config/font-target-coverage.conf"
 grep -qx 'discovered=2' "$MOD/config/font-target-coverage.conf"
@@ -82,8 +82,8 @@ test -s "$MOD/system/fonts/Good.ttf"
 test ! -e "$MOD/system/fonts/Bad.ttf"
 
 # Zero usable mappings remains a hard failure and must not leave stale coverage metadata behind.
-rm -f "$MOD/system/fonts/LuoShu-400.ttf"
-if luoshu_dynamic_targets_apply; then
+rm -f "$MOD/system/fonts/Ziyu-400.ttf"
+if ziyu_dynamic_targets_apply; then
     echo 'zero dynamic mappings unexpectedly succeeded' >&2
     exit 1
 fi

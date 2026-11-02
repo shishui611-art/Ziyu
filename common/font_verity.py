@@ -60,7 +60,7 @@ def main():
         text = resolved.as_posix()
         owned = ('/data/adb/modules/ziyu/', '/data/adb/modules_update/ziyu/')
         if not (any(text.startswith(root) for root in owned) or
-                (resolved.parent == Path('/data/local/tmp') and resolved.name.startswith('.luoshu-provider-'))):
+                (resolved.parent == Path('/data/local/tmp') and resolved.name.startswith('.ziyu-provider-'))):
             raise ValueError('refusing to seal an original or unrelated file')
         print(seal(path))
     elif command == 'check':

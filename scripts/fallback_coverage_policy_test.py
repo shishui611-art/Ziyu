@@ -131,8 +131,8 @@ identity = slot_build.target_family_identity({
     "style": "normal",
     "postScriptName": "Roboto-Regular",
 })
-assert identity[0] == "LuoShu System", identity
-assert identity[3] == "LuoShuSystem-Regular", identity
+assert identity[0] == "Ziyu System", identity
+assert identity[3] == "ZiyuSystem-Regular", identity
 
 source_profile = {"sha256": "abc", "faceIndex": -1}
 slot_a = {

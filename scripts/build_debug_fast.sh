@@ -4,27 +4,27 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/version.sh"
-OUT="${LUOSHU_BUILD_OUT:-$ROOT/dist}"
+OUT="${ZIYU_BUILD_OUT:-$ROOT/dist}"
 mkdir -p "$OUT"
 OUT=$(CDPATH= cd -- "$OUT" && pwd)
 case "$OUT" in "$ROOT"/*) ;; *) echo 'Build output must be inside this worktree.' >&2; exit 64 ;; esac
 STAGE="$OUT/Ziyu"
-ZIP="$OUT/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
+ZIP="$OUT/Ziyu-${ZIYU_ARTIFACT_VERSION}.zip"
 ZIP_NAME=$(basename "$ZIP")
-SIZE_REPORT="$OUT/Ziyu-${LUOSHU_ARTIFACT_VERSION}-size.txt"
-APP_APK="${LUOSHU_APP_APK:-}"
-ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
-EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
-MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-13631488}"
+SIZE_REPORT="$OUT/Ziyu-${ZIYU_ARTIFACT_VERSION}-size.txt"
+APP_APK="${ZIYU_APP_APK:-}"
+ALLOW_DEBUG_APP="${ZIYU_ALLOW_DEBUG_APP:-0}"
+EXPECTED_VERSION_CODE="$ZIYU_APP_VERSION_CODE"
+MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-13631488}"
 
-[ -s "$APP_APK" ] || { echo 'LUOSHU_APP_APK is required.' >&2; exit 65; }
-APP_PACKAGE="${LUOSHU_APP_PACKAGE:-}"
-APP_VERSION_CODE="${LUOSHU_APP_VERSION_CODE:-}"
-APP_VERSION_NAME="${LUOSHU_APP_VERSION_NAME:-${LUOSHU_VERSION#v}-debug}"
+[ -s "$APP_APK" ] || { echo 'ZIYU_APP_APK is required.' >&2; exit 65; }
+APP_PACKAGE="${ZIYU_APP_PACKAGE:-}"
+APP_VERSION_CODE="${ZIYU_APP_VERSION_CODE:-}"
+APP_VERSION_NAME="${ZIYU_APP_VERSION_NAME:-${ZIYU_VERSION#v}-debug}"
 case "$APP_PACKAGE" in
   io.github.shishui611_art.ziyu) ;;
   io.github.shishui611_art.ziyu.debug)
-    [ "$ALLOW_DEBUG_APP" = 1 ] || { echo 'Debug App packaging requires LUOSHU_ALLOW_DEBUG_APP=1.' >&2; exit 68; } ;;
+    [ "$ALLOW_DEBUG_APP" = 1 ] || { echo 'Debug App packaging requires ZIYU_ALLOW_DEBUG_APP=1.' >&2; exit 68; } ;;
   *) echo "Unexpected APK package: $APP_PACKAGE" >&2; exit 68 ;;
 esac
 [ "$APP_VERSION_CODE" -eq "$EXPECTED_VERSION_CODE" ] || {
@@ -33,8 +33,8 @@ esac
 rm -rf "$STAGE"
 mkdir -p "$STAGE" "$OUT"
 PAYLOAD_MANIFEST="$ROOT/scripts/module_payload_manifest.txt"
-python3 "$ROOT/scripts/build_font_preload.py" --verify
 python3 "$ROOT/scripts/build_font_instance.py" --verify
+python3 "$ROOT/scripts/rebrand_cli.py" --verify
 test -s "$PAYLOAD_MANIFEST"
 while IFS= read -r path || [ -n "$path" ]; do
   case "$path" in ''|\#*) continue ;; esac
@@ -42,9 +42,7 @@ while IFS= read -r path || [ -n "$path" ]; do
   mkdir -p "$(dirname "$STAGE/$path")"
   cp -a "$ROOT/$path" "$STAGE/$path"
 done < "$PAYLOAD_MANIFEST"
-[ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$LUOSHU_VERSION/" "$STAGE/config/version_notes.conf"
-sed -i -e "s/^version=.*/version=$LUOSHU_VERSION/" -e "s/^versionCode=.*/versionCode=$EXPECTED_VERSION_CODE/" \
-    "$STAGE/common/font_preload_module/module.prop"
+[ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$ZIYU_VERSION/" "$STAGE/config/version_notes.conf"
 
 mkdir -p "$STAGE/bundled"
 cp -f "$APP_APK" "$STAGE/bundled/Ziyu-App.apk"
@@ -77,7 +75,7 @@ rm -f "$STAGE/common/stability.sh" "$STAGE/common/fonts_xml_template.sh" \
 sh "$ROOT/scripts/prune_python_runtime.sh" "$STAGE"
 
 find "$STAGE/common" -maxdepth 1 -type f -exec chmod 0755 {} +
-chmod 0755 "$STAGE"/*.sh "$STAGE/system/bin/luoshud" "$STAGE/common/python/bin/luoshu-python"
+chmod 0755 "$STAGE"/*.sh "$STAGE/system/bin/ziyud" "$STAGE/common/python/bin/ziyu-python"
 find "$STAGE/system/fonts" -type f -exec chmod 0644 {} + 2>/dev/null || true
 
 test ! -e "$STAGE/webroot"

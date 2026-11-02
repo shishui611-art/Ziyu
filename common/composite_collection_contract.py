@@ -8,6 +8,7 @@ glyph coverage, metrics, variable axes, or an OEM's complete rendering contract.
 import argparse
 import hashlib
 import json
+from legacy_identity import owned_path
 from pathlib import Path
 import struct
 from fontTools.ttLib import TTLibError
@@ -43,7 +44,7 @@ def _source_facts(source):
 
 def verify_build_report(payload, path, stock_path, relative, request, count, stock_hash,
                         require_proof=False, source_facts=None):
-    proof_root = Path(payload) / '.luoshu-collection-proofs'
+    proof_root = owned_path(Path(payload) / '.ziyu-collection-proofs')
     if proof_root.is_symlink():
         raise ValueError('集合生成证明目录不能是符号链接')
     key = hashlib.sha256(relative.encode('utf-8')).hexdigest() + '.json'
@@ -191,17 +192,17 @@ def validate(payload, request, module, require_proof=False, source=None):
         raise ValueError('字体集合请求标识无效')
     report = {'schema': 'composite-collection-contract-v1', 'requestId': request,
               'result': 'PASS', 'collections': [], 'errors': []}
-    proof_root = payload / '.luoshu-collection-proofs'
+    proof_root = owned_path(payload / '.ziyu-collection-proofs')
     if proof_root.exists():
         if proof_root.is_symlink() or not proof_root.is_dir():
-            report['errors'].append({'path': '.luoshu-collection-proofs',
+            report['errors'].append({'path': '.ziyu-collection-proofs',
                                      'reason': '集合证明目录不是受信任的普通目录'})
         else:
             proof_entries = list(proof_root.iterdir())
             if len(proof_entries) > 16 or any(
                     item.is_symlink() or not item.is_file() or item.suffix != '.json'
                     or item.stat().st_size > 1024 * 1024 for item in proof_entries):
-                report['errors'].append({'path': '.luoshu-collection-proofs',
+                report['errors'].append({'path': '.ziyu-collection-proofs',
                                          'reason': '集合证明目录包含越界、链接或过大文件'})
     required = set()
     if require_proof:
@@ -216,10 +217,10 @@ def validate(payload, request, module, require_proof=False, source=None):
         source_facts = _source_facts(source) if source is not None else None
     except (OSError, ValueError, RuntimeError, TTLibError) as error:
         source_facts = None
-        report['errors'].append({'path': '.luoshu-collection-proofs',
+        report['errors'].append({'path': '.ziyu-collection-proofs',
                                  'reason': str(error)})
     if require_proof and source_facts is None:
-        report['errors'].append({'path': '.luoshu-collection-proofs',
+        report['errors'].append({'path': '.ziyu-collection-proofs',
                                  'reason': '逐面证明校验缺少当前组合字体来源'})
     seen = set()
     for path in sorted(payload.rglob('*')):

@@ -9,7 +9,7 @@ export MODULE_DIR="$TMP/module"
 export MODDIR="$MODULE_DIR"
 mkdir -p "$MODULE_DIR/config"
 . "$ROOT/common/font_validation_cache.sh"
-[ "$LUOSHU_FONT_VALIDATION_SCHEMA" = global-v4-latin-digits ]
+[ "$ZIYU_FONT_VALIDATION_SCHEMA" = global-v4-latin-digits ]
 calls="$TMP/calls"
 font_validate_global() {
     printf 'call\n' >> "$calls"
@@ -20,10 +20,10 @@ font_validate_global() {
     FONT_CHECK_WARNING=''
     FONT_CHECK_COVERAGE=ok
     FONT_CHECK_ERROR=''
-    LUOSHU_FONT_HAS_CJK=true
-    LUOSHU_FONT_HAS_LATIN=false
-    LUOSHU_FONT_HAS_MIXED=false
-    export LUOSHU_FONT_HAS_CJK LUOSHU_FONT_HAS_LATIN LUOSHU_FONT_HAS_MIXED
+    ZIYU_FONT_HAS_CJK=true
+    ZIYU_FONT_HAS_LATIN=false
+    ZIYU_FONT_HAS_MIXED=false
+    export ZIYU_FONT_HAS_CJK ZIYU_FONT_HAS_LATIN ZIYU_FONT_HAS_MIXED
     return 0
 }
 font_detect_format() { printf 'TTF\n'; }
@@ -31,45 +31,45 @@ is_variable_font() { return 1; }
 
 font="$TMP/font.ttf"
 dd if=/dev/zero of="$font" bs=4096 count=2 status=none
-luoshu_font_validate_global_cached "$font"
-[ "${LUOSHU_FONT_VALIDATION_CACHE_HIT:-false}" = false ]
-luoshu_font_validate_global_cached "$font"
-[ "${LUOSHU_FONT_VALIDATION_CACHE_HIT:-false}" = true ]
-[ "$LUOSHU_FONT_HAS_CJK:$LUOSHU_FONT_HAS_LATIN:$LUOSHU_FONT_HAS_MIXED" = true:false:false ]
+ziyu_font_validate_global_cached "$font"
+[ "${ZIYU_FONT_VALIDATION_CACHE_HIT:-false}" = false ]
+ziyu_font_validate_global_cached "$font"
+[ "${ZIYU_FONT_VALIDATION_CACHE_HIT:-false}" = true ]
+[ "$ZIYU_FONT_HAS_CJK:$ZIYU_FONT_HAS_LATIN:$ZIYU_FONT_HAS_MIXED" = true:false:false ]
 [ "$(wc -l < "$calls" | tr -d ' ')" -eq 1 ]
 printf x >> "$font"
-luoshu_font_validate_global_cached "$font"
-[ "${LUOSHU_FONT_VALIDATION_CACHE_HIT:-false}" = false ]
+ziyu_font_validate_global_cached "$font"
+[ "${ZIYU_FONT_VALIDATION_CACHE_HIT:-false}" = false ]
 [ "$(wc -l < "$calls" | tr -d ' ')" -eq 2 ]
 
 # App preflight only checks file identity/format and must not run the expensive global validator.
 preflight="$TMP/preflight.ttf"
 dd if=/dev/zero of="$preflight" bs=4096 count=2 status=none
-LUOSHU_VALIDATION_MODE=preflight
-export LUOSHU_VALIDATION_MODE
-luoshu_font_validate_global_cached "$preflight"
+ZIYU_VALIDATION_MODE=preflight
+export ZIYU_VALIDATION_MODE
+ziyu_font_validate_global_cached "$preflight"
 [ "$FONT_CHECK_COVERAGE" = deferred ]
 printf '%s\n' "$FONT_CHECK_WARNING" | grep -q '后台切换任务'
 [ "$(wc -l < "$calls" | tr -d ' ')" -eq 2 ]
-unset LUOSHU_VALIDATION_MODE
-luoshu_font_validate_global_cached "$preflight"
+unset ZIYU_VALIDATION_MODE
+ziyu_font_validate_global_cached "$preflight"
 [ "$(wc -l < "$calls" | tr -d ' ')" -eq 3 ]
 
 # Cache entries are per font identity: validating another font must not evict the first one.
 font_two="$TMP/font-two.ttf"
 dd if=/dev/zero of="$font_two" bs=4096 count=2 status=none
-luoshu_font_validate_global_cached "$font_two"
+ziyu_font_validate_global_cached "$font_two"
 [ "$(wc -l < "$calls" | tr -d ' ')" -eq 4 ]
-luoshu_font_validate_global_cached "$font"
-[ "${LUOSHU_FONT_VALIDATION_CACHE_HIT:-false}" = true ]
+ziyu_font_validate_global_cached "$font"
+[ "${ZIYU_FONT_VALIDATION_CACHE_HIT:-false}" = true ]
 [ "$(wc -l < "$calls" | tr -d ' ')" -eq 4 ]
 
 # The preserved v4 manager still owns and tests the cached full validator. Final App apply is
 # intentionally routed around it to the v14.4 lightweight validator, so the root router must not
 # regain a cache call that would drag the newer switch pipeline back into the critical path.
-ok grep -q 'luoshu_font_validate_global_cached "$_source"' "$ROOT/common/font_manager_v4.sh"
+ok grep -q 'ziyu_font_validate_global_cached "$_source"' "$ROOT/common/font_manager_v4.sh"
 ok grep -q 'legacy_v14_4_switch.sh' "$ROOT/common/font_manager.sh"
 ok grep -q 'legacy_validate_global "$_source"' "$ROOT/common/legacy_v14_4_switch.sh"
-! grep -q 'luoshu_font_validate_global_cached' "$ROOT/common/legacy_v14_4_switch.sh"
-ok grep -q 'luoshu_font_validation_cache_restore "$_lfrp_font"' "$ROOT/common/font_runtime_policy.sh"
+! grep -q 'ziyu_font_validate_global_cached' "$ROOT/common/legacy_v14_4_switch.sh"
+ok grep -q 'ziyu_font_validation_cache_restore "$_lfrp_font"' "$ROOT/common/font_runtime_policy.sh"
 echo 'font_validation_cache_test: PASS'

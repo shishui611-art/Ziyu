@@ -12,20 +12,20 @@ cp "$ROOT/common/font_web_convert.py" "$TMP/module/common/"
 cp "$ROOT/common/font_coverage.py" "$TMP/module/common/"
 cp "$FONT" "$TMP/public/fonts/Demo-Regular.ttf"
 
-OUT=$(MODDIR="$TMP/module" LUOSHU_PUBLIC_DIR="$TMP/public" LUOSHU_PYTHON=python3 \
+OUT=$(MODDIR="$TMP/module" ZIYU_PUBLIC_DIR="$TMP/public" ZIYU_PYTHON=python3 \
     sh "$TMP/module/common/font_source_profile.sh" family Demo-Regular)
 printf '%s\n' "$OUT" | grep -q '"status":"ok"'
 printf '%s\n' "$OUT" | grep -q '"latinUi":true'
 
-PROFILE=$(MODDIR="$TMP/module" LUOSHU_PUBLIC_DIR="$TMP/public" LUOSHU_PYTHON=python3 \
+PROFILE=$(MODDIR="$TMP/module" ZIYU_PUBLIC_DIR="$TMP/public" ZIYU_PYTHON=python3 \
     sh "$TMP/module/common/font_source_profile.sh" path Demo-Regular)
 test -s "$PROFILE"
 
-VALID=$(MODDIR="$TMP/module" LUOSHU_PUBLIC_DIR="$TMP/public" LUOSHU_PYTHON=python3 \
+VALID=$(MODDIR="$TMP/module" ZIYU_PUBLIC_DIR="$TMP/public" ZIYU_PYTHON=python3 \
     sh "$TMP/module/common/font_source_profile.sh" validate Demo-Regular)
 printf '%s\n' "$VALID" | grep -q '"status":"ok"'
 
-if MODDIR="$TMP/module" LUOSHU_PUBLIC_DIR="$TMP/public" LUOSHU_PYTHON=python3 \
+if MODDIR="$TMP/module" ZIYU_PUBLIC_DIR="$TMP/public" ZIYU_PYTHON=python3 \
     sh "$TMP/module/common/font_source_profile.sh" family '../bad' >/dev/null 2>&1; then
     echo "unsafe family id unexpectedly accepted" >&2
     exit 1

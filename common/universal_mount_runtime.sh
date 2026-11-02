@@ -2,14 +2,15 @@
 # Phase 7 unified mount runtime for Magisk / KernelSU / APatch.
 # One payload, one transaction; Root manager changes only the hook stage.
 set +e
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
 
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
-PAYLOAD="$MODDIR/.luoshu-payload"
+PAYLOAD="$MODDIR/.ziyu-payload"
 RUNTIME_CONF="$CONFIG_DIR/universal-font-runtime.conf"
 MOUNT_STATE="$CONFIG_DIR/universal-font-mount.conf"
-STATE_ROOT="${LUOSHU_UNIVERSAL_MOUNT_STATE_ROOT:-/data/adb/luoshu/universal-mount}"
+STATE_ROOT="${ZIYU_UNIVERSAL_MOUNT_STATE_ROOT:-/data/adb/ziyu/universal-mount}"
 DYNAMIC_LIST="$STATE_ROOT/dynamic.mounts"
 
 [ -f "$MODDIR/common/private_payload.sh" ] && . "$MODDIR/common/private_payload.sh"
@@ -26,9 +27,9 @@ _ufmr_log() {
 
 _ufmr_python() {
     _ufmr_root="$MODDIR/common/python"
-    _ufmr_bin="$_ufmr_root/bin/luoshu-python"
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    _ufmr_bin="$_ufmr_root/bin/ziyu-python"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$_ufmr_bin" ] || return 127
@@ -40,7 +41,7 @@ _ufmr_python() {
 
 _ufmr_validate_payload() {
     _ufmr_deployer="$MODDIR/common/universal_font_deployment.py"
-    _ufmr_manifest="$PAYLOAD/.luoshu-runtime/deployment/deployment.json"
+    _ufmr_manifest="$(ziyu_legacy_path "$PAYLOAD/.ziyu-runtime/deployment/deployment.json")"
     [ -f "$_ufmr_deployer" ] && [ -s "$_ufmr_manifest" ] || return 1
     _ufmr_python "$_ufmr_deployer" \
         --payload-root "$PAYLOAD" \
@@ -70,20 +71,20 @@ _ufmr_hash() {
 }
 
 _ufmr_mount() {
-    if [ -n "${LUOSHU_UNIVERSAL_MOUNT_COMMAND:-}" ]; then
-        "$LUOSHU_UNIVERSAL_MOUNT_COMMAND" "$@"
-    elif type _luoshu_mount_cmd >/dev/null 2>&1; then
-        _luoshu_mount_cmd "$@"
+    if [ -n "${ZIYU_UNIVERSAL_MOUNT_COMMAND:-}" ]; then
+        "$ZIYU_UNIVERSAL_MOUNT_COMMAND" "$@"
+    elif type _ziyu_mount_cmd >/dev/null 2>&1; then
+        _ziyu_mount_cmd "$@"
     else
         mount "$@"
     fi
 }
 
 _ufmr_umount() {
-    if [ -n "${LUOSHU_UNIVERSAL_UMOUNT_COMMAND:-}" ]; then
-        "$LUOSHU_UNIVERSAL_UMOUNT_COMMAND" "$@"
-    elif type _luoshu_umount_cmd >/dev/null 2>&1; then
-        _luoshu_umount_cmd "$@"
+    if [ -n "${ZIYU_UNIVERSAL_UMOUNT_COMMAND:-}" ]; then
+        "$ZIYU_UNIVERSAL_UMOUNT_COMMAND" "$@"
+    elif type _ziyu_umount_cmd >/dev/null 2>&1; then
+        _ziyu_umount_cmd "$@"
     else
         umount "$@"
     fi
@@ -91,8 +92,8 @@ _ufmr_umount() {
 
 _ufmr_visible_target() {
     _ufmr_logical="$1"
-    if [ -n "${LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT:-}" ]; then
-        printf '%s%s\n' "${LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT%/}" "$_ufmr_logical"
+    if [ -n "${ZIYU_UNIVERSAL_TEST_VISIBLE_ROOT:-}" ]; then
+        printf '%s%s\n' "${ZIYU_UNIVERSAL_TEST_VISIBLE_ROOT%/}" "$_ufmr_logical"
     else
         printf '%s\n' "$_ufmr_logical"
     fi
@@ -118,17 +119,17 @@ _ufmr_stage_for_manager() {
 }
 
 _ufmr_system_mount() {
-    if [ -n "${LUOSHU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND:-}" ]; then
-        "$LUOSHU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND"
+    if [ -n "${ZIYU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND:-}" ]; then
+        "$ZIYU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND"
     else
-        type luoshu_private_self_mount_ensure >/dev/null 2>&1 || return 1
-        luoshu_private_self_mount_ensure
+        type ziyu_private_self_mount_ensure >/dev/null 2>&1 || return 1
+        ziyu_private_self_mount_ensure
     fi
 }
 
 _ufmr_system_rollback() {
-    if [ -n "${LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND:-}" ]; then
-        "$LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND" >/dev/null 2>&1
+    if [ -n "${ZIYU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND:-}" ]; then
+        "$ZIYU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND" >/dev/null 2>&1
         return $?
     fi
     _ufmr_rollback_system
@@ -136,14 +137,14 @@ _ufmr_system_rollback() {
 
 _ufmr_is_mounted() {
     _ufmr_target="$1"
-    _ufmr_mountinfo="${LUOSHU_UNIVERSAL_MOUNTINFO:-/proc/self/mountinfo}"
+    _ufmr_mountinfo="${ZIYU_UNIVERSAL_MOUNTINFO:-/proc/self/mountinfo}"
     awk -v path="$_ufmr_target" '$5 == path {found=1} END {exit !found}' "$_ufmr_mountinfo" 2>/dev/null
 }
 
 _ufmr_is_readonly() {
     _ufmr_target="$1"
-    [ "${LUOSHU_UNIVERSAL_TEST_ASSUME_RO:-0}" = 1 ] && return 0
-    _ufmr_mountinfo="${LUOSHU_UNIVERSAL_MOUNTINFO:-/proc/self/mountinfo}"
+    [ "${ZIYU_UNIVERSAL_TEST_ASSUME_RO:-0}" = 1 ] && return 0
+    _ufmr_mountinfo="${ZIYU_UNIVERSAL_MOUNTINFO:-/proc/self/mountinfo}"
     awk -v path="$_ufmr_target" '
         $5 == path && $6 ~ /(^|,)ro(,|$)/ {found=1}
         END {exit !found}
@@ -169,13 +170,13 @@ _ufmr_rollback_dynamic() {
 }
 
 _ufmr_apply_dynamic() {
-    _ufmr_conf="$PAYLOAD/.luoshu-runtime/deployment/dynamic-mounts.conf"
+    _ufmr_conf="$(ziyu_legacy_path "$PAYLOAD/.ziyu-runtime/deployment/dynamic-mounts.conf")"
     mkdir -p "$STATE_ROOT" 2>/dev/null || return 1
     : > "$DYNAMIC_LIST" 2>/dev/null || return 1
     [ -s "$_ufmr_conf" ] || return 0
     while IFS='|' read -r _ufmr_source_rel _ufmr_target _ufmr_expected; do
         [ -n "$_ufmr_source_rel" ] && [ -n "$_ufmr_target" ] && [ -n "$_ufmr_expected" ] || continue
-        case "$_ufmr_source_rel" in .luoshu-dynamic/*) ;; *) return 1 ;; esac
+        case "$_ufmr_source_rel" in .ziyu-dynamic/*) ;; *) return 1 ;; esac
         case "$_ufmr_target" in /data/fonts/*) ;; *) return 1 ;; esac
         _ufmr_source="$PAYLOAD/$_ufmr_source_rel"
         _ufmr_actual_target=$(_ufmr_visible_target "$_ufmr_target")
@@ -215,9 +216,9 @@ _ufmr_apply_dynamic() {
 }
 
 _ufmr_rollback_system() {
-    if type _luoshu_atomic_rollback >/dev/null 2>&1 && type _luoshu_self_state_root >/dev/null 2>&1; then
-        _ufmr_system_list="$(_luoshu_self_state_root)/mounts.list"
-        _luoshu_atomic_rollback "$_ufmr_system_list" >/dev/null 2>&1
+    if type _ziyu_atomic_rollback >/dev/null 2>&1 && type _ziyu_self_state_root >/dev/null 2>&1; then
+        _ufmr_system_list="$(_ziyu_self_state_root)/mounts.list"
+        _ziyu_atomic_rollback "$_ufmr_system_list" >/dev/null 2>&1
         return $?
     fi
     return 0
@@ -247,15 +248,15 @@ universal_font_mount_hook() {
     [ "$(_ufmr_value "$RUNTIME_CONF" state)" = active ] || return 2
     [ "$(_ufmr_value "$RUNTIME_CONF" pipeline)" = universal-font-deployment-v1 ] || return 1
     [ -d "$PAYLOAD" ] || return 1
-    [ -s "$PAYLOAD/.luoshu-runtime/deployment/deployment.json" ] || return 1
-    if [ -n "${LUOSHU_UNIVERSAL_TEST_MANAGER:-}" ]; then
-        _ufmr_manager="$LUOSHU_UNIVERSAL_TEST_MANAGER"
+    [ -s "$(ziyu_legacy_path "$PAYLOAD/.ziyu-runtime/deployment/deployment.json")" ] || return 1
+    if [ -n "${ZIYU_UNIVERSAL_TEST_MANAGER:-}" ]; then
+        _ufmr_manager="$ZIYU_UNIVERSAL_TEST_MANAGER"
     else
-        type luoshu_detect_root_manager >/dev/null 2>&1 || return 1
-        _ufmr_manager=$(luoshu_detect_root_manager 2>/dev/null | head -n1)
+        type ziyu_detect_root_manager >/dev/null 2>&1 || return 1
+        _ufmr_manager=$(ziyu_detect_root_manager 2>/dev/null | head -n1)
     fi
-    if type luoshu_self_mount_stage_for_manager >/dev/null 2>&1; then
-        _ufmr_stage=$(luoshu_self_mount_stage_for_manager "$_ufmr_manager" 2>/dev/null)
+    if type ziyu_self_mount_stage_for_manager >/dev/null 2>&1; then
+        _ufmr_stage=$(ziyu_self_mount_stage_for_manager "$_ufmr_manager" 2>/dev/null)
     else
         _ufmr_stage=$(_ufmr_stage_for_manager "$_ufmr_manager")
     fi
@@ -263,10 +264,10 @@ universal_font_mount_hook() {
         # A late service-stage mount is only permitted after this boot's
         # selector explicitly chose self-mount as an external-provider fallback.
         [ "$_ufmr_hook" = service ] &&
-            [ "${LUOSHU_UNIVERSAL_ALLOW_SERVICE_FALLBACK:-0}" = 1 ] || return 2
+            [ "${ZIYU_UNIVERSAL_ALLOW_SERVICE_FALLBACK:-0}" = 1 ] || return 2
         [ -f "$MODDIR/common/root_manager_detection.sh" ] || return 2
         . "$MODDIR/common/root_manager_detection.sh" || return 2
-        _ufmr_backend_file=$(MODDIR="$MODDIR" luoshu_current_boot_backend_state) || return 2
+        _ufmr_backend_file=$(MODDIR="$MODDIR" ziyu_current_boot_backend_state) || return 2
         [ -n "$_ufmr_backend_file" ] || return 2
         [ "$(_ufmr_value "$_ufmr_backend_file" selected_backend)" = self ] || return 2
         [ "$(_ufmr_value "$_ufmr_backend_file" fallback_used)" = 1 ] || return 2
@@ -296,7 +297,7 @@ universal_font_mount_hook() {
         if [ "$_ufmr_system_mounted" -ne 0 ]; then
             _ufmr_system_rollback || _ufmr_failure='dynamic-mount-failed;rollback-failed'
         fi
-        type _luoshu_self_state_write >/dev/null 2>&1 && _luoshu_self_state_write failed rollback '' "$_ufmr_failure"
+        type _ziyu_self_state_write >/dev/null 2>&1 && _ziyu_self_state_write failed rollback '' "$_ufmr_failure"
         _ufmr_write_state failed "$_ufmr_manager" "$_ufmr_stage" 0 "$_ufmr_failure"
         _ufmr_log "$_ufmr_failure"
         return 1
@@ -319,7 +320,7 @@ case "${1:-hook}" in
             _ufmr_write_state failed unknown manual 0 rollback-failed
             exit 1
         fi
-        _ufmr_write_state rolled-back "$(type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager || echo unknown)" manual 0 manual
+        _ufmr_write_state rolled-back "$(type ziyu_detect_root_manager >/dev/null 2>&1 && ziyu_detect_root_manager || echo unknown)" manual 0 manual
         ;;
     *) echo "Usage: $0 {hook <post-fs-data|post-mount>|service|rollback}" >&2; exit 2 ;;
 esac

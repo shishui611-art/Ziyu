@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LuoShu Phase 5 minimal Android font XML router.
+"""Ziyu Phase 5 minimal Android font XML router.
 
 Consumes universal-font-plan-v1 and stock XML snapshots. The router only plans
 and validates exact font-reference substitutions. It never chooses replacement
@@ -443,7 +443,7 @@ def _artifact_contract(font_plan: dict[str, Any], target: dict[str, Any], node: 
     extension = _artifact_extension(target, node)
     return {
         "artifactId": f"ufc:{digest[:32]}",
-        "suggestedFileName": f"LuoShu-UF-{digest[:20]}{extension}",
+        "suggestedFileName": f"Ziyu-UF-{digest[:20]}{extension}",
         "container": "collection" if extension in {".ttc", ".otc"} else "sfnt",
         "requiredFaceIndex": int(node.get("index") or 0),
         "requiredPostScriptName": str(node.get("postScriptName") or ""),

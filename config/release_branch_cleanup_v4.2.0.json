@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "repository": "xgl34222220-ops/LuoShu",
+  "repository": "xgl34222220-ops/Ziyu",
   "default_branch": "main",
   "tag": "v4.2.0",
   "release_workflow": ".github/workflows/release.yml",

@@ -41,14 +41,14 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Prepare ARM64 composite runtime
         run: |
-          if [ ! -x common/python/bin/luoshu-python ] || [ ! -x .luoshu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
+          if [ ! -x common/python/bin/ziyu-python ] || [ ! -x .ziyu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
@@ -66,26 +66,26 @@ jobs:
       - name: Load existing release signing key
         shell: bash
         env:
-          KEYSTORE_BASE64: ${{ secrets.LUOSHU_KEYSTORE_BASE64 }}
-          LUOSHU_KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
-          LUOSHU_KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
-          LUOSHU_KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.ZIYU_KEYSTORE_BASE64 || secrets.LUOSHU_KEYSTORE_BASE64 }}
+          ZIYU_KEYSTORE_PASSWORD: ${{ secrets.ZIYU_KEYSTORE_PASSWORD || secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          ZIYU_KEY_ALIAS: ${{ secrets.ZIYU_KEY_ALIAS || secrets.LUOSHU_KEY_ALIAS }}
+          ZIYU_KEY_PASSWORD: ${{ secrets.ZIYU_KEY_PASSWORD || secrets.LUOSHU_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          for name in KEYSTORE_BASE64 LUOSHU_KEYSTORE_PASSWORD LUOSHU_KEY_ALIAS LUOSHU_KEY_PASSWORD; do
+          for name in KEYSTORE_BASE64 ZIYU_KEYSTORE_PASSWORD ZIYU_KEY_ALIAS ZIYU_KEY_PASSWORD; do
             [[ -n "${!name}" ]] || { echo "Missing signing secret: $name" >&2; exit 3; }
           done
           umask 077
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/luoshu-release.jks"
-          keytool -list -keystore "$RUNNER_TEMP/luoshu-release.jks" -storepass:env LUOSHU_KEYSTORE_PASSWORD -alias "$LUOSHU_KEY_ALIAS" >/dev/null
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ziyu-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/ziyu-release.jks" -storepass:env ZIYU_KEYSTORE_PASSWORD -alias "$ZIYU_KEY_ALIAS" >/dev/null
 
       - name: Build Debug App with release identity
         working-directory: android-app
         env:
-          LUOSHU_KEYSTORE_FILE: ${{ runner.temp }}/luoshu-release.jks
-          LUOSHU_KEYSTORE_PASSWORD: ${{ secrets.LUOSHU_KEYSTORE_PASSWORD }}
-          LUOSHU_KEY_ALIAS: ${{ secrets.LUOSHU_KEY_ALIAS }}
-          LUOSHU_KEY_PASSWORD: ${{ secrets.LUOSHU_KEY_PASSWORD }}
+          ZIYU_KEYSTORE_FILE: ${{ runner.temp }}/ziyu-release.jks
+          ZIYU_KEYSTORE_PASSWORD: ${{ secrets.ZIYU_KEYSTORE_PASSWORD || secrets.LUOSHU_KEYSTORE_PASSWORD }}
+          ZIYU_KEY_ALIAS: ${{ secrets.ZIYU_KEY_ALIAS || secrets.LUOSHU_KEY_ALIAS }}
+          ZIYU_KEY_PASSWORD: ${{ secrets.ZIYU_KEY_PASSWORD || secrets.LUOSHU_KEY_PASSWORD }}
         run: gradle --no-daemon --stacktrace :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
 
       - name: Verify shared App signing certificate
@@ -108,11 +108,11 @@ jobs:
           . ./scripts/version.sh
           apk='android-app/app/build/outputs/apk/debug/app-debug.apk'
           test -s "$apk"
-          LUOSHU_APP_APK="$apk" LUOSHU_APP_PACKAGE=io.github.shishui611_art.ziyu LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
+          ZIYU_APP_APK="$apk" ZIYU_APP_PACKAGE=io.github.shishui611_art.ziyu ZIYU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 
           short_sha="${GITHUB_SHA:0:7}"
-          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
-          debug_module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}-Debug-${short_sha}.zip"
+          module="dist/Ziyu-${ZIYU_ARTIFACT_VERSION}.zip"
+          debug_module="dist/Ziyu-${ZIYU_ARTIFACT_VERSION}-Debug-${short_sha}.zip"
           mv "$module" "$debug_module"
           (cd dist && sha256sum "$(basename "$debug_module")" > "$(basename "$debug_module").sha256")
 
@@ -121,8 +121,8 @@ jobs:
           test "$(unzip -p "$debug_module" bundled/Ziyu-App.apk | sha256sum | awk '{print $1}')" = "$(sha256sum "$apk" | awk '{print $1}')"
 
           echo "DEBUG_MODULE=$debug_module" >> "$GITHUB_ENV"
-          echo "DEBUG_TAG=ziyu-debug-${LUOSHU_ARTIFACT_VERSION}-${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_ENV"
-          echo "DEBUG_VERSION=$LUOSHU_ARTIFACT_VERSION" >> "$GITHUB_ENV"
+          echo "DEBUG_TAG=ziyu-debug-${ZIYU_ARTIFACT_VERSION}-${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_ENV"
+          echo "DEBUG_VERSION=$ZIYU_ARTIFACT_VERSION" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Debug pre-release
         env:

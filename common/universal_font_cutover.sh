@@ -3,6 +3,7 @@
 # Official single-font switches try Universal first and fall back to the existing
 # production switcher without ever rewriting the current boot's live payload.
 set +e
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
 
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
@@ -11,7 +12,7 @@ CONFIG_DIR="${CONFIG_DIR:-$MODDIR/config}"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
+PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
 LEGACY_SWITCH="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"
 DEPLOYMENT="$MODDIR/common/universal_font_deployment.sh"
 PLAN_BRIDGE="$MODDIR/common/universal_font_plan.sh"
@@ -23,10 +24,10 @@ ACTIVATED_CONF="$CONFIG_DIR/universal-font-activated.conf"
 VERIFY_CONF="$CONFIG_DIR/universal-font-runtime-verification.conf"
 ROLLBACK_STATE="$CONFIG_DIR/universal-font-rollback.conf"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 CUTOVER_STATE="$CONFIG_DIR/universal-font-cutover.conf"
 LOG_FILE="$MODDIR/logs/fontswitch.log"
-PROGRESS_FILE="${LUOSHU_SWITCH_PROGRESS_FILE:-}"
+PROGRESS_FILE="${ZIYU_SWITCH_PROGRESS_FILE:-}"
 
 _uc_log() {
     mkdir -p "$MODDIR/logs" 2>/dev/null || true
@@ -43,8 +44,8 @@ _uc_progress() {
 }
 
 _uc_python() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127
@@ -87,9 +88,9 @@ _uc_recover_pending() (
         [ -f "$MODDIR/common/font_next_transaction.sh" ] || return 1
     . "$MODDIR/common/font_switch_lock.sh"
     . "$MODDIR/common/font_next_transaction.sh"
-    luoshu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || return $?
-    trap 'luoshu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
-    luoshu_next_transaction_recover "$MODDIR"
+    ziyu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || return $?
+    trap 'ziyu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    ziyu_next_transaction_recover "$MODDIR"
 )
 
 _uc_legacy() {
@@ -134,7 +135,7 @@ _uc_legacy() {
         printf '{"status":"error","message":"缺少兼容字体切换核心"}\n'
         return 1
     }
-    _ucl_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
+    _ucl_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" ZIYU_PUBLIC_DIR="$PUBLIC_DIR" \
         sh "$LEGACY_SWITCH" action switch "$_ucl_font" 2>&1)
     _ucl_rc=$?
     [ -n "$_ucl_output" ] && printf '%s\n' "$_ucl_output"
@@ -215,12 +216,12 @@ _uc_switch() {
         _uc_legacy "$_uc_font" font-clipping-compatibility
         return $?
     fi
-    if [ -n "${LUOSHU_REAL_MODDIR:-}" ]; then
+    if [ -n "${ZIYU_REAL_MODDIR:-}" ]; then
         _uc_legacy "$_uc_font" composite-runtime
         return $?
     fi
     case "$_uc_font" in
-        mix|LuoShuAutoMix|LuoShuMix*) _uc_legacy "$_uc_font" composite-family; return $? ;;
+        mix|ZiyuAutoMix|ZiyuMix*) _uc_legacy "$_uc_font" composite-family; return $? ;;
     esac
 
     # Keep the established physical engine for A -> B and queued B -> C.
@@ -242,16 +243,16 @@ _uc_switch() {
     _uc_write_state preparing "$_uc_font" universal preparing
     _uc_progress 8 "通用引擎正在分析设备字体拓扑"
     _uc_log "universal prepare start font=$_uc_font"
-    _uc_prepare_budget="${LUOSHU_UNIVERSAL_PREPARE_TIMEOUT_SECONDS:-90}"
+    _uc_prepare_budget="${ZIYU_UNIVERSAL_PREPARE_TIMEOUT_SECONDS:-90}"
     case "$_uc_prepare_budget" in ''|*[!0-9]*) _uc_prepare_budget=90 ;; esac
     [ "$_uc_prepare_budget" -ge 15 ] || _uc_prepare_budget=15
     [ "$_uc_prepare_budget" -le 120 ] || _uc_prepare_budget=120
     # The nested subreaper must finish descendant cleanup before fallback can
     # write anything. This prevents late compiler writers from escaping timeout.
     _uc_prepare_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" CONFIG_DIR="$CONFIG_DIR" \
-        LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_COMPILER_REQUIRE_DEPLOYABLE=1 \
+        ZIYU_PUBLIC_DIR="$PUBLIC_DIR" ZIYU_COMPILER_REQUIRE_DEPLOYABLE=1 \
         sh "$MODDIR/common/task_scope.sh" --timeout "$_uc_prepare_budget" \
-        --task "${LUOSHU_TASK_SCOPE_TASK:-direct}-universal" -- \
+        --task "${ZIYU_TASK_SCOPE_TASK:-direct}-universal" -- \
         sh "$DEPLOYMENT" prepare "$_uc_font" 2>&1)
     _uc_prepare_rc=$?
     _uc_log "universal prepare finished font=$_uc_font rc=$_uc_prepare_rc budget=${_uc_prepare_budget}s"
@@ -314,7 +315,7 @@ _uc_switch() {
 
     _uc_progress 88 "通用引擎验证通过，正在准备下一次启动"
     _uc_stage_output=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" CONFIG_DIR="$CONFIG_DIR" \
-        LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" sh "$DEPLOYMENT" stage-prepared "$_uc_font" 2>&1)
+        ZIYU_PUBLIC_DIR="$PUBLIC_DIR" sh "$DEPLOYMENT" stage-prepared "$_uc_font" 2>&1)
     _uc_stage_rc=$?
     if [ "$_uc_stage_rc" -ne 0 ] || ! printf '%s' "$_uc_stage_output" | grep -q '"status":"ok"'; then
         _uc_stage_message=$(printf '%s\n' "$_uc_stage_output" | sed -n 's/.*"message":"\(.*\)"}$/\1/p' | head -n1 | cut -c1-900)
@@ -355,8 +356,8 @@ _uc_write_rollback_state() {
 
 _uc_copy_retired_to_next() {
     _ucr_source="$1"
-    _ucr_stage="$MODDIR/.luoshu-payload-next.recovery.$$"
-    _ucr_next="$MODDIR/.luoshu-payload-next"
+    _ucr_stage="$MODDIR/.ziyu-payload-next.recovery.$$"
+    _ucr_next="$MODDIR/.ziyu-payload-next"
     rm -rf "$_ucr_stage" 2>/dev/null || true
     mkdir -p "$_ucr_stage" 2>/dev/null || return 1
     cp -af "$_ucr_source/." "$_ucr_stage/" 2>/dev/null || {
@@ -372,8 +373,8 @@ _uc_copy_retired_to_next() {
 }
 
 _uc_prepare_empty_next() {
-    _uce_stage="$MODDIR/.luoshu-payload-next.default.$$"
-    _uce_next="$MODDIR/.luoshu-payload-next"
+    _uce_stage="$MODDIR/.ziyu-payload-next.default.$$"
+    _uce_next="$MODDIR/.ziyu-payload-next"
     rm -rf "$_uce_stage" 2>/dev/null || true
     mkdir -p "$_uce_stage" 2>/dev/null || return 1
     rm -rf "$_uce_next" 2>/dev/null || true
@@ -406,7 +407,7 @@ _uc_schedule_rollback() {
     fi
 
     # Never overwrite a newer user request created after boot.
-    if [ -s "$CONFIG_DIR/universal-font-next.conf" ] || [ -s "$CONFIG_DIR/font-payload-next.conf" ] || [ -d "$MODDIR/.luoshu-payload-next" ]; then
+    if [ -s "$CONFIG_DIR/universal-font-next.conf" ] || [ -s "$CONFIG_DIR/font-payload-next.conf" ] || [ -d "$MODDIR/.ziyu-payload-next" ]; then
         _uc_write_rollback_state deferred '' '' newer-next-boot-request-present ''
         _uc_log "rollback deferred because a newer next-boot request already exists"
         return 2
@@ -430,7 +431,7 @@ _uc_schedule_rollback() {
 
     _ucr_retired=$(_uc_value "$ACTIVATED_CONF" retired)
     if [ "$_ucr_previous_mode" = default ]; then
-        # System default has no previous LuoShu payload by design. Stage an
+        # System default has no previous Ziyu payload by design. Stage an
         # empty next payload so next_boot_payload can retire the failed
         # Universal payload and return to pure ROM font routing.
         _uc_prepare_empty_next || {
@@ -440,7 +441,7 @@ _uc_schedule_rollback() {
         _ucr_retired=''
     else
         case "$_ucr_retired" in
-            "$MODDIR"/.luoshu-retired/universal-*) ;;
+            "$MODDIR"/.ziyu-retired/universal-*) ;;
             *)
                 _uc_write_rollback_state failed "$_ucr_previous_font" "$_ucr_previous_mode" retired-path-untrusted "$_ucr_retired"
                 return 1
@@ -453,7 +454,7 @@ _uc_schedule_rollback() {
     fi
 
     if [ "$_ucr_previous_mode" = universal ]; then
-        _ucr_manifest="$_ucr_retired/.luoshu-runtime/deployment/deployment.json"
+        _ucr_manifest="$(ziyu_legacy_path "$_ucr_retired/.ziyu-runtime/deployment/deployment.json")"
         [ -f "$DEPLOYER" ] && [ -s "$_ucr_manifest" ] || {
             _uc_write_rollback_state failed "$_ucr_previous_font" universal retired-universal-manifest-missing "$_ucr_retired"
             return 1
@@ -481,7 +482,7 @@ _uc_schedule_rollback() {
         } > "$CONFIG_DIR/universal-font-next.conf.tmp.$$" 2>/dev/null && \
             mv -f "$CONFIG_DIR/universal-font-next.conf.tmp.$$" "$CONFIG_DIR/universal-font-next.conf" 2>/dev/null || {
                 rm -f "$CONFIG_DIR/universal-font-next.conf" "$CONFIG_DIR/universal-font-next.conf.tmp.$$" 2>/dev/null || true
-                rm -rf "$MODDIR/.luoshu-payload-next" 2>/dev/null || true
+                rm -rf "$MODDIR/.ziyu-payload-next" 2>/dev/null || true
                 _uc_write_rollback_state failed "$_ucr_previous_font" universal rollback-marker-write-failed "$_ucr_retired"
                 return 1
             }
@@ -502,7 +503,7 @@ _uc_schedule_rollback() {
         } > "$CONFIG_DIR/font-payload-next.conf.tmp.$$" 2>/dev/null && \
             mv -f "$CONFIG_DIR/font-payload-next.conf.tmp.$$" "$CONFIG_DIR/font-payload-next.conf" 2>/dev/null || {
                 rm -f "$CONFIG_DIR/font-payload-next.conf" "$CONFIG_DIR/font-payload-next.conf.tmp.$$" 2>/dev/null || true
-                rm -rf "$MODDIR/.luoshu-payload-next" 2>/dev/null || true
+                rm -rf "$MODDIR/.ziyu-payload-next" 2>/dev/null || true
                 _uc_write_rollback_state failed "$_ucr_previous_font" "$_ucr_previous_mode" rollback-marker-write-failed "$_ucr_retired"
                 return 1
             }
@@ -518,7 +519,7 @@ _uc_schedule_rollback() {
         mv -f "$CONFIG_DIR/text_reboot_required.conf.tmp.$$" "$CONFIG_DIR/text_reboot_required.conf" 2>/dev/null || {
             rm -f "$CONFIG_DIR/text_reboot_required.conf" "$CONFIG_DIR/text_reboot_required.conf.tmp.$$" \
                   "$CONFIG_DIR/universal-font-next.conf" "$CONFIG_DIR/font-payload-next.conf" 2>/dev/null || true
-            rm -rf "$MODDIR/.luoshu-payload-next" 2>/dev/null || true
+            rm -rf "$MODDIR/.ziyu-payload-next" 2>/dev/null || true
             _uc_write_rollback_state failed "$_ucr_previous_font" "$_ucr_previous_mode" reboot-marker-write-failed "$_ucr_retired"
             return 1
         }

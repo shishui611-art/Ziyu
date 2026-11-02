@@ -45,7 +45,7 @@ p.add_argument("--validate-payload-only")
 a=p.parse_args()
 if a.validate_payload_only:
     m=json.load(open(a.validate_payload_only,encoding="utf-8"))
-    assert Path(a.payload_root,".luoshu-runtime/deployment/deployment.json").is_file()
+    assert Path(a.payload_root,".ziyu-runtime/deployment/deployment.json").is_file()
     print(json.dumps({"status":"ok","deploymentId":m["deploymentId"]}))
     raise SystemExit(0)
 if a.validate:
@@ -53,7 +53,7 @@ if a.validate:
     print('{"status":"ok"}')
     raise SystemExit(0)
 root=Path(a.payload_root)
-(root/".luoshu-runtime/deployment").mkdir(parents=True,exist_ok=True)
+(root/".ziyu-runtime/deployment").mkdir(parents=True,exist_ok=True)
 (root/"system/fonts").mkdir(parents=True,exist_ok=True)
 (root/"system/fonts/Fake.ttf").write_bytes(b"fake-font")
 m={
@@ -67,7 +67,7 @@ m={
   "summary":{"activationReady":True}
 }
 Path(a.manifest).write_text(json.dumps(m),encoding="utf-8")
-(root/".luoshu-runtime/deployment/deployment.json").write_text(json.dumps(m),encoding="utf-8")
+(root/".ziyu-runtime/deployment/deployment.json").write_text(json.dumps(m),encoding="utf-8")
 print('{"status":"ok","deploymentId":"sha256:test-deployment"}')
 PY
 chmod 0755 "$MOD/common/universal_font_deployment.py"
@@ -78,7 +78,7 @@ printf '{}\n' > "$MOD/config/universal-font-artifact-manifests/test.json"
 export MODDIR="$MOD"
 export MODULE_DIR="$MOD"
 export CONFIG_DIR="$MOD/config"
-export LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}"
+export ZIYU_PYTHON="${ZIYU_PYTHON:-python3}"
 
 echo "PHASE7_BRIDGE prepare"
 PREP=$(sh "$MOD/common/universal_font_deployment.sh" prepare DemoFamily)
@@ -91,7 +91,7 @@ test -s "$PAYLOAD/system/fonts/Fake.ttf"
 echo "PHASE7_BRIDGE stage-next"
 STAGED=$(sh "$MOD/common/universal_font_deployment.sh" stage-next DemoFamily)
 printf "%s\n" "$STAGED" | grep -q '"state":"staged-next-boot"'
-test -d "$MOD/.luoshu-payload-next"
+test -d "$MOD/.ziyu-payload-next"
 test -s "$MOD/config/universal-font-next.conf"
 test "$(cat "$MOD/config/active_font.conf")" = DemoFamily
 grep -q '^font=DemoFamily$' "$MOD/config/text_reboot_required.conf"
@@ -99,8 +99,8 @@ grep -q '^reason=universal-next-boot-prepared$' "$MOD/config/text_reboot_require
 
 echo "PHASE7_BRIDGE activate"
 MODDIR="$MOD" MODULE_DIR="$MOD" sh -c '. "$1"; universal_font_next_boot_activate' sh "$MOD/common/universal_next_boot.sh"
-test -d "$MOD/.luoshu-payload"
-test ! -e "$MOD/.luoshu-payload-next"
+test -d "$MOD/.ziyu-payload"
+test ! -e "$MOD/.ziyu-payload-next"
 test -s "$MOD/config/universal-font-runtime.conf"
 grep -q '^pipeline=universal-font-deployment-v1$' "$MOD/config/universal-font-runtime.conf"
 grep -q '^deploymentId=sha256:test-deployment$' "$MOD/config/universal-font-runtime.conf"

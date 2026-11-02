@@ -23,7 +23,7 @@ PAGES = (
     ("home", "首页", "当前字体"),
     ("library", "字体库", "搜索你的字体"),
     ("studio", "组合", "字体组合"),
-    ("settings", "设置", "你的洛书"),
+    ("settings", "设置", "你的字域"),
 )
 BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
@@ -151,7 +151,7 @@ class SmokeRun:
         return self.adb(*arguments, **kwargs).stdout.decode("utf-8", "replace")
 
     def hierarchy(self) -> ET.Element:
-        remote = "/sdcard/luoshu-ui-smoke.xml"
+        remote = "/sdcard/ziyu-ui-smoke.xml"
         self.adb("shell", "rm", "-f", remote)
         self.adb("shell", "uiautomator", "dump", remote, timeout=15)
         xml = self.text("shell", "cat", remote)
@@ -237,7 +237,7 @@ class SmokeRun:
         self.adb("shell", "input", "keyevent", "KEYCODE_HOME")
         time.sleep(1)
         self.adb("shell", "am", "start", "-W", "-n", f"{self.package}/io.github.xgl34222220.ziyu.MainActivity", timeout=45)
-        root = self.wait_page("设置", "你的洛书")
+        root = self.wait_page("设置", "你的字域")
         self.capture("dark-settings-resumed", root)
         self.assert_running()
 

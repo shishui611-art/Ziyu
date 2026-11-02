@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v14.1：完整复合字体引擎。
+# 字域 v14.1：完整复合字体引擎。
 # 中文字体保留为完整基底，仅把英文与数字的对应字形写入同一份字体。
 # 不裁剪 ROM 字体槽、不覆盖 fonts.xml / font_fallback.xml。
 set +e
@@ -19,7 +19,7 @@ SYSTEM_FONTS_DIR="$MODDIR/system/fonts"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 TASK_FILE="$CONFIG_DIR/mix_task.conf"
 MIX_CONF="$CONFIG_DIR/font_mix.conf"
 ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
@@ -125,7 +125,7 @@ clear_text_targets_in_dir() {
     _dir="$1"
     [ -d "$_dir" ] || return 0
     for _file in $(all_text_targets); do rm -f "$_dir/$_file" 2>/dev/null || true; done
-    rm -rf "$_dir/.luoshu-font-store" 2>/dev/null || true
+    rm -rf "$_dir/.ziyu-font-store" 2>/dev/null || true
 }
 
 alias_core() {
@@ -301,7 +301,7 @@ composite_engine_identity() (
     _cei_layout="$MODDIR/common/composite_layout.py"
     [ -f "$_cei_layout" ] || _cei_layout="$MODDIR/common/legacy_v14_4/composite_layout.py"
     for _cei_file in "$MODDIR/common/composite_font.py" "$MODDIR/common/font_ligatures.py" "$_cei_layout" \
-        "$MODDIR/common/luoshu_composite.sh" "$MODDIR/common/composite_tune.sh"; do
+        "$MODDIR/common/ziyu_composite.sh" "$MODDIR/common/composite_tune.sh"; do
         [ -s "$_cei_file" ] || return 1
         _cei_hash=$(composite_hash_file "$_cei_file")
         [ -n "$_cei_hash" ] || return 1
@@ -342,9 +342,9 @@ extract_composite_error() {
 }
 
 check_composite_runtime() {
-    _runner="$MODDIR/common/luoshu_composite.sh"
+    _runner="$MODDIR/common/ziyu_composite.sh"
     mkdir -p "$MODDIR/cache" 2>/dev/null || { set_mix_error "无法创建运行时自检目录"; return 1; }
-    _runtime_key=$(composite_hash_file "$MODDIR/common/python/bin/luoshu-python" 2>/dev/null)
+    _runtime_key=$(composite_hash_file "$MODDIR/common/python/bin/ziyu-python" 2>/dev/null)
     [ -n "$_runtime_key" ] || _runtime_key=unknown
     _ok="$MODDIR/cache/runtime_probe.${_runtime_key}.ok"
     [ -s "$_ok" ] && return 0
@@ -389,9 +389,9 @@ prune_composite_cache() {
 build_composite_file() {
     _cjk_src="$1"; _latin_src="$2"; _digit_src="$3"
     COMPOSITE_RESULT=""; COMPOSITE_REPORT=""; COMPOSITE_CACHE_HIT=false; LAST_MIX_ERROR=""
-    _runner="$MODDIR/common/luoshu_composite.sh"
+    _runner="$MODDIR/common/ziyu_composite.sh"
     [ -f "$MODDIR/common/composite_font.py" ] && [ -f "$_runner" ] || { set_mix_error '完整复合字体引擎缺失'; return 1; }
-    [ -x "$MODDIR/common/python/bin/luoshu-python" ] || chmod 0755 "$MODDIR/common/python/bin/luoshu-python" 2>/dev/null || true
+    [ -x "$MODDIR/common/python/bin/ziyu-python" ] || chmod 0755 "$MODDIR/common/python/bin/ziyu-python" 2>/dev/null || true
     check_composite_runtime || return 1
     _cache="$MODDIR/cache/full-composite-v7"
     mkdir -p "$_cache" "$MODDIR/cache/tmp" 2>/dev/null || { set_mix_error '无法创建复合字体缓存目录'; return 1; }
@@ -489,11 +489,11 @@ build_composite_file() {
 }
 
 write_mix_generation_manifest() {
-    _manifest="${LUOSHU_MIX_MANIFEST:-}"
-    _request="${LUOSHU_MIX_REQUEST_ID:-}"
-    _expected_cjk="${LUOSHU_MIX_EXPECTED_CJK:-$1}"
-    _expected_latin="${LUOSHU_MIX_EXPECTED_LATIN:-$2}"
-    _expected_digit="${LUOSHU_MIX_EXPECTED_DIGIT:-$3}"
+    _manifest="${ZIYU_MIX_MANIFEST:-}"
+    _request="${ZIYU_MIX_REQUEST_ID:-}"
+    _expected_cjk="${ZIYU_MIX_EXPECTED_CJK:-$1}"
+    _expected_latin="${ZIYU_MIX_EXPECTED_LATIN:-$2}"
+    _expected_digit="${ZIYU_MIX_EXPECTED_DIGIT:-$3}"
     [ -n "$_manifest" ] && [ -n "$_request" ] || return 0
     mkdir -p "${_manifest%/*}" 2>/dev/null || return 1
     _tmp="${_manifest}.tmp.$$"
@@ -543,13 +543,13 @@ commit_mix_config() {
 apply_mix() {
     _cjk="$1"; _latin="$2"; _digit="$3"
     [ -n "$_cjk" ] && [ -n "$_latin" ] && [ -n "$_digit" ] || { set_mix_error '组合配置不完整'; return 1; }
-    if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" != true ]; then recover_interrupted_payload; fi
+    if [ "${ZIYU_MIX_PREPARE_ONLY:-false}" != true ]; then recover_interrupted_payload; fi
     if [ -e "$LOCK_FILE" ]; then
         _pid=$(cat "$LOCK_FILE" 2>/dev/null)
         if [ -n "$_pid" ] && kill -0 "$_pid" 2>/dev/null; then set_mix_error '字体正在切换中'; return 2; fi
         rm -f "$LOCK_FILE" 2>/dev/null || true
     fi
-    [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ] || [ ! -f "$TEXT_REBOOT_REQUIRED" ] || { set_mix_error '本次开机已更改文字字体，请先重启手机'; return 3; }
+    [ "${ZIYU_MIX_PREPARE_ONLY:-false}" = true ] || [ ! -f "$TEXT_REBOOT_REQUIRED" ] || { set_mix_error '本次开机已更改文字字体，请先重启手机'; return 3; }
     echo $$ > "$LOCK_FILE"
     trap cleanup_mix_process EXIT INT TERM
 
@@ -562,12 +562,12 @@ apply_mix() {
 
     mkdir -p "$SYSTEM_FONTS_DIR" "$CONFIG_DIR" "$MODDIR/logs" 2>/dev/null || { set_mix_error '无法创建模块工作目录'; return 4; }
     build_composite_file "$_cjk_src" "$_latin_src" "$_digit_src" || return 5
-    if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ]; then
-        if [ -n "${LUOSHU_MIX_PARENT_TASK:-}" ] && \
-           [ "$(sed -n 's/^task=//p' "${LUOSHU_MIX_CANCEL_FILE:-}" 2>/dev/null | head -n1)" = "$LUOSHU_MIX_PARENT_TASK" ]; then
+    if [ "${ZIYU_MIX_PREPARE_ONLY:-false}" = true ]; then
+        if [ -n "${ZIYU_MIX_PARENT_TASK:-}" ] && \
+           [ "$(sed -n 's/^task=//p' "${ZIYU_MIX_CANCEL_FILE:-}" 2>/dev/null | head -n1)" = "$ZIYU_MIX_PARENT_TASK" ]; then
             set_mix_error '组合任务已取消'; return 7
         fi
-        _prepared_dir="${LUOSHU_MIX_MANIFEST%/*}"
+        _prepared_dir="${ZIYU_MIX_MANIFEST%/*}"
         mkdir -p "$_prepared_dir" 2>/dev/null || return 6
         cp -f "$COMPOSITE_RESULT" "$_prepared_dir/mix-composite.ttf.tmp.$$" || return 6
         mv -f "$_prepared_dir/mix-composite.ttf.tmp.$$" "$_prepared_dir/mix-composite.ttf" || return 6
@@ -597,7 +597,7 @@ apply_mix() {
     if [ "$IS_COLOROS" = "true" ]; then
         sync_secondary_coloros_dirs || echo '警告：ColorOS 辅助分区字体同步未完全成功，主字体负载已保留' >&2
     fi
-    type luoshu_sync_mount_payload >/dev/null 2>&1 && luoshu_sync_mount_payload 2>/dev/null || true
+    type ziyu_sync_mount_payload >/dev/null 2>&1 && ziyu_sync_mount_payload 2>/dev/null || true
     rm -f "$LOCK_FILE" 2>/dev/null || true
     trap - EXIT INT TERM
     return 0
@@ -620,7 +620,7 @@ case "${1:-status}" in
             printf '{"status":"error","message":"请选择中文、英文和数字字体"}\n'
             exit 0
         fi
-        if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" != true ] && [ -f "$TEXT_REBOOT_REQUIRED" ]; then
+        if [ "${ZIYU_MIX_PREPARE_ONLY:-false}" != true ] && [ -f "$TEXT_REBOOT_REQUIRED" ]; then
             printf '{"status":"error","message":"本次开机已更改文字字体，请先重启手机"}\n'
             exit 0
         fi
@@ -636,11 +636,11 @@ case "${1:-status}" in
                 _message='完整复合字体已准备，完整重启后生效'
                 [ "$COMPOSITE_CACHE_HIT" = true ] && _message='已使用验证缓存准备字体组合，完整重启后生效'
                 write_task "$_task" success "$_message" "$_cjk" "$_latin" "$_digit" "$_started" "$_finished"
-                if [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" = true ]; then
+                if [ "${ZIYU_MIX_PREPARE_ONLY:-false}" = true ]; then
                     _message='完整复合字体已生成，正在保存字体库'
                     write_task "$_task" success "$_message" "$_cjk" "$_latin" "$_digit" "$_started" "$_finished"
                 else
-                    command -v cmd >/dev/null 2>&1 && cmd notification post -t 字域 luoshu-mix "字体组合已准备，请完整重启手机。" >/dev/null 2>&1 || true
+                    command -v cmd >/dev/null 2>&1 && cmd notification post -t 字域 ziyu-mix "字体组合已准备，请完整重启手机。" >/dev/null 2>&1 || true
                 fi
             else
                 _rc=$?; _finished=$(date +%s)

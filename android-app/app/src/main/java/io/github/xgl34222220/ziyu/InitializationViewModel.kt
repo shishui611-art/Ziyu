@@ -77,7 +77,7 @@ private val ROOT_AND_MODULE_PROBE = """
     fi
     if [ -f "${'$'}module_dir/common/root_manager_detection.sh" ]; then
         . "${'$'}module_dir/common/root_manager_detection.sh"
-        luoshu_detect_root_manager >/dev/null 2>&1 || true
+        ziyu_detect_root_manager >/dev/null 2>&1 || true
         root_manager="${'$'}{ROOT_MANAGER:-unknown}"
     else
         # First install has no module copy of the shared detector yet. Mirror its

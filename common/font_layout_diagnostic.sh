@@ -5,7 +5,7 @@ if [ -z "$MODDIR" ]; then
     MODDIR="$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)"
 fi
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 [ -x "$PYBIN" ] && [ -f "$MODDIR/common/font_layout_diagnostic.py" ] || {
     printf '%s\n' 'font-layout-diagnostic-runtime-unavailable' >&2
     exit 1

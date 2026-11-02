@@ -1,12 +1,12 @@
 #!/system/bin/sh
-# LuoShu v2.2 per-device slot-plan wrapper.
+# Ziyu v2.2 per-device slot-plan wrapper.
 # This stage is read-only with respect to Android: it creates a plan for the selected
 # source font but does not change the active systemless font payload.
 set +e
 
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 PYROOT="$MODDIR/common/python"
-PYTHON="$PYROOT/bin/luoshu-python"
+PYTHON="$PYROOT/bin/ziyu-python"
 PLANNER="$MODDIR/common/device_font_slot_plan.py"
 TEMPLATE_HELPER="$MODDIR/common/device_font_template.sh"
 TEMPLATE="$MODDIR/config/device-font-template.json"
@@ -14,8 +14,8 @@ OUT="$MODDIR/config/active-font-slot-plan.json"
 KEY="$MODDIR/config/active-font-slot-plan.key"
 LOG="$MODDIR/logs/device-font-slot-plan.log"
 LOCK="$MODDIR/.device-font-slot-plan.lock"
-PLAN_TIMEOUT_SECONDS="${LUOSHU_SLOT_PLAN_TIMEOUT_SECONDS:-180}"
-PLAN_NICE_LEVEL="${LUOSHU_SLOT_PLAN_NICE_LEVEL:-10}"
+PLAN_TIMEOUT_SECONDS="${ZIYU_SLOT_PLAN_TIMEOUT_SECONDS:-180}"
+PLAN_NICE_LEVEL="${ZIYU_SLOT_PLAN_NICE_LEVEL:-10}"
 case "$PLAN_TIMEOUT_SECONDS" in ''|*[!0-9]*) PLAN_TIMEOUT_SECONDS=180 ;; esac
 [ "$PLAN_TIMEOUT_SECONDS" -ge 30 ] 2>/dev/null || PLAN_TIMEOUT_SECONDS=30
 [ "$PLAN_TIMEOUT_SECONDS" -le 600 ] 2>/dev/null || PLAN_TIMEOUT_SECONDS=600

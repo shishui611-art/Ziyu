@@ -1,4 +1,4 @@
-# LuoShu module layout
+# Ziyu module layout
 
 The repository contains Android App sources, CI/tests and release automation, but the flashed module is intentionally smaller.
 
@@ -7,7 +7,7 @@ The repository contains Android App sources, CI/tests and release automation, bu
 Only Root-manager entry points and user-facing metadata live at the ZIP root:
 
 ```text
-LuoShu/
+Ziyu/
 ├── module.prop
 ├── customize.sh
 ├── post-fs-data.sh
@@ -17,7 +17,7 @@ LuoShu/
 ├── action.sh
 ├── uninstall.sh
 ├── common/
-├── .luoshu-runtime/
+├── .ziyu-runtime/
 ├── system/
 ├── config/
 ├── bundled/
@@ -30,7 +30,7 @@ Version-suffixed implementation files must not return to the root. The root scri
 ## Internal runtime
 
 ```text
-.luoshu-runtime/
+.ziyu-runtime/
 ├── core/
 │   ├── post-fs-data.sh
 │   ├── post-mount.sh

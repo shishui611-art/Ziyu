@@ -80,10 +80,10 @@ _zbg_app_rom_check_locked() (
         _arm_reply deferred 'ROM 读取结果暂不稳定，本次未启动扫描'; return
     fi
     . "$MODDIR/common/font_switch_lock.sh" || return 1
-    if ! luoshu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$"; then
+    if ! ziyu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$"; then
         _arm_reply deferred '字体切换正在进行，本次未修改 ROM 基准或启动扫描'; return
     fi
-    trap 'luoshu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    trap 'ziyu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
     if [ "${_arm_pending%%\|*}" = 1 ] && _zbg_stock_scan_trusted "$MODDIR" && ! _arm_has_receipt "$_arm_rom"; then
         if [ -s "$MODDIR/config/device_font_topology.json" ]; then
             _zbg_set_scan_complete "$MODDIR" "$_arm_rom" || return 1

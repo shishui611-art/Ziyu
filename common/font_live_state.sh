@@ -1,5 +1,14 @@
 #!/system/bin/sh
 # Read-only current-boot runtime pointer. Builders continue using canonical payload.
+# An installer can load this newer reader while inspecting an older module
+# which does not contain legacy_identity.sh. Reuse the helper already loaded
+# by the installer rather than resolving a code dependency inside old data.
+if ! type ziyu_legacy_path >/dev/null 2>&1 || \
+   ! type ziyu_legacy_schema >/dev/null 2>&1 || \
+   ! type ziyu_legacy_source_allowed >/dev/null 2>&1 || \
+   ! type ziyu_legacy_work_allowed >/dev/null 2>&1; then
+    . "${MODPATH:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh" || return 1
+fi
 _ZIYU_LIVE_CR="$(printf '\r')"
 ziyu_live_value() {
     [ -r "$1" ] || return 0
@@ -12,12 +21,13 @@ ziyu_live_value() {
                 *) break ;;
             esac
         done
-        printf '%s' "$_zlv_value"
+        if [ "$2" = schema ]; then ziyu_legacy_schema "$_zlv_value"
+        else printf '%s' "$_zlv_value"; fi
         return 0
     done < "$1"
 }
 ziyu_live_current() {
-    _zlc_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
+    _zlc_module="${MODPATH:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}"
     _zlc_file="$_zlc_module/config/font-live.conf"
     _zlc_schema=''; _zlc_state=''; _zlc_saved_boot=''; _zlc_source=''; _zlc_root=''; _zlc_font=''
     _zlc_seen=''
@@ -45,9 +55,12 @@ ziyu_live_current() {
     _zlc_boot=''
     IFS= read -r _zlc_boot < /proc/sys/kernel/random/boot_id || [ -n "$_zlc_boot" ] || return 1
     [ -n "$_zlc_boot" ] && [ "$_zlc_saved_boot" = "$_zlc_boot" ] || return 1
-    case "$_zlc_source" in "$_zlc_module/.luoshu-payload"|"$_zlc_module/.luoshu-state/cache/live/$_zlc_boot/"generation-*) ;; *) return 1 ;; esac
+    case "$_zlc_source" in
+        "$_zlc_module/.ziyu-payload"|"$_zlc_module/.ziyu-state/cache/live/$_zlc_boot/"generation-*) ;;
+        *) ziyu_legacy_source_allowed "$_zlc_source" "$_zlc_module" "$_zlc_boot" || return 1 ;;
+    esac
     case "$_zlc_source/$_zlc_root" in *'/../'*|*'/./'*) return 1 ;; esac
-    case "$_zlc_root" in /data/adb/luoshu/live-mount/"$_zlc_boot".*) ;; *) return 1 ;; esac
+    case "$_zlc_root" in /data/adb/ziyu/live-mount/"$_zlc_boot".*) ;; *) ziyu_legacy_work_allowed "$_zlc_root" "$_zlc_boot" || return 1 ;; esac
     [ -d "$_zlc_source" ] && [ ! -L "$_zlc_source" ] && [ -d "$_zlc_root" ] && [ ! -L "$_zlc_root" ] || return 1
     _zlc_work_boot=''
     [ -r "$_zlc_root/boot-id" ] || return 1
@@ -71,11 +84,11 @@ ziyu_live_font() { ziyu_live_current && printf '%s' "$_zlc_font"; }
 # A published next-boot payload can outlive a lost reboot marker. Recognize it
 # only when selection, transaction id and the private payload marker agree.
 ziyu_pending_physical() (
-    _zpp_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
+    _zpp_module="${1:-${MODPATH:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}}"
     MODULE_DIR="$_zpp_module"; MODDIR="$_zpp_module"
     _zpp_state="$_zpp_module/config/font-payload-next.conf"
-    _zpp_root="$_zpp_module/.luoshu-payload-next"
-    _zpp_marker="$_zpp_root/.luoshu-next-transaction.conf"
+    _zpp_root=$(ziyu_legacy_path "$_zpp_module/.ziyu-payload-next")
+    _zpp_marker=$(ziyu_legacy_path "$_zpp_root/.ziyu-next-transaction.conf")
     [ -d "$_zpp_root" ] && [ ! -L "$_zpp_root" ] && [ -f "$_zpp_state" ] && [ ! -L "$_zpp_state" ] &&
         [ -f "$_zpp_marker" ] && [ ! -L "$_zpp_marker" ] || return 1
     [ "$(ziyu_live_value "$_zpp_state" state)" = prepared ] || return 1
@@ -83,7 +96,7 @@ ziyu_pending_physical() (
     _zpp_request=$(ziyu_live_value "$_zpp_state" requestId)
     [ -n "$_zpp_font" ] && [ -n "$_zpp_request" ] &&
         [ "$_zpp_font" = "$(head -n1 "$_zpp_module/config/active_font.conf" | tr -d '\r\n')" ] &&
-        [ "$(ziyu_live_value "$_zpp_marker" schema)" = luoshu-next-payload-v1 ] &&
+        [ "$(ziyu_live_value "$_zpp_marker" schema)" = ziyu-next-payload-v1 ] &&
         [ "$(ziyu_live_value "$_zpp_marker" font)" = "$_zpp_font" ] &&
         [ "$(ziyu_live_value "$_zpp_marker" requestId)" = "$_zpp_request" ] || return 1
     if ziyu_live_current && [ "$_zlc_font" = "$_zpp_font" ] &&
@@ -96,7 +109,7 @@ ziyu_pending_physical() (
 # active_font.conf is the user's selection and may already name the next queue.
 # Verification must identify the payload being checked, including restore-default.
 ziyu_current_payload_font() {
-    _zcpf_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
+    _zcpf_module="${1:-${MODPATH:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}}"
     ziyu_live_font && return 0
     for _zcpf_pending in "$_zcpf_module/config/font-payload-next.conf" "$_zcpf_module/config/universal-font-next.conf"; do
         [ -s "$_zcpf_pending" ] || continue

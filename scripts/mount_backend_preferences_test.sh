@@ -13,31 +13,31 @@ BOOT=provider-first-test-boot
 MOD=''
 make_module() {
   MOD="$1"
-  mkdir -p "$MOD/config" "$MOD/logs" "$MOD/common" "$MOD/.luoshu-payload/system/fonts"
+  mkdir -p "$MOD/config" "$MOD/logs" "$MOD/common" "$MOD/.ziyu-payload/system/fonts"
   cp "$ROOT/common/mount_backend_details.sh" "$MOD/common/"
-  printf 'id=LuoShu\nversion=test\nversionCode=1\n' > "$MOD/module.prop"
+  printf 'id=Ziyu\nversion=test\nversionCode=1\n' > "$MOD/module.prop"
   printf 'DemoFont\n' > "$MOD/config/active_font.conf"
-  printf 'fixture-font\n' > "$MOD/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+  printf 'fixture-font\n' > "$MOD/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 }
 
 hook() {
   local stage="$1" provider_state="$2" provider_id="$3" verify="$4" engine=none
   [[ "$provider_id" == hybrid-mount ]] && engine=hybrid-mount
   MODDIR="$MOD" MODULE_DIR="$MOD" \
-  LUOSHU_BACKEND_TEST_MODE=1 \
-  LUOSHU_BACKEND_TEST_BOOT_ID="$BOOT" \
-  LUOSHU_BACKEND_TEST_MANAGER=KernelSU \
-  LUOSHU_BACKEND_TEST_META_ENGINE="$engine" \
-  LUOSHU_BACKEND_TEST_PROVIDER_STATE="$provider_state" \
-  LUOSHU_BACKEND_TEST_PROVIDER_ID="$provider_id" \
-  LUOSHU_BACKEND_TEST_PROVIDER_LAYOUT=nested-system \
-  LUOSHU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
-  LUOSHU_BACKEND_TEST_SELF_VERIFY_RESULT=pass \
-  bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
+  ZIYU_BACKEND_TEST_MODE=1 \
+  ZIYU_BACKEND_TEST_BOOT_ID="$BOOT" \
+  ZIYU_BACKEND_TEST_MANAGER=KernelSU \
+  ZIYU_BACKEND_TEST_META_ENGINE="$engine" \
+  ZIYU_BACKEND_TEST_PROVIDER_STATE="$provider_state" \
+  ZIYU_BACKEND_TEST_PROVIDER_ID="$provider_id" \
+  ZIYU_BACKEND_TEST_PROVIDER_LAYOUT=nested-system \
+  ZIYU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
+  ZIYU_BACKEND_TEST_SELF_VERIFY_RESULT=pass \
+  bash -c '. "$1/common/mount_backend_runtime.sh"; ziyu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
 }
 
 pref() {
-  MODDIR="$MOD" LUOSHU_BACKEND_TEST_BOOT_ID="$BOOT" \
+  MODDIR="$MOD" ZIYU_BACKEND_TEST_BOOT_ID="$BOOT" \
     sh "$ROOT/common/mount_backend_preferences.sh" "$@"
 }
 

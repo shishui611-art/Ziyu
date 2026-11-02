@@ -3,20 +3,20 @@
 # Loaded after rom_adapters.sh so it can replace the legacy system-only copy_as_coloros().
 set +e
 
-_luoshu_coloros_module_dir() {
+_ziyu_coloros_module_dir() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 # real font directory | matching module overlay directory
-_luoshu_coloros_root_pairs() {
-    _lcg_module="$(_luoshu_coloros_module_dir)"
-    printf '%s|%s/system/fonts\n' "${LUOSHU_COLOROS_SYSTEM_FONTS_ROOT:-${LUOSHU_SYSTEM_FONTS_ROOT:-/system/fonts}}" "$_lcg_module"
-    printf '%s|%s/system_ext/fonts\n' "${LUOSHU_COLOROS_SYSTEM_EXT_FONTS_ROOT:-${LUOSHU_SYSTEM_EXT_FONTS_ROOT:-/system_ext/fonts}}" "$_lcg_module"
-    printf '%s|%s/product/fonts\n' "${LUOSHU_COLOROS_PRODUCT_FONTS_ROOT:-${LUOSHU_PRODUCT_FONTS_ROOT:-/product/fonts}}" "$_lcg_module"
+_ziyu_coloros_root_pairs() {
+    _lcg_module="$(_ziyu_coloros_module_dir)"
+    printf '%s|%s/system/fonts\n' "${ZIYU_COLOROS_SYSTEM_FONTS_ROOT:-${ZIYU_SYSTEM_FONTS_ROOT:-/system/fonts}}" "$_lcg_module"
+    printf '%s|%s/system_ext/fonts\n' "${ZIYU_COLOROS_SYSTEM_EXT_FONTS_ROOT:-${ZIYU_SYSTEM_EXT_FONTS_ROOT:-/system_ext/fonts}}" "$_lcg_module"
+    printf '%s|%s/product/fonts\n' "${ZIYU_COLOROS_PRODUCT_FONTS_ROOT:-${ZIYU_PRODUCT_FONTS_ROOT:-/product/fonts}}" "$_lcg_module"
 }
 
 _coloros_osans_digits_enabled() {
-    _lcg_module="$(_luoshu_coloros_module_dir)"
+    _lcg_module="$(_ziyu_coloros_module_dir)"
     _lcg_enabled=1
     _lcg_groups="$_lcg_module/config/coloros_slot_groups.conf"
     if [ -r "$_lcg_groups" ]; then
@@ -85,9 +85,9 @@ _coloros_discovered_ui_files() {
                     ;;
             esac
         done
-    done <<EOF_LUOSHU_COLOROS_DISCOVERY
-$(_luoshu_coloros_root_pairs)
-EOF_LUOSHU_COLOROS_DISCOVERY
+    done <<EOF_ZIYU_COLOROS_DISCOVERY
+$(_ziyu_coloros_root_pairs)
+EOF_ZIYU_COLOROS_DISCOVERY
 }
 
 # Enumerate OSans digit pathnames regardless of the current toggle so a later
@@ -100,9 +100,9 @@ _coloros_osans_digit_files() {
             [ -d "$_lcg_path" ] && continue
             printf '%s\n' "${_lcg_path##*/}"
         done
-    done <<EOF_LUOSHU_COLOROS_DIGITS
-$(_luoshu_coloros_root_pairs)
-EOF_LUOSHU_COLOROS_DIGITS
+    done <<EOF_ZIYU_COLOROS_DIGITS
+$(_ziyu_coloros_root_pairs)
+EOF_ZIYU_COLOROS_DIGITS
 }
 
 _coloros_remove_digit_overlays() {
@@ -110,9 +110,9 @@ _coloros_remove_digit_overlays() {
         while IFS='|' read -r _lcg_real _lcg_overlay; do
             [ -n "$_lcg_overlay" ] || continue
             rm -f "$_lcg_overlay/$_lcg_file" 2>/dev/null || true
-        done <<EOF_LUOSHU_COLOROS_DIGIT_OVERLAYS
-$(_luoshu_coloros_root_pairs)
-EOF_LUOSHU_COLOROS_DIGIT_OVERLAYS
+        done <<EOF_ZIYU_COLOROS_DIGIT_OVERLAYS
+$(_ziyu_coloros_root_pairs)
+EOF_ZIYU_COLOROS_DIGIT_OVERLAYS
     done
 }
 
@@ -176,9 +176,9 @@ _coloros_remove_overlay_file() {
     while IFS='|' read -r _lcg_real _lcg_overlay; do
         [ -n "$_lcg_overlay" ] || continue
         rm -f "$_lcg_overlay/$_lcg_file" 2>/dev/null || true
-    done <<EOF_LUOSHU_COLOROS_ROOTS
-$(_luoshu_coloros_root_pairs)
-EOF_LUOSHU_COLOROS_ROOTS
+    done <<EOF_ZIYU_COLOROS_ROOTS
+$(_ziyu_coloros_root_pairs)
+EOF_ZIYU_COLOROS_ROOTS
 }
 
 _coloros_alias_existing_targets() {
@@ -198,9 +198,9 @@ _coloros_alias_existing_targets() {
             fi
             _lcg_count=$((_lcg_count + 1))
         fi
-    done <<EOF_LUOSHU_COLOROS_ROOTS
-$(_luoshu_coloros_root_pairs)
-EOF_LUOSHU_COLOROS_ROOTS
+    done <<EOF_ZIYU_COLOROS_ROOTS
+$(_ziyu_coloros_root_pairs)
+EOF_ZIYU_COLOROS_ROOTS
     printf '%s\n' "$_lcg_count"
 }
 
@@ -216,7 +216,7 @@ _coloros_anchor_for_file() {
         *",$_lcg_role,"*)
             _lcg_source=$(get_weight_file "$_lcg_family" "$_lcg_role" 2>/dev/null)
             if [ -f "$_lcg_source" ]; then
-                _lcg_anchor="$_lcg_store/.luoshu-font-store/${_lcg_role}.font"
+                _lcg_anchor="$_lcg_store/.ziyu-font-store/${_lcg_role}.font"
                 if [ ! -s "$_lcg_anchor" ]; then
                     _lcg_anchor=$(_font_anchor "$_lcg_source" "$_lcg_store" "$_lcg_role") || {
                         printf '%s\n' "$_lcg_regular_anchor"
@@ -236,7 +236,7 @@ copy_as_coloros() {
     _lcg_dest_dir="$2"
     _lcg_mode="${3:-full}"
     _lcg_family="${4:-}"
-    _lcg_module="$(_luoshu_coloros_module_dir)"
+    _lcg_module="$(_ziyu_coloros_module_dir)"
     [ -n "$_lcg_family" ] || _lcg_family=$(detect_font_family "$(basename "$_lcg_src")")
     _lcg_regular=$(_coloros_pick_regular_source "$_lcg_family" "$_lcg_src") || return 1
 

@@ -19,12 +19,12 @@ STATE_FILE="$MODDIR/config/device-font-load-verification.conf"
 
 [ -f "$BACKGROUND_TASK" ] && . "$BACKGROUND_TASK"
 
-BOOT_WAIT_LIMIT="${LUOSHU_BOOT_VERIFY_BOOT_WAIT_LIMIT:-600}"
-SETTLE_SECONDS="${LUOSHU_BOOT_VERIFY_SETTLE_SECONDS:-30}"
-IDLE_WAIT_LIMIT="${LUOSHU_BOOT_VERIFY_IDLE_WAIT_LIMIT:-300}"
-POLL_SECONDS="${LUOSHU_BOOT_VERIFY_POLL_SECONDS:-3}"
-RETRY_LIMIT="${LUOSHU_BOOT_VERIFY_RETRY_LIMIT:-3}"
-RETRY_DELAY="${LUOSHU_BOOT_VERIFY_RETRY_DELAY:-15}"
+BOOT_WAIT_LIMIT="${ZIYU_BOOT_VERIFY_BOOT_WAIT_LIMIT:-600}"
+SETTLE_SECONDS="${ZIYU_BOOT_VERIFY_SETTLE_SECONDS:-30}"
+IDLE_WAIT_LIMIT="${ZIYU_BOOT_VERIFY_IDLE_WAIT_LIMIT:-300}"
+POLL_SECONDS="${ZIYU_BOOT_VERIFY_POLL_SECONDS:-3}"
+RETRY_LIMIT="${ZIYU_BOOT_VERIFY_RETRY_LIMIT:-3}"
+RETRY_DELAY="${ZIYU_BOOT_VERIFY_RETRY_DELAY:-15}"
 for _numeric_name in BOOT_WAIT_LIMIT SETTLE_SECONDS IDLE_WAIT_LIMIT POLL_SECONDS RETRY_LIMIT RETRY_DELAY; do
     eval "_numeric_value=\${$_numeric_name}"
     case "$_numeric_value" in ''|*[!0-9]*) eval "$_numeric_name=0" ;; esac
@@ -54,8 +54,8 @@ _boot_verify_write_pending() {
 }
 
 _boot_verify_busy() {
-    if type luoshu_font_lock_busy >/dev/null 2>&1; then
-        luoshu_font_lock_busy "$MODDIR/.font_switch.lock" && return 0
+    if type ziyu_font_lock_busy >/dev/null 2>&1; then
+        ziyu_font_lock_busy "$MODDIR/.font_switch.lock" && return 0
     else
         [ -e "$MODDIR/.font_switch.lock" ] && return 0
     fi
@@ -79,7 +79,7 @@ _boot_verify_wait_idle() {
 
 _boot_verify_finish() {
     _task="$1"
-    type luoshu_clear_task_pid >/dev/null 2>&1 && luoshu_clear_task_pid "$PID_FILE" "$_task"
+    type ziyu_clear_task_pid >/dev/null 2>&1 && ziyu_clear_task_pid "$PID_FILE" "$_task"
 }
 
 _boot_verify_guard_action() {
@@ -185,8 +185,8 @@ _boot_verify_schedule() {
     [ -n "$_boot_id" ] || _boot_id=$(date +%s 2>/dev/null || echo boot)
     _task="boot-verify-$_boot_id"
 
-    if type luoshu_start_detached >/dev/null 2>&1; then
-        luoshu_start_detached "$PID_FILE" "$_task" "$LOG_FILE" sh "$0" run "$_task"
+    if type ziyu_start_detached >/dev/null 2>&1; then
+        ziyu_start_detached "$PID_FILE" "$_task" "$LOG_FILE" sh "$0" run "$_task"
         _rc=$?
         [ "$_rc" -eq 3 ] && return 0
         return "$_rc"

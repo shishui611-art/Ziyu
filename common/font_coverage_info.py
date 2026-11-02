@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report practical glyph coverage and a user-facing missing-glyph map for LuoShu."""
+"""Report practical glyph coverage and a user-facing missing-glyph map for Ziyu."""
 from __future__ import annotations
 
 import json

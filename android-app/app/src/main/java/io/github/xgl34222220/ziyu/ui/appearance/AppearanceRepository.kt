@@ -35,6 +35,7 @@ class AppearanceRepository(private val context: Context) {
         val glassEnabled = booleanPreferencesKey("theme_glass_enabled")
         val floatingDock = booleanPreferencesKey("theme_floating_dock")
         val backgroundPath = stringPreferencesKey("background_path")
+        val cardTransparency = intPreferencesKey("card_transparency")
         val highRefreshRate = booleanPreferencesKey("display_high_refresh_rate")
         val predictiveBack = booleanPreferencesKey("predictive_back")
     }
@@ -58,6 +59,7 @@ class AppearanceRepository(private val context: Context) {
                 highRefreshRate = preferences[Keys.highRefreshRate] ?: false,
                 predictiveBack = preferences[Keys.predictiveBack] ?: true,
                 backgroundPath = preferences[Keys.backgroundPath].orEmpty(),
+                cardTransparency = preferences[Keys.cardTransparency] ?: 0,
             ).normalized()
         }
 
@@ -86,6 +88,7 @@ class AppearanceRepository(private val context: Context) {
         it[Keys.amoledBlack] = black
     }
     suspend fun setPredictiveBack(enabled: Boolean) = edit { it[Keys.predictiveBack] = enabled }
+    suspend fun setCardTransparency(value: Int) = edit { it[Keys.cardTransparency] = value.coerceIn(0, 100) }
     suspend fun setKolorStyle(value: KolorStyle) = edit { it[Keys.kolorStyle] = value.name }
     suspend fun setColorStandard(value: ColorStandard) = edit { it[Keys.colorStandard] = value.name }
     suspend fun setMonetEnabled(enabled: Boolean) = edit { it[Keys.monetEnabled] = enabled }

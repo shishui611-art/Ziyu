@@ -22,14 +22,14 @@ def _clean_family(value: str) -> str:
 
 def _postscript(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-.")
-    return (cleaned or "LuoShuFont")[:63]
+    return (cleaned or "ZiyuFont")[:63]
 
 
 def target_family_identity(slot: dict[str, Any]) -> tuple[str, str, str, str]:
     # The external Android XML owns family selection. A deterministic internal identity lets slots
     # with the same weight/metric/role contract share one generated font safely and dramatically
     # reduces full-outline rewrites on OEM ROMs with many alias families.
-    family = "LuoShu System"
+    family = "Ziyu System"
     try:
         weight = int(slot.get("weight") or 400)
     except (TypeError, ValueError):
@@ -41,7 +41,7 @@ def target_family_identity(slot: dict[str, Any]) -> tuple[str, str, str, str]:
     legacy_style = "Bold Italic" if italic and nearest >= 700 else (
         "Italic" if italic else ("Bold" if nearest >= 700 else "Regular")
     )
-    postscript = _postscript(f"LuoShuSystem-{typographic_style}")
+    postscript = _postscript(f"ZiyuSystem-{typographic_style}")
     return family, legacy_style, typographic_style, postscript
 
 
@@ -50,7 +50,7 @@ def set_slot_identity(font: Any, slot: dict[str, Any]) -> None:
         return
     family, legacy_style, typographic_style, postscript = target_family_identity(slot)
     full_name = f"{family} {typographic_style}".strip()
-    unique_id = _postscript(f"LuoShu-v2.4.0-{postscript}")
+    unique_id = _postscript(f"Ziyu-v2.4.0-{postscript}")
     table = font["name"]
     values = {
         1: family,

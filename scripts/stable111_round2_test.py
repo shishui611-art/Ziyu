@@ -51,12 +51,12 @@ class Round2(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name); self.module=self.root/'module'
-        self.stage=self.module/'.luoshu-payload-next'; self.fonts=self.stage/'system/fonts'
+        self.stage=self.module/'.ziyu-payload-next'; self.fonts=self.stage/'system/fonts'
         self.fonts.mkdir(parents=True); (self.module/'config').mkdir()
-        self.slots={}; self.env={'LUOSHU_BUILD_KEY':'round2'}
+        self.slots={}; self.env={'ZIYU_BUILD_KEY':'round2'}
         for part in batch.PARTS:
             root=self.root/'stock'/part; root.mkdir(parents=True)
-            self.env[f'LUOSHU_{part.upper()}_FONTS_ROOT']=str(root)
+            self.env[f'ZIYU_{part.upper()}_FONTS_ROOT']=str(root)
         context=patch.dict(os.environ,self.env);context.start();self.addCleanup(context.stop)
         make_font(self.fonts/'400.ttf')
         self.stock('MiSansVF.ttf')
@@ -79,7 +79,7 @@ class Round2(unittest.TestCase):
     def build(self,names=None):
         self.save_inventory()
         result=batch.build(self.module,self.stage,names or ['MiSansVF.ttf'])
-        self.report=json.loads((self.stage/'.luoshu-metrics-report.json').read_text())
+        self.report=json.loads((self.stage/'.ziyu-metrics-report.json').read_text())
         self.by_slot={s['slot']:s for s in self.report['slots']}
         return result
 
@@ -93,7 +93,7 @@ class Round2(unittest.TestCase):
         for name in names:
             self.assertFalse((self.fonts/name).exists())
             self.assertEqual((self.root/'stock/system'/name).read_bytes(),original[name])
-            self.assertIn('/system/fonts/'+name,(self.stage/'.luoshu-stock-preserved.paths').read_text())
+            self.assertIn('/system/fonts/'+name,(self.stage/'.ziyu-stock-preserved.paths').read_text())
 
     def test_mono_xml_role_protects_unusual_filename(self):
         self.stock('VendorTerminal.ttf',family='monospace')
@@ -204,7 +204,7 @@ class Round2(unittest.TestCase):
         self.assertEqual(weights.requested_weight({'slots':self.slots},'/system/fonts/Roboto-ExtraBold.ttf'),800)
 
     def test_legacy_family_anchor_used_for_new_bold_clock_target(self):
-        store=self.fonts/'.luoshu-font-store';store.mkdir()
+        store=self.fonts/'.ziyu-font-store';store.mkdir()
         make_font(store/'bold.font')
         with TTFont(store/'bold.font') as font:
             font['OS/2'].usWeightClass=700;font.save(store/'bold.font')
@@ -229,14 +229,14 @@ class Round2(unittest.TestCase):
         with patch.object(weights,'prepare',wraps=weights.prepare) as prep:
             self.build(['MiSansVF.ttf','Roboto-Bold.ttf'])
             self.assertEqual(sum(call.args[2]==700 for call in prep.call_args_list),1)
-        self.assertFalse(list((self.fonts/'.luoshu-font-store').glob('hyperos-metrics-*')))
+        self.assertFalse(list((self.fonts/'.ziyu-font-store').glob('hyperos-metrics-*')))
 
     def test_failed_weight_preparation_removes_workdir_and_preserves_source(self):
         source=self.fonts/'400.ttf';before=source.read_bytes();self.save_inventory()
         with patch.object(weights,'prepare',side_effect=ValueError('bad axis')):
             with self.assertRaisesRegex(ValueError,'bad axis'):batch.build(self.module,self.stage,['MiSansVF.ttf'])
         self.assertEqual(source.read_bytes(),before)
-        self.assertFalse(list((self.fonts/'.luoshu-font-store').glob('hyperos-metrics-*')))
+        self.assertFalse(list((self.fonts/'.ziyu-font-store').glob('hyperos-metrics-*')))
 
     def test_cleanup_is_idempotent_on_every_partition(self):
         for part in ('system','product','vendor'):
@@ -252,10 +252,10 @@ class Round2(unittest.TestCase):
     def test_boot_repair_does_not_recreate_protected_named_ui_alias(self):
         name='Roboto-Regular.ttf';self.stock(name,family='monospace');make_font(self.fonts/name)
         self.build(['MiSansVF.ttf',name]);self.assertFalse((self.fonts/name).exists())
-        env={**os.environ,'IS_HYPEROS':'true','LUOSHU_REAL_MODDIR':str(self.module),
-             'LUOSHU_HYPEROS_CLOCK_PAYLOAD_ROOT':str(self.stage)}
+        env={**os.environ,'IS_HYPEROS':'true','ZIYU_REAL_MODDIR':str(self.module),
+             'ZIYU_HYPEROS_CLOCK_PAYLOAD_ROOT':str(self.stage)}
         helper=ROOT/'common/legacy_v14_4/hyperos_clock_compat.sh'
-        subprocess.run(['sh','-c','. "$1"; luoshu_hyperos_clock_payload_ensure','sh',str(helper)],env=env,check=True)
+        subprocess.run(['sh','-c','. "$1"; ziyu_hyperos_clock_payload_ensure','sh',str(helper)],env=env,check=True)
         self.assertFalse((self.fonts/name).exists())
 
     def test_mono_xml_retains_index_axes_and_alias_graph(self):
@@ -280,7 +280,7 @@ class Round2(unittest.TestCase):
         self.assertFalse(valid_coverage(metrics['coverage']))
 
     def test_cleanup_refuses_live_descendant_and_external_font_symlink(self):
-        live=self.module/'.luoshu-payload';(live/'nested').mkdir(parents=True)
+        live=self.module/'.ziyu-payload';(live/'nested').mkdir(parents=True)
         for target in (self.module,live,live/'nested'):
             with self.assertRaises(ValueError):policy.cleanup(self.module,target)
         external=self.root/'external';external.mkdir()
@@ -309,11 +309,11 @@ class Round2(unittest.TestCase):
     def test_legacy_weight_finalizer_no_longer_generates_monospace(self):
         donor=self.fonts/'400.ttf'; make_font(donor, tuple(range(32,127)))
         script = '. "$1/common/font_config_weights.sh"; . "$1/common/font_finalize_hotfix.sh"; '
-        script += '_luoshu_config_weight_source() { printf "%s\\n" "$DONOR"; }; '
+        script += '_ziyu_config_weight_source() { printf "%s\\n" "$DONOR"; }; '
         # This regression covers the legacy XML backend's weight/mono policy only. The production
         # fast-link helper also needs the App-provided font-space runtime, so model that transform
         # with a copy in this isolated shell fixture.
-        script += '_luoshu_fast_link_font() { cp -f "$1" "$2"; }; '
+        script += '_ziyu_fast_link_font() { cp -f "$1" "$2"; }; '
         script += 'is_variable_font() { return 1; }; font_config_prepare_payload_weights'
         env={**os.environ,'DONOR':str(donor),'MODULE_DIR':str(self.module),'MODDIR':str(self.module)}
         # The preserved XML backend uses module/system/fonts, separate from the
@@ -321,19 +321,19 @@ class Round2(unittest.TestCase):
         result=subprocess.run(['sh','-c',script,'test',str(ROOT)],env=env,capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)
         generated=self.module/'system/fonts'
-        self.assertEqual(len(list(generated.glob('LuoShu-*.ttf'))),9)
-        self.assertEqual(list(generated.glob('LuoShuMono-*.ttf')),[])
+        self.assertEqual(len(list(generated.glob('Ziyu-*.ttf'))),9)
+        self.assertEqual(list(generated.glob('ZiyuMono-*.ttf')),[])
 
     def test_new_stage_drops_previous_payload_role_sidecars(self):
         source=(ROOT/'common/legacy_v14_4/font_switch_safe.sh').read_text()
         function=source.split('stage_clear_text_payload() {',1)[1].split('\n}\n',1)[0]
-        for name in ['.luoshu-stock-preserved.paths','.luoshu-font-role-report.json','.luoshu-metrics-report.json']:
+        for name in ['.ziyu-stock-preserved.paths','.ziyu-font-role-report.json','.ziyu-metrics-report.json']:
             (self.stage/name).write_text('previous font metadata')
         command='safe_partition_list() { echo system; }; stage_clear_text_payload() {'+function+'\n}; stage_clear_text_payload'
         result=subprocess.run(['sh','-c',command],env={**os.environ,'STAGE_PAYLOAD':str(self.stage)},capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertFalse((self.stage/'.luoshu-stock-preserved.paths').exists())
-        self.assertFalse((self.stage/'.luoshu-metrics-report.json').exists())
+        self.assertFalse((self.stage/'.ziyu-stock-preserved.paths').exists())
+        self.assertFalse((self.stage/'.ziyu-metrics-report.json').exists())
         self.assertTrue(self.fonts.is_dir())
 
 if __name__=='__main__':unittest.main()

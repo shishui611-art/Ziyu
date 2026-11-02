@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书原生 App 字体管理后端：字体索引、校验、切换与删除；保留字体自身多字重。
+# 字域原生 App 字体管理后端：字体索引、校验、切换与删除；保留字体自身多字重。
 set +e
 
 MODDIR="${MODDIR:-}"
@@ -18,9 +18,9 @@ ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
-USER_FONTS_DIR="$LUOSHU_PUBLIC_DIR/fonts"
-USER_REPORT_DIR="$LUOSHU_PUBLIC_DIR/reports"
+ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
+USER_FONTS_DIR="$ZIYU_PUBLIC_DIR/fonts"
+USER_REPORT_DIR="$ZIYU_PUBLIC_DIR/reports"
 LEGACY_FONTS_DIR="/sdcard/Fonts"
 TEXT_REBOOT_REQUIRED="$CONFIG_DIR/text_reboot_required.conf"
 SWITCH_TASK_FILE="$CONFIG_DIR/switch_task.conf"
@@ -52,22 +52,22 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
 }
 
-luoshu_switch_perf_begin() {
-    LUOSHU_SWITCH_PERF_START="$(date +%s 2>/dev/null || echo 0)"
-    LUOSHU_SWITCH_PERF_MARK="$LUOSHU_SWITCH_PERF_START"
+ziyu_switch_perf_begin() {
+    ZIYU_SWITCH_PERF_START="$(date +%s 2>/dev/null || echo 0)"
+    ZIYU_SWITCH_PERF_MARK="$ZIYU_SWITCH_PERF_START"
 }
 
-luoshu_switch_perf_mark() {
+ziyu_switch_perf_mark() {
     _lsp_stage="$1"
     _lsp_now="$(date +%s 2>/dev/null || echo 0)"
-    case "$LUOSHU_SWITCH_PERF_START:$LUOSHU_SWITCH_PERF_MARK:$_lsp_now" in
+    case "$ZIYU_SWITCH_PERF_START:$ZIYU_SWITCH_PERF_MARK:$_lsp_now" in
         *[!0-9:]*|'') return 0 ;;
     esac
-    _lsp_stage_seconds=$((_lsp_now - LUOSHU_SWITCH_PERF_MARK))
-    _lsp_total_seconds=$((_lsp_now - LUOSHU_SWITCH_PERF_START))
+    _lsp_stage_seconds=$((_lsp_now - ZIYU_SWITCH_PERF_MARK))
+    _lsp_total_seconds=$((_lsp_now - ZIYU_SWITCH_PERF_START))
     printf '[PERF] switch stage=%s stageSeconds=%s totalSeconds=%s
 '         "$_lsp_stage" "$_lsp_stage_seconds" "$_lsp_total_seconds"
-    LUOSHU_SWITCH_PERF_MARK="$_lsp_now"
+    ZIYU_SWITCH_PERF_MARK="$_lsp_now"
 }
 
 format_filesize() {
@@ -183,7 +183,7 @@ clear_managed_text_fonts() {
             [ -d "$_fmt_etc" ] || continue
             for _fmt_xml in "$_fmt_etc"/*.xml; do
                 [ -f "$_fmt_xml" ] || continue
-                grep -Eq 'LuoShu(Mono)?-|LuoShuSlot-' "$_fmt_xml" 2>/dev/null && \
+                grep -Eq '(Ziyu|LuoShu)(Mono)?-|(Ziyu|LuoShu)Slot-' "$_fmt_xml" 2>/dev/null && \
                     rm -f "$_fmt_xml" 2>/dev/null || true
             done
         done
@@ -197,7 +197,7 @@ clear_managed_text_fonts() {
             rm -f "$SYSTEM_FONTS_DIR/$_file" "$MODULE_DIR/system_ext/fonts/$_file" \
                   "$MODULE_DIR/product/fonts/$_file" 2>/dev/null || true
         done
-        rm -rf "$SYSTEM_FONTS_DIR/.luoshu-font-store" 2>/dev/null || true
+        rm -rf "$SYSTEM_FONTS_DIR/.ziyu-font-store" 2>/dev/null || true
     fi
     # Invalidate every late device-alignment commit from an older release. A running worker checks
     # the pending marker again before activation, so removing it safely cancels the obsolete job.
@@ -214,22 +214,22 @@ invalidate_font_index_cache() {
     rm -f "$FONT_INDEX_JSON" "$FONT_INDEX_KEY" 2>/dev/null || true
 }
 
-luoshu_switch_cleanup() {
-    type luoshu_payload_transaction_abort >/dev/null 2>&1 && luoshu_payload_transaction_abort
-    type luoshu_font_lock_release >/dev/null 2>&1 && \
-        luoshu_font_lock_release "$MODULE_DIR/.font_switch.lock" "$$" >/dev/null 2>&1 || true
+ziyu_switch_cleanup() {
+    type ziyu_payload_transaction_abort >/dev/null 2>&1 && ziyu_payload_transaction_abort
+    type ziyu_font_lock_release >/dev/null 2>&1 && \
+        ziyu_font_lock_release "$MODULE_DIR/.font_switch.lock" "$$" >/dev/null 2>&1 || true
 }
 
-luoshu_switch_signal_exit() {
+ziyu_switch_signal_exit() {
     _lsse_code="$1"
     trap - EXIT HUP INT TERM
-    luoshu_switch_cleanup
+    ziyu_switch_cleanup
     exit "$_lsse_code"
 }
 
 switch_font() {
     _font_id="$1"
-    LUOSHU_SWITCH_REUSED=false
+    ZIYU_SWITCH_REUSED=false
     [ -n "$_font_id" ] || { echo '错误：未指定字体' >&2; return 1; }
     if [ -f "$MODULE_DIR/common/boot_ota_guard.sh" ]; then
         MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" sh "$MODULE_DIR/common/boot_ota_guard.sh" \
@@ -241,9 +241,9 @@ switch_font() {
 
     # A complete boot already proved this exact payload. Reapplying it must be a metadata-only
     # no-op: clearing the live tree first discarded the proof and forced the 94% FontTools rebuild.
-    if [ "$_font_id" != default ] && type luoshu_active_payload_verified >/dev/null 2>&1 && \
-       luoshu_active_payload_verified "$_font_id"; then
-        LUOSHU_SWITCH_REUSED=true
+    if [ "$_font_id" != default ] && type ziyu_active_payload_verified >/dev/null 2>&1 && \
+       ziyu_active_payload_verified "$_font_id"; then
+        ZIYU_SWITCH_REUSED=true
         printf '%s\n' "$_font_id" > "$CONFIG_DIR/last_switch_result.conf" 2>/dev/null || true
         date '+%Y-%m-%d %H:%M:%S' > "$CONFIG_DIR/last_switch_time.conf" 2>/dev/null || true
         printf '[PERF] switch reuse=verified-active font=%s totalSeconds=0\n' "$_font_id"
@@ -252,44 +252,44 @@ switch_font() {
 
     _lock="$MODULE_DIR/.font_switch.lock"
     if [ -e "$_lock" ]; then
-        if type luoshu_font_lock_busy >/dev/null 2>&1 && luoshu_font_lock_busy "$_lock"; then
+        if type ziyu_font_lock_busy >/dev/null 2>&1 && ziyu_font_lock_busy "$_lock"; then
             echo '错误：字体正在切换中，请稍候' >&2
             return 2
         fi
-        type luoshu_font_lock_reap_stale >/dev/null 2>&1 && \
-            luoshu_font_lock_reap_stale "$_lock" >/dev/null 2>&1 || true
+        type ziyu_font_lock_reap_stale >/dev/null 2>&1 && \
+            ziyu_font_lock_reap_stale "$_lock" >/dev/null 2>&1 || true
     fi
     if [ -f "$TEXT_REBOOT_REQUIRED" ]; then
         echo '错误：本次开机已更改文字字体，请先重启手机后再切换' >&2
         return 3
     fi
 
-    type luoshu_font_lock_acquire >/dev/null 2>&1 || return 1
-    luoshu_font_lock_acquire "$_lock" "$$"
+    type ziyu_font_lock_acquire >/dev/null 2>&1 || return 1
+    ziyu_font_lock_acquire "$_lock" "$$"
     _lock_rc=$?
     if [ "$_lock_rc" -ne 0 ]; then
         [ "$_lock_rc" -eq 2 ] && echo '错误：字体正在切换中，请稍候' >&2
         return "$_lock_rc"
     fi
-    trap 'luoshu_switch_cleanup' EXIT
-    trap 'luoshu_switch_signal_exit 129' HUP
-    trap 'luoshu_switch_signal_exit 130' INT
-    trap 'luoshu_switch_signal_exit 143' TERM
-    luoshu_switch_perf_begin
+    trap 'ziyu_switch_cleanup' EXIT
+    trap 'ziyu_switch_signal_exit 129' HUP
+    trap 'ziyu_switch_signal_exit 130' INT
+    trap 'ziyu_switch_signal_exit 143' TERM
+    ziyu_switch_perf_begin
 
     _source=''
     if [ "$_font_id" != default ]; then
         _source="$(find_text_font_file "$_font_id")"
         [ -f "$_source" ] || { echo "错误：字体 $_font_id 不存在" >&2; return 1; }
-                if type luoshu_font_validate_global_cached >/dev/null 2>&1; then
-    luoshu_font_validate_global_cached "$_source" || { echo "错误：$FONT_CHECK_ERROR" >&2; return 4; }
+                if type ziyu_font_validate_global_cached >/dev/null 2>&1; then
+    ziyu_font_validate_global_cached "$_source" || { echo "错误：$FONT_CHECK_ERROR" >&2; return 4; }
         elif type font_validate_global >/dev/null 2>&1; then
     font_validate_global "$_source" || { echo "错误：$FONT_CHECK_ERROR" >&2; return 4; }
         elif type font_validate >/dev/null 2>&1; then
     font_validate "$_source" text || { echo "错误：$FONT_CHECK_ERROR" >&2; return 4; }
         fi
     fi
-    luoshu_switch_perf_mark validation
+    ziyu_switch_perf_mark validation
 
     if [ "$_font_id" != default ] && [ -f "$MODULE_DIR/common/device_font_template.sh" ]; then
         MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" \
@@ -304,25 +304,25 @@ switch_font() {
             return 5
         fi
     fi
-    luoshu_switch_perf_mark template_ready
+    ziyu_switch_perf_mark template_ready
 
-    if ! type luoshu_payload_transaction_begin >/dev/null 2>&1 || ! luoshu_payload_transaction_begin; then
+    if ! type ziyu_payload_transaction_begin >/dev/null 2>&1 || ! ziyu_payload_transaction_begin; then
         echo '错误：无法创建字体负载安全快照' >&2
         return 5
     fi
-    luoshu_switch_perf_mark transaction_snapshot
+    ziyu_switch_perf_mark transaction_snapshot
     if [ "$_font_id" != default ]; then
-        LUOSHU_KEEP_XML_OVERLAY=1
+        ZIYU_KEEP_XML_OVERLAY=1
     else
-        LUOSHU_KEEP_XML_OVERLAY=0
+        ZIYU_KEEP_XML_OVERLAY=0
     fi
-    export LUOSHU_KEEP_XML_OVERLAY
+    export ZIYU_KEEP_XML_OVERLAY
     clear_managed_text_fonts
     if [ "$_font_id" != default ]; then
         # Direct switches stay within one foreground transaction. Physical slots and the lightweight
         # reusable XML family template are committed together; no worker may rewrite them later.
-        LUOSHU_FOREGROUND_QUICK_SWITCH=1
-        export LUOSHU_FOREGROUND_QUICK_SWITCH
+        ZIYU_FOREGROUND_QUICK_SWITCH=1
+        export ZIYU_FOREGROUND_QUICK_SWITCH
         apply_font_by_rom "$_source" "$SYSTEM_FONTS_DIR" quick "$_font_id" || {
             echo '错误：ROM 字体映射失败' >&2
             return 5
@@ -338,32 +338,32 @@ switch_font() {
         fi
     fi
 
-    luoshu_switch_perf_mark map_slots
+    ziyu_switch_perf_mark map_slots
     # Build/activate the final per-device UI, Latin/digit and monospace roles in this transaction.
     # A raw physical-slot map is only staging input and must never be committed as a success.
     if [ "$_font_id" != default ] && type font_config_enable_for_payload >/dev/null 2>&1; then
         if ! font_config_enable_for_payload "$_font_id"; then
-            _payload_error="${LUOSHU_DEVICE_PAYLOAD_ERROR:-设备原厂槽位对齐失败}"
+            _payload_error="${ZIYU_DEVICE_PAYLOAD_ERROR:-设备原厂槽位对齐失败}"
             echo "错误：$_payload_error" >&2
             return 6
         fi
     fi
-    LUOSHU_FOREGROUND_QUICK_SWITCH=0
-    LUOSHU_KEEP_XML_OVERLAY=0
-    export LUOSHU_FOREGROUND_QUICK_SWITCH
-    export LUOSHU_KEEP_XML_OVERLAY
-    luoshu_switch_perf_mark xml_overlay
-    if ! type luoshu_payload_validate_current >/dev/null 2>&1 || ! luoshu_payload_validate_current "$_font_id"; then
+    ZIYU_FOREGROUND_QUICK_SWITCH=0
+    ZIYU_KEEP_XML_OVERLAY=0
+    export ZIYU_FOREGROUND_QUICK_SWITCH
+    export ZIYU_KEEP_XML_OVERLAY
+    ziyu_switch_perf_mark xml_overlay
+    if ! type ziyu_payload_validate_current >/dev/null 2>&1 || ! ziyu_payload_validate_current "$_font_id"; then
     echo '错误：字体负载覆盖校验失败，已恢复上一个字体' >&2
     return 6
 fi
-luoshu_switch_perf_mark payload_validate
+ziyu_switch_perf_mark payload_validate
 printf '%s\n' "$_font_id" > "$ACTIVE_FONT_CONF" || {
     echo '错误：无法保存当前字体状态' >&2
     return 7
 }
-if type luoshu_text_reboot_mark >/dev/null 2>&1; then
-    luoshu_text_reboot_mark "$_font_id"
+if type ziyu_text_reboot_mark >/dev/null 2>&1; then
+    ziyu_text_reboot_mark "$_font_id"
 else
     printf 'font=%s\ntime=%s\n' "$_font_id" "$(date +%s)" > "$TEXT_REBOOT_REQUIRED"
 fi || {
@@ -372,24 +372,24 @@ fi || {
 }
 chmod 0644 "$ACTIVE_FONT_CONF" "$SYSTEM_FONTS_DIR"/* 2>/dev/null || true
 chmod 0644 "$TEXT_REBOOT_REQUIRED" 2>/dev/null || true
-if type luoshu_sync_mount_payload >/dev/null 2>&1 && ! luoshu_sync_mount_payload; then
+if type ziyu_sync_mount_payload >/dev/null 2>&1 && ! ziyu_sync_mount_payload; then
     echo '错误：元模块真实挂载目录同步失败，已恢复上一个字体' >&2
     return 7
 fi
-luoshu_switch_perf_mark mount_sync
-if ! luoshu_payload_transaction_commit "$_font_id"; then
+ziyu_switch_perf_mark mount_sync
+if ! ziyu_payload_transaction_commit "$_font_id"; then
     echo '错误：无法提交字体负载事务，已恢复上一个字体' >&2
     return 7
 fi
-luoshu_switch_perf_mark transaction_commit
+ziyu_switch_perf_mark transaction_commit
 # Downloadable Fonts（GMS Fonts Provider）缓存劫持：Play 商店等 Google 系应用
 # 不读系统分区字体，需同步 /data/fonts/files 并 force-stop 后才会应用。
 if [ -f "$MODULE_DIR/common/font_provider_cache.sh" ]; then
     . "$MODULE_DIR/common/font_provider_cache.sh"
     if [ "$_font_id" != default ]; then
-        luoshu_provider_cache_sync "$SYSTEM_FONTS_DIR/.luoshu-font-store/regular.font" >/dev/null 2>&1 || true
+        ziyu_provider_cache_sync "$SYSTEM_FONTS_DIR/.ziyu-font-store/regular.font" >/dev/null 2>&1 || true
     else
-        luoshu_provider_cache_restore >/dev/null 2>&1 || true
+        ziyu_provider_cache_restore >/dev/null 2>&1 || true
     fi
 fi
     if [ -f "$MODULE_DIR/common/boot_ota_guard.sh" ]; then
@@ -413,9 +413,9 @@ fi
     printf '%s\n' "$_font_id" > "$CONFIG_DIR/last_switch_result.conf"
     date '+%Y-%m-%d %H:%M:%S' > "$CONFIG_DIR/last_switch_time.conf" 2>/dev/null || true
     invalidate_font_index_cache
-    luoshu_switch_perf_mark complete
+    ziyu_switch_perf_mark complete
     trap - EXIT HUP INT TERM
-    luoshu_font_lock_release "$_lock" "$$" >/dev/null 2>&1 || true
+    ziyu_font_lock_release "$_lock" "$$" >/dev/null 2>&1 || true
     return 0
 }
 
@@ -445,7 +445,7 @@ read_switch_task_value() {
 notify_user() {
     _title="$1"
     _message="$2"
-    _tag="${3:-luoshu}"
+    _tag="${3:-ziyu}"
     command -v cmd >/dev/null 2>&1 || return 1
     cmd notification post -S bigtext -t "$_title" "$_tag" "$_message" >/dev/null 2>&1 || \
         cmd notification post -t "$_title" "$_tag" "$_message" >/dev/null 2>&1
@@ -627,12 +627,12 @@ validate_font_json() {
     _file="$(find_text_font_file "$_font_id")"
     [ -f "$_file" ] || { printf '{"status":"error","message":"未找到字体"}
 '; return 0; }
-    if type luoshu_font_validate_global_cached >/dev/null 2>&1; then
-        if luoshu_font_validate_global_cached "$_file"; then
+    if type ziyu_font_validate_global_cached >/dev/null 2>&1; then
+        if ziyu_font_validate_global_cached "$_file"; then
   printf '{"status":"ok","data":{"valid":true,"format":"%s","bytes":%s,"variable":%s,"color":%s,"cached":%s,"warning":"%s"}}
 ' \
       "$(json_escape "$FONT_CHECK_FORMAT")" "${FONT_CHECK_SIZE:-0}" "${FONT_CHECK_VARIABLE:-false}" "${FONT_CHECK_COLOR:-false}" \
-      "${LUOSHU_FONT_VALIDATION_CACHE_HIT:-false}" "$(json_escape "$FONT_CHECK_WARNING")"
+      "${ZIYU_FONT_VALIDATION_CACHE_HIT:-false}" "$(json_escape "$FONT_CHECK_WARNING")"
         else
   printf '{"status":"ok","data":{"valid":false,"format":"%s","bytes":%s,"variable":%s,"color":%s,"cached":false,"error":"%s"}}
 ' \
@@ -666,13 +666,13 @@ start_switch_task() {
     [ ! -f "$TEXT_REBOOT_REQUIRED" ] || { printf '{"status":"error","message":"本次开机已更改文字字体，请先重启手机"}\n'; return 0; }
 
     if [ -e "$MODULE_DIR/.font_switch.lock" ]; then
-        if type luoshu_font_lock_active >/dev/null 2>&1 && \
-           luoshu_font_lock_active "$MODULE_DIR/.font_switch.lock"; then
+        if type ziyu_font_lock_active >/dev/null 2>&1 && \
+           ziyu_font_lock_active "$MODULE_DIR/.font_switch.lock"; then
             printf '{"status":"error","message":"字体正在切换中，请稍候"}\n'
             return 0
         fi
-        type luoshu_font_lock_reap_stale >/dev/null 2>&1 && \
-            luoshu_font_lock_reap_stale "$MODULE_DIR/.font_switch.lock" >/dev/null 2>&1 || true
+        type ziyu_font_lock_reap_stale >/dev/null 2>&1 && \
+            ziyu_font_lock_reap_stale "$MODULE_DIR/.font_switch.lock" >/dev/null 2>&1 || true
     fi
 
     mkdir -p "$MODULE_DIR/logs" "$CONFIG_DIR" 2>/dev/null || true
@@ -684,7 +684,7 @@ start_switch_task() {
         if switch_font "$_font_id" >> "$MODULE_DIR/logs/fontswitch.log" 2>&1; then
             _finished="$(date +%s)"
             write_switch_task "$_task_id" success "$_font_id" '字体已准备，必须重启手机后全局生效' "$_started" "$_finished"
-            notify_user '字域' "文字字体已准备：$_font_id。请完整重启手机。" luoshu-text || true
+            notify_user '字域' "文字字体已准备：$_font_id。请完整重启手机。" ziyu-text || true
         else
             _code=$?
             _finished="$(date +%s)"
@@ -792,7 +792,7 @@ handle_action() {
         validate) validate_font_json "$_param" ;;
         switch)
             if switch_font "$_param"; then
-                if [ "$LUOSHU_SWITCH_REUSED" = true ]; then
+                if [ "$ZIYU_SWITCH_REUSED" = true ]; then
                     printf '{"status":"ok","data":{"font":"%s","reused":true,"message":"当前字体已验证，无需重新生成或重启"}}\n' "$(json_escape "$_param")"
                 else
                     printf '{"status":"ok","data":{"font":"%s","reused":false,"message":"已准备，重启手机后生效"}}\n' "$(json_escape "$_param")"

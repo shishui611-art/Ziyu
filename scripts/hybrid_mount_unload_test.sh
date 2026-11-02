@@ -10,26 +10,26 @@ value() { sed -n "s/^$2=//p" "$1/config/mount-backend.conf" | head -n1; }
 
 MOD="$TMP/module"
 META="$TMP/hybrid"
-mkdir -p "$MOD/config" "$MOD/logs" "$MOD/.luoshu-payload/system/fonts" "$META"
-printf 'id=LuoShu\nversion=test\nversionCode=1\n' > "$MOD/module.prop"
+mkdir -p "$MOD/config" "$MOD/logs" "$MOD/.ziyu-payload/system/fonts" "$META"
+printf 'id=Ziyu\nversion=test\nversionCode=1\n' > "$MOD/module.prop"
 printf 'DemoFont\n' > "$MOD/config/active_font.conf"
-printf 'fixture-font\n' > "$MOD/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+printf 'fixture-font\n' > "$MOD/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 
 # If Hybrid's route cannot be verified in automatic mode, try the self backend.
 # Its route must pass verification; the fallback does not rewrite provider config.
 run_hook() {
   local stage="$1" verify="$2"
   MODDIR="$MOD" MODULE_DIR="$MOD" META_MODULE_DIR="$META" \
-  LUOSHU_BACKEND_TEST_MODE=1 \
-  LUOSHU_BACKEND_TEST_BOOT_ID=hybrid-fallback-test \
-  LUOSHU_BACKEND_TEST_MANAGER=KernelSU \
-  LUOSHU_BACKEND_TEST_META_ENGINE=hybrid-mount \
-  LUOSHU_BACKEND_TEST_PROVIDER_STATE=available \
-  LUOSHU_BACKEND_TEST_PROVIDER_ID=hybrid-mount \
-  LUOSHU_BACKEND_TEST_META_VERIFY_RESULT="$verify" \
-  LUOSHU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
-  LUOSHU_BACKEND_TEST_SELF_VERIFY_RESULT=pass \
-  bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
+  ZIYU_BACKEND_TEST_MODE=1 \
+  ZIYU_BACKEND_TEST_BOOT_ID=hybrid-fallback-test \
+  ZIYU_BACKEND_TEST_MANAGER=KernelSU \
+  ZIYU_BACKEND_TEST_META_ENGINE=hybrid-mount \
+  ZIYU_BACKEND_TEST_PROVIDER_STATE=available \
+  ZIYU_BACKEND_TEST_PROVIDER_ID=hybrid-mount \
+  ZIYU_BACKEND_TEST_META_VERIFY_RESULT="$verify" \
+  ZIYU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
+  ZIYU_BACKEND_TEST_SELF_VERIFY_RESULT=pass \
+  bash -c '. "$1/common/mount_backend_runtime.sh"; ziyu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
 }
 
 run_hook post-fs-data pass

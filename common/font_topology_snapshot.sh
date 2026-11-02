@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu universal font topology snapshot wrapper.
+# Ziyu universal font topology snapshot wrapper.
 # Read-only: collects FontManager evidence and merges it with the trusted stock inventory.
 set +e
 
@@ -7,15 +7,15 @@ MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODDIR/config"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 SCRIPT="$MODDIR/common/font_topology_snapshot.py"
 INVENTORY="$CONFIG_DIR/device_font_inventory.json"
 OUTPUT="$CONFIG_DIR/device_font_topology.json"
 LOG="$MODDIR/logs/font-topology.log"
 
 _topology_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127

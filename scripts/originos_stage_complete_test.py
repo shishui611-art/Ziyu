@@ -22,8 +22,8 @@ class OriginOSStageTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.module = Path(self.temp.name) / 'module'
-        self.stage = self.module / '.luoshu-payload-next'
-        self.donor = self.stage / 'system/fonts/.luoshu-font-store/regular.font'
+        self.stage = self.module / '.ziyu-payload-next'
+        self.donor = self.stage / 'system/fonts/.ziyu-font-store/regular.font'
         font_file(self.donor)
         with TTFont(self.donor) as font:
             for table in font['cmap'].tables:
@@ -31,7 +31,7 @@ class OriginOSStageTest(unittest.TestCase):
                     table.cmap.update({ord(ch): 'uni4E2D' for ch in '永国'})
             font.save(self.donor)
         (self.module / 'config').mkdir()
-        self.env = patch.dict(os.environ, {'LUOSHU_BUILD_KEY': 'vivo-fixture'})
+        self.env = patch.dict(os.environ, {'ZIYU_BUILD_KEY': 'vivo-fixture'})
         self.env.start(); self.addCleanup(self.env.stop)
 
     def inventory(self, slots, build='vivo-fixture'):
@@ -89,7 +89,7 @@ class OriginOSStageTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             batch.build(self.module, self.stage)
         with self.assertRaises(ValueError):
-            batch.build(self.module, self.module / '.luoshu-payload')
+            batch.build(self.module, self.module / '.ziyu-payload')
 
 
 if __name__ == '__main__':

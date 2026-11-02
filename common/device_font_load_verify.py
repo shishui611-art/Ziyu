@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from legacy_identity import generated_names
 import re
 import time
 from pathlib import Path
@@ -28,10 +29,10 @@ def normalize(value: str) -> str:
 
 
 def safe_family(slot: dict[str, Any]) -> str:
-    family = str(slot.get("familyNormalized") or slot.get("family") or "luoshu-slot")
-    safe = "".join(char if char.isalnum() else "-" for char in family).strip("-") or "LuoShuSlot"
+    family = str(slot.get("familyNormalized") or slot.get("family") or "ziyu-slot")
+    safe = "".join(char if char.isalnum() else "-" for char in family).strip("-") or "ZiyuSlot"
     weight = int(slot.get("weight") or 400)
-    return f"luoshuslot-{safe.lower()}-{weight}"
+    return f"ziyuslot-{safe.lower()}-{weight}"
 
 
 def load_json(path: Path, schema: str) -> dict[str, Any]:
@@ -109,7 +110,7 @@ def verify(
     dynamic = dynamic_families(overlay)
     dump_lower = font_dump.lower()
     file_hits = sorted(name for name in generated_files if name.lower() in dump_lower)
-    slot_hits = sorted(name for name in slot_names if name in dump_lower)
+    slot_hits = sorted(name for name in slot_names if any(alias in dump_lower for alias in generated_names(name)))
     dynamic_hits = sorted(name for name in dynamic if name in normalize(dump_lower) or name in dump_lower.replace("_", "-"))
     dynamic_missing = sorted(set(dynamic) - set(dynamic_hits))
 

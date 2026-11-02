@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Phase 2 role classifier + shadow replacement planner.
+# Ziyu Phase 2 role classifier + shadow replacement planner.
 # Diagnostic only: never changes fonts, XML, mounts or /data/fonts.
 set +e
 
@@ -7,7 +7,7 @@ MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODDIR/config"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 SCRIPT="$MODDIR/common/font_role_shadow.py"
 TOPOLOGY="$CONFIG_DIR/device_font_topology.json"
 ROLES="$CONFIG_DIR/device_font_roles.json"
@@ -15,8 +15,8 @@ PLAN="$CONFIG_DIR/device_font_shadow_plan.json"
 LOG="$MODDIR/logs/font-role-shadow.log"
 
 _role_shadow_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127

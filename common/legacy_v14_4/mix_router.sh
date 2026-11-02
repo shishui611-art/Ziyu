@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # Current App -> v14.4 composite-core compatibility router.
 # Composite generation is isolated from the payload mounted by the current boot.
-# The compatibility runtime writes into .luoshu-mix-stage; a successful task is then
+# The compatibility runtime writes into .ziyu-mix-stage; a successful task is then
 # saved as a reusable library font; applying it is a separate safe-switch request.
 set +e
 
@@ -17,12 +17,12 @@ fi
 ziyu_user_storage_environment "$REALMOD" || exit 1
 LEGACY="$REALMOD/common/legacy_v14_4"
 RUNTIME="$REALMOD/.legacy-v14-runtime"
-LIVE_PAYLOAD="$REALMOD/.luoshu-payload"
-MIX_STAGE="$REALMOD/.luoshu-mix-stage"
-NEXT_PAYLOAD="$REALMOD/.luoshu-payload-next"
+LIVE_PAYLOAD="$REALMOD/.ziyu-payload"
+MIX_STAGE="$REALMOD/.ziyu-mix-stage"
+NEXT_PAYLOAD="$REALMOD/.ziyu-payload-next"
 NEXT_STATE="$REALMOD/config/font-payload-next.conf"
 MIX_STAGE_STATE="$REALMOD/config/mix-stage-next.conf"
-MIX_MANIFEST="$MIX_STAGE/.luoshu-mix-generation.conf"
+MIX_MANIFEST="$MIX_STAGE/.ziyu-mix-generation.conf"
 ACTIVE_CONF="$REALMOD/config/active_font.conf"
 LEGACY_MODE="$REALMOD/config/font_runtime_legacy_v14_4.conf"
 REBOOT_CONF="$REALMOD/config/text_reboot_required.conf"
@@ -43,7 +43,7 @@ mix_python() {
     _mp_root="$REALMOD/common/python"
     PYTHONHOME="$_mp_root" PYTHONPATH="$_mp_root/lib/python3.14/site-packages" \
         LD_LIBRARY_PATH="$_mp_root/lib:$_mp_root/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$_mp_root/bin/luoshu-python" "$@"
+        "$_mp_root/bin/ziyu-python" "$@"
 }
 
 publish_named_mix() (
@@ -51,7 +51,7 @@ publish_named_mix() (
     [ -n "$_pnm_name" ] || _pnm_name=组合字体
     _pnm_request=$(read_value "$MIX_STAGE_STATE" requestId)
     _pnm_public=$(read_value "$MIX_STAGE_STATE" publicRoot)
-    [ -n "$_pnm_public" ] || _pnm_public=${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}
+    [ -n "$_pnm_public" ] || _pnm_public=${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}
     _pnm_source="$MIX_STAGE/mix-composite.ttf"
     [ -s "$_pnm_source" ] || return 1
     _pnm_result=$(mix_python "$REALMOD/common/mix_library.py" --source "$_pnm_source" \
@@ -119,8 +119,8 @@ mix_reconcile_fast() (
     mix_worker_alive_fast() {
         for _mwaf_file in "$REALMOD/config/axes_worker.pid" \
             "$REALMOD/config/auto_multiweight_worker.pid"; do
-            luoshu_task_pid_alive "$_mwaf_file" "$_mrf_task" || continue
-            _mwaf_pid=$(luoshu_pid_value "$_mwaf_file")
+            ziyu_task_pid_alive "$_mwaf_file" "$_mrf_task" || continue
+            _mwaf_pid=$(ziyu_pid_value "$_mwaf_file")
             # The shared helper checks recycled PID/task/boot identities. Require
             # an exact task argument as well, rather than a task-prefix match.
             [ -r "/proc/$_mwaf_pid/cmdline" ] || return 0
@@ -167,7 +167,7 @@ mix_reconcile_fast() (
     mv -f "$_mrf_tmp" "$_mrf_file" 2>/dev/null || { rm -f "$_mrf_tmp"; return 0; }
     for _mrf_pid_file in "$REALMOD/config/axes_worker.pid" \
         "$REALMOD/config/auto_multiweight_worker.pid"; do
-        luoshu_clear_task_pid "$_mrf_pid_file" "$_mrf_task"
+        ziyu_clear_task_pid "$_mrf_pid_file" "$_mrf_task"
     done
 )
 
@@ -259,7 +259,7 @@ mix_clone_source() {
     _activated="$REALMOD/config/font-payload-activated.conf"
     _retired=$(read_value "$_activated" retired)
     case "$_retired" in
-        "$REALMOD"/.luoshu-retired/*)
+        "$REALMOD"/.ziyu-retired/*)
             [ -d "$_retired" ] && { printf '%s\n' "$_retired"; return 0; }
             ;;
     esac
@@ -271,7 +271,7 @@ clone_mix_tree() {
     rm -rf "$MIX_STAGE" 2>/dev/null || true
     mkdir -p "$MIX_STAGE" 2>/dev/null || return 1
 
-    if luoshu_clone_payload_metadata "$_source" "$MIX_STAGE"; then
+    if ziyu_clone_payload_metadata "$_source" "$MIX_STAGE"; then
         return 0
     fi
     rm -rf "$MIX_STAGE" 2>/dev/null || true
@@ -293,7 +293,7 @@ clear_mix_text_payload() {
         [ -d "$_etc" ] || continue
         for _xml in "$_etc"/*.xml; do
             [ -f "$_xml" ] || continue
-            grep -a -qE 'LuoShuSlot-|LuoShu(Mono)?-|luoshu' "$_xml" 2>/dev/null && \
+            grep -a -qE '(Ziyu|LuoShu)Slot-|(Ziyu|LuoShu)(Mono)?-|ziyu|luoshu' "$_xml" 2>/dev/null && \
                 rm -f "$_xml" 2>/dev/null || true
         done
     done
@@ -318,7 +318,7 @@ prepare_mix_stage() {
         printf 'requestId=%s\n' "$_request"
         printf 'cjk=%s\nlatin=%s\ndigit=%s\n' "$1" "$2" "$3"
         printf 'cjkAxes=%s\nlatinAxes=%s\ndigitAxes=%s\n' "$4" "$5" "$6"
-        printf 'mixName=%s\npublicRoot=%s\n' "${7:-}" "${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
+        printf 'mixName=%s\npublicRoot=%s\n' "${7:-}" "${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
         printf 'cjkName=%s\nlatinName=%s\ndigitName=%s\n' "${8:-}" "${9:-}" "${10:-}"
         printf 'latinSize=%s\nlatinOffset=%s\n' \
             "$(composite_tune_clamp "${11:-0}" 15)" "$(composite_tune_clamp "${12:-0}" 10)"
@@ -361,7 +361,7 @@ complete_hyperos_stage() {
     if [ -e /system/fonts/MiSansVF.ttf ] || [ -n "$(getprop ro.mi.os.version.name 2>/dev/null)" ] || \
        [ -n "$(getprop ro.miui.ui.version.name 2>/dev/null)" ]; then
         [ -f "$_helper" ] || return 1
-        LUOSHU_REAL_MODDIR="$REALMOD" sh "$_helper" "$MIX_STAGE" >> "$LOG_FILE" 2>&1 || return 1
+        ZIYU_REAL_MODDIR="$REALMOD" sh "$_helper" "$MIX_STAGE" >> "$LOG_FILE" 2>&1 || return 1
     fi
 }
 
@@ -379,7 +379,7 @@ complete_coloros_stage() {
        [ -e /system/fonts/SysSans-En-Regular.ttf ] || \
        [ -e /system/fonts/SysFont-Regular.ttf ]; then
         [ -f "$_helper" ] || return 1
-        LUOSHU_REAL_MODDIR="$REALMOD" sh "$_helper" "$MIX_STAGE" >> "$LOG_FILE" 2>&1 || return 1
+        ZIYU_REAL_MODDIR="$REALMOD" sh "$_helper" "$MIX_STAGE" >> "$LOG_FILE" 2>&1 || return 1
     fi
     return 0
 }
@@ -389,7 +389,7 @@ write_next_state() {
     _previous_legacy=$(read_value "$MIX_STAGE_STATE" previousLegacy)
     _request=$(read_value "$MIX_STAGE_STATE" requestId)
     _generation_manifest="$MIX_MANIFEST"
-    [ -s "$_generation_manifest" ] || _generation_manifest="$NEXT_PAYLOAD/.luoshu-mix-generation.conf"
+    [ -s "$_generation_manifest" ] || _generation_manifest="$NEXT_PAYLOAD/.ziyu-mix-generation.conf"
     [ -n "$_previous" ] || _previous=default
     [ "$_previous_legacy" = true ] || _previous_legacy=false
     _tmp="${NEXT_STATE}.tmp.$$"
@@ -543,7 +543,7 @@ setup_runtime() {
     force_link "$REALMOD/config" "$RUNTIME/config" || return 1
     force_link "$REALMOD/cache" "$RUNTIME/cache" || return 1
     force_link "$REALMOD/logs" "$RUNTIME/logs" || return 1
-    force_link "$_payload" "$RUNTIME/.luoshu-payload" || return 1
+    force_link "$_payload" "$RUNTIME/.ziyu-payload" || return 1
     force_link "$REALMOD/module.prop" "$RUNTIME/module.prop" || return 1
 
     for _part in system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product; do
@@ -565,7 +565,7 @@ setup_runtime() {
     force_link "$LEGACY/composite_font.py" "$RUNTIME/common/composite_font.py" || return 1
     force_link "$LEGACY/composite_layout.py" "$RUNTIME/common/composite_layout.py" || return 1
     force_link "$REALMOD/common/composite_tune.sh" "$RUNTIME/common/composite_tune.sh" || return 1
-    force_link "$REALMOD/common/luoshu_composite.sh" "$RUNTIME/common/luoshu_composite.sh" || return 1
+    force_link "$REALMOD/common/ziyu_composite.sh" "$RUNTIME/common/ziyu_composite.sh" || return 1
     force_link "$LEGACY/mix_weight_mode.sh" "$RUNTIME/common/mix_weight_mode.sh" || return 1
     force_link "$REALMOD/common/font_role_check.sh" "$RUNTIME/common/font_role_check.sh" || return 1
     force_link "$REALMOD/common/font_role_check.py" "$RUNTIME/common/font_role_check.py" || return 1
@@ -650,7 +650,7 @@ case "$_cmd" in
                 printf '{"status":"error","message":"已有字体组合任务正在运行或取消"}\n'
                 exit 1 ;;
         esac
-        _mix_public_fonts="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+        _mix_public_fonts="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
         for _mix_source_id in "$2" "$3" "$4"; do
             case "$_mix_source_id" in
                 ''|/*|*/*|*\\*)
@@ -686,15 +686,15 @@ setup_runtime "$_payload" || {
     [ "$_cmd" != start ] || { rm -rf "$MIX_STAGE" 2>/dev/null || true; rm -f "$MIX_STAGE_STATE" 2>/dev/null || true; }
     exit 1
 }
-export LUOSHU_MIX_PREPARE_ONLY=true
-export LUOSHU_REAL_MODDIR="$REALMOD"
-export LUOSHU_MIX_REQUEST_ID="$(read_value "$MIX_STAGE_STATE" requestId)"
-export LUOSHU_MIX_MANIFEST="$MIX_MANIFEST"
-export LUOSHU_MIX_EXPECTED_CJK="$(read_value "$MIX_STAGE_STATE" cjk)"
-export LUOSHU_MIX_EXPECTED_LATIN="$(read_value "$MIX_STAGE_STATE" latin)"
-export LUOSHU_MIX_EXPECTED_DIGIT="$(read_value "$MIX_STAGE_STATE" digit)"
-export LUOSHU_MIX_LATIN_SIZE="$(read_value "$MIX_STAGE_STATE" latinSize)"
-export LUOSHU_MIX_LATIN_OFFSET="$(read_value "$MIX_STAGE_STATE" latinOffset)"
+export ZIYU_MIX_PREPARE_ONLY=true
+export ZIYU_REAL_MODDIR="$REALMOD"
+export ZIYU_MIX_REQUEST_ID="$(read_value "$MIX_STAGE_STATE" requestId)"
+export ZIYU_MIX_MANIFEST="$MIX_MANIFEST"
+export ZIYU_MIX_EXPECTED_CJK="$(read_value "$MIX_STAGE_STATE" cjk)"
+export ZIYU_MIX_EXPECTED_LATIN="$(read_value "$MIX_STAGE_STATE" latin)"
+export ZIYU_MIX_EXPECTED_DIGIT="$(read_value "$MIX_STAGE_STATE" digit)"
+export ZIYU_MIX_LATIN_SIZE="$(read_value "$MIX_STAGE_STATE" latinSize)"
+export ZIYU_MIX_LATIN_OFFSET="$(read_value "$MIX_STAGE_STATE" latinOffset)"
 export MODDIR="$RUNTIME"
 export MODULE_DIR="$RUNTIME"
 

@@ -66,9 +66,9 @@ case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; delete) pr
     def test_global_weight_is_scoped_and_legacy_migration_remains_bounded(self):
         manager=(ROOT/'common/font_manager_v4.sh').read_text()
         self.assertNotRegex(manager,r'(?m)^\s*settings\s')
-        self.assertNotRegex((ROOT/'.luoshu-runtime/core/service.sh').read_text(),r'(?m)^\s*settings\s')
+        self.assertNotRegex((ROOT/'.ziyu-runtime/core/service.sh').read_text(),r'(?m)^\s*settings\s')
         # Uninstall must not default to writing zero for users who never opted in.
-        self.assertNotRegex((ROOT/'.luoshu-runtime/compat/v227/uninstall.sh').read_text(),r'(?m)^\s*settings\s')
+        self.assertNotRegex((ROOT/'.ziyu-runtime/compat/v227/uninstall.sh').read_text(),r'(?m)^\s*settings\s')
         runtime=(ROOT/'common/font_weight_runtime.sh').read_text()
         self.assertNotIn('fw_set()',runtime)
         self.assertIn('fw_boot()',runtime)
@@ -85,7 +85,7 @@ case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; delete) pr
 
     def test_installer_static_phases_no_fake_percent_or_background_jobs(self):
         s=(ROOT/'common/install_ui.sh').read_text();self.assertNotIn('sleep ',s)
-        r=subprocess.run(['sh','-c','ui_print() { printf "%s\\n" "$*"; }; . "$1"; luoshu_install_header v2.0.0; luoshu_install_step 1 环境; luoshu_install_step 2 扫描; luoshu_install_step 3 App; luoshu_install_step 4 挂载; luoshu_install_complete','sh',str(ROOT/'common/install_ui.sh')],capture_output=True,text=True,check=True)
+        r=subprocess.run(['sh','-c','ui_print() { printf "%s\\n" "$*"; }; . "$1"; ziyu_install_header v2.0.0; ziyu_install_step 1 环境; ziyu_install_step 2 扫描; ziyu_install_step 3 App; ziyu_install_step 4 挂载; ziyu_install_complete','sh',str(ROOT/'common/install_ui.sh')],capture_output=True,text=True,check=True)
         self.assertIn('2.0.0',r.stdout);self.assertNotIn('%',r.stdout)
         for n in range(1,5):self.assertEqual(r.stdout.count(f'[{n}/4]'),1)
         self.assertIn('请完整重启；实际挂载结果见字域 App「挂载详情」',r.stdout)

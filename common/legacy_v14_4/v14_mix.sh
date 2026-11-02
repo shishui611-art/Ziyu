@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v14.3.9：字体组合轻量桥。
+# 字域 v14.3.9：字体组合轻量桥。
 set +e
 MODDIR="${MODDIR:-}"
 if [ -z "$MODDIR" ]; then
@@ -18,7 +18,7 @@ STATUS_SCRIPT="$MODDIR/common/module_status.sh"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 MODULE_DIR="$MODDIR"
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 [ -f "$MODDIR/common/font_check.sh" ] && . "$MODDIR/common/font_check.sh"

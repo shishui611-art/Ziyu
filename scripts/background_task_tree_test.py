@@ -37,7 +37,7 @@ class BackgroundTreeTest(unittest.TestCase):
         ps.write_text(f"#!/bin/sh\ncat '{self.root / 'process-tree'}'\n")
         ps.chmod(0o755)
         self.env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}",
-                    "LUOSHU_PROC_ROOT": str(self.proc)}
+                    "ZIYU_PROC_ROOT": str(self.proc)}
 
     def spawn(self, command, **kwargs):
         process = subprocess.Popen(command, start_new_session=True,
@@ -100,7 +100,7 @@ class BackgroundTreeTest(unittest.TestCase):
         worker = self.spawn(["sh", str(manager)])
         sentinel = self.spawn([sys.executable, "-c", "import time; time.sleep(60)"])
         leaf, _, proc_id = self.snapshot()
-        subprocess.run(["sh", "-c", '. "$1"; luoshu_terminate_task_tree "$2"', "sh",
+        subprocess.run(["sh", "-c", '. "$1"; ziyu_terminate_task_tree "$2"', "sh",
                         str(ROOT / "common/background_task.sh"), str(worker.pid)],
                        env=self.env, check=True, timeout=5)
         self.wait_for(lambda: not alive(leaf, proc_id))
@@ -113,7 +113,7 @@ class BackgroundTreeTest(unittest.TestCase):
         pidfile.write_text(str(sentinel.pid))
         Path(str(pidfile) + ".task").write_text("old-task")
         Path(str(pidfile) + ".boot").write_text("previous-boot")
-        subprocess.run(["sh", "-c", '. "$1"; luoshu_stop_task_pid "$2"', "sh",
+        subprocess.run(["sh", "-c", '. "$1"; ziyu_stop_task_pid "$2"', "sh",
                         str(ROOT / "common/background_task.sh"), str(pidfile)], check=True, timeout=5)
         self.assertIsNone(sentinel.poll())
         self.assertFalse(pidfile.exists())
@@ -126,7 +126,7 @@ class BackgroundTreeTest(unittest.TestCase):
         (module / "common/background_task.sh").symlink_to(ROOT / "common/background_task.sh")
         worker = self.spawn(["sh", str(ROOT / "common/font_switch_task.sh"),
                              "run", "signal-task", "custom-font", "1"],
-                            env={**self.env, "MODDIR": str(module), "LUOSHU_FONT_MANAGER": str(manager)})
+                            env={**self.env, "MODDIR": str(module), "ZIYU_FONT_MANAGER": str(manager)})
         leaf, _, proc_id = self.snapshot()
         worker.terminate()
         self.assertEqual(worker.wait(timeout=5), 143)

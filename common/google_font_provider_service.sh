@@ -5,7 +5,7 @@ set +e
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 # One bounded boot task, never an all-day observer. The wrapper supervises
 # descendants even when a bridge double-forks or starts a separate session.
-if [ "${LUOSHU_SCOPE_WORKER_PID:-}" != "$$" ]; then
+if [ "${ZIYU_SCOPE_WORKER_PID:-}" != "$$" ]; then
     export MODDIR
     exec sh "$MODDIR/common/task_scope.sh" --timeout 180 -- sh "$0" "$@"
 fi
@@ -23,8 +23,8 @@ provider_signal_exit() {
     _provider_signal_code="$1"
     trap '' HUP INT TERM
     if [ -n "$_provider_child" ]; then
-        if type luoshu_terminate_task_tree >/dev/null 2>&1; then
-            luoshu_terminate_task_tree "$_provider_child"
+        if type ziyu_terminate_task_tree >/dev/null 2>&1; then
+            ziyu_terminate_task_tree "$_provider_child"
         else
             kill -TERM "$_provider_child" 2>/dev/null || true
         fi
@@ -34,7 +34,7 @@ provider_signal_exit() {
 }
 
 provider_run() {
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" LUOSHU_GOOGLE_FONT_ALLOW_RESTART="$3" \
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" ZIYU_GOOGLE_FONT_ALLOW_RESTART="$3" \
         sh "$1" "$2" >/dev/null 2>&1 &
     _provider_child=$!
     wait "$_provider_child"
@@ -131,9 +131,9 @@ provider_restore_bridge() {
 # attempts. Reuse the module's PID/start-time/boot-identity lock implementation.
 # Acquire before waiting for boot too: repeated service entries must not leave
 # several sleeping boot waiters around for ten minutes.
-type luoshu_font_lock_acquire >/dev/null 2>&1 || exit 1
-luoshu_font_lock_acquire "$LOCK" "$$" || exit 0
-trap 'luoshu_font_lock_release "$LOCK" "$$" >/dev/null 2>&1 || true' EXIT
+type ziyu_font_lock_acquire >/dev/null 2>&1 || exit 1
+ziyu_font_lock_acquire "$LOCK" "$$" || exit 0
+trap 'ziyu_font_lock_release "$LOCK" "$$" >/dev/null 2>&1 || true' EXIT
 trap 'provider_signal_exit 129' HUP
 trap 'provider_signal_exit 130' INT
 trap 'provider_signal_exit 143' TERM

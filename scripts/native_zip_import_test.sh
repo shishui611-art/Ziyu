@@ -56,11 +56,11 @@ printf 'old extracted face\n' > "$TMP/ttc-public/fonts/Legacy-TTCFace01-${TTC_HA
 TTC_OUTPUT=$(sh -c '
     set -eu
     MODDIR="$1/module"; MODULE_DIR="$1/module"
-    LUOSHU_PUBLIC_DIR="$1/ttc-public"
-    LUOSHU_IMPORT_PYTHON=python3
+    ZIYU_PUBLIC_DIR="$1/ttc-public"
+    ZIYU_IMPORT_PYTHON=python3
     PYTHONPATH="$2/common/python/lib/python3.14/site-packages"
-    export MODDIR MODULE_DIR LUOSHU_PUBLIC_DIR LUOSHU_IMPORT_PYTHON PYTHONPATH
-    mkdir -p "$LUOSHU_PUBLIC_DIR/fonts" "$MODDIR/config"
+    export MODDIR MODULE_DIR ZIYU_PUBLIC_DIR ZIYU_IMPORT_PYTHON PYTHONPATH
+    mkdir -p "$ZIYU_PUBLIC_DIR/fonts" "$MODDIR/config"
     NATIVE_IMPORT_LIBRARY_ONLY=true
     export NATIVE_IMPORT_LIBRARY_ONLY
     . "$MODDIR/common/native_import.sh"
@@ -76,10 +76,10 @@ test "$(find "$TMP/ttc-public/fonts" -maxdepth 1 -type f | wc -l | tr -d '[:spac
 test "$(find "$TMP/ttc-public/fonts" -maxdepth 1 -type f -iname '*.ttf' | wc -l | tr -d '[:space:]')" = 0
 TTC_DUPLICATE=$(sh -c '
     MODDIR="$1/module"; MODULE_DIR="$1/module"
-    LUOSHU_PUBLIC_DIR="$1/ttc-public"
-    LUOSHU_IMPORT_PYTHON=python3
+    ZIYU_PUBLIC_DIR="$1/ttc-public"
+    ZIYU_IMPORT_PYTHON=python3
     PYTHONPATH="$2/common/python/lib/python3.14/site-packages"
-    export MODDIR MODULE_DIR LUOSHU_PUBLIC_DIR LUOSHU_IMPORT_PYTHON PYTHONPATH
+    export MODDIR MODULE_DIR ZIYU_PUBLIC_DIR ZIYU_IMPORT_PYTHON PYTHONPATH
     NATIVE_IMPORT_LIBRARY_ONLY=true
     export NATIVE_IMPORT_LIBRARY_ONLY
     . "$MODDIR/common/native_import.sh"
@@ -89,7 +89,7 @@ TTC_DUPLICATE=$(sh -c '
 printf '%s\n' "$TTC_DUPLICATE" | grep -q '"duplicate":true'
 
 cat > "$TMP/pkg/module.prop" <<'PROP'
-id=luoshu_zip_regression
+id=ziyu_zip_regression
 name=洛书 ZIP 回归字体
 version=1.0
 versionCode=1
@@ -120,11 +120,11 @@ grep -q 'import_zip_package "$(basename "$_target")"' "$ROOT/common/native_impor
 OUTPUT=$(sh -c '
     set -eu
     MODDIR="$1"; MODULE_DIR="$1"; CONFIG_DIR="$2/config"
-    LUOSHU_PUBLIC_DIR="$2/public"; USER_FONTS_DIR="$2/public/fonts"
+    ZIYU_PUBLIC_DIR="$2/public"; USER_FONTS_DIR="$2/public/fonts"
     USER_IMPORT_DIR="$2/public/import"; IMPORT_CACHE_DIR="$2/cache"
-    LUOSHU_IMPORT_PYTHON=python3
+    ZIYU_IMPORT_PYTHON=python3
     PYTHONPATH="$1/common/python/lib/python3.14/site-packages"
-    export LUOSHU_IMPORT_PYTHON PYTHONPATH
+    export ZIYU_IMPORT_PYTHON PYTHONPATH
     json_escape() {
         printf "%s" "$1" | sed "s/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g" | tr "\n\r" "  "
     }
@@ -188,11 +188,11 @@ PROP
 STYLE_OUTPUT=$(sh -c '
     set -eu
     MODDIR="$1"; MODULE_DIR="$1"; CONFIG_DIR="$2/config"
-    LUOSHU_PUBLIC_DIR="$2/public"; USER_FONTS_DIR="$2/public/fonts"
+    ZIYU_PUBLIC_DIR="$2/public"; USER_FONTS_DIR="$2/public/fonts"
     USER_IMPORT_DIR="$2/public/import"; IMPORT_CACHE_DIR="$2/cache"
-    LUOSHU_IMPORT_PYTHON=python3
+    ZIYU_IMPORT_PYTHON=python3
     PYTHONPATH="$1/common/python/lib/python3.14/site-packages"
-    export LUOSHU_IMPORT_PYTHON PYTHONPATH
+    export ZIYU_IMPORT_PYTHON PYTHONPATH
     json_escape() {
         printf "%s" "$1" | sed "s/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g" | tr "\n\r" "  "
     }
@@ -216,7 +216,7 @@ test "$(PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S
 test "$(PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S "$ROOT/common/font_import_probe.py" "$BLACK_ITALIC" | cut -d'|' -f3)" = 900
 test "$(PYTHONPATH="$ROOT/common/python/lib/python3.14/site-packages" python3 -S "$ROOT/common/font_import_probe.py" "$BLACK_ITALIC" | cut -d'|' -f4)" = true
 FAMILY_RESULT=$(sh -c '
-    MODULE_DIR="$1"; LUOSHU_PUBLIC_DIR="$2/public"; USER_FONTS_DIR="$2/public/fonts"
+    MODULE_DIR="$1"; ZIYU_PUBLIC_DIR="$2/public"; USER_FONTS_DIR="$2/public/fonts"
     . "$1/common/util_functions.sh"
     printf "%s|%s\n" "$(detect_font_family "超级花轮丸-Italic-Black.ttf")" "$(scan_family_weights "超级花轮丸")"
 ' sh "$ROOT" "$TMP")

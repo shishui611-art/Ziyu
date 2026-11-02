@@ -31,12 +31,12 @@ patch_manager() {
             next
         }
         if ($0 ~ /chmod 644 "\$ACTIVE_EMOJI_CONF" "\$EMOJI_REBOOT_REQUIRED"/) {
-            print "    type luoshu_sync_mount_payload >/dev/null 2>&1 && luoshu_sync_mount_payload 2>/dev/null || true"
+            print "    type ziyu_sync_mount_payload >/dev/null 2>&1 && ziyu_sync_mount_payload 2>/dev/null || true"
             emoji_hook=1
             next
         }
         if ($0 ~ /chmod 644 "\$ACTIVE_FONT_CONF" "\$SYSTEM_FONTS_DIR"\/\*/) {
-            print "    type luoshu_sync_mount_payload >/dev/null 2>&1 && luoshu_sync_mount_payload 2>/dev/null || true"
+            print "    type ziyu_sync_mount_payload >/dev/null 2>&1 && ziyu_sync_mount_payload 2>/dev/null || true"
             text_hook=1
             next
         }
@@ -57,7 +57,7 @@ patch_postfs() {
         print
         if (!inserted && $0 ~ /mkdir -p "\$MODDIR\/config"/) {
             print "[ -f \"$MODDIR/common/mount_compat.sh\" ] && . \"$MODDIR/common/mount_compat.sh\""
-            print "type luoshu_sync_mount_payload >/dev/null 2>&1 && luoshu_sync_mount_payload 2>/dev/null || true"
+            print "type ziyu_sync_mount_payload >/dev/null 2>&1 && ziyu_sync_mount_payload 2>/dev/null || true"
             inserted=1
         }
     }
@@ -76,7 +76,7 @@ patch_service() {
         if (!inserted && $0 ~ /log_service "INFO" "服务脚本开始执行/) {
             print "    if [ -f \"$MODDIR/common/mount_compat.sh\" ]; then"
             print "        . \"$MODDIR/common/mount_compat.sh\""
-            print "        luoshu_sync_mount_payload 2>/dev/null || true"
+            print "        ziyu_sync_mount_payload 2>/dev/null || true"
             print "    fi"
             inserted=1
         }
@@ -87,13 +87,13 @@ patch_service() {
 }
 
 if ! grep -q 'common/mount_compat.sh' "$MANAGER"; then patch_manager "$MANAGER"; fi
-if ! grep -q 'luoshu_sync_mount_payload' "$POSTFS"; then patch_postfs "$POSTFS"; fi
-if ! grep -q 'luoshu_sync_mount_payload' "$SERVICE"; then patch_service "$SERVICE"; fi
+if ! grep -q 'ziyu_sync_mount_payload' "$POSTFS"; then patch_postfs "$POSTFS"; fi
+if ! grep -q 'ziyu_sync_mount_payload' "$SERVICE"; then patch_service "$SERVICE"; fi
 
-# 构建时确保模块没有携带 skip_mount / skip_mountify，避免元模块直接跳过洛书。
+# 构建时确保模块没有携带 skip_mount / skip_mountify，避免元模块直接跳过字域。
 rm -f "$STAGE/skip_mount" "$STAGE/skip_mountify" 2>/dev/null || true
 
 grep -q 'common/mount_compat.sh' "$MANAGER"
-test "$(grep -c 'luoshu_sync_mount_payload' "$MANAGER")" -ge 2
-grep -q 'luoshu_sync_mount_payload' "$POSTFS"
-grep -q 'luoshu_sync_mount_payload' "$SERVICE"
+test "$(grep -c 'ziyu_sync_mount_payload' "$MANAGER")" -ge 2
+grep -q 'ziyu_sync_mount_payload' "$POSTFS"
+grep -q 'ziyu_sync_mount_payload' "$SERVICE"

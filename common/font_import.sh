@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v2.0.0 - 安全 ZIP 字体包导入
+# 字域 v2.0.0 - 安全 ZIP 字体包导入
 # 只解压字体文件，不执行压缩包中的任何脚本。
 
 IMPORT_MAX_ZIP_BYTES=268435456
@@ -9,12 +9,12 @@ IMPORT_MAX_EXTRACT_BYTES=536870912
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_IMPORT_DIR="${USER_IMPORT_DIR:-${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/import}"
+USER_IMPORT_DIR="${USER_IMPORT_DIR:-${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/import}"
 IMPORT_CACHE_DIR="${IMPORT_CACHE_DIR:-${MODULE_DIR:-/data/adb/modules/ziyu}/cache/import}"
 IMPORT_PROBE="${IMPORT_PROBE:-${MODULE_DIR:-/data/adb/modules/ziyu}/common/font_import_probe.py}"
 IMPORT_ZIP_EXTRACTOR="${IMPORT_ZIP_EXTRACTOR:-${MODULE_DIR:-/data/adb/modules/ziyu}/common/font_zip_extract.py}"
 IMPORT_PYROOT="${IMPORT_PYROOT:-${MODULE_DIR:-/data/adb/modules/ziyu}/common/python}"
-IMPORT_PYBIN="${IMPORT_PYBIN:-$IMPORT_PYROOT/bin/luoshu-python}"
+IMPORT_PYBIN="${IMPORT_PYBIN:-$IMPORT_PYROOT/bin/ziyu-python}"
 
 import_unzip() {
     if command -v unzip >/dev/null 2>&1; then unzip "$@"
@@ -31,13 +31,13 @@ import_file_hash() {
 }
 
 # 优先读取字体内部 name / OS/2 / head / fvar 表。Android 使用模块内 Python，
-# CI 可通过 LUOSHU_IMPORT_PYTHON=python3 使用宿主 Python。
+# CI 可通过 ZIYU_IMPORT_PYTHON=python3 使用宿主 Python。
 import_probe_metadata() {
     _probe_file="$1"
     [ -f "$IMPORT_PROBE" ] || return 1
     _probe_output=""
-    if [ -n "${LUOSHU_IMPORT_PYTHON:-}" ]; then
-        _probe_output=$("$LUOSHU_IMPORT_PYTHON" "$IMPORT_PROBE" "$_probe_file" 2>/dev/null)
+    if [ -n "${ZIYU_IMPORT_PYTHON:-}" ]; then
+        _probe_output=$("$ZIYU_IMPORT_PYTHON" "$IMPORT_PROBE" "$_probe_file" 2>/dev/null)
     elif [ -x "$IMPORT_PYBIN" ]; then
         _probe_output=$(PYTHONHOME="$IMPORT_PYROOT" \
             PYTHONPATH="$IMPORT_PYROOT/lib/python3.14:$IMPORT_PYROOT/lib/python3.14/site-packages" \
@@ -54,8 +54,8 @@ import_probe_metadata() {
 import_extract_zip_fonts() {
     _extract_zip="$1"; _extract_dir="$2"
     [ -f "$IMPORT_ZIP_EXTRACTOR" ] || return 127
-    if [ -n "${LUOSHU_IMPORT_PYTHON:-}" ]; then
-        "$LUOSHU_IMPORT_PYTHON" "$IMPORT_ZIP_EXTRACTOR" "$_extract_zip" "$_extract_dir" "$IMPORT_MAX_FILES" "$IMPORT_MAX_EXTRACT_BYTES"
+    if [ -n "${ZIYU_IMPORT_PYTHON:-}" ]; then
+        "$ZIYU_IMPORT_PYTHON" "$IMPORT_ZIP_EXTRACTOR" "$_extract_zip" "$_extract_dir" "$IMPORT_MAX_FILES" "$IMPORT_MAX_EXTRACT_BYTES"
     elif [ -x "$IMPORT_PYBIN" ]; then
         PYTHONHOME="$IMPORT_PYROOT" \
             PYTHONPATH="$IMPORT_PYROOT/lib/python3.14:$IMPORT_PYROOT/lib/python3.14/site-packages" \

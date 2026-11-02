@@ -98,7 +98,7 @@ apply_font_by_rom "$TMP/source.ttf" "$MODULE_DIR/system/fonts" quick TestFamily
 ok test -s "$MODULE_DIR/system/fonts/MiSansVF.ttf"
 ok test -s "$MODULE_DIR/system_ext/fonts/GoogleSansText-Regular.ttf"
 ok test -s "$MODULE_DIR/product/fonts/400.ttf"
-anchor="$MODULE_DIR/system/fonts/.luoshu-font-store/regular.font"
+anchor="$MODULE_DIR/system/fonts/.ziyu-font-store/regular.font"
 ok test -s "$anchor"
 inode=$(stat -c '%d:%i' "$anchor")
 for file in \
@@ -108,7 +108,7 @@ for file in \
   ok test "$(stat -c '%d:%i' "$file")" = "$inode"
 done
 
-ok test "${LUOSHU_INVENTORY_TARGETS_MAPPED:-0}" = 1
+ok test "${ZIYU_INVENTORY_TARGETS_MAPPED:-0}" = 1
 cp "$MODULE_DIR/config/device_font_inventory.json" "$TMP/valid-inventory.json"
 
 # The foreground policy overrides the dispatcher later in the bootstrap chain; it must keep the

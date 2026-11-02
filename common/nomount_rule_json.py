@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import PurePosixPath
 from typing import Any
@@ -41,7 +42,7 @@ def inspect_rules(node: Any, target: str, source: str | None) -> tuple[bool, boo
         record_strings = scalar_values | scalar_keys
         if target in record_strings:
             target_present = True
-            if source is None or source in record_strings:
+            if (source is None or source in record_strings) and node.get('uid', 0) == 0:
                 exact_pair_present = True
         for value in node.values():
             nested_target, nested_pair = inspect_rules(value, target, source)
@@ -113,17 +114,64 @@ def owned_reload_plan(node: Any, root: str) -> list[tuple[str, str]]:
     return sorted(rows.items())
 
 
+def suite_rules(text: str) -> list[dict]:
+    """Prism nm list has no JSON switch; require its complete, exact row grammar."""
+    rows = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r'(/.+?)(?: -> (/.*?)| \((whiteout|virtual dir)\))( \(public\))?(?: \[UID: ([0-9]+)\])?', line)
+        if not match:
+            raise ValueError('unrecognized-suite-rule')
+        target, source, kind, public, uid = match.groups()
+        for path in (target, source):
+            if path is not None and (str(PurePosixPath(path)) != path or '..' in PurePosixPath(path).parts
+                                     or any(ord(c) < 32 or c in '|\\' for c in path)):
+                raise ValueError('unsafe-suite-rule')
+        rows.append({'virtual': target, 'real': source, 'public': bool(public),
+                     'kind': kind or 'file', 'uid': int(uid or 0)})
+        if len(rows) > 16384:
+            raise ValueError('too-many-suite-rules')
+    return rows
+
+
+def reload_metadata(node: Any, target: str, source: str) -> str:
+    records = []
+    def visit(value):
+        if isinstance(value, dict):
+            if value.get('virtual') == target and value.get('real') == source:
+                if value.get('uid', 0) != 0 or value.get('kind', 'file') != 'file':
+                    raise ValueError('scoped-or-nonfile-rule')
+                records.append('public' if value.get('public', False) else 'private')
+            for child in value.values():
+                if isinstance(child, (dict, list)):
+                    visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+    visit(node)
+    if len(records) != 1:
+        raise ValueError('ambiguous-rule-metadata')
+    return records[0]
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) not in (2, 3, 4) or argv[1] not in {"target", "pair", "root", "owned-plan"}:
+    if len(argv) == 2 and argv[1] == 'normalize-suite':
+        try:
+            print(json.dumps(suite_rules(sys.stdin.read()), ensure_ascii=False))
+            return 0
+        except ValueError:
+            return 2
+    if len(argv) not in (2, 3, 4) or argv[1] not in {"target", "pair", "root", "owned-plan", "owned-plan-v2"}:
         print("usage: nomount_rule_json.py target | pair | root | owned-plan", file=sys.stderr)
         return 2
-    if argv[1] in {"root", "owned-plan"} and len(argv) == 3:
+    if argv[1] in {"root", "owned-plan", "owned-plan-v2"} and len(argv) == 3:
         root = argv[2]
-    elif argv[1] in {"root", "owned-plan"} and len(argv) == 2:
-        root = unquote(os.environ.get("LUOSHU_NOMOUNT_JSON_ROOT", ""))
+    elif argv[1] in {"root", "owned-plan", "owned-plan-v2"} and len(argv) == 2:
+        root = unquote(os.environ.get("ZIYU_NOMOUNT_JSON_ROOT", ""))
     elif len(argv) == 2:
-        target = unquote(os.environ.get("LUOSHU_NOMOUNT_JSON_TARGET", ""))
-        source_value = os.environ.get("LUOSHU_NOMOUNT_JSON_SOURCE")
+        target = unquote(os.environ.get("ZIYU_NOMOUNT_JSON_TARGET", ""))
+        source_value = os.environ.get("ZIYU_NOMOUNT_JSON_SOURCE")
         source = unquote(source_value) if source_value is not None and argv[1] == "pair" else None
         if not target or (argv[1] == "pair" and source is None):
             return 2
@@ -135,7 +183,7 @@ def main(argv: list[str]) -> int:
         source = argv[3]
     else:
         return 2
-    if argv[1] in {"root", "owned-plan"} and not root:
+    if argv[1] in {"root", "owned-plan", "owned-plan-v2"} and not root:
         return 2
 
     try:
@@ -147,13 +195,19 @@ def main(argv: list[str]) -> int:
         print("invalid", end="")
         return 0
 
-    if argv[1] == 'owned-plan':
+    if argv[1] in {'owned-plan', 'owned-plan-v2'}:
         try:
             rows = owned_reload_plan(payload, root)
         except ValueError:
             return 2
         # Shell transaction plans use literal UTF-8/LF on every host.
-        sys.stdout.buffer.write(''.join(f'{target}|{source}\n' for target, source in rows).encode('utf-8'))
+        try:
+            output = ''.join(f'{target}|{source}' +
+                             ('|' + reload_metadata(payload, target, source) if argv[1] == 'owned-plan-v2' else '') + '\n'
+                             for target, source in rows)
+        except ValueError:
+            return 2
+        sys.stdout.buffer.write(output.encode('utf-8'))
         return 0
 
     if argv[1] == "root":

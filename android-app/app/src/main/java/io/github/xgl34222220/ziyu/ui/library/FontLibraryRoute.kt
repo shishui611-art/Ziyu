@@ -12,6 +12,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import android.content.Context
+import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog
+import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedTextField
+import io.github.xgl34222220.ziyu.ui.design.ZiyuText
+import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,6 +41,12 @@ internal fun FontLibraryRoute(
     topActions: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val previewPreferences = remember(context.applicationContext) {
+        context.applicationContext.getSharedPreferences("font-preview-v1", Context.MODE_PRIVATE)
+    }
+    var customPreviewText by rememberSaveable { mutableStateOf(previewPreferences.getString("text", "").orEmpty()) }
+    var showPreviewEditor by rememberSaveable { mutableStateOf(false) }
+    var draftPreviewText by rememberSaveable { mutableStateOf("") }
     val collectionStore = remember(context.applicationContext) {
         FontLibraryCollectionStore(context.applicationContext)
     }
@@ -54,7 +66,7 @@ internal fun FontLibraryRoute(
             issueIds = issueIds,
         ).fonts
     }
-    val displayState = state.copy(fonts = displayFonts, visibleCount = displayFonts.size, filter = filter, sort = sort)
+    val displayState = state.copy(fonts = displayFonts, visibleCount = displayFonts.size, filter = filter, sort = sort, previewText = customPreviewText)
     LaunchedEffect(state.allFonts, state.loading, state.pendingDeletionIds) {
         if (!state.loading) {
             // Pending cards are hidden, but failure must preserve their metadata.
@@ -81,6 +93,7 @@ internal fun FontLibraryRoute(
             details = { detailFont = it },
             setFilter = { filter = it },
             setSort = { sort = it },
+            editPreviewText = { draftPreviewText = customPreviewText; showPreviewEditor = true },
         )
     }
 
@@ -125,7 +138,7 @@ internal fun FontLibraryRoute(
         }
     }
 
-    val childLayerActive = showManagement || detailFont != null
+    val childLayerActive = showManagement || detailFont != null || showPreviewEditor
     val pageScale by animateFloatAsState(
         targetValue = if (style == UiStyle.MIUIX && childLayerActive) .96f else 1f,
         animationSpec = tween(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing),
@@ -180,10 +193,42 @@ internal fun FontLibraryRoute(
             active = state.activeFontId == font.id,
             pending = state.activeFontPending,
             busy = state.operationBusy,
+            customPreviewText = customPreviewText,
             onDismiss = { detailFont = null },
             onApply = {
                 detailFont = null
                 latestActions.apply(font)
+            },
+        )
+    }
+
+    if (showPreviewEditor) {
+        val count = draftPreviewText.codePointCount(0, draftPreviewText.length)
+        ZiyuAlertDialog(
+            onDismissRequest = { showPreviewEditor = false },
+            title = { ZiyuText("自定义预览文字") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ZiyuText("用于字体库卡片和详情中的综合预览，最多 200 个字符。留空或恢复默认后使用原来的示例文字。")
+                    ZiyuOutlinedTextField(
+                        value = draftPreviewText,
+                        onValueChange = { draftPreviewText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 5,
+                        isError = count > 200,
+                        supportingText = { ZiyuText("$count / 200") },
+                    )
+                    ZiyuTextButton(onClick = { draftPreviewText = "" }) { ZiyuText("恢复默认") }
+                }
+            },
+            dismissButton = { ZiyuTextButton(onClick = { showPreviewEditor = false }) { ZiyuText("取消") } },
+            confirmButton = {
+                ZiyuButton(onClick = {
+                    customPreviewText = draftPreviewText.takeUnless { it.isBlank() }.orEmpty()
+                    previewPreferences.edit().putString("text", customPreviewText).apply()
+                    showPreviewEditor = false
+                }, enabled = count <= 200) { ZiyuText("保存") }
             },
         )
     }

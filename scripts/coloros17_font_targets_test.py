@@ -41,8 +41,8 @@ def main() -> int:
         assert report["changed_fonts"] == 5, report
         assert [font.get("weight") for font in digit_family] == ["100", "400", "500", "600", "700"]
         assert [font.text for font in digit_family] == [
-            "LuoShu-100.ttf", "LuoShu-400.ttf", "LuoShu-500.ttf",
-            "LuoShu-600.ttf", "LuoShu-700.ttf",
+            "Ziyu-100.ttf", "Ziyu-400.ttf", "Ziyu-500.ttf",
+            "Ziyu-600.ttf", "Ziyu-700.ttf",
         ]
         assert all(not list(font) and "postScriptName" not in font.attrib for font in digit_family)
         assert list(emoji_family)[0].text == "NotoColorEmoji.ttf"

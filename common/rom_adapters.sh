@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 - ROM 适配层 (rom_adapters.sh)
+# 字域 - ROM 适配层 (rom_adapters.sh)
 # 提供通用 ROM 回退映射；ColorOS、HyperOS、OriginOS 与 Flyme 的分区感知增强层会在运行时覆盖对应入口。
 #
 # 新增 ROM 适配方法：
@@ -47,15 +47,15 @@ _verify_font_copy() {
 # 1GB 以上。若文件系统不支持硬链接则自动退回普通复制，不牺牲兼容性。
 _font_store_reset() {
     dest_dir="$1"
-    rm -rf "$dest_dir/.luoshu-font-store" 2>/dev/null || true
-    mkdir -p "$dest_dir/.luoshu-font-store" 2>/dev/null || true
-    chmod 755 "$dest_dir/.luoshu-font-store" 2>/dev/null || true
+    rm -rf "$dest_dir/.ziyu-font-store" 2>/dev/null || true
+    mkdir -p "$dest_dir/.ziyu-font-store" 2>/dev/null || true
+    chmod 755 "$dest_dir/.ziyu-font-store" 2>/dev/null || true
 }
 
 # 归一化结果缓存：以 源文件sha256+字重+归一化版本 为 key。
 # 同一字体重复切换时直接复用，跳过 fonttools 冷启动（手机端每字重数秒）。
 # 修改 font_metrics_normalize.py 的度量契约时递增版本号使旧缓存失效。
-LUOSHU_NORMALIZER_VERSION="6"
+ZIYU_NORMALIZER_VERSION="6"
 
 _font_inventory_cache_token() {
     _fict_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
@@ -108,7 +108,7 @@ _font_source_digest() {
     _fsd_src="$1"
     command -v sha256sum >/dev/null 2>&1 || return 1
     _fsd_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
-    _fsd_memo="${LUOSHU_DIGEST_MEMO:-$_fsd_module/config/.font-digest-memo}"
+    _fsd_memo="${ZIYU_DIGEST_MEMO:-$_fsd_module/config/.font-digest-memo}"
     _fsd_id=$(_font_source_identity "$_fsd_src" 2>/dev/null)
     if [ -n "$_fsd_id" ] && [ -f "$_fsd_memo" ]; then
         _fsd_hit=$(awk -F'\t' -v k="$_fsd_id" '$1 == k { print $2; exit }' "$_fsd_memo" 2>/dev/null)
@@ -134,7 +134,7 @@ _font_anchor_cache_lookup() {
     _facl_inventory=$(_font_inventory_cache_token)
     [ -n "$_facl_inventory" ] || _facl_inventory=fallback
     _facl_cache="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}/config/metrics_cache"
-    _facl_hit="$_facl_cache/${_facl_sha}_${_facl_key}_v${LUOSHU_NORMALIZER_VERSION}_${_facl_inventory}.font"
+    _facl_hit="$_facl_cache/${_facl_sha}_${_facl_key}_v${ZIYU_NORMALIZER_VERSION}_${_facl_inventory}.font"
     [ -f "$_facl_hit" ] || return 1
     printf '%s\n' "$_facl_hit"
     return 0
@@ -144,7 +144,7 @@ _font_anchor() {
     src="$1"
     dest_dir="$2"
     key="$3"
-    anchor="$dest_dir/.luoshu-font-store/${key}.font"
+    anchor="$dest_dir/.ziyu-font-store/${key}.font"
     module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
     normalizer="$module/common/font_metrics_normalize.py"
     rm -f "$anchor" 2>/dev/null || true
@@ -159,12 +159,12 @@ _font_anchor() {
     fi
 
     if [ -f "$normalizer" ]; then
-        if type _luoshu_font_config_exec >/dev/null 2>&1; then
-            _luoshu_font_config_exec "$normalizer" --input "$src" --output "$anchor" \
+        if type _ziyu_font_config_exec >/dev/null 2>&1; then
+            _ziyu_font_config_exec "$normalizer" --input "$src" --output "$anchor" \
                 --inventory "$module/config/device_font_inventory.json" >/dev/null 2>&1 || return 1
-        elif [ -x "$module/common/python/bin/luoshu-python" ]; then
+        elif [ -x "$module/common/python/bin/ziyu-python" ]; then
             pyroot="$module/common/python"
-            PYTHONHOME="$pyroot"             PYTHONPATH="$pyroot/lib/python3.14:$pyroot/lib/python3.14/site-packages"             LD_LIBRARY_PATH="$pyroot/lib:$pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"                 "$pyroot/bin/luoshu-python" "$normalizer" --input "$src" --output "$anchor" \
+            PYTHONHOME="$pyroot"             PYTHONPATH="$pyroot/lib/python3.14:$pyroot/lib/python3.14/site-packages"             LD_LIBRARY_PATH="$pyroot/lib:$pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"                 "$pyroot/bin/ziyu-python" "$normalizer" --input "$src" --output "$anchor" \
                     --inventory "$module/config/device_font_inventory.json" >/dev/null 2>&1 || return 1
         elif command -v python3 >/dev/null 2>&1; then
             python3 "$normalizer" --input "$src" --output "$anchor" \
@@ -185,7 +185,7 @@ _font_anchor() {
             mkdir -p "$_fa_cache" 2>/dev/null || true
             _fa_inventory=$(_font_inventory_cache_token)
             [ -n "$_fa_inventory" ] || _fa_inventory=fallback
-            _fa_cached="$_fa_cache/${_fa_sha}_${key}_v${LUOSHU_NORMALIZER_VERSION}_${_fa_inventory}.font"
+            _fa_cached="$_fa_cache/${_fa_sha}_${key}_v${ZIYU_NORMALIZER_VERSION}_${_fa_inventory}.font"
             ln "$anchor" "$_fa_cached" 2>/dev/null || cp -f "$anchor" "$_fa_cached" 2>/dev/null || true
         fi
     fi
@@ -236,11 +236,11 @@ _device_font_inventory_exec() {
     _dfie_module="$(_device_font_inventory_module)"
     _dfie_script="$_dfie_module/common/font_inventory.py"
     [ -f "$_dfie_script" ] || return 1
-    if type _luoshu_font_config_exec >/dev/null 2>&1; then
-        _luoshu_font_config_exec "$_dfie_script" "$@"
+    if type _ziyu_font_config_exec >/dev/null 2>&1; then
+        _ziyu_font_config_exec "$_dfie_script" "$@"
         return $?
     fi
-    _dfie_python="$_dfie_module/common/python/bin/luoshu-python"
+    _dfie_python="$_dfie_module/common/python/bin/ziyu-python"
     if [ -x "$_dfie_python" ]; then
         _dfie_pyroot="$_dfie_module/common/python"
         PYTHONHOME="$_dfie_pyroot" \
@@ -384,7 +384,7 @@ _device_font_inventory_anchor() {
             fi
         fi
     fi
-    _dfia_anchor="$_dfia_dest/.luoshu-font-store/${_dfia_role}.font"
+    _dfia_anchor="$_dfia_dest/.ziyu-font-store/${_dfia_role}.font"
     if [ ! -s "$_dfia_anchor" ]; then
         _dfia_anchor=$(_font_anchor "$_dfia_source" "$_dfia_dest" "$_dfia_role") || return 1
     fi
@@ -439,13 +439,13 @@ _copy_as_inventory() {
                 _dfii_bad=$((_dfii_bad + 1))
             fi
         fi
-    done <<EOF_LUOSHU_FONT_INVENTORY
+    done <<EOF_ZIYU_FONT_INVENTORY
 $_dfii_entries
-EOF_LUOSHU_FONT_INVENTORY
+EOF_ZIYU_FONT_INVENTORY
     [ "$_dfii_count" -gt 0 ] || return 2
-    LUOSHU_INVENTORY_TARGETS_MAPPED=1
-    LUOSHU_SAFE_PHYSICAL_FALLBACK=1
-    export LUOSHU_INVENTORY_TARGETS_MAPPED LUOSHU_SAFE_PHYSICAL_FALLBACK
+    ZIYU_INVENTORY_TARGETS_MAPPED=1
+    ZIYU_SAFE_PHYSICAL_FALLBACK=1
+    export ZIYU_INVENTORY_TARGETS_MAPPED ZIYU_SAFE_PHYSICAL_FALLBACK
     _log_step "  已按设备原厂清单覆盖 $_dfii_count 个真实字体槽位"
     [ "$_dfii_skipped" -eq 0 ] || _log_step "  已按 ROM 安全策略跳过 $_dfii_skipped 个非安全/未知字体槽位"
     [ "$_dfii_bad" -eq 0 ] || _log_step "  ⚠ $_dfii_bad 个清单槽位写入后校验异常"

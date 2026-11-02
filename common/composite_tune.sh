@@ -14,8 +14,8 @@ composite_tune_clamp() {
 }
 
 composite_tune_load() {
-    COMPOSITE_TUNE_SIZE=$(composite_tune_clamp "${LUOSHU_MIX_LATIN_SIZE:-0}" 15)
-    COMPOSITE_TUNE_OFFSET=$(composite_tune_clamp "${LUOSHU_MIX_LATIN_OFFSET:-0}" 10)
+    COMPOSITE_TUNE_SIZE=$(composite_tune_clamp "${ZIYU_MIX_LATIN_SIZE:-0}" 15)
+    COMPOSITE_TUNE_OFFSET=$(composite_tune_clamp "${ZIYU_MIX_LATIN_OFFSET:-0}" 10)
 }
 
 composite_tune_key_suffix() {

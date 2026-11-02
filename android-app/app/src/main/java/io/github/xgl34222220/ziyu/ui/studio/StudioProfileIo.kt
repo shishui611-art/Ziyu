@@ -50,7 +50,7 @@ import java.util.Date
 import java.util.Locale
 
 private const val STUDIO_PROFILE_SCHEMA = 1
-private const val STUDIO_PROFILE_TYPE = "luoshu-studio-profile"
+private const val STUDIO_PROFILE_TYPE = "ziyu-studio-profile"
 private const val STUDIO_PROFILE_MAX_CHARS = 262_144
 
 @Immutable
@@ -119,7 +119,7 @@ internal fun parseStudioProfile(
         return StudioProfileParseResult(errors = listOf("JSON 格式无效：${it.message ?: "无法解析"}"))
     }
     if (root.optInt("schema", -1) != STUDIO_PROFILE_SCHEMA) errors += "不支持的方案版本"
-    if (root.optString("type") != STUDIO_PROFILE_TYPE) errors += "这不是字域组合方案文件"
+    if (!io.github.xgl34222220.ziyu.LegacyIdentityCompatibility.matchesFormat(root.optString("type"), STUDIO_PROFILE_TYPE)) errors += "这不是字域组合方案文件"
     val slotsObject = root.optJSONObject("slots")
     if (slotsObject == null) errors += "方案缺少 slots 配置"
     val fontMap = availableFonts.associateBy { it.id }

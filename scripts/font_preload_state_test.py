@@ -15,7 +15,7 @@ class PreloadCatalogueTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.module = Path(self.tmp.name) / 'module'
-        self.payload = self.module / '.luoshu-payload'
+        self.payload = self.module / '.ziyu-payload'
         self.root = Path(self.tmp.name) / 'pid1'
         self.payload.mkdir(parents=True)
         self.root.mkdir()

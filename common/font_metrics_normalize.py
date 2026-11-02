@@ -47,14 +47,14 @@ class MetricsError(RuntimeError):
 
 
 def default_inventory_path() -> Path:
-    override = os.environ.get("LUOSHU_FONT_INVENTORY", "").strip()
+    override = os.environ.get("ZIYU_FONT_INVENTORY", "").strip()
     if override:
         return Path(override)
     return Path(__file__).resolve().parent.parent / "config/device_font_inventory.json"
 
 
 def _device_build_key() -> str:
-    override = os.environ.get("LUOSHU_BUILD_KEY", "").strip()
+    override = os.environ.get("ZIYU_BUILD_KEY", "").strip()
     if override:
         return override
     for prop in ("ro.build.fingerprint", "ro.build.display.id"):

@@ -1,5 +1,6 @@
 package io.github.xgl34222220.ziyu.ui.logs
 
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,9 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import androidx.compose.material3.CardDefaults
+import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuCircularProgressIndicator
 import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon as Icon
 import io.github.xgl34222220.ziyu.ui.design.ZiyuIconButton as IconButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuLinearProgressIndicator as LinearProgressIndicator
@@ -222,10 +226,34 @@ internal fun LogsPageContent(
                                     Metric("错误", state.errorCount, MaterialTheme.colorScheme.error, Modifier.weight(1f))
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = actions.markViewed, enabled = !state.logsViewed) {
-                                        Text(if (state.logsViewed) "已查看" else "标记为已查看")
+                                    ZiyuOutlinedButton(
+                                        onClick = actions.clearLogs,
+                                        enabled = state.lineCount > 0 && !diagnosticState.busy,
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                                    ) {
+                                        Icon(Icons.Rounded.Delete, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("清空日志")
                                     }
-                                    TextButton(onClick = actions.clearLogs, enabled = state.lineCount > 0) { Text("清空日志") }
+                                    ZiyuButton(
+                                        onClick = onDiagnostic,
+                                        enabled = !diagnosticState.busy,
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                                    ) {
+                                        if (diagnosticState.busy) {
+                                            ZiyuCircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Icon(Icons.Rounded.Description, null, modifier = Modifier.size(18.dp))
+                                        }
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (diagnosticState.busy) "正在导出" else "导出日志")
+                                    }
+                                }
+                                Text("导出包含运行日志与设备状态的诊断报告，不受当前搜索和筛选影响。", color = tokens.textSecondary, fontSize = 12.sp)
+                                TextButton(onClick = actions.markViewed, enabled = !state.logsViewed) {
+                                    Text(if (state.logsViewed) "已查看" else "标记为已查看")
                                 }
                                 if (state.warningCount > 0) {
                                     TextButton(onClick = actions.ignoreWarnings, enabled = !state.warningsIgnored) {
@@ -238,7 +266,7 @@ internal fun LogsPageContent(
                                     onValueChange = { query = it },
                                     modifier = Modifier.fillMaxWidth(),
                                     placeholder = { Text("搜索任务、字体或关键字", fontSize = 13.sp) },
-                                    leadingIcon = { Icon(Icons.Rounded.Search, null, modifier = Modifier.size(22.dp)) },
+                                    leadingIcon = { ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, null, modifier = Modifier.size(22.dp)) } },
                                     trailingIcon = if (query.isNotEmpty()) {
                                         { IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, "清空搜索", modifier = Modifier.size(20.dp)) } }
                                     } else null,

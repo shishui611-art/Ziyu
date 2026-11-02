@@ -28,6 +28,7 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
 import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuShapeTokens
+import io.github.xgl34222220.ziyu.ui.theme.withCardTransparency
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -126,7 +127,7 @@ internal fun BootSafetyPage() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Surface(shape = ZiyuShapeTokens.Card, color = palette.cardBackground, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = ZiyuShapeTokens.Card, color = palette.cardBackground.withCardTransparency(), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         when { busy && state.isEmpty() -> "正在读取…"; state.isEmpty() -> "尚未读取保护状态"; safe -> "开机保护已启用"; otaPending && nextReady -> "新字体负载已准备，待完整重启"; otaPending -> "系统字体基准待核验"; else -> "当前未进入开机保护" },

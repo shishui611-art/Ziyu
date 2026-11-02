@@ -6,17 +6,17 @@
 set +e
 
 _lhcc_module_dir() {
-    printf '%s\n' "${LUOSHU_REAL_MODDIR:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}"
+    printf '%s\n' "${ZIYU_REAL_MODDIR:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}}"
 }
 
 _lhcc_payload_root() {
-    if [ -n "${LUOSHU_HYPEROS_CLOCK_PAYLOAD_ROOT:-}" ]; then
-        printf '%s\n' "$LUOSHU_HYPEROS_CLOCK_PAYLOAD_ROOT"
+    if [ -n "${ZIYU_HYPEROS_CLOCK_PAYLOAD_ROOT:-}" ]; then
+        printf '%s\n' "$ZIYU_HYPEROS_CLOCK_PAYLOAD_ROOT"
         return 0
     fi
     _lhcc_module="$(_lhcc_module_dir)"
-    if [ -d "$_lhcc_module/.luoshu-payload" ]; then
-        printf '%s\n' "$_lhcc_module/.luoshu-payload"
+    if [ -d "$_lhcc_module/.ziyu-payload" ]; then
+        printf '%s\n' "$_lhcc_module/.ziyu-payload"
     else
         printf '%s\n' "$_lhcc_module"
     fi
@@ -31,16 +31,16 @@ _lhcc_is_hyperos() {
 
 _lhcc_root_for_part() {
     case "$1" in
-        system) printf '%s\n' "${LUOSHU_SYSTEM_FONTS_ROOT:-/system/fonts}" ;;
-        system_ext) printf '%s\n' "${LUOSHU_SYSTEM_EXT_FONTS_ROOT:-/system_ext/fonts}" ;;
-        product) printf '%s\n' "${LUOSHU_PRODUCT_FONTS_ROOT:-/product/fonts}" ;;
-        mi_ext) printf '%s\n' "${LUOSHU_MI_EXT_FONTS_ROOT:-/mi_ext/fonts}" ;;
-        vendor) printf '%s\n' "${LUOSHU_VENDOR_FONTS_ROOT:-/vendor/fonts}" ;;
-        odm) printf '%s\n' "${LUOSHU_ODM_FONTS_ROOT:-/odm/fonts}" ;;
-        oem) printf '%s\n' "${LUOSHU_OEM_FONTS_ROOT:-/oem/fonts}" ;;
-        my_product) printf '%s\n' "${LUOSHU_MY_PRODUCT_FONTS_ROOT:-/my_product/fonts}" ;;
-        hw_product) printf '%s\n' "${LUOSHU_HW_PRODUCT_FONTS_ROOT:-/hw_product/fonts}" ;;
-        cust) printf '%s\n' "${LUOSHU_CUST_FONTS_ROOT:-/cust/fonts}" ;;
+        system) printf '%s\n' "${ZIYU_SYSTEM_FONTS_ROOT:-/system/fonts}" ;;
+        system_ext) printf '%s\n' "${ZIYU_SYSTEM_EXT_FONTS_ROOT:-/system_ext/fonts}" ;;
+        product) printf '%s\n' "${ZIYU_PRODUCT_FONTS_ROOT:-/product/fonts}" ;;
+        mi_ext) printf '%s\n' "${ZIYU_MI_EXT_FONTS_ROOT:-/mi_ext/fonts}" ;;
+        vendor) printf '%s\n' "${ZIYU_VENDOR_FONTS_ROOT:-/vendor/fonts}" ;;
+        odm) printf '%s\n' "${ZIYU_ODM_FONTS_ROOT:-/odm/fonts}" ;;
+        oem) printf '%s\n' "${ZIYU_OEM_FONTS_ROOT:-/oem/fonts}" ;;
+        my_product) printf '%s\n' "${ZIYU_MY_PRODUCT_FONTS_ROOT:-/my_product/fonts}" ;;
+        hw_product) printf '%s\n' "${ZIYU_HW_PRODUCT_FONTS_ROOT:-/hw_product/fonts}" ;;
+        cust) printf '%s\n' "${ZIYU_CUST_FONTS_ROOT:-/cust/fonts}" ;;
         *) return 1 ;;
     esac
 }
@@ -216,7 +216,7 @@ _lhcc_link_or_copy() {
     return 0
 }
 
-luoshu_hyperos_clock_payload_ensure() {
+ziyu_hyperos_clock_payload_ensure() {
     _lhcc_is_hyperos || return 0
     _lhcc_payload="$(_lhcc_payload_root)"
     [ -d "$_lhcc_payload/system/fonts" ] || return 0
@@ -234,8 +234,8 @@ luoshu_hyperos_clock_payload_ensure() {
         while IFS= read -r _lhcc_name; do
             [ -n "$_lhcc_name" ] || continue
             # A staged role exclusion must survive missing-slot boot repair.
-            if [ -f "$_lhcc_payload/.luoshu-stock-preserved.paths" ] &&
-               grep -Fqx "/$_lhcc_part/fonts/$_lhcc_name" "$_lhcc_payload/.luoshu-stock-preserved.paths"; then
+            if [ -f "$_lhcc_payload/.ziyu-stock-preserved.paths" ] &&
+               grep -Fqx "/$_lhcc_part/fonts/$_lhcc_name" "$_lhcc_payload/.ziyu-stock-preserved.paths"; then
                 rm -f "$_lhcc_overlay/$_lhcc_name" 2>/dev/null || return 1
                 continue
             fi
@@ -280,6 +280,6 @@ EOF_LHCC_NAMES
 }
 
 # New semantic name for callers/tests; keep the old function as compatibility API.
-luoshu_hyperos_legacy_payload_ensure() {
-    luoshu_hyperos_clock_payload_ensure "$@"
+ziyu_hyperos_legacy_payload_ensure() {
+    ziyu_hyperos_clock_payload_ensure "$@"
 }

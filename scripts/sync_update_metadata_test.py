@@ -12,7 +12,7 @@ assert spec.loader is not None
 spec.loader.exec_module(mod)
 
 meta = mod.build_metadata(
-    repository="xgl34222220-ops/LuoShu",
+    repository="xgl34222220-ops/Ziyu",
     version="v4.0.0",
     version_code=40000,
     tag="v4.0.0",
@@ -22,8 +22,8 @@ meta = mod.build_metadata(
 assert meta == {
     "version": "v4.0.0",
     "versionCode": 40000,
-    "zipUrl": "https://github.com/xgl34222220-ops/LuoShu/releases/download/v4.0.0/LuoShu-v4.0.0.zip",
-    "changelog": "https://raw.githubusercontent.com/xgl34222220-ops/LuoShu/v4.0.0/RELEASE_NOTES_v4.0.0.md",
+    "zipUrl": "https://github.com/xgl34222220-ops/Ziyu/releases/download/v4.0.0/LuoShu-v4.0.0.zip",
+    "changelog": "https://raw.githubusercontent.com/xgl34222220-ops/Ziyu/v4.0.0/RELEASE_NOTES_v4.0.0.md",
 }
 
 ziyu_meta = mod.build_metadata(
@@ -50,7 +50,7 @@ app_update_source = (
 assert 'https://api.github.com/repos/shishui611-art/Ziyu/releases/latest' in app_update_source
 assert 'https://raw.githubusercontent.com/shishui611-art/Ziyu/$tag/module.prop' in app_update_source
 assert 'https://github.com/shishui611-art/Ziyu' in app_update_source
-assert 'xgl34222220-ops/LuoShu' not in app_update_source
+assert 'xgl34222220-ops/Ziyu' not in app_update_source
 for metadata_file in ("update.json", "update-prerelease.json"):
     actual = json.loads((ROOT / metadata_file).read_text(encoding="utf-8"))
     # Feeds describe published assets. A candidate must not advertise itself

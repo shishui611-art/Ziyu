@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: luoshu-withdraw-v2-20260928
+  group: ziyu-withdraw-v2-20260928
   cancel-in-progress: false
 jobs:
   withdraw:
@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          repo=xgl34222220-ops/LuoShu
+          repo=xgl34222220-ops/Ziyu
           gh api "repos/$repo/releases/398338417" > "$RUNNER_TEMP/release-before.json"
           test "$(jq -r .tag_name "$RUNNER_TEMP/release-before.json")" = refactor-v2.0.0
           test "$(jq -r .target_commitish "$RUNNER_TEMP/release-before.json")" = fca518e9a00aa0f37daf2b993db80a3bb6b232b6
@@ -64,5 +64,5 @@ jobs:
           git add update.json update-prerelease.json config/stable_release_authorization.conf docs/WITHDRAWN_2.0.0.md
           git diff --cached --quiet || git commit -m 'release: stop v2 rollout and record withdrawal [skip ci]'
           git push origin HEAD:main
-          test "$(gh api repos/xgl34222220-ops/LuoShu/releases/latest --jq .tag_name)" = refactor-v1.1.1
+          test "$(gh api repos/xgl34222220-ops/Ziyu/releases/latest --jq .tag_name)" = refactor-v1.1.1
           echo '2.0.0 is draft; public latest and online rollout restored to 1.1.1.' >> "$GITHUB_STEP_SUMMARY"

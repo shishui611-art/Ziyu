@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Google/GMS downloadable-font provider bridge.
+# Ziyu Google/GMS downloadable-font provider bridge.
 #
 # Android system XML and /data/fonts/config do not cover fonts opened directly from
 # com.google.android.gms' private downloadable-font cache. This bridge never modifies
@@ -10,7 +10,7 @@ set +e
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
 PYROOT="$MODDIR/common/python"
-PYTHON="${LUOSHU_GOOGLE_FONT_PYTHON:-$PYROOT/bin/luoshu-python}"
+PYTHON="${ZIYU_GOOGLE_FONT_PYTHON:-$PYROOT/bin/ziyu-python}"
 PATCHER="$MODDIR/common/google_font_provider_patch.py"
 CACHE="$MODDIR/config/google-font-provider"
 STATE="$MODDIR/config/google-font-provider-mounts.conf"
@@ -24,11 +24,11 @@ LOG="$MODDIR/logs/google-font-provider.log"
 # coexist with the sleeping watcher without racing its next maintenance pass.
 _gfp_locked() {
     if [ "${_gfp_lock_held:-0}" = 1 ]; then "$@"; return $?; fi
-    if ! type luoshu_font_lock_acquire >/dev/null 2>&1 && [ -f "$MODDIR/common/font_switch_lock.sh" ]; then
+    if ! type ziyu_font_lock_acquire >/dev/null 2>&1 && [ -f "$MODDIR/common/font_switch_lock.sh" ]; then
         . "$MODDIR/common/font_switch_lock.sh"
     fi
-    if type luoshu_font_lock_acquire >/dev/null 2>&1; then
-        luoshu_font_lock_acquire "$MODDIR/.google-font-provider-bridge.lock" "$$" || return 1
+    if type ziyu_font_lock_acquire >/dev/null 2>&1; then
+        ziyu_font_lock_acquire "$MODDIR/.google-font-provider-bridge.lock" "$$" || return 1
         _gfp_lock_held=1
         case "${0##*/}" in
             google_font_provider_bridge.sh|hyperos_theme_font_bridge.sh)
@@ -44,7 +44,7 @@ _gfp_locked() {
     "$@"
     _gfp_locked_rc=$?
     if [ "${_gfp_lock_held:-0}" = 1 ]; then
-        luoshu_font_lock_release "$MODDIR/.google-font-provider-bridge.lock" "$$" >/dev/null 2>&1 || true
+        ziyu_font_lock_release "$MODDIR/.google-font-provider-bridge.lock" "$$" >/dev/null 2>&1 || true
         _gfp_lock_held=0
     fi
     return "$_gfp_locked_rc"
@@ -52,7 +52,7 @@ _gfp_locked() {
 
 _gfp_release_lock() {
     [ "${_gfp_lock_held:-0}" = 1 ] || return 0
-    luoshu_font_lock_release "$MODDIR/.google-font-provider-bridge.lock" "$$" >/dev/null 2>&1 || true
+    ziyu_font_lock_release "$MODDIR/.google-font-provider-bridge.lock" "$$" >/dev/null 2>&1 || true
     _gfp_lock_held=0
 }
 
@@ -114,7 +114,7 @@ _gfp_valid_font() {
 
 _gfp_python() {
     [ -x "$PYTHON" ] && [ -f "$PATCHER" ] || return 1
-    if [ "$PYTHON" = "$PYROOT/bin/luoshu-python" ]; then
+    if [ "$PYTHON" = "$PYROOT/bin/ziyu-python" ]; then
         PYTHONHOME="$PYROOT" \
         PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages" \
         LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
@@ -145,8 +145,8 @@ _gfp_source_for_weight() {
     esac
     # The active physical payload is authoritative after boot. The v4 source
     # cache can belong to a previous selection and must never override it.
-    _gfp_live="$MODDIR/.luoshu-payload/system/fonts"
-    if [ -d "$MODDIR/.luoshu-payload" ]; then
+    _gfp_live="$MODDIR/.ziyu-payload/system/fonts"
+    if [ -d "$MODDIR/.ziyu-payload" ]; then
         for _gfp_w in $_gfp_order; do
             case "$_gfp_w" in
                 100) _gfp_style=Thin ;; 200) _gfp_style=ExtraLight ;;
@@ -156,9 +156,9 @@ _gfp_source_for_weight() {
                 *) _gfp_style=Regular ;;
             esac
             for _gfp_candidate in \
-                "$_gfp_live/LuoShu-${_gfp_w}.ttf" \
+                "$_gfp_live/Ziyu-${_gfp_w}.ttf" \
                 "$_gfp_live/${_gfp_w}.ttf" \
-                "$_gfp_live/.luoshu-font-store/wght-${_gfp_w}.font" \
+                "$_gfp_live/.ziyu-font-store/wght-${_gfp_w}.font" \
                 "$_gfp_live/Roboto-${_gfp_style}.ttf" \
                 "$_gfp_live/SysSans-En-${_gfp_style}.ttf" \
                 "$_gfp_live/SysFont-${_gfp_style}.ttf"; do
@@ -169,8 +169,8 @@ _gfp_source_for_weight() {
             done
         done
         for _gfp_candidate in \
-            "$_gfp_live/.luoshu-font-store/mix-composite.font" \
-            "$_gfp_live/.luoshu-font-store/regular.font" \
+            "$_gfp_live/.ziyu-font-store/mix-composite.font" \
+            "$_gfp_live/.ziyu-font-store/regular.font" \
             "$_gfp_live/MiSansLatinVF.ttf" "$_gfp_live/MiSansVF.ttf"; do
             if _gfp_valid_font "$_gfp_candidate"; then
                 printf '%s\n' "$_gfp_candidate"
@@ -181,8 +181,8 @@ _gfp_source_for_weight() {
     fi
     for _gfp_w in $_gfp_order; do
         for _gfp_candidate in \
-            "$MODDIR/config/device-font-sources/LuoShu-${_gfp_w}.ttf" \
-            "$MODDIR/system/fonts/LuoShu-${_gfp_w}.ttf"; do
+            "$MODDIR/config/device-font-sources/Ziyu-${_gfp_w}.ttf" \
+            "$MODDIR/system/fonts/Ziyu-${_gfp_w}.ttf"; do
             if _gfp_valid_font "$_gfp_candidate"; then
                 printf '%s\n' "$_gfp_candidate"
                 return 0
@@ -193,8 +193,8 @@ _gfp_source_for_weight() {
 }
 
 _gfp_targets() {
-    if [ -n "${LUOSHU_GOOGLE_FONT_TARGETS:-}" ]; then
-        printf '%s\n' "$LUOSHU_GOOGLE_FONT_TARGETS" | awk 'NF && !seen[$0]++'
+    if [ -n "${ZIYU_GOOGLE_FONT_TARGETS:-}" ]; then
+        printf '%s\n' "$ZIYU_GOOGLE_FONT_TARGETS" | awk 'NF && !seen[$0]++'
         return 0
     fi
     _gfp_list="$CACHE/.targets.$$"
@@ -244,13 +244,13 @@ _gfp_fingerprint() {
     mkdir -p "$CACHE" 2>/dev/null || return 1
     _gfp_fp_targets="$CACHE/.watch-targets.$$"
     _gfp_targets | LC_ALL=C sort -u > "$_gfp_fp_targets" || return 1
-    _gfp_fp_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _gfp_fp_proc="${ZIYU_PROC_ROOT:-/proc}"
     {
         printf 'active|%s\n' "$(_gfp_active_font)"
         {
             printf '%s\n' "$MODDIR/config/active_font.conf" \
-                "$MODDIR/.luoshu-payload" "$MODDIR/.luoshu-payload/system/fonts" \
-                "$MODDIR/.luoshu-payload/system/fonts/.luoshu-font-store" \
+                "$MODDIR/.ziyu-payload" "$MODDIR/.ziyu-payload/system/fonts" \
+                "$MODDIR/.ziyu-payload/system/fonts/.ziyu-font-store" \
                 "$MODDIR/config/device-font-sources"
             cat "$_gfp_fp_targets"
             [ ! -s "$STATE" ] || awk -F '|' 'NF >= 2 {print $2}' "$STATE"
@@ -336,7 +336,7 @@ _gfp_build_clone() {
 # whose only job is to swap fonts. pidof already answers the question in the normal case, so the
 # sweep is now a fallback, and when it does run it forks once instead of once per process.
 _gfp_namespace_pids() {
-    _gfp_proc_root="${LUOSHU_PROC_ROOT:-/proc}"
+    _gfp_proc_root="${ZIYU_PROC_ROOT:-/proc}"
     {
         # Named fast paths cover the common processes.
         for _gfp_pid in $(pidof zygote64 zygote zygote_secondary zygote64_32 zygote_ocomp 2>/dev/null); do
@@ -372,7 +372,7 @@ _gfp_namespace_pids() {
 # Google apps commonly share a namespace with several renderers. Mount once per
 # namespace; a newly isolated Chrome/Google process still produces a new entry.
 _gfp_unique_namespace_pids() {
-    _gfp_up_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _gfp_up_proc="${ZIYU_PROC_ROOT:-/proc}"
     _gfp_namespace_pids | while IFS= read -r _gfp_up_pid; do
         [ "$_gfp_up_pid" != 1 ] || continue
         _gfp_up_ns=$(readlink "$_gfp_up_proc/$_gfp_up_pid/ns/mnt" 2>/dev/null)
@@ -424,11 +424,11 @@ _gfp_mount_in_pid() {
     _gfp_regular_only="${4:-0}"
     _gfp_mount_detail=
     _gfp_mount_mode=
-    [ -d "${LUOSHU_PROC_ROOT:-/proc}/$_gfp_pid/ns" ] || { _gfp_mount_detail=namespace-missing; return 1; }
+    [ -d "${ZIYU_PROC_ROOT:-/proc}/$_gfp_pid/ns" ] || { _gfp_mount_detail=namespace-missing; return 1; }
     command -v nsenter >/dev/null 2>&1 || { _gfp_mount_detail=nsenter-missing; return 1; }
     _gfp_proc_source="/proc/1/root$_gfp_source"
-    _gfp_stage_dir="${LUOSHU_GOOGLE_FONT_STAGE_DIR:-/data/local/tmp}"
-    _gfp_ns_shell="${LUOSHU_GOOGLE_FONT_NS_SHELL:-/system/bin/sh}"
+    _gfp_stage_dir="${ZIYU_GOOGLE_FONT_STAGE_DIR:-/data/local/tmp}"
+    _gfp_ns_shell="${ZIYU_GOOGLE_FONT_NS_SHELL:-/system/bin/sh}"
     _gfp_mount_detail=$(nsenter -t "$_gfp_pid" -m -- "$_gfp_ns_shell" -c '
         plain="$1"; proc_src="$2"; dst="$3"; stage_dir="$4"; owner_pid="$5"; regular_only="$6"; module="$7"
         protected=0
@@ -437,7 +437,7 @@ _gfp_mount_in_pid() {
             PYTHONHOME="/proc/1/root$module/common/python" \
             PYTHONPATH="/proc/1/root$module/common/python/lib/python3.14" \
             LD_LIBRARY_PATH="/proc/1/root$module/common/python/lib:/proc/1/root$module/common/python/lib/python3.14/lib-dynload" \
-                "/proc/1/root$module/common/python/bin/luoshu-python" "/proc/1/root$module/common/font_verity.py" "$@"
+                "/proc/1/root$module/common/python/bin/ziyu-python" "/proc/1/root$module/common/font_verity.py" "$@"
         }
         if [ "$regular_only" = 1 ] && [ -L "$dst" ]; then
             printf "target-is-symlink"; exit 1
@@ -489,7 +489,7 @@ _gfp_mount_in_pid() {
         fi
 
         stage_detail=procroot-source-not-readable
-        stage="${stage_dir%/}/.luoshu-provider-${owner_pid}-$$.ttf"
+        stage="${stage_dir%/}/.ziyu-provider-${owner_pid}-$$.ttf"
         rm -f "$stage" 2>/dev/null || true
         if [ -r "$proc_src" ]; then
             if mkdir -p "$stage_dir" 2>/dev/null && cat "$proc_src" > "$stage" 2>/dev/null; then
@@ -533,13 +533,13 @@ _gfp_mount_in_pid() {
 _gfp_unmount_in_pid() {
     _gfp_pid="$1"
     _gfp_target="$2"
-    [ -d "${LUOSHU_PROC_ROOT:-/proc}/$_gfp_pid/ns" ] || return 1
+    [ -d "${ZIYU_PROC_ROOT:-/proc}/$_gfp_pid/ns" ] || return 1
     command -v nsenter >/dev/null 2>&1 || return 1
     nsenter -t "$_gfp_pid" -m -- umount "$_gfp_target" >/dev/null 2>&1
 }
 
 _gfp_process_start() {
-    IFS= read -r _gfp_ps_stat < "${LUOSHU_PROC_ROOT:-/proc}/$1/stat" 2>/dev/null || return 1
+    IFS= read -r _gfp_ps_stat < "${ZIYU_PROC_ROOT:-/proc}/$1/stat" 2>/dev/null || return 1
     _gfp_ps_tail=${_gfp_ps_stat##*) }
     [ "$_gfp_ps_tail" != "$_gfp_ps_stat" ] || return 1
     set -- $_gfp_ps_tail
@@ -550,7 +550,7 @@ _gfp_process_start() {
 }
 
 _gfp_consumer_package() {
-    _gfp_cp_name=$(tr '\000' '\n' < "${LUOSHU_PROC_ROOT:-/proc}/$1/cmdline" 2>/dev/null | head -n1)
+    _gfp_cp_name=$(tr '\000' '\n' < "${ZIYU_PROC_ROOT:-/proc}/$1/cmdline" 2>/dev/null | head -n1)
     _gfp_cp_name=${_gfp_cp_name%%:*}
     case "$_gfp_cp_name" in
         com.google.android.gms|com.google.android.gms.*|com.google.android.webview) return 1 ;;
@@ -565,7 +565,7 @@ _gfp_consumer_package() {
 # requests. A replacement bind only affects future opens, not these old FDs.
 # Remember only consumers whose view actually changed; never poll all app FDs.
 _gfp_refresh_boot() {
-    _gfp_rb_current=$(cat "${LUOSHU_PROC_ROOT:-/proc}/sys/kernel/random/boot_id" 2>/dev/null)
+    _gfp_rb_current=$(cat "${ZIYU_PROC_ROOT:-/proc}/sys/kernel/random/boot_id" 2>/dev/null)
     [ -n "$_gfp_rb_current" ] || _gfp_rb_current=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
     [ -n "$_gfp_rb_current" ] || return 1
     if [ "$(cat "${REFRESH_QUEUE}.boot" 2>/dev/null)" != "$_gfp_rb_current" ]; then
@@ -596,7 +596,7 @@ _gfp_queue_refresh() {
     _gfp_refresh_boot || return 0
     _gfp_q_pkg=$(_gfp_consumer_package "$_gfp_q_pid") || return 0
     _gfp_q_start=$(_gfp_process_start "$_gfp_q_pid") || return 0
-    _gfp_q_uid=$(awk '/^Uid:/ {print $2; exit}' "${LUOSHU_PROC_ROOT:-/proc}/$_gfp_q_pid/status" 2>/dev/null)
+    _gfp_q_uid=$(awk '/^Uid:/ {print $2; exit}' "${ZIYU_PROC_ROOT:-/proc}/$_gfp_q_pid/status" 2>/dev/null)
     case "$_gfp_q_uid" in ''|*[!0-9]*) return 0 ;; esac
     [ "$_gfp_q_uid" -ge 10000 ] || return 0
     _gfp_q_user=$((_gfp_q_uid / 100000))
@@ -618,7 +618,7 @@ _gfp_refresh_internal() {
     [ "$(_gfp_active_font)" != default ] && [ ! -f "$MODDIR/disable" ] && [ ! -f "$MODDIR/remove" ] || {
         rm -f "$REFRESH_QUEUE" "${REFRESH_QUEUE}.boot"; return 0;
     }
-    _gfp_r_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _gfp_r_proc="${ZIYU_PROC_ROOT:-/proc}"
     _gfp_r_groups="${REFRESH_QUEUE}.groups.$$"
     _gfp_r_open="${REFRESH_QUEUE}.open.$$"
     _gfp_r_keep="${REFRESH_QUEUE}.keep.$$"
@@ -676,7 +676,7 @@ _gfp_owned_identity() {
 _gfp_clear_owned_pid() {
     _gfp_clear_pid="$1"; _gfp_clear_target="$2"; _gfp_clear_round=0
     while [ "$_gfp_clear_round" -lt 64 ]; do
-        _gfp_clear_id=$(_gfp_identity "${LUOSHU_PROC_ROOT:-/proc}/$_gfp_clear_pid/root$_gfp_clear_target")
+        _gfp_clear_id=$(_gfp_identity "${ZIYU_PROC_ROOT:-/proc}/$_gfp_clear_pid/root$_gfp_clear_target")
         [ -n "$_gfp_clear_id" ] || return 0
         _gfp_owned_identity "$_gfp_clear_target" "$_gfp_clear_id" || return 0
         _gfp_unmount_in_pid "$_gfp_clear_pid" "$_gfp_clear_target" || return 1
@@ -698,7 +698,7 @@ _gfp_mount_journal_failed() {
 
 _gfp_mount_target() {
     _gfp_mt_pid="$1"; _gfp_mt_clone="$2"; _gfp_mt_target="$3"
-    _gfp_mt_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _gfp_mt_proc="${ZIYU_PROC_ROOT:-/proc}"
     _gfp_mt_ns=$(readlink "$_gfp_mt_proc/$_gfp_mt_pid/ns/mnt" 2>/dev/null)
     _gfp_mt_id=$(_gfp_identity "$_gfp_mt_proc/$_gfp_mt_pid/root$_gfp_mt_target")
     _gfp_mt_previous=${_gfp_mt_id%:*}
@@ -747,7 +747,7 @@ _gfp_prune_journal() {
     _gfp_pj_live="${MOUNTS}.live.$$"
     : > "$_gfp_pj_live" || return 1
     for _gfp_pj_pid in $_gfp_namespace_pid_list; do
-        readlink "${LUOSHU_PROC_ROOT:-/proc}/$_gfp_pj_pid/ns/mnt" 2>/dev/null >> "$_gfp_pj_live"
+        readlink "${ZIYU_PROC_ROOT:-/proc}/$_gfp_pj_pid/ns/mnt" 2>/dev/null >> "$_gfp_pj_live"
     done
     awk -F '|' 'FILENAME == ARGV[1] {live[$1]=1; next} $1 in live' "$_gfp_pj_live" "$MOUNTS" > "${MOUNTS}.tmp.$$" && \
         mv -f "${MOUNTS}.tmp.$$" "$MOUNTS"
@@ -781,7 +781,7 @@ _gfp_retire_unsealed_updates() {
     while IFS= read -r _gfp_ru_target; do
         [ -n "$_gfp_ru_target" ] || continue
         for _gfp_ru_pid in $_gfp_ru_pids; do
-            _gfp_ru_visible="${LUOSHU_PROC_ROOT:-/proc}/$_gfp_ru_pid/root$_gfp_ru_target"
+            _gfp_ru_visible="${ZIYU_PROC_ROOT:-/proc}/$_gfp_ru_pid/root$_gfp_ru_target"
             _gfp_ru_id=$(_gfp_identity "$_gfp_ru_visible")
             _gfp_owned_identity "$_gfp_ru_target" "$_gfp_ru_id" || continue
             # All old protected mounts are retired before target metadata is read,
@@ -828,7 +828,7 @@ _gfp_apply_internal() {
     _gfp_ns_first_error=
     _gfp_missing_first=
     _gfp_namespace_pid_list=
-    if [ "${LUOSHU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
+    if [ "${ZIYU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
         _gfp_namespace_pid_list=$(_gfp_unique_namespace_pids)
     fi
     while IFS="$(printf '\t')" read -r _gfp_target _gfp_weight_value; do
@@ -859,12 +859,12 @@ _gfp_apply_internal() {
         fi
         # Paths may already show the clone while a Chrome process still dup()s
         # its earlier provider FD. Preserve and check the original inode too.
-        if [ "${LUOSHU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
+        if [ "${ZIYU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
             [ "$_gfp_original_identity" = "$_gfp_clone_identity" ] || _gfp_queue_all_consumers "$_gfp_original_identity"
         fi
         _gfp_target_mounts=0
         _gfp_target_attempts=0
-        if [ "${LUOSHU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
+        if [ "${ZIYU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
             for _gfp_pid in $_gfp_namespace_pid_list; do
                 _gfp_target_attempts=$((_gfp_target_attempts + 1))
                 _gfp_ns_attempted=$((_gfp_ns_attempted + 1))
@@ -886,7 +886,7 @@ _gfp_apply_internal() {
                 _gfp_ns_first_error="no-target-namespace-pids"
             fi
         fi
-        if [ "${LUOSHU_GOOGLE_FONT_DRY_RUN:-0}" = 1 ] || [ "$_gfp_target_mounts" -gt 0 ]; then
+        if [ "${ZIYU_GOOGLE_FONT_DRY_RUN:-0}" = 1 ] || [ "$_gfp_target_mounts" -gt 0 ]; then
             _gfp_mounted=$((_gfp_mounted + 1))
             printf '%s|%s|%s|%s|%s|%s|provider-v4-verity|%s\n' "$_gfp_target" "$_gfp_clone" \
                 "$_gfp_original_target_hash" "$(_gfp_hash "$_gfp_clone")" \
@@ -911,7 +911,7 @@ _gfp_apply_internal() {
         # Never force-stop Play/Chrome during boot or interrupt the current app.
         # A successful zygote bind alone does not prove GMS can open the clone.
         if [ "$_gfp_failed" -eq 0 ] && [ "$_gfp_ns_failed" -eq 0 ]; then
-            if [ "${LUOSHU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
+            if [ "${ZIYU_GOOGLE_FONT_DRY_RUN:-0}" != 1 ]; then
                 _gfp_prune_clones
                 _gfp_prune_journal || return 1
             fi
@@ -964,7 +964,7 @@ _gfp_refresh_consumers() { _gfp_locked _gfp_refresh_internal; }
 
 _gfp_boot() {
     _gfp_attempt=1
-    _gfp_limit="${LUOSHU_GOOGLE_FONT_RETRIES:-12}"
+    _gfp_limit="${ZIYU_GOOGLE_FONT_RETRIES:-12}"
     case "$_gfp_limit" in ''|*[!0-9]*) _gfp_limit=12 ;; esac
     [ "$_gfp_limit" -ge 1 ] 2>/dev/null || _gfp_limit=1
     while [ "$_gfp_attempt" -le "$_gfp_limit" ]; do
@@ -981,7 +981,7 @@ if [ "${0##*/}" = google_font_provider_bridge.sh ]; then
     case "${1:-boot}" in
         boot) _gfp_boot ;;
         apply|now) _gfp_apply_once ;;
-        prepare) LUOSHU_GOOGLE_FONT_DRY_RUN=1 _gfp_apply_once ;;
+        prepare) ZIYU_GOOGLE_FONT_DRY_RUN=1 _gfp_apply_once ;;
         fingerprint) _gfp_fingerprint ;;
         refresh) _gfp_refresh_consumers ;;
         restore) _gfp_restore ;;

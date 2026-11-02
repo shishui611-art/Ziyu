@@ -1,5 +1,5 @@
 #!/bin/sh
-# Shared assertions for the LuoShu shell test suite.
+# Shared assertions for the Ziyu shell test suite.
 #
 # Every module under common/ begins with `set +e`, so the moment a test sources one, the test's own
 # `set -eu` is silently switched off and every bare assertion after that point becomes a no-op that

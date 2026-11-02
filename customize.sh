@@ -1,7 +1,7 @@
 #!/system/bin/sh
-# LuoShu installer wrapper: run the verified installer, then hide every standard
+# Ziyu installer wrapper: run the verified installer, then hide every standard
 # partition payload before the first boot.
-# Installer contract: delegated core deploys common/luoshu_cli.sh to system/bin/ziyu.
+# Installer contract: delegated core deploys common/ziyu_cli.sh to system/bin/ziyu.
 # Compatibility contract retained for source/regression checks:
 # for _enable_dir in "$MODPATH" "$OLD_MOD"
 # rm -f "$_enable_dir/disable"
@@ -11,10 +11,10 @@ MODPATH="${MODPATH:-$3}"
 . "$MODPATH/common/identity_migration.sh"
 ziyu_identity_select_old
 _lc_source_dir=$(CDPATH= cd -- "${0%/*}" 2>/dev/null && pwd)
-_lc_base="$MODPATH/.luoshu-runtime/compat/v227/customize.sh"
+_lc_base="$MODPATH/.ziyu-runtime/compat/v227/customize.sh"
 _lc_helper="$MODPATH/common/private_payload.sh"
 _lc_temp="$MODPATH/.customize-v227.$$.sh"
-[ -f "$_lc_base" ] || _lc_base="$_lc_source_dir/.luoshu-runtime/compat/v227/customize.sh"
+[ -f "$_lc_base" ] || _lc_base="$_lc_source_dir/.ziyu-runtime/compat/v227/customize.sh"
 [ -f "$_lc_helper" ] || _lc_helper="$_lc_source_dir/common/private_payload.sh"
 [ -f "$_lc_helper" ] && . "$_lc_helper"
 
@@ -35,7 +35,7 @@ fi
 # Migrate directly from durable private payloads. The migrator must not require
 # mounting or projecting the active module in the installer's namespace, and
 # schema metadata in the running installation must remain untouched.
-_lc_real_old_mod="$LUOSHU_OLD_MOD"
+_lc_real_old_mod="$ZIYU_OLD_MOD"
 _lc_scan_rom=$(MODDIR="$MODPATH" sh "$MODPATH/common/boot_ota_guard.sh" rom-identity "$MODPATH" 2>/dev/null)
 
 # Run the delegated installer by sourcing it so its migration state remains visible
@@ -70,8 +70,8 @@ if [ "$_lc_rc" -ne 0 ]; then
     return "$_lc_rc" 2>/dev/null || exit "$_lc_rc"
 fi
 
-type luoshu_install_step >/dev/null 2>&1 && luoshu_install_step 4 "挂载状态"
-if ! luoshu_private_install_migrate "$MODPATH"; then
+type ziyu_install_step >/dev/null 2>&1 && ziyu_install_step 4 "挂载状态"
+if ! ziyu_private_install_migrate "$MODPATH"; then
     abort '字域私有挂载树部署失败'
     return 1 2>/dev/null || exit 1
 fi
@@ -101,19 +101,19 @@ for _lc_rom_record in app-rom-observed.conf stock-rom-auto-attempt.conf; do
 done
 if [ -f "$MODPATH/common/mount_backend_preferences.sh" ]; then
     . "$MODPATH/common/mount_backend_preferences.sh"
-    luoshu_mount_preference_restore "$_lc_real_old_mod" "$MODPATH" || {
+    ziyu_mount_preference_restore "$_lc_real_old_mod" "$MODPATH" || {
         abort '挂载偏好迁移失败'
         return 1 2>/dev/null || exit 1
     }
     MODDIR="$MODPATH" MODULE_DIR="$MODPATH"
-    _lc_saved_preference=$(luoshu_mount_preference_get "$MODPATH")
+    _lc_saved_preference=$(ziyu_mount_preference_get "$MODPATH")
     [ ! -f "$MODPATH/common/mount_backend_policy.sh" ] || . "$MODPATH/common/mount_backend_policy.sh"
     [ ! -f "$MODPATH/common/root_manager_detection.sh" ] || . "$MODPATH/common/root_manager_detection.sh"
-    type luoshu_detect_root_manager >/dev/null 2>&1 && luoshu_detect_root_manager >/dev/null
+    type ziyu_detect_root_manager >/dev/null 2>&1 && ziyu_detect_root_manager >/dev/null
     [ ! -f "$MODPATH/common/meta_mount_detection.sh" ] || . "$MODPATH/common/meta_mount_detection.sh"
-    type luoshu_meta_mount_detect >/dev/null 2>&1 && luoshu_meta_mount_detect >/dev/null
-    luoshu_install_choose_mount_backend "$_lc_saved_preference"
-    luoshu_mount_preference_write "$LUOSHU_INSTALL_BACKEND_PREFERENCE" "$MODPATH" || {
+    type ziyu_meta_mount_detect >/dev/null 2>&1 && ziyu_meta_mount_detect >/dev/null
+    ziyu_install_choose_mount_backend "$_lc_saved_preference"
+    ziyu_mount_preference_write "$ZIYU_INSTALL_BACKEND_PREFERENCE" "$MODPATH" || {
         abort '挂载偏好保存失败'
         return 1 2>/dev/null || exit 1
     }
@@ -131,16 +131,12 @@ ziyu_apatch_hook_install "$MODPATH" || {
     abort 'APatch 启动准备入口安装失败'
     return 1 2>/dev/null || exit 1
 }
-# Optional font-cache companion never gates the existing font mount path.
-if [ -f "$MODPATH/common/font_preload_helper.sh" ]; then
-    . "$MODPATH/common/font_preload_helper.sh"
-    if ziyu_preload_helper_install "$MODPATH"; then
-        ui_print '• 字体排除兼容：已部署「字域字体预加载」（实验性，需要可用 Zygisk）'
-        ui_print '  主模块挂载不依赖它；已有停用/移除选择保持不变，重启后加载'
-    else
-        ui_print '• 字体预加载配套组件未部署，请查看安装日志；原有挂载流程保留'
-    fi
-fi
+# Retire the separately owned experimental component; main module stays script-only.
+. "$MODPATH/common/font_preload_helper.sh" || abort '缺少旧组件清理脚本'
+ziyu_preload_helper_remove || abort '旧字体预加载组件清理标记失败'
+. "$MODPATH/common/adb_storage.sh" || abort '缺少数据目录迁移脚本'
+ziyu_adb_storage "$MODPATH" install || abort '字域数据目录初始化失败'
+[ ! -f "$MODPATH/config/identity-migration-full-reboot.conf" ] || ui_print '• 数据目录升级：请完整重启一次，旧挂载目录在重启后自动清理'
 ziyu_identity_finish "$MODPATH" "$_lc_real_old_mod" || {
     abort 'ziyu 标识迁移未完成，请保留原模块并导出安装日志'
     return 1 2>/dev/null || exit 1
@@ -179,5 +175,5 @@ if [ "${BOOTMODE:-false}" = true ] && [ -f "$MODPATH/common/display_typography.s
     fi
 fi
 [ "$_lc_real_old_mod" != /data/adb/modules/LuoShu ] || ui_print '• 旧标识已迁移为 ziyu，本次必须完整重启；后续字体切换可选受支持的 KSU 软重启'
-type luoshu_install_complete >/dev/null 2>&1 && luoshu_install_complete
+type ziyu_install_complete >/dev/null 2>&1 && ziyu_install_complete
 return 0 2>/dev/null || exit 0

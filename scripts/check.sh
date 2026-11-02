@@ -14,11 +14,11 @@ source_executable() {
 # pure-Python FontTools payload for the bundled Android runtime.  Make that
 # payload visible to every host-side Python test as well; otherwise a clean CI
 # runner fails before the Android build even though the runtime is present.
-LUOSHU_BUNDLED_SITE="$ROOT/common/python/lib/python3.14/site-packages"
+ZIYU_BUNDLED_SITE="$ROOT/common/python/lib/python3.14/site-packages"
 PYTHONPATH="$ROOT/common${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH
-if [ -d "$LUOSHU_BUNDLED_SITE/fontTools" ]; then
-  PYTHONPATH="$LUOSHU_BUNDLED_SITE${PYTHONPATH:+:$PYTHONPATH}"
+if [ -d "$ZIYU_BUNDLED_SITE/fontTools" ]; then
+  PYTHONPATH="$ZIYU_BUNDLED_SITE${PYTHONPATH:+:$PYTHONPATH}"
   export PYTHONPATH
 fi
 
@@ -75,8 +75,8 @@ for file in \
   README.md LICENSE NOTICE.md THIRD_PARTY_NOTICES.md 更新日志/CHANGELOG.md SECURITY.md CONTRIBUTING.md \
   common/composite_font.py common/font_instance.py common/font_metrics_normalize.py common/font_coverage.py common/font_axis_info.py \
   common/font_role_check.py common/font_metadata.py common/font_extract_faces.py common/font_import_probe.py common/font_source_profile.py common/font_source_profile.sh common/font_web_convert.py common/universal_font_plan.py common/universal_font_plan.sh common/minimal_xml_router.py common/minimal_xml_router.sh common/universal_font_compiler.py common/universal_font_compiler.sh common/universal_font_deployment.py common/universal_font_deployment.sh common/universal_next_boot.sh common/universal_mount_runtime.sh common/font_inventory.py \
-  common/font_role_check.sh common/native_import.sh common/font_details.sh common/luoshu_cli.sh \
-  common/luoshu_composite.sh common/font_mix.sh common/font_mix_controller.sh common/weighted_mix_task.sh \
+  common/font_role_check.sh common/native_import.sh common/font_details.sh common/ziyu_cli.sh \
+  common/ziyu_composite.sh common/font_mix.sh common/font_mix_controller.sh common/weighted_mix_task.sh \
   common/multiweight_mix_task.sh common/mix_weight_mode.sh \
   common/app_bridge.sh common/font_manager.sh common/font_active_state.sh common/font_boot_state.sh common/font_library_cache.sh common/app_installer.sh \
   common/font_provider_cache.sh common/font_validation_cache.sh common/font_weight_runtime.sh \
@@ -119,45 +119,45 @@ test ! -e "$ROOT/scripts/prepare_webui.sh"
 ! grep -q '^webroot=' "$ROOT/module.prop"
 
 # module.prop 是模块、原生 App 和产物的唯一版本源。
-test "$LUOSHU_VERSION" = "$(sed -n 's/^version=//p' "$ROOT/module.prop" | head -n1)"
-test "$LUOSHU_VERSION_CODE" = "$(sed -n 's/^versionCode=//p' "$ROOT/module.prop" | head -n1)"
-test "$LUOSHU_VERSION" = "$(sed -n 's/^version=//p' "$ROOT/config/version_notes.conf" | head -n1)"
+test "$ZIYU_VERSION" = "$(sed -n 's/^version=//p' "$ROOT/module.prop" | head -n1)"
+test "$ZIYU_VERSION_CODE" = "$(sed -n 's/^versionCode=//p' "$ROOT/module.prop" | head -n1)"
+test "$ZIYU_VERSION" = "$(sed -n 's/^version=//p' "$ROOT/config/version_notes.conf" | head -n1)"
 grep -q '^description=.' "$ROOT/module.prop"
 
 # 发布包使用显式清单。common/ 新增运行文件必须被审查后列入，不能再整目录复制。
 PAYLOAD_MANIFEST="$ROOT/scripts/module_payload_manifest.txt"
 test -s "$PAYLOAD_MANIFEST"
 # Release notes are published from Git, while installed payload contains only runtime and legal files.
-test -s "$ROOT/$LUOSHU_RELEASE_NOTES"
+test -s "$ROOT/$ZIYU_RELEASE_NOTES"
 ! grep -Eq '^(更新日志(/|$)|docs(/|$)|README\.md$)' "$PAYLOAD_MANIFEST"
 awk 'NF && $1 !~ /^#/ { if (seen[$0]++) exit 1 }' "$PAYLOAD_MANIFEST"
 while IFS= read -r payload || [ -n "$payload" ]; do
   case "$payload" in ''|\#*) continue ;; esac
   test -e "$ROOT/$payload"
 done < "$PAYLOAD_MANIFEST"
-find "$ROOT/common" -maxdepth 1 -type f -printf 'common/%f\n' | sort > /tmp/luoshu-common-files.txt
-grep '^common/' "$PAYLOAD_MANIFEST" | grep -v '^common/font_preload_module$' | grep -v '^common/python$' | grep -v '^common/legacy_v14_4$' | sort > /tmp/luoshu-manifest-common.txt
-cmp -s /tmp/luoshu-common-files.txt /tmp/luoshu-manifest-common.txt
+find "$ROOT/common" -maxdepth 1 -type f -printf 'common/%f\n' | sort > /tmp/ziyu-common-files.txt
+grep '^common/' "$PAYLOAD_MANIFEST" | grep -v '^common/font_preload_module$' | grep -v '^common/python$' | grep -v '^common/legacy_v14_4$' | sort > /tmp/ziyu-manifest-common.txt
+cmp -s /tmp/ziyu-common-files.txt /tmp/ziyu-manifest-common.txt
 
 # 活跃运行时代码不得再出现历史开发版本头、WebUI 函数或未使用的报告脚本。
 ! grep -RInE --exclude-dir=python --exclude-dir=legacy_v14_4 --exclude=legacy_v14_4_switch.sh --exclude=font_manager.sh \
-  '^[[:space:]]*#[[:space:]]*(洛书|LuoShu)[[:space:]]+v1[34]\.' \
-  "$ROOT/common" "$ROOT/customize.sh" "$ROOT/.luoshu-runtime/core/post-fs-data.sh" "$ROOT/.luoshu-runtime/core/service.sh" "$ROOT/uninstall.sh" >/dev/null 2>&1
+  '^[[:space:]]*#[[:space:]]*(洛书|Ziyu)[[:space:]]+v1[34]\.' \
+  "$ROOT/common" "$ROOT/customize.sh" "$ROOT/.ziyu-runtime/core/post-fs-data.sh" "$ROOT/.ziyu-runtime/core/service.sh" "$ROOT/uninstall.sh" >/dev/null 2>&1
 ! grep -qE 'get_all_fonts_json|get_font_info_json|scan_installed_families|refresh_font_cache' "$ROOT/common/util_functions.sh"
 test ! -e "$ROOT/common/font_report.sh"
 ! grep -RInE 'webui_font_list|WebUI' "$ROOT/common" --exclude=module_update_state.sh --exclude-dir=legacy_v14_4 >/dev/null 2>&1
 
 # 单包构建必须显式传入 APK；Debug 包只能由测试工作流明确放行。
-grep -q "LUOSHU_APP_APK is required" "$ROOT/scripts/build.sh"
-grep -q 'LUOSHU_ALLOW_DEBUG_APP' "$ROOT/scripts/build.sh"
+grep -q "ZIYU_APP_APK is required" "$ROOT/scripts/build.sh"
+grep -q 'ZIYU_ALLOW_DEBUG_APP' "$ROOT/scripts/build.sh"
 grep -q 'io.github.shishui611_art.ziyu.debug' "$ROOT/scripts/build.sh"
 grep -q 'Ziyu-${VERSION}.zip' "$ROOT/scripts/build.sh"
 grep -q 'bundled/Ziyu-App.apk' "$ROOT/scripts/build.sh"
-! grep -RIn 'LUOSHU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
+! grep -RIn 'ZIYU_VARIANT' "$ROOT/scripts" "$ROOT/.github/workflows" >/dev/null 2>&1
 
 # 安装与运行时只面向原生 App，不得重新创建或依赖 webroot。
-grep -Fq 'cp -f "$MODPATH/common/luoshu_cli.sh" "$MODPATH/system/bin/ziyu"' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
-grep -Fq 'chmod 0755 "$MODPATH/common/python/bin/luoshu-python" "$MODPATH/system/bin/ziyu"' "$ROOT/.luoshu-runtime/compat/v227/customize.sh"
+grep -Fq 'cp -f "$MODPATH/common/ziyu_cli.sh" "$MODPATH/system/bin/ziyu"' "$ROOT/.ziyu-runtime/compat/v227/customize.sh"
+grep -Fq 'chmod 0755 "$MODPATH/common/python/bin/ziyu-python" "$MODPATH/system/bin/ziyu"' "$ROOT/.ziyu-runtime/compat/v227/customize.sh"
 ! grep -q 'pm install' "$ROOT/customize.sh"
 ! grep -q 'pkill' "$ROOT/customize.sh"
 for runtime in customize.sh post-fs-data.sh service.sh action.sh common/font_manager.sh common/app_bridge.sh; do
@@ -166,7 +166,7 @@ done
 grep -q 'native_font_index.json' "$ROOT/common/font_manager.sh"
 grep -q 'native_font_index.json' "$ROOT/service.sh"
 ! grep -qE 'restart_ui|previous_font|sync_preview_fonts' "$ROOT/common/font_manager.sh"
-! grep -qE '重启界面|刷新字体缓存|回滚' "$ROOT/common/luoshu_cli.sh"
+! grep -qE '重启界面|刷新字体缓存|回滚' "$ROOT/common/ziyu_cli.sh"
 
 # 字体处理、安全门禁和原生桥能力必须保留。
 grep -q 'font_mix_controller.sh' "$ROOT/common/font_mix.sh"
@@ -201,7 +201,7 @@ grep -q 'source 时，必须只定义函数' "$ROOT/common/font_check.sh"
 grep -q 'instantiateVariableFont' "$ROOT/common/font_instance.py"
 grep -q -- '--axes' "$ROOT/common/font_instance.py"
 grep -q 'normalize_font_metrics' "$ROOT/common/font_instance.py"
-grep -q 'LuoShuMono' "$ROOT/common/font_config_overlay.py"
+grep -q 'ZiyuMono' "$ROOT/common/font_config_overlay.py"
 grep -q 'worker "$_request"' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 grep -q 'axes_task.conf' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 grep -q 'OpenMultipleDocuments' "$ROOT/android-app/app/src/main/java/io/github/xgl34222220/ziyu/NativeImportOverlay.kt"
@@ -238,7 +238,7 @@ grep -q 'chromaticAberration' "$ROOT/android-app/app/src/main/java/io/github/xgl
 
 # HyperOS 必须保留紧凑控件的原厂度量壳，并按真实分区写入 MiSans 与数字字重目标。
 grep -q '_hyperos_metric_shell_files' "$ROOT/common/hyperos_global.sh"
-grep -q 'LUOSHU_PRODUCT_FONTS_ROOT' "$ROOT/common/hyperos_global.sh"
+grep -q 'ZIYU_PRODUCT_FONTS_ROOT' "$ROOT/common/hyperos_global.sh"
 grep -q 'font_instance.py' "$ROOT/common/hyperos_global.sh"
 grep -q 'hyperos_global.sh' "$ROOT/common/font_library_cache.sh"
 grep -q 'hyperos_global.sh' "$ROOT/common/mount_compat.sh"
@@ -265,8 +265,8 @@ done
 ! grep -RInE --exclude-dir=.git --exclude=check.sh --exclude=CHANGELOG.md --exclude='RELEASE_NOTES_*' \
   'common/(v14_mix|v142_weighted_mix|v143_auto_multiweight_mix|v14_switch)\.sh' "$ROOT" >/dev/null 2>&1
 ! grep -RInE --exclude-dir=python --exclude-dir=legacy_v14_4 --exclude=legacy_v14_4_switch.sh --exclude=font_manager.sh \
-  '洛书 v1[34]\.|LuoShu v1[34]\.' \
-  "$ROOT/common" "$ROOT/customize.sh" "$ROOT/.luoshu-runtime/core/post-fs-data.sh" "$ROOT/.luoshu-runtime/core/service.sh" "$ROOT/uninstall.sh" >/dev/null 2>&1
+  '洛书 v1[34]\.|Ziyu v1[34]\.' \
+  "$ROOT/common" "$ROOT/customize.sh" "$ROOT/.ziyu-runtime/core/post-fs-data.sh" "$ROOT/.ziyu-runtime/core/service.sh" "$ROOT/uninstall.sh" >/dev/null 2>&1
 
 # 许可证与声明保持完整。
 test "$(sha256sum "$ROOT/LICENSE" | awk '{print $1}')" = '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986'
@@ -278,7 +278,7 @@ grep -q 'GPL-3.0-only' "$ROOT/NOTICE.md"
 grep -q 'GPL-3.0-only' "$ROOT/THIRD_PARTY_NOTICES.md"
 grep -q 'GPL-3.0-only' "$ROOT/CONTRIBUTING.md"
 ! grep -q 'License-MIT' "$ROOT/README.md"
-grep -q '^MIT License$' "$ROOT/licenses/LuoShu-MIT-HISTORICAL.txt"
+grep -q '^MIT License$' "$ROOT/licenses/upstream-project-MIT-HISTORICAL.txt"
 grep -q 'Python Software Foundation' "$ROOT/licenses/CPython-LICENSE.txt"
 grep -q '^MIT License$' "$ROOT/licenses/FontTools-LICENSE.txt"
 test -s "$ROOT/licenses/WOFF2-LICENSE.txt"
@@ -287,8 +287,8 @@ grep -q 'Copyright (c) 2013-2017 by the WOFF2 Authors.' "$ROOT/licenses/WOFF2-LI
 grep -q 'Permission is hereby granted, free of charge' "$ROOT/licenses/WOFF2-LICENSE.txt"
 grep -q 'Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.' "$ROOT/licenses/Brotli-LICENSE.txt"
 grep -q 'Permission is hereby granted, free of charge' "$ROOT/licenses/Brotli-LICENSE.txt"
-source_executable "$ROOT/.luoshu-runtime/bin/woff2_decompress"
-file "$ROOT/.luoshu-runtime/bin/woff2_decompress" | grep -q 'ARM aarch64'
+source_executable "$ROOT/.ziyu-runtime/bin/woff2_decompress"
+file "$ROOT/.ziyu-runtime/bin/woff2_decompress" | grep -q 'ARM aarch64'
 grep -q 'fb9c3379f2605b10f3e8f1d9636664ab5576775c' "$ROOT/scripts/prepare_composite_runtime.sh"
 grep -q '533843e3546cd24c8344eaa899c6b0b681c8d222' "$ROOT/scripts/prepare_composite_runtime.sh"
 grep -q 'Google WOFF2 与 Brotli' "$ROOT/THIRD_PARTY_NOTICES.md"
@@ -421,14 +421,14 @@ sh "$ROOT/scripts/legacy_mix_34_progress_test.sh"
 sh "$ROOT/scripts/legacy_mix_finalize_race_test.sh"
 sh "$ROOT/scripts/stock_scan_lock_test.sh"
 
-source_executable "$ROOT/common/python/bin/luoshu-python"
+source_executable "$ROOT/common/python/bin/ziyu-python"
 echo 'Ziyu App-only source checks passed.'
 
 # Font refresh/import/mix performance contracts.
 grep -q 'native-v3' common/font_manager.sh
 grep -q 'manifest-fast' common/font_manager.sh
 grep -q 'font-index-v4.json' android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontIndexStore.kt
-grep -q 'LUOSHU_PREPARE_CACHE' common/legacy_v14_4/v142_weighted_mix.sh
+grep -q 'ZIYU_PREPARE_CACHE' common/legacy_v14_4/v142_weighted_mix.sh
 
 # Stable 1.1.1 one-shot regressions plus v2 legacy migration and weight lifecycle.
 PYTHONPATH="$ROOT/common:$ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest -q stable111_repair_test stable111_round2_test release_v2_retirement_test

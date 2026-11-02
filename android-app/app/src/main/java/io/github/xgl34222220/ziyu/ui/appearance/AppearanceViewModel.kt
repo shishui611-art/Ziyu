@@ -27,6 +27,7 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
     fun setThemeMode(value: ThemeMode) = launch { repository.setThemeMode(value) }
     fun setThemeDisplay(mode: ThemeMode, black: Boolean) = launch { repository.setThemeDisplay(mode, black) }
     fun setPredictiveBack(enabled: Boolean) = launch { repository.setPredictiveBack(enabled) }
+    fun setCardTransparency(value: Int) = launch { repository.setCardTransparency(value) }
     fun completeSetup() = launch { repository.setSetupCompleted() }
     fun setSeedArgb(value: Int) = launch { repository.setSeedArgb(value) }
     fun setKolorStyle(value: KolorStyle) = launch { repository.setKolorStyle(value) }

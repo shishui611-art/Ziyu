@@ -38,7 +38,7 @@
 | 修改 common/mount_nomount_backend.sh、common/nomount_rule_json.py | 自身 compiled manifest 与 CLI/协议版本校验 |
 | 新增 common/nomount_capability.sh、common/bin/ziyu-nm | 私有后端验证许可与固定版本 CLI，仅 ARM64 首版 |
 | 修改 common/install_ui.sh、customize.sh、common/mount_backend_preferences.sh | 自动 external 优先及旧偏好迁移 |
-| 修改 post-fs-data.sh、.luoshu-runtime/core/post-fs-data.sh、service.sh 等 hook | 在发布边界调度，不建立 private view |
+| 修改 post-fs-data.sh、.ziyu-runtime/core/post-fs-data.sh、service.sh 等 hook | 在发布边界调度，不建立 private view |
 | 修改 App 状态模型、ZiyuViewModel.kt、ui/settings/SettingsHubScreen.kt | planned/active/health/pending 分开展示 |
 | 修改 scripts/module_payload_manifest.txt、scripts/check.sh、打包与声明文件 | 显式新增运行文件、协议与许可证、发布检查 |
 
@@ -129,7 +129,7 @@ class PublishedLayoutTest(unittest.TestCase):
 **Interfaces:** `publish_generation(module: Path, stage: Path, manifest: dict, boot_id: str) -> dict`；`recover_publish(module: Path, boot_id: str) -> dict`。仅发布 manifest 所属 fonts/XML；journal 指向自身已核对的内容根，最后写 generation commit。
 
 - [ ] 增加故障注入测试：在每个 rename/文件提交之后模拟异常，调用 recover 后必须是完整旧代次或完整新代次；不能混合 fonts/XML。
-- [ ] 在 migration fixture 保留 `system/bin/luoshud` 和一个非 font 文件；发布/恢复后其哈希保持相同。
+- [ ] 在 migration fixture 保留 `system/bin/ziyud` 和一个非 font 文件；发布/恢复后其哈希保持相同。
 - [ ] 迁移旧私有载荷时，用清单确定自身字体/XML，不移动或清空整棵 system；旧来源在提交成功且无引用后才回收。
 - [ ] 把原 import 时 `luoshu_private_mount_module_view` 副作用去掉；新外部分支不调用该函数。保留明确的旧布局迁移工具入口。
 - [ ] 恢复默认字体也走待提交代次，只撤自身发布清单中的 fonts/XML；不热改当前活动源。
@@ -137,7 +137,7 @@ class PublishedLayoutTest(unittest.TestCase):
 
 ## Task 4: external 启动闭环与只观测的晚期 hook
 
-**Files:** mount_backend_runtime.sh、post-fs-data.sh、.luoshu-runtime/core/post-fs-data.sh、post-mount.sh、service.sh、动态补挂和 Meta 热同步入口；扩展 mount_backend_orchestration_test.sh 与 service_mount_truth_test.sh。
+**Files:** mount_backend_runtime.sh、post-fs-data.sh、.ziyu-runtime/core/post-fs-data.sh、post-mount.sh、service.sh、动态补挂和 Meta 热同步入口；扩展 mount_backend_orchestration_test.sh 与 service_mount_truth_test.sh。
 
 **Interfaces:** 新状态 schema 使用 `ziyu-mount-backend-v2`，字段包括 boot_id、provider_state/id/layout、planned_backend、active_backend、generation、verification、pending_reason。旧 reader 只读兼容；新状态不能被旧 reader 当作本启动已验证状态。
 

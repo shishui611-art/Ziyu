@@ -32,7 +32,7 @@ esac
 ''')
         self.env={**os.environ,'MODDIR':str(self.module),'TEST_ROOT':str(self.root),
             'PATH':f'{self.bin}:{os.environ["PATH"]}',
-            'LUOSHU_GOOGLE_FONT_WATCH_CYCLES':'0','LUOSHU_GOOGLE_FONT_WATCH_INTERVAL':'1'}
+            'ZIYU_GOOGLE_FONT_WATCH_CYCLES':'0','ZIYU_GOOGLE_FONT_WATCH_INTERVAL':'1'}
     def rows(self,name):
         p=self.root/name;return p.read_text().splitlines() if p.exists() else []
     def run_guard(self,**extra):

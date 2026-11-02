@@ -17,9 +17,9 @@ _sr_detect() {
     . "$MODDIR/common/root_manager_detection.sh" || _sr_error 'Root 管理器检测脚本不可用。'
     if [ -f "$MODDIR/config/identity-migration-full-reboot.conf" ] &&
        [ "$(sed -n 's/^bootId=//p' "$MODDIR/config/identity-migration-full-reboot.conf")" = "$(cat /proc/sys/kernel/random/boot_id)" ]; then
-        _sr_error 'ziyu 标识升级首次需要完整重启，完成后可恢复使用 KernelSU 软重启。'
+        _sr_error '本次模块标识或数据目录升级需要完整重启一次，完成后可恢复使用 KernelSU 软重启。'
     fi
-    _sr_manager=$(luoshu_detect_root_manager)
+    _sr_manager=$(ziyu_detect_root_manager)
     case "$_sr_manager" in
         KernelSU|SukiSU\ Ultra) ;;
         *) _sr_error '当前未确认是 KernelSU 系列管理器，无法请求 KernelSU 软重启。' ;;
@@ -76,7 +76,7 @@ case "${1:-request}" in
             if [ -f "$MODDIR/common/boot_ota_recover_task.sh" ] && \
                [ -f "$MODDIR/common/background_task.sh" ]; then
                 . "$MODDIR/common/background_task.sh"
-                LUOSHU_TASK_TIMEOUT_SECONDS=900 luoshu_start_detached \
+                ZIYU_TASK_TIMEOUT_SECONDS=900 ziyu_start_detached \
                     "$MODDIR/config/boot-ota-recover.pid" "ziyu-ota-recover-$(date +%s 2>/dev/null || echo 0)" \
                     "$LOG_FILE" sh "$MODDIR/common/boot_ota_recover_task.sh" "$MODDIR"
                 _sr_task_rc=$?

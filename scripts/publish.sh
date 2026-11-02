@@ -5,7 +5,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 if [ ! -d .git ]; then
-  echo "请先将源码解压到 LuoShu Git 仓库根目录，再运行此脚本。" >&2
+  echo "请先将源码解压到 Ziyu Git 仓库根目录，再运行此脚本。" >&2
   exit 1
 fi
 
@@ -18,17 +18,17 @@ case "$REMOTE" in
     ;;
 esac
 
-APP_APK="${LUOSHU_APP_APK:-}"
+APP_APK="${ZIYU_APP_APK:-}"
 [ -n "$APP_APK" ] && [ -s "$APP_APK" ] || {
-  echo '本地候选构建需要 LUOSHU_APP_APK 指向已签名的正式 APK。' >&2
+  echo '本地候选构建需要 ZIYU_APP_APK 指向已签名的正式 APK。' >&2
   echo '推荐直接使用 GitHub Actions 的 Publish signed release 工作流。' >&2
   exit 65
 }
 
 sh scripts/check.sh
-LUOSHU_APP_APK="$APP_APK" \
-LUOSHU_APP_PACKAGE="${LUOSHU_APP_PACKAGE:-}" \
-LUOSHU_APP_VERSION_CODE="${LUOSHU_APP_VERSION_CODE:-}" \
+ZIYU_APP_APK="$APP_APK" \
+ZIYU_APP_PACKAGE="${ZIYU_APP_PACKAGE:-}" \
+ZIYU_APP_VERSION_CODE="${ZIYU_APP_VERSION_CODE:-}" \
   sh scripts/build.sh
 
 VERSION=$(sed -n 's/^version=//p' module.prop | head -n 1)

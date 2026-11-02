@@ -70,7 +70,7 @@ def build_fixture(temp: Path):
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="luoshu-phase9-gate-") as raw:
+    with tempfile.TemporaryDirectory(prefix="ziyu-phase9-gate-") as raw:
         temp = Path(raw)
         plan, route, artifacts, deployed, payload_root, logical = build_fixture(temp)
 

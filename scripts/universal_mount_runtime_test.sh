@@ -5,7 +5,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MOD="$TMP/module"
 VISIBLE="$TMP/visible"
-mkdir -p "$MOD/common" "$MOD/config" "$MOD/logs" "$MOD/.luoshu-payload/.luoshu-runtime/deployment" "$MOD/.luoshu-payload/.luoshu-dynamic" "$MOD/.luoshu-payload/system/fonts" "$VISIBLE/data/fonts/files"
+mkdir -p "$MOD/common" "$MOD/config" "$MOD/logs" "$MOD/.ziyu-payload/.ziyu-runtime/deployment" "$MOD/.ziyu-payload/.ziyu-dynamic" "$MOD/.ziyu-payload/system/fonts" "$VISIBLE/data/fonts/files"
 cp "$ROOT/common/universal_mount_runtime.sh" "$MOD/common/"
 # The fake mount copies ordinary files on the host filesystem. Model verity
 # checks here; the real seal implementation has its own tests and requires a
@@ -16,8 +16,8 @@ cat > "$MOD/common/font_verity.sh" <<'SH'
 [ "${FAIL_VERITY:-0}" != 1 ] || exit 1
 printf 'fixture-verity-%s\n' "$(sha256sum "$2" | awk '{print $1}')"
 SH
-printf 'system-font-content\n' > "$MOD/.luoshu-payload/system/fonts/Fake.ttf"
-printf '{}\n' > "$MOD/.luoshu-payload/.luoshu-runtime/deployment/deployment.json"
+printf 'system-font-content\n' > "$MOD/.ziyu-payload/system/fonts/Fake.ttf"
+printf '{}\n' > "$MOD/.ziyu-payload/.ziyu-runtime/deployment/deployment.json"
 cat > "$MOD/common/universal_font_deployment.py" <<'PY'
 #!/usr/bin/env python3
 import sys
@@ -25,9 +25,9 @@ import sys
 # deployment validator is covered by universal_font_deployment_test.py.
 raise SystemExit(0 if "--validate-payload-only" in sys.argv else 2)
 PY
-printf 'dynamic-font-content\n' > "$MOD/.luoshu-payload/.luoshu-dynamic/test.ttf"
-HASH=$(sha256sum "$MOD/.luoshu-payload/.luoshu-dynamic/test.ttf" | awk '{print $1}')
-printf '.luoshu-dynamic/test.ttf|/data/fonts/files/runtime.ttf|%s\n' "$HASH" > "$MOD/.luoshu-payload/.luoshu-runtime/deployment/dynamic-mounts.conf"
+printf 'dynamic-font-content\n' > "$MOD/.ziyu-payload/.ziyu-dynamic/test.ttf"
+HASH=$(sha256sum "$MOD/.ziyu-payload/.ziyu-dynamic/test.ttf" | awk '{print $1}')
+printf '.ziyu-dynamic/test.ttf|/data/fonts/files/runtime.ttf|%s\n' "$HASH" > "$MOD/.ziyu-payload/.ziyu-runtime/deployment/dynamic-mounts.conf"
 printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
 cat > "$MOD/config/universal-font-runtime.conf" <<'EOF'
 state=active
@@ -73,18 +73,18 @@ run_manager() {
   rm -rf "$TMP/state"; mkdir -p "$TMP/state"
   printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
   MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" \
-  LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
-  LUOSHU_UNIVERSAL_TEST_MANAGER="$manager" \
-  LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
-  LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
-  LUOSHU_UNIVERSAL_MOUNT_STATE_ROOT="$TMP/state" \
-  LUOSHU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND="$TMP/system-mount-ok.sh" \
-  LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND="$TMP/system-rollback.sh" \
-  LUOSHU_UNIVERSAL_MOUNT_COMMAND="$TMP/fake-mount.sh" \
-  LUOSHU_UNIVERSAL_UMOUNT_COMMAND="$TMP/fake-umount.sh" \
+  ZIYU_PYTHON="${ZIYU_PYTHON:-python3}" \
+  ZIYU_UNIVERSAL_TEST_MANAGER="$manager" \
+  ZIYU_UNIVERSAL_TEST_ASSUME_RO=1 \
+  ZIYU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
+  ZIYU_UNIVERSAL_MOUNT_STATE_ROOT="$TMP/state" \
+  ZIYU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND="$TMP/system-mount-ok.sh" \
+  ZIYU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND="$TMP/system-rollback.sh" \
+  ZIYU_UNIVERSAL_MOUNT_COMMAND="$TMP/fake-mount.sh" \
+  ZIYU_UNIVERSAL_UMOUNT_COMMAND="$TMP/fake-umount.sh" \
     sh "$MOD/common/universal_mount_runtime.sh" hook "$hook"
   test -s "$TMP/system-mounted"
-  cmp -s "$MOD/.luoshu-payload/.luoshu-dynamic/test.ttf" "$VISIBLE/data/fonts/files/runtime.ttf"
+  cmp -s "$MOD/.ziyu-payload/.ziyu-dynamic/test.ttf" "$VISIBLE/data/fonts/files/runtime.ttf"
   grep -q "^manager=$manager$" "$MOD/config/universal-font-mount.conf"
   grep -q "^stage=$hook$" "$MOD/config/universal-font-mount.conf"
 }
@@ -99,8 +99,8 @@ run_manager APatch post-mount
 echo "PHASE7_MOUNT wrong-hook"
 # Wrong hook is a no-op, not a mount failure.
 set +e
-MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
-  LUOSHU_UNIVERSAL_TEST_MANAGER=KernelSU LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
+MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" ZIYU_PYTHON="${ZIYU_PYTHON:-python3}" \
+  ZIYU_UNIVERSAL_TEST_MANAGER=KernelSU ZIYU_UNIVERSAL_TEST_ASSUME_RO=1 \
   sh "$MOD/common/universal_mount_runtime.sh" hook post-fs-data >/dev/null 2>&1
 RC=$?
 set -e
@@ -108,25 +108,25 @@ test "$RC" -eq 2
 
 echo "PHASE7_MOUNT dynamic-only"
 # Dynamic-only payloads must not require the system self-mount path.
-rm -rf "$MOD/.luoshu-payload/system"
+rm -rf "$MOD/.ziyu-payload/system"
 rm -f "$TMP/system-mounted"
 printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
-MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
-  LUOSHU_UNIVERSAL_TEST_MANAGER=Magisk \
-  LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
-  LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
-  LUOSHU_UNIVERSAL_MOUNT_STATE_ROOT="$TMP/state-dynamic-only" \
-  LUOSHU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND="$TMP/system-mount-ok.sh" \
-  LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND="$TMP/system-rollback.sh" \
-  LUOSHU_UNIVERSAL_MOUNT_COMMAND="$TMP/fake-mount.sh" \
-  LUOSHU_UNIVERSAL_UMOUNT_COMMAND="$TMP/fake-umount.sh" \
+MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" ZIYU_PYTHON="${ZIYU_PYTHON:-python3}" \
+  ZIYU_UNIVERSAL_TEST_MANAGER=Magisk \
+  ZIYU_UNIVERSAL_TEST_ASSUME_RO=1 \
+  ZIYU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
+  ZIYU_UNIVERSAL_MOUNT_STATE_ROOT="$TMP/state-dynamic-only" \
+  ZIYU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND="$TMP/system-mount-ok.sh" \
+  ZIYU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND="$TMP/system-rollback.sh" \
+  ZIYU_UNIVERSAL_MOUNT_COMMAND="$TMP/fake-mount.sh" \
+  ZIYU_UNIVERSAL_UMOUNT_COMMAND="$TMP/fake-umount.sh" \
     sh "$MOD/common/universal_mount_runtime.sh" hook post-fs-data
 test ! -e "$TMP/system-mounted"
-cmp -s "$MOD/.luoshu-payload/.luoshu-dynamic/test.ttf" "$VISIBLE/data/fonts/files/runtime.ttf"
+cmp -s "$MOD/.ziyu-payload/.ziyu-dynamic/test.ttf" "$VISIBLE/data/fonts/files/runtime.ttf"
 
 # Restore a partition payload for the rollback transaction case.
-mkdir -p "$MOD/.luoshu-payload/system/fonts"
-printf 'system-font-content\n' > "$MOD/.luoshu-payload/system/fonts/Fake.ttf"
+mkdir -p "$MOD/.ziyu-payload/system/fonts"
+printf 'system-font-content\n' > "$MOD/.ziyu-payload/system/fonts/Fake.ttf"
 
 for failure in dynamic verity; do
 echo "PHASE7_MOUNT rollback-$failure"
@@ -137,15 +137,15 @@ printf 'stock\n' > "$VISIBLE/data/fonts/files/runtime.ttf"
 fail_dynamic=0; fail_verity=0
 case "$failure" in dynamic) fail_dynamic=1 ;; verity) fail_verity=1 ;; esac
 set +e
-FAIL_DYNAMIC="$fail_dynamic" FAIL_VERITY="$fail_verity" MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" LUOSHU_PYTHON="${LUOSHU_PYTHON:-python3}" \
-  LUOSHU_UNIVERSAL_TEST_MANAGER=Magisk \
-  LUOSHU_UNIVERSAL_TEST_ASSUME_RO=1 \
-  LUOSHU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
-  LUOSHU_UNIVERSAL_MOUNT_STATE_ROOT="$TMP/state-fail" \
-  LUOSHU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND="$TMP/system-mount-ok.sh" \
-  LUOSHU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND="$TMP/system-rollback.sh" \
-  LUOSHU_UNIVERSAL_MOUNT_COMMAND="$TMP/fake-mount.sh" \
-  LUOSHU_UNIVERSAL_UMOUNT_COMMAND="$TMP/fake-umount.sh" \
+FAIL_DYNAMIC="$fail_dynamic" FAIL_VERITY="$fail_verity" MODDIR="$MOD" MODULE_DIR="$MOD" CONFIG_DIR="$MOD/config" ZIYU_PYTHON="${ZIYU_PYTHON:-python3}" \
+  ZIYU_UNIVERSAL_TEST_MANAGER=Magisk \
+  ZIYU_UNIVERSAL_TEST_ASSUME_RO=1 \
+  ZIYU_UNIVERSAL_TEST_VISIBLE_ROOT="$VISIBLE" \
+  ZIYU_UNIVERSAL_MOUNT_STATE_ROOT="$TMP/state-fail" \
+  ZIYU_UNIVERSAL_TEST_SYSTEM_MOUNT_COMMAND="$TMP/system-mount-ok.sh" \
+  ZIYU_UNIVERSAL_TEST_SYSTEM_ROLLBACK_COMMAND="$TMP/system-rollback.sh" \
+  ZIYU_UNIVERSAL_MOUNT_COMMAND="$TMP/fake-mount.sh" \
+  ZIYU_UNIVERSAL_UMOUNT_COMMAND="$TMP/fake-umount.sh" \
     sh "$MOD/common/universal_mount_runtime.sh" hook post-fs-data >/dev/null 2>&1
 RC=$?
 set -e

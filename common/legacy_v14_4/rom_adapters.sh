@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 - ROM 适配层 (rom_adapters.sh)
+# 字域 - ROM 适配层 (rom_adapters.sh)
 # 统一维护各 ROM 的字体文件名表和覆盖逻辑，被 customize.sh 和 font_manager.sh 共同引用
 # 消除此前 copy_as_coloros() 在两个文件中重复定义、容易改一处漏一处的问题
 #
@@ -37,16 +37,16 @@ _verify_font_copy() {
 # 1GB 以上。若文件系统不支持硬链接则自动退回普通复制，不牺牲兼容性。
 _font_store_reset() {
     dest_dir="$1"
-    rm -rf "$dest_dir/.luoshu-font-store" 2>/dev/null || true
-    mkdir -p "$dest_dir/.luoshu-font-store" 2>/dev/null || true
-    chmod 755 "$dest_dir/.luoshu-font-store" 2>/dev/null || true
+    rm -rf "$dest_dir/.ziyu-font-store" 2>/dev/null || true
+    mkdir -p "$dest_dir/.ziyu-font-store" 2>/dev/null || true
+    chmod 755 "$dest_dir/.ziyu-font-store" 2>/dev/null || true
 }
 
 _font_anchor() {
     src="$1"
     dest_dir="$2"
     key="$3"
-    anchor="$dest_dir/.luoshu-font-store/${key}.font"
+    anchor="$dest_dir/.ziyu-font-store/${key}.font"
     cp -f "$src" "$anchor" 2>/dev/null || return 1
     chmod 644 "$anchor" 2>/dev/null || true
     echo "$anchor"

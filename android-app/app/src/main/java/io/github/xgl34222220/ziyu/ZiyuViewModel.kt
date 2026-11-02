@@ -1239,25 +1239,36 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         private set
     var rebootChoiceMessage by mutableStateOf("")
         private set
+    var rebootChoiceChecking by mutableStateOf(false)
+        private set
+    private var rebootChoiceJob: Job? = null
 
     fun rebootDevice() {
-        if (rebootRequestJob?.isActive == true) return
-        viewModelScope.launch {
-            softRebootSupported = false
-            rebootChoiceMessage = "字体在重启后生效。重启会中断当前应用，请先保存工作。"
-            if (fontCacheSoftRebootAvailable) {
+        if (rebootRequestJob?.isActive == true || rebootChoiceVisible) return
+        softRebootSupported = false
+        rebootChoiceMessage = "字体在重启后生效。重启会中断当前应用，请先保存工作。"
+        rebootChoiceChecking = fontCacheSoftRebootAvailable
+        rebootChoiceVisible = true
+        if (rebootChoiceChecking) {
+            rebootChoiceJob = viewModelScope.launch {
                 val result = RootShell.exec("if [ -s /data/adb/modules_update/ziyu/config/identity-migration-full-reboot.conf ]; then printf '%s' '{\"status\":\"error\",\"message\":\"ziyu 标识升级首次需要完整重启\"}'; else sh ${RootShell.quote(bridge)} soft_reboot status; fi", timeoutMs = 8_000L)
+                if (!currentCoroutineContext().isActive || !rebootChoiceVisible) return@launch
                 val reply = runCatching { firstJson(result.stdout) }.getOrNull()
                 softRebootSupported = result.code == 0 && reply?.optJSONObject("data")?.optBoolean("supported") == true
                 if (!softRebootSupported) rebootChoiceMessage += "\n" + (reply?.optString("message")?.takeIf { it.isNotBlank() } ?: "本机未确认可用的 KernelSU 软重启，将使用完整重启。")
-            } else rebootChoiceMessage += "\n当前 Root 管理器请使用完整重启。"
-            rebootChoiceVisible = true
-        }
+                rebootChoiceChecking = false
+            }
+        } else rebootChoiceMessage += "\n当前 Root 管理器请使用完整重启。"
     }
-    fun dismissRebootChoice() { rebootChoiceVisible = false }
-    fun confirmReboot(soft: Boolean) {
-        if (soft && !softRebootSupported) return
+    fun dismissRebootChoice() {
         rebootChoiceVisible = false
+        rebootChoiceJob?.cancel()
+        rebootChoiceJob = null
+        rebootChoiceChecking = false
+    }
+    fun confirmReboot(soft: Boolean) {
+        if (!rebootChoiceVisible || (soft && !softRebootSupported)) return
+        dismissRebootChoice()
         requestDeviceReboot(soft)
     }
 

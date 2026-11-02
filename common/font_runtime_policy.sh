@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu final font runtime policy.
+# Ziyu final font runtime policy.
 #
 # The private payload is the canonical writable tree. The public module partition
 # directories are only published copies and must never be treated as the source
@@ -14,8 +14,8 @@ _lfrp_module() {
 
 _lfrp_payload_root() {
     _lfrp_m="$(_lfrp_module)"
-    if [ -d "$_lfrp_m/.luoshu-payload" ]; then
-        printf '%s/.luoshu-payload\n' "${_lfrp_m%/}"
+    if [ -d "$_lfrp_m/.ziyu-payload" ]; then
+        printf '%s/.ziyu-payload\n' "${_lfrp_m%/}"
     else
         printf '%s\n' "${_lfrp_m%/}"
     fi
@@ -26,10 +26,10 @@ _lfrp_config_root() {
 }
 
 _lfrp_partitions() {
-    if type luoshu_private_partitions >/dev/null 2>&1; then
-        luoshu_private_partitions
-    elif type luoshu_payload_partitions >/dev/null 2>&1; then
-        luoshu_payload_partitions
+    if type ziyu_private_partitions >/dev/null 2>&1; then
+        ziyu_private_partitions
+    elif type ziyu_payload_partitions >/dev/null 2>&1; then
+        ziyu_payload_partitions
     else
         printf '%s\n' 'system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product'
     fi
@@ -67,7 +67,7 @@ font_validate_global() {
     font_validate "$_lfrp_font" text || return 1
 
     _lfrp_m="$(_lfrp_module)"
-    _lfrp_python="$_lfrp_m/common/python/bin/luoshu-python"
+    _lfrp_python="$_lfrp_m/common/python/bin/ziyu-python"
     _lfrp_checker="$_lfrp_m/common/font_coverage.py"
     [ -x "$_lfrp_python" ] && [ -f "$_lfrp_checker" ] || {
         FONT_CHECK_ERROR='字形覆盖分析器不可用'
@@ -94,22 +94,22 @@ font_validate_global() {
     case "$_lfrp_digits" in ''|*[!0-9]*) _lfrp_digits=0 ;; esac
     case "$_lfrp_punct" in ''|*[!0-9]*) _lfrp_punct=0 ;; esac
 
-    LUOSHU_FONT_HAS_CJK=false
-    LUOSHU_FONT_HAS_LATIN=false
-    LUOSHU_FONT_HAS_MIXED=false
-    [ "$_lfrp_han" -ge 6000 ] && [ "$_lfrp_cjk" -ge 95 ] && LUOSHU_FONT_HAS_CJK=true
+    ZIYU_FONT_HAS_CJK=false
+    ZIYU_FONT_HAS_LATIN=false
+    ZIYU_FONT_HAS_MIXED=false
+    [ "$_lfrp_han" -ge 6000 ] && [ "$_lfrp_cjk" -ge 95 ] && ZIYU_FONT_HAS_CJK=true
     # HyperOS splits CJK, Latin and numeric UI glyphs across independent physical slots.
     # Punctuation coverage varies wildly between otherwise complete CJK fonts, so using it as a
     # hard gate left Roboto/MiSansLatin/100-900 on the stock font even though A-Z/a-z/0-9 were
     # present. Keep punctuation in the diagnostic, but let usable letters + all digits drive the
     # Latin slot decision.
-    [ "$_lfrp_latin" -ge 90 ] && [ "$_lfrp_digits" -eq 100 ] && LUOSHU_FONT_HAS_LATIN=true
-    [ "$LUOSHU_FONT_HAS_CJK" = true ] && [ "$LUOSHU_FONT_HAS_LATIN" = true ] && \
-        LUOSHU_FONT_HAS_MIXED=true
-    export LUOSHU_FONT_HAS_CJK LUOSHU_FONT_HAS_LATIN LUOSHU_FONT_HAS_MIXED
+    [ "$_lfrp_latin" -ge 90 ] && [ "$_lfrp_digits" -eq 100 ] && ZIYU_FONT_HAS_LATIN=true
+    [ "$ZIYU_FONT_HAS_CJK" = true ] && [ "$ZIYU_FONT_HAS_LATIN" = true ] && \
+        ZIYU_FONT_HAS_MIXED=true
+    export ZIYU_FONT_HAS_CJK ZIYU_FONT_HAS_LATIN ZIYU_FONT_HAS_MIXED
 
     FONT_CHECK_COVERAGE="核心汉字 ${_lfrp_han} 个、中文 ${_lfrp_cjk}%、英文 ${_lfrp_latin}%、数字 ${_lfrp_digits}%、标点 ${_lfrp_punct}%"
-    case "$LUOSHU_FONT_HAS_CJK:$LUOSHU_FONT_HAS_LATIN" in
+    case "$ZIYU_FONT_HAS_CJK:$ZIYU_FONT_HAS_LATIN" in
         true:true)
             FONT_CHECK_WARNING="${FONT_CHECK_WARNING:+$FONT_CHECK_WARNING；}字形覆盖完整"
             [ "$_lfrp_punct" -ge 75 ] || \
@@ -133,23 +133,23 @@ font_validate_global() {
 # Capability-aware cache entries restore the exact CJK/Latin slot policy. The first validation of
 # a changed font still performs the complete coverage analysis; later switches reuse it by file
 # identity without opening the font in Python again.
-luoshu_font_validate_global_cached() {
+ziyu_font_validate_global_cached() {
     _lfrp_font="$1"
-    LUOSHU_FONT_VALIDATION_CACHE_HIT=false
-    export LUOSHU_FONT_VALIDATION_CACHE_HIT
-    if type luoshu_font_validation_is_preflight >/dev/null 2>&1 && \
-       luoshu_font_validation_is_preflight && \
-       type luoshu_font_validation_fast_preflight >/dev/null 2>&1; then
-        luoshu_font_validation_fast_preflight "$_lfrp_font"
+    ZIYU_FONT_VALIDATION_CACHE_HIT=false
+    export ZIYU_FONT_VALIDATION_CACHE_HIT
+    if type ziyu_font_validation_is_preflight >/dev/null 2>&1 && \
+       ziyu_font_validation_is_preflight && \
+       type ziyu_font_validation_fast_preflight >/dev/null 2>&1; then
+        ziyu_font_validation_fast_preflight "$_lfrp_font"
         return $?
     fi
-    if type luoshu_font_validation_cache_restore >/dev/null 2>&1 && \
-       luoshu_font_validation_cache_restore "$_lfrp_font"; then
+    if type ziyu_font_validation_cache_restore >/dev/null 2>&1 && \
+       ziyu_font_validation_cache_restore "$_lfrp_font"; then
         return 0
     fi
     font_validate_global "$_lfrp_font" || return $?
-    type luoshu_font_validation_cache_store >/dev/null 2>&1 && \
-        luoshu_font_validation_cache_store "$_lfrp_font" >/dev/null 2>&1 || true
+    type ziyu_font_validation_cache_store >/dev/null 2>&1 && \
+        ziyu_font_validation_cache_store "$_lfrp_font" >/dev/null 2>&1 || true
     return 0
 }
 
@@ -185,9 +185,9 @@ _lfrp_target_kind() {
 
 _lfrp_target_allowed() {
     _lfrp_kind=$(_lfrp_target_kind "$1")
-    _lfrp_has_cjk="${LUOSHU_FONT_HAS_CJK:-true}"
-    _lfrp_has_latin="${LUOSHU_FONT_HAS_LATIN:-true}"
-    _lfrp_has_mixed="${LUOSHU_FONT_HAS_MIXED:-true}"
+    _lfrp_has_cjk="${ZIYU_FONT_HAS_CJK:-true}"
+    _lfrp_has_latin="${ZIYU_FONT_HAS_LATIN:-true}"
+    _lfrp_has_mixed="${ZIYU_FONT_HAS_MIXED:-true}"
     case "$_lfrp_kind" in
         protected) return 1 ;;
         cjk) [ "$_lfrp_has_cjk" = true ] ;;
@@ -268,7 +268,7 @@ _lfrp_alias_existing_targets() {
 }
 
 # Clear the complete generated font tree, not just a static filename list. The
-# private tree contains only LuoShu overlays, so removing it reveals every stock
+# private tree contains only Ziyu overlays, so removing it reveals every stock
 # fallback and prevents an old full-font switch from leaking tofu-producing aliases
 # into a later partial-font switch.
 clear_managed_text_fonts() {
@@ -278,10 +278,10 @@ clear_managed_text_fonts() {
     done
     mkdir -p "$_lfrp_root/system/fonts" 2>/dev/null || true
     rm -f "$(_lfrp_target_manifest)" 2>/dev/null || true
-    # Generated XML contains stable LuoShu alias names, not a specific font identity. Keep a
+    # Generated XML contains stable Ziyu alias names, not a specific font identity. Keep a
     # boot-validated template during font-to-font switches and only replace its hard-link targets.
     # Restoring the system font still removes every XML overlay.
-    if [ "${LUOSHU_KEEP_XML_OVERLAY:-0}" != 1 ]; then
+    if [ "${ZIYU_KEEP_XML_OVERLAY:-0}" != 1 ]; then
         type font_config_disable >/dev/null 2>&1 && font_config_disable
     fi
 }
@@ -291,16 +291,16 @@ _copy_as_inventory() {
     _lfrp_mode="${3:-full}"
     _lfrp_family="${4:-}"
     _lfrp_entries=$(_device_font_inventory_entries) || {
-        LUOSHU_INVENTORY_MAPPED_COUNT=0
+        ZIYU_INVENTORY_MAPPED_COUNT=0
         return 2
     }
     [ -n "$_lfrp_entries" ] || {
-        LUOSHU_INVENTORY_MAPPED_COUNT=0
+        ZIYU_INVENTORY_MAPPED_COUNT=0
         return 2
     }
     _lfrp_system_fonts=$(_lfrp_payload_font_dir system)
     mkdir -p "$_lfrp_system_fonts" 2>/dev/null || return 1
-    [ -d "$_lfrp_system_fonts/.luoshu-font-store" ] || _font_store_reset "$_lfrp_system_fonts"
+    [ -d "$_lfrp_system_fonts/.ziyu-font-store" ] || _font_store_reset "$_lfrp_system_fonts"
     _lfrp_regular=$(_font_anchor "$_lfrp_src" "$_lfrp_system_fonts" regular) || return 1
     _lfrp_count=0
     _lfrp_bad=0
@@ -322,11 +322,11 @@ _copy_as_inventory() {
         else
             _lfrp_bad=$((_lfrp_bad + 1))
         fi
-    done <<EOF_LUOSHU_RUNTIME_INVENTORY
+    done <<EOF_ZIYU_RUNTIME_INVENTORY
 $_lfrp_entries
-EOF_LUOSHU_RUNTIME_INVENTORY
-    LUOSHU_INVENTORY_MAPPED_COUNT="$_lfrp_count"
-    export LUOSHU_INVENTORY_MAPPED_COUNT
+EOF_ZIYU_RUNTIME_INVENTORY
+    ZIYU_INVENTORY_MAPPED_COUNT="$_lfrp_count"
+    export ZIYU_INVENTORY_MAPPED_COUNT
     [ "$_lfrp_count" -gt 0 ] || return 2
     _log_step "  已按设备原厂清单覆盖 $_lfrp_count 个真实槽位"
     [ "$_lfrp_bad" -eq 0 ] || _log_step "  ⚠ $_lfrp_bad 个原厂槽位写入失败"
@@ -355,9 +355,9 @@ apply_font_by_rom() {
     _font_store_reset "$_lfrp_system_fonts"
     _lfrp_regular=$(_font_anchor "$_lfrp_src" "$_lfrp_system_fonts" regular) || return 1
 
-    LUOSHU_INVENTORY_MAPPED_COUNT=0
+    ZIYU_INVENTORY_MAPPED_COUNT=0
     _copy_as_inventory "$_lfrp_src" "$_lfrp_system_fonts" "$_lfrp_mode" "$_lfrp_family" >/dev/null 2>&1 || true
-    _lfrp_inventory=${LUOSHU_INVENTORY_MAPPED_COUNT:-0}
+    _lfrp_inventory=${ZIYU_INVENTORY_MAPPED_COUNT:-0}
     case "$_lfrp_inventory" in ''|*[!0-9]*) _lfrp_inventory=0 ;; esac
 
     _lfrp_static=0
@@ -371,10 +371,10 @@ apply_font_by_rom() {
         _log_step '  没有找到与当前 ROM 对应的真实字体槽位，已拒绝伪成功'
         return 1
     }
-    LUOSHU_MAPPED_TARGET_COUNT="$_lfrp_total"
-    export LUOSHU_MAPPED_TARGET_COUNT
+    ZIYU_MAPPED_TARGET_COUNT="$_lfrp_total"
+    export ZIYU_MAPPED_TARGET_COUNT
     _log_step "  字体槽位已合并映射：原厂清单 $_lfrp_inventory / ROM 关键槽位 $_lfrp_static"
-    case "${LUOSHU_FONT_HAS_CJK:-true}:${LUOSHU_FONT_HAS_LATIN:-true}" in
+    case "${ZIYU_FONT_HAS_CJK:-true}:${ZIYU_FONT_HAS_LATIN:-true}" in
         false:true) _log_step '  当前字体缺少完整中文：中文继续使用系统字体，避免方框' ;;
         true:false) _log_step '  当前字体缺少完整英文数字：英文数字继续使用系统字体' ;;
     esac
@@ -383,7 +383,7 @@ apply_font_by_rom() {
 
 # Every payload reader/writer below resolves partition files against the canonical
 # private tree. Configuration and transaction state stay under module/config.
-luoshu_used_partitions() {
+ziyu_used_partitions() {
     _lfrp_root="${1:-$(_lfrp_payload_root)}"
     for _lfrp_part in $(_lfrp_partitions); do
         [ -d "$_lfrp_root/$_lfrp_part" ] || continue
@@ -391,10 +391,10 @@ luoshu_used_partitions() {
     done
 }
 
-luoshu_payload_validate_current() {
+ziyu_payload_validate_current() {
     _lfrp_active="${1:-unknown}"
     [ "$_lfrp_active" != default ] || {
-        LUOSHU_PAYLOAD_VALIDATED_ACTIVE=default
+        ZIYU_PAYLOAD_VALIDATED_ACTIVE=default
         return 0
     }
     _lfrp_root=$(_lfrp_payload_root)
@@ -404,18 +404,18 @@ luoshu_payload_validate_current() {
         [ -d "$_lfrp_dir" ] || continue
         for _lfrp_file in "$_lfrp_dir"/*.ttf "$_lfrp_dir"/*.otf "$_lfrp_dir"/*.ttc "$_lfrp_dir"/*.font; do
             [ -f "$_lfrp_file" ] || continue
-            _lfrp_size=$(_luoshu_filesize "$_lfrp_file")
+            _lfrp_size=$(_ziyu_filesize "$_lfrp_file")
             case "$_lfrp_size" in ''|*[!0-9]*) return 1 ;; esac
             [ "$_lfrp_size" -ge 1024 ] || return 1
             _lfrp_fonts=$((_lfrp_fonts + 1))
         done
     done
     [ "$_lfrp_fonts" -gt 0 ] || return 1
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE="$_lfrp_active"
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE="$_lfrp_active"
     return 0
 }
 
-luoshu_payload_build_manifest() {
+ziyu_payload_build_manifest() {
     _lfrp_root=$(_lfrp_payload_root)
     _lfrp_config=$(_lfrp_config_root)
     _lfrp_tmp="$_lfrp_config/font-payload-manifest.conf.tmp.$$"
@@ -429,10 +429,10 @@ luoshu_payload_build_manifest() {
             find "$_lfrp_fonts" -type f 2>/dev/null | while IFS= read -r _lfrp_file; do
                 case "$_lfrp_file" in *.ttf|*.otf|*.ttc|*.font|*.TTF|*.OTF|*.TTC) ;; *) continue ;; esac
                 _lfrp_rel=${_lfrp_file#$_lfrp_root/}
-                if type _luoshu_cached_checksum >/dev/null 2>&1; then
-                    _lfrp_sum=$(_luoshu_cached_checksum "$_lfrp_file" "$_lfrp_checksum_cache")
+                if type _ziyu_cached_checksum >/dev/null 2>&1; then
+                    _lfrp_sum=$(_ziyu_cached_checksum "$_lfrp_file" "$_lfrp_checksum_cache")
                 else
-                    _lfrp_sum=$(_luoshu_checksum "$_lfrp_file")
+                    _lfrp_sum=$(_ziyu_checksum "$_lfrp_file")
                 fi
                 [ -n "$_lfrp_sum" ] && printf '%s|%s\n' "$_lfrp_rel" "$_lfrp_sum"
             done >> "$_lfrp_tmp"
@@ -441,14 +441,14 @@ luoshu_payload_build_manifest() {
         if [ -d "$_lfrp_etc" ]; then
             find "$_lfrp_etc" -maxdepth 1 -type f -name '*.xml' 2>/dev/null | while IFS= read -r _lfrp_file; do
                 case "${_lfrp_file##*/}" in
-                    .luoshu-data-fonts-config.xml) ;;
-                    *) grep -Eq 'LuoShu(Mono)?-|LuoShuSlot-' "$_lfrp_file" 2>/dev/null || continue ;;
+                    .ziyu-data-fonts-config.xml) ;;
+                    *) grep -Eq '(Ziyu|LuoShu)(Mono)?-|(Ziyu|LuoShu)Slot-' "$_lfrp_file" 2>/dev/null || continue ;;
                 esac
                 _lfrp_rel=${_lfrp_file#$_lfrp_root/}
-                if type _luoshu_cached_checksum >/dev/null 2>&1; then
-                    _lfrp_sum=$(_luoshu_cached_checksum "$_lfrp_file" "$_lfrp_checksum_cache")
+                if type _ziyu_cached_checksum >/dev/null 2>&1; then
+                    _lfrp_sum=$(_ziyu_cached_checksum "$_lfrp_file" "$_lfrp_checksum_cache")
                 else
-                    _lfrp_sum=$(_luoshu_checksum "$_lfrp_file")
+                    _lfrp_sum=$(_ziyu_checksum "$_lfrp_file")
                 fi
                 [ -n "$_lfrp_sum" ] && printf '%s|%s\n' "$_lfrp_rel" "$_lfrp_sum"
             done >> "$_lfrp_tmp"
@@ -463,7 +463,7 @@ luoshu_payload_build_manifest() {
     chmod 0644 "$_lfrp_config/font-payload-manifest.conf" 2>/dev/null || true
 }
 
-luoshu_payload_validate_manifest_full() {
+ziyu_payload_validate_manifest_full() {
     _lfrp_root=$(_lfrp_payload_root)
     _lfrp_manifest="$(_lfrp_config_root)/font-payload-manifest.conf"
     [ -s "$_lfrp_manifest" ] || return 1
@@ -472,14 +472,14 @@ luoshu_payload_validate_manifest_full() {
         case "$_lfrp_rel" in */fonts/*|*/etc/*.xml) ;; *) return 1 ;; esac
         _lfrp_file="$_lfrp_root/$_lfrp_rel"
         [ -f "$_lfrp_file" ] || return 1
-        _lfrp_now=$(_luoshu_checksum "$_lfrp_file")
+        _lfrp_now=$(_ziyu_checksum "$_lfrp_file")
         [ "$_lfrp_now" = "$_lfrp_sum|$_lfrp_size" ] || return 1
         _lfrp_seen=$((_lfrp_seen + 1))
     done < "$_lfrp_manifest"
     [ "$_lfrp_seen" -gt 0 ]
 }
 
-luoshu_payload_validate_manifest_fast() {
+ziyu_payload_validate_manifest_fast() {
     _lfrp_root=$(_lfrp_payload_root)
     _lfrp_manifest="$(_lfrp_config_root)/font-payload-manifest.conf"
     [ -s "$_lfrp_manifest" ] || return 1
@@ -490,12 +490,12 @@ luoshu_payload_validate_manifest_fast() {
         [ -f "$_lfrp_file" ] || return 1
         case "$_lfrp_rel" in
             */fonts/*)
-                _lfrp_now=$(_luoshu_filesize "$_lfrp_file")
+                _lfrp_now=$(_ziyu_filesize "$_lfrp_file")
                 case "$_lfrp_now" in ''|*[!0-9]*) return 1 ;; esac
                 [ "$_lfrp_now" -ge 1024 ] && [ "$_lfrp_now" = "$_lfrp_size" ] || return 1
                 ;;
             */etc/*.xml)
-                _lfrp_now=$(_luoshu_checksum "$_lfrp_file")
+                _lfrp_now=$(_ziyu_checksum "$_lfrp_file")
                 [ "$_lfrp_now" = "$_lfrp_sum|$_lfrp_size" ] || return 1
                 ;;
             *) return 1 ;;
@@ -505,47 +505,47 @@ luoshu_payload_validate_manifest_fast() {
     [ "$_lfrp_seen" -gt 0 ]
 }
 
-LUOSHU_PAYLOAD_TXN=''
-luoshu_payload_transaction_begin() {
-    [ -z "$LUOSHU_PAYLOAD_TXN" ] || return 1
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE=''
+ZIYU_PAYLOAD_TXN=''
+ziyu_payload_transaction_begin() {
+    [ -z "$ZIYU_PAYLOAD_TXN" ] || return 1
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE=''
     _lfrp_root=$(_lfrp_payload_root)
     _lfrp_config=$(_lfrp_config_root)
-    LUOSHU_PAYLOAD_TXN="$_lfrp_config/.payload-transaction.$$"
-    rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-    mkdir -p "$LUOSHU_PAYLOAD_TXN/payload" "$LUOSHU_PAYLOAD_TXN/config" 2>/dev/null || {
-        LUOSHU_PAYLOAD_TXN=''
+    ZIYU_PAYLOAD_TXN="$_lfrp_config/.payload-transaction.$$"
+    rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+    mkdir -p "$ZIYU_PAYLOAD_TXN/payload" "$ZIYU_PAYLOAD_TXN/config" 2>/dev/null || {
+        ZIYU_PAYLOAD_TXN=''
         return 1
     }
-    : > "$LUOSHU_PAYLOAD_TXN/paths" 2>/dev/null || return 1
+    : > "$ZIYU_PAYLOAD_TXN/paths" 2>/dev/null || return 1
     for _lfrp_part in $(_lfrp_partitions); do
         for _lfrp_sub in fonts etc; do
             _lfrp_rel="$_lfrp_part/$_lfrp_sub"
             _lfrp_src="$_lfrp_root/$_lfrp_rel"
             if [ -d "$_lfrp_src" ]; then
-                mkdir -p "$LUOSHU_PAYLOAD_TXN/payload/$_lfrp_part" 2>/dev/null || return 1
-                cp -al "$_lfrp_src" "$LUOSHU_PAYLOAD_TXN/payload/$_lfrp_rel" 2>/dev/null || \
-                cp -af "$_lfrp_src" "$LUOSHU_PAYLOAD_TXN/payload/$_lfrp_rel" 2>/dev/null || return 1
-                printf 'payload|present|%s\n' "$_lfrp_rel" >> "$LUOSHU_PAYLOAD_TXN/paths"
+                mkdir -p "$ZIYU_PAYLOAD_TXN/payload/$_lfrp_part" 2>/dev/null || return 1
+                cp -al "$_lfrp_src" "$ZIYU_PAYLOAD_TXN/payload/$_lfrp_rel" 2>/dev/null || \
+                cp -af "$_lfrp_src" "$ZIYU_PAYLOAD_TXN/payload/$_lfrp_rel" 2>/dev/null || return 1
+                printf 'payload|present|%s\n' "$_lfrp_rel" >> "$ZIYU_PAYLOAD_TXN/paths"
             else
-                printf 'payload|absent|%s\n' "$_lfrp_rel" >> "$LUOSHU_PAYLOAD_TXN/paths"
+                printf 'payload|absent|%s\n' "$_lfrp_rel" >> "$ZIYU_PAYLOAD_TXN/paths"
             fi
         done
     done
     for _lfrp_name in active_font.conf font_mix.conf font-config-overlay.conf font-target-aliases.conf font-target-coverage.conf font-runtime-targets.conf font-payload-manifest.conf font-payload-boot.conf font-payload-schema.conf font-payload-rebuild-pending.conf font-payload-reapply-notified.conf text_reboot_required.conf font-boot-failures font-boot-inconclusive.conf font-mount-verify-failures device-font-load-verification.conf device-font-load-verification.json; do
         if [ -f "$_lfrp_config/$_lfrp_name" ]; then
-            cp -fp "$_lfrp_config/$_lfrp_name" "$LUOSHU_PAYLOAD_TXN/config/$_lfrp_name" 2>/dev/null || return 1
-            printf 'config|present|%s\n' "$_lfrp_name" >> "$LUOSHU_PAYLOAD_TXN/paths"
+            cp -fp "$_lfrp_config/$_lfrp_name" "$ZIYU_PAYLOAD_TXN/config/$_lfrp_name" 2>/dev/null || return 1
+            printf 'config|present|%s\n' "$_lfrp_name" >> "$ZIYU_PAYLOAD_TXN/paths"
         else
-            printf 'config|absent|%s\n' "$_lfrp_name" >> "$LUOSHU_PAYLOAD_TXN/paths"
+            printf 'config|absent|%s\n' "$_lfrp_name" >> "$ZIYU_PAYLOAD_TXN/paths"
         fi
     done
     return 0
 }
 
-luoshu_payload_transaction_rollback() {
-    [ -n "$LUOSHU_PAYLOAD_TXN" ] && [ -d "$LUOSHU_PAYLOAD_TXN" ] || {
-        LUOSHU_PAYLOAD_TXN=''
+ziyu_payload_transaction_rollback() {
+    [ -n "$ZIYU_PAYLOAD_TXN" ] && [ -d "$ZIYU_PAYLOAD_TXN" ] || {
+        ZIYU_PAYLOAD_TXN=''
         return 0
     }
     _lfrp_root=$(_lfrp_payload_root)
@@ -554,45 +554,45 @@ luoshu_payload_transaction_rollback() {
         case "$_lfrp_kind" in
             payload)
                 rm -rf "$_lfrp_root/$_lfrp_rel" 2>/dev/null || true
-                if [ "$_lfrp_state" = present ] && [ -d "$LUOSHU_PAYLOAD_TXN/payload/$_lfrp_rel" ]; then
+                if [ "$_lfrp_state" = present ] && [ -d "$ZIYU_PAYLOAD_TXN/payload/$_lfrp_rel" ]; then
                     mkdir -p "${_lfrp_root}/${_lfrp_rel%/*}" 2>/dev/null || true
-                    cp -af "$LUOSHU_PAYLOAD_TXN/payload/$_lfrp_rel" "$_lfrp_root/$_lfrp_rel" 2>/dev/null || true
+                    cp -af "$ZIYU_PAYLOAD_TXN/payload/$_lfrp_rel" "$_lfrp_root/$_lfrp_rel" 2>/dev/null || true
                 fi
                 ;;
             config)
                 rm -f "$_lfrp_config/$_lfrp_rel" 2>/dev/null || true
-                if [ "$_lfrp_state" = present ] && [ -f "$LUOSHU_PAYLOAD_TXN/config/$_lfrp_rel" ]; then
-                    cp -fp "$LUOSHU_PAYLOAD_TXN/config/$_lfrp_rel" "$_lfrp_config/$_lfrp_rel" 2>/dev/null || true
+                if [ "$_lfrp_state" = present ] && [ -f "$ZIYU_PAYLOAD_TXN/config/$_lfrp_rel" ]; then
+                    cp -fp "$ZIYU_PAYLOAD_TXN/config/$_lfrp_rel" "$_lfrp_config/$_lfrp_rel" 2>/dev/null || true
                 fi
                 ;;
         esac
-    done < "$LUOSHU_PAYLOAD_TXN/paths"
-    rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-    LUOSHU_PAYLOAD_TXN=''
+    done < "$ZIYU_PAYLOAD_TXN/paths"
+    rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+    ZIYU_PAYLOAD_TXN=''
 }
 
-luoshu_payload_transaction_abort() {
+ziyu_payload_transaction_abort() {
     _lfrp_had=0
-    [ -z "$LUOSHU_PAYLOAD_TXN" ] || _lfrp_had=1
-    luoshu_payload_transaction_rollback
-    if [ "$_lfrp_had" -eq 1 ] && type luoshu_sync_mount_payload >/dev/null 2>&1; then
-        luoshu_sync_mount_payload >/dev/null 2>&1 || true
+    [ -z "$ZIYU_PAYLOAD_TXN" ] || _lfrp_had=1
+    ziyu_payload_transaction_rollback
+    if [ "$_lfrp_had" -eq 1 ] && type ziyu_sync_mount_payload >/dev/null 2>&1; then
+        ziyu_sync_mount_payload >/dev/null 2>&1 || true
     fi
 }
 
-luoshu_payload_transaction_commit() {
+ziyu_payload_transaction_commit() {
     _lfrp_active="$1"
-    [ -n "$LUOSHU_PAYLOAD_TXN" ] && [ -d "$LUOSHU_PAYLOAD_TXN" ] || return 1
-    if [ "$_lfrp_active" != default ] && [ "${LUOSHU_PAYLOAD_VALIDATED_ACTIVE:-}" != "$_lfrp_active" ]; then
-        luoshu_payload_validate_current "$_lfrp_active" || return 1
+    [ -n "$ZIYU_PAYLOAD_TXN" ] && [ -d "$ZIYU_PAYLOAD_TXN" ] || return 1
+    if [ "$_lfrp_active" != default ] && [ "${ZIYU_PAYLOAD_VALIDATED_ACTIVE:-}" != "$_lfrp_active" ]; then
+        ziyu_payload_validate_current "$_lfrp_active" || return 1
     fi
-    luoshu_payload_arm "$_lfrp_active" || return 1
-    rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-    LUOSHU_PAYLOAD_TXN=''
+    ziyu_payload_arm "$_lfrp_active" || return 1
+    rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+    ZIYU_PAYLOAD_TXN=''
     return 0
 }
 
-luoshu_payload_quarantine() {
+ziyu_payload_quarantine() {
     _lfrp_config=$(_lfrp_config_root)
     _lfrp_fail=$(cat "$_lfrp_config/font-boot-failures" 2>/dev/null)
     case "$_lfrp_fail" in ''|*[!0-9]*) _lfrp_fail=0 ;; esac
@@ -607,6 +607,6 @@ luoshu_payload_quarantine() {
         printf 'reason=boot-verification-inconclusive\n'
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_lfrp_config/font-payload-quarantine.conf" 2>/dev/null || true
-    _luoshu_safety_log WARN "字体启动证据不足，已保留当前字体选择与负载，等待下一次挂载验证（failure=$_lfrp_fail active=$_lfrp_active）"
+    _ziyu_safety_log WARN "字体启动证据不足，已保留当前字体选择与负载，等待下一次挂载验证（failure=$_lfrp_fail active=$_lfrp_active）"
     return 2
 }

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Safe manual stock-font inventory wrapper for LuoShu private payload mode."""
+"""Safe manual stock-font inventory wrapper for Ziyu private payload mode."""
 from __future__ import annotations
 
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from font_live_payload import work_root as live_work_root
 
@@ -16,6 +17,77 @@ from stock_readonly_view import StockReadonlyView
 _ACTIVE_OVERLAY_MODULE: Path | None = None
 _INSTALL_SNAPSHOTS: list[Path] = []
 _READONLY_VIEW = StockReadonlyView()
+_SAVED_ROOTS: dict[Path, Path] = {}
+_SAVED_SCAN_BASE: Path | None = None
+
+
+def _saved_stock_root(logical: Path) -> Path | None:
+    """Re-read proven bytes on unchanged ROMs without requiring a second EROFS mount.
+
+    A snapshot is a fallback for the existing ROM contract, never evidence for
+    an OTA. Require the independent system-file ROM identity and every known
+    slot/XML reference in this root, then verify each saved content hash.
+    """
+    global _SAVED_SCAN_BASE
+    if logical in _SAVED_ROOTS:
+        return _SAVED_ROOTS[logical]
+    module = _ACTIVE_OVERLAY_MODULE
+    if module is None or logical.name != 'fonts':
+        return None
+    from stock_font_snapshot import load, resolve
+    from user_storage import props
+    saved_rom = props(module / 'config/stock-rom-scan.conf').get('rom_identity', '')
+    current_rom = os.environ.get('ZIYU_SCAN_ROM_IDENTITY', '')
+    if not current_rom:
+        try:
+            result = subprocess.run(['sh', str(module / 'common/boot_ota_guard.sh'), 'rom-identity', str(module)],
+                                    capture_output=True, text=True, timeout=8)
+            current_rom = result.stdout.strip() if result.returncode == 0 else ''
+        except (OSError, subprocess.SubprocessError):
+            return None
+    if not saved_rom or saved_rom != current_rom:
+        return None
+    snapshot = load(module)
+    if snapshot.get('state') != 'complete':
+        return None
+    existing = inventory._load_json(module / 'config/device_font_inventory.json') or {}
+    try:
+        inventory.validate_inventory(existing, snapshot['buildKey'])
+    except (inventory.InventoryError, KeyError):
+        return None
+    prefix = str(logical) + '/'
+    required = {name for name in existing['slots'] if name.startswith(prefix)}
+    for node in existing.get('xmlGraph', {}).get('refs', []):
+        if isinstance(node, dict):
+            name = node.get('resolvedPath')
+            if isinstance(name, str) and name.startswith(prefix):
+                required.add(name)
+    entries = {name for name in snapshot['files'] if name.startswith(prefix)}
+    if not required or not required.issubset(entries):
+        return None
+    sources = {}
+    for name in sorted(entries):
+        relative = Path(name).relative_to(logical)
+        if '..' in relative.parts or not relative.parts:
+            return None
+        source = resolve(name, module)
+        if source is None:
+            return None
+        sources[relative] = source
+    if _SAVED_SCAN_BASE is None:
+        parent = Path('/data/adb/ziyu/stock-snapshot-scan')
+        if parent.is_symlink() or any(part.is_symlink() for part in parent.parents):
+            raise inventory.InventoryError('原厂快照工作目录包含符号链接')
+        parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _SAVED_SCAN_BASE = Path(tempfile.mkdtemp(prefix=f'{os.getpid()}-', dir=parent))
+    target = _SAVED_SCAN_BASE / logical.relative_to('/')
+    target.mkdir(parents=True, mode=0o700)
+    for relative, source in sources.items():
+        output = target / relative
+        output.parent.mkdir(parents=True, exist_ok=True)
+        os.link(source, output)  # Same /data filesystem: no font copying.
+    _SAVED_ROOTS[logical] = target
+    return target
 
 
 def _dynamic_manifest_partitions(module: Path | None) -> list[str]:
@@ -52,7 +124,7 @@ def _private_root_overlaid(logical: Path) -> bool:
     if module is None:
         return False
     relative = logical.relative_to("/")
-    for payload in (module / ".luoshu-payload", module / ".luoshu-payload-next", module):
+    for payload in (module / ".ziyu-payload", module / ".ziyu-payload-next", module):
         root = payload / relative
         if not root.is_dir():
             continue
@@ -67,9 +139,9 @@ def _private_root_overlaid(logical: Path) -> bool:
 def _private_overlay_risk(module: Path | None) -> bool:
     global _ACTIVE_OVERLAY_MODULE
     _ACTIVE_OVERLAY_MODULE = None
-    # LuoShu's early boot hook sets this only immediately before self-mount, while
+    # Ziyu's early boot hook sets this only immediately before self-mount, while
     # skip_mount/skip_mountify still leave the logical ROM roots stock-visible.
-    if os.environ.get("LUOSHU_STOCK_VIEW_VERIFIED", "").strip() == "1":
+    if os.environ.get("ZIYU_STOCK_VIEW_VERIFIED", "").strip() == "1":
         return False
     if not module or not module.is_dir():
         return False
@@ -82,8 +154,8 @@ def _private_overlay_risk(module: Path | None) -> bool:
     _ACTIVE_OVERLAY_MODULE = module
 
     payload_roots = (
-        module / ".luoshu-payload",
-        module / ".luoshu-payload-next",
+        module / ".ziyu-payload",
+        module / ".ziyu-payload-next",
         module,
     )
     for payload in payload_roots:
@@ -110,7 +182,7 @@ def _unescape_mount_path(value: str) -> str:
 
 
 def _mount_targets() -> set[str]:
-    source = Path(os.environ.get("LUOSHU_MOUNTINFO", "/proc/self/mountinfo"))
+    source = Path(os.environ.get("ZIYU_MOUNTINFO", "/proc/self/mountinfo"))
     try:
         lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
@@ -160,7 +232,7 @@ def _bind_parent_stock_snapshot(logical: Path) -> Path | None:
     """Recover stock bytes hidden only by per-file bind mounts.
 
     A non-recursive bind of the parent filesystem does not clone child mounts.
-    Therefore, when LuoShu's old runtime replaced individual font files, binding
+    Therefore, when Ziyu's old runtime replaced individual font files, binding
     /system/fonts to a temporary path exposes the underlying stock directory
     without touching the live font mounts. We only trust the snapshot when at
     least one known child mount resolves to a different inode in the snapshot.
@@ -172,8 +244,8 @@ def _bind_parent_stock_snapshot(logical: Path) -> Path | None:
 
     parts = [part for part in logical.parts if part not in ("/", "")]
     key = "-".join(parts[-2:] or ["root"])
-    base = Path(os.environ.get("LUOSHU_INSTALL_STOCK_SNAPSHOT_ROOT",
-                               f"/data/adb/luoshu/install-stock-scan/{os.getpid()}"))
+    base = Path(os.environ.get("ZIYU_INSTALL_STOCK_SNAPSHOT_ROOT",
+                               f"/data/adb/ziyu/install-stock-scan/{os.getpid()}"))
     snapshot = base / key
     try:
         snapshot.mkdir(parents=True, exist_ok=True)
@@ -274,13 +346,13 @@ def _system_namespace_pids() -> list[str]:
 
 
 def _installer_namespace_is_stock(logical: Path) -> bool:
-    """Prove the flash process sees stock while a system process sees LuoShu.
+    """Prove the flash process sees stock while a system process sees Ziyu.
 
     KernelSU/SukiSU may run module installers in a private mount namespace.
     active_font.conf can still say mix even though this process already sees the
     lower stock tree. Compare actual font bytes against several long-lived Android
     namespaces (init, system_server, zygote, SystemUI) and trust the installer
-    tree only when a system namespace matches LuoShu payload while the installer
+    tree only when a system namespace matches Ziyu payload while the installer
     sees different bytes at the exact same logical path.
     """
     module = _ACTIVE_OVERLAY_MODULE
@@ -296,8 +368,8 @@ def _installer_namespace_is_stock(logical: Path) -> bool:
         return False
 
     payload_roots = (
-        module / ".luoshu-payload" / relative_root,
-        module / ".luoshu-payload-next" / relative_root,
+        module / ".ziyu-payload" / relative_root,
+        module / ".ziyu-payload-next" / relative_root,
         module / relative_root,
     )
     target_pids = [
@@ -361,10 +433,6 @@ def _safe_pick_actual_root(logical: Path, explicit: Path | None, overlay_risk: b
         return explicit
     if not overlay_risk:
         return logical
-    if _READONLY_VIEW.views:
-        snapshot = _READONLY_VIEW.pick(logical)
-        if snapshot is not None:
-            return snapshot
     # Overlay risk is per partition, not global. A custom system/fonts payload
     # does not make an untouched vendor/fonts tree unsafe to scan directly.
     if _ACTIVE_OVERLAY_MODULE is not None and not _private_root_overlaid(logical):
@@ -383,17 +451,23 @@ def _safe_pick_actual_root(logical: Path, explicit: Path | None, overlay_risk: b
             return candidate
 
     # KernelSU/SukiSU installers may be isolated from the active system mount
-    # namespace. If PID 1 still sees LuoShu's payload while this process sees
+    # namespace. If PID 1 still sees Ziyu's payload while this process sees
     # different bytes at the same font path, the installer-visible tree is a
     # verified stock view and can be scanned immediately.
     if _installer_namespace_is_stock(logical):
         return logical
 
-    # Old ColorOS/OPlus LuoShu builds often used per-file bind mounts and did not
+    # Old ColorOS/OPlus Ziyu builds often used per-file bind mounts and did not
     # persist a lower directory. Recover the parent stock filesystem in-place by
     # taking a non-recursive bind snapshot; this leaves the live mounted font
     # untouched and makes install-time universal scanning possible.
     snapshot = _bind_parent_stock_snapshot(logical)
+    if snapshot is not None:
+        return snapshot
+
+    # The same-ROM saved baseline is already independent of NoMount's redirected
+    # inodes. It also works on devices that refuse loop-backed EROFS re-mounts.
+    snapshot = _saved_stock_root(logical)
     if snapshot is not None:
         return snapshot
 
@@ -414,12 +488,22 @@ def main() -> int:
     inventory._overlay_risk = _private_overlay_risk
     inventory._pick_actual_root = _safe_pick_actual_root
     try:
-        return scanner.main()
+        result = scanner.main()
+        if result == 0 and _SAVED_ROOTS and _ACTIVE_OVERLAY_MODULE is not None:
+            from user_storage import atomic
+            atomic(_ACTIVE_OVERLAY_MODULE / 'config/stock-scan-source.conf',
+                   'schema=ziyu-stock-scan-source-v1\nsource=verified-same-rom-snapshot\n' +
+                   'roots=' + ','.join(map(str, _SAVED_ROOTS)) + '\n')
+        return result
     finally:
         try:
             _cleanup_install_snapshots()
         finally:
-            _READONLY_VIEW.close()
+            try:
+                _READONLY_VIEW.close()
+            finally:
+                if _SAVED_SCAN_BASE is not None:
+                    shutil.rmtree(_SAVED_SCAN_BASE)
 
 
 if __name__ == "__main__":

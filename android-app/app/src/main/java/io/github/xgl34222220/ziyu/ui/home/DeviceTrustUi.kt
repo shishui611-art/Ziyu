@@ -119,7 +119,7 @@ internal suspend fun loadDeviceTrustState(): DeviceTrustState {
         mountState="${'$'}(read_value "${'$'}CFG/self-mount.conf" state)"
         mountFailure="${'$'}(read_value "${'$'}CFG/self-mount.conf" failed)"
         [ ! -f "${'$'}MOD/common/root_manager_detection.sh" ] || . "${'$'}MOD/common/root_manager_detection.sh"
-        backendFile="${'$'}(MODDIR="${'$'}MOD" luoshu_current_boot_backend_state 2>/dev/null)"
+        backendFile="${'$'}(MODDIR="${'$'}MOD" ziyu_current_boot_backend_state 2>/dev/null)"
         currentBoot="${'$'}(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')"
         backendPresent=no
         if [ -n "${'$'}backendFile" ]; then

@@ -21,7 +21,7 @@ if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
     esac
 fi
 RUNTIME="$MODDIR/common/mount_backend_runtime.sh"
-V4_POST_MOUNT="$MODDIR/.luoshu-runtime/core/post-mount.sh"
+V4_POST_MOUNT="$MODDIR/.ziyu-runtime/core/post-mount.sh"
 LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
 UNIVERSAL_MODE="$MODDIR/config/universal-font-runtime.conf"
 

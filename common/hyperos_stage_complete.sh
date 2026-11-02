@@ -1,13 +1,13 @@
 #!/system/bin/sh
-# Complete a staged LuoShu payload with the same HyperOS physical UI targets used by
+# Complete a staged Ziyu payload with the same HyperOS physical UI targets used by
 # the current mapper. This helper never writes the live payload; callers pass an
 # isolated next-boot/staging root.
 set +e
 
-PAYLOAD_ROOT="${1:-${LUOSHU_HYPEROS_STAGE_ROOT:-}}"
+PAYLOAD_ROOT="${1:-${ZIYU_HYPEROS_STAGE_ROOT:-}}"
 [ -n "$PAYLOAD_ROOT" ] || exit 2
 
-REALMOD="${LUOSHU_REAL_MODDIR:-}"
+REALMOD="${ZIYU_REAL_MODDIR:-}"
 if [ -z "$REALMOD" ]; then
     _self_dir=$(CDPATH= cd -- "${0%/*}" 2>/dev/null && pwd)
     REALMOD=$(CDPATH= cd -- "$_self_dir/.." 2>/dev/null && pwd)
@@ -20,7 +20,7 @@ MODDIR="$REALMOD"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
 export MODULE_DIR MODDIR USER_FONTS_DIR
 
 [ -f "$REALMOD/common/util_functions.sh" ] && . "$REALMOD/common/util_functions.sh"
@@ -37,7 +37,7 @@ type _hyperos_clock_ui_files >/dev/null 2>&1 || exit 2
 # Enumerate the existing mapper's safe target names, then process all physical
 # slots in one Python process. Metrics failures must reach the caller.
 _pyroot="$REALMOD/common/python"
-_python="$_pyroot/bin/luoshu-python"
+_python="$_pyroot/bin/ziyu-python"
 [ -x "$_python" ] || { echo 'HyperOS 字体处理运行时不可用' >&2; exit 1; }
 _targets=$({
     if type _lhcc_names_for_root >/dev/null 2>&1 && type _lhcc_root_for_part >/dev/null 2>&1; then

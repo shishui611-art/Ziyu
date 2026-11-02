@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu mount compatibility loader.
+# Ziyu mount compatibility loader.
 # The v2.2.7 implementation remains in mount_compat_base.sh; this loader always
 # applies the non-invasive self-mount compatibility and final engine policy afterwards.
 # hyperos_global.sh remains loaded by the base implementation.
@@ -38,16 +38,16 @@ if [ "${0##*/}" = mount_compat.sh ]; then
         [ ! -f "$9" ] || . "$9"
         case "${10}" in
             status)
-                luoshu_mount_status_json
+                ziyu_mount_status_json
                 printf "\n"
                 ;;
             detect)
-                printf "engine=%s\n" "$(luoshu_detect_mount_engine)"
-                printf "backend=%s\n" "$(luoshu_mount_backend)"
-                printf "warning=%s\n" "$(luoshu_mount_detection_warning)"
+                printf "engine=%s\n" "$(ziyu_detect_mount_engine)"
+                printf "backend=%s\n" "$(ziyu_mount_backend)"
+                printf "warning=%s\n" "$(ziyu_mount_detection_warning)"
                 ;;
             verify)
-                luoshu_mount_verify_active "${11}"
+                ziyu_mount_verify_active "${11}"
                 ;;
             *)
                 printf "usage: %s {status|detect|verify [font]}\n" "$0" >&2

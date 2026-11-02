@@ -24,7 +24,7 @@ class ThemeViewTest(unittest.TestCase):
         self.config.mkdir(parents=True)
         (self.config / 'active_font.conf').write_text('composite-test\n')
         (self.module / 'common').symlink_to(ROOT / 'common', target_is_directory=True)
-        self.source = self.module / '.luoshu-payload/system/fonts/.luoshu-font-store/mix-composite.font'
+        self.source = self.module / '.ziyu-payload/system/fonts/.ziyu-font-store/mix-composite.font'
         self.source.parent.mkdir(parents=True)
         points = (*range(32, 127), HAN, UVS_HAN)
         make_font(self.source, points=points, variable=True, uvs=True)
@@ -58,10 +58,10 @@ class ThemeViewTest(unittest.TestCase):
         self.command('pidof', 'exit 1\n')
         self.command('chcon', 'exit 0\n')
         self.env = {**os.environ, 'MODDIR': str(self.module), 'PATH': f'{self.bin}:{os.environ["PATH"]}',
-                    'LUOSHU_THEME_FONT_TARGET': str(self.target),
-                    'LUOSHU_THEME_FONT_ROUTER': str(self.router),
-                    'LUOSHU_THEME_FONT_ALIAS': str(self.alias), 'LUOSHU_PROC_ROOT': str(self.proc),
-                    'LUOSHU_GOOGLE_FONT_PYTHON': sys.executable,
+                    'ZIYU_THEME_FONT_TARGET': str(self.target),
+                    'ZIYU_THEME_FONT_ROUTER': str(self.router),
+                    'ZIYU_THEME_FONT_ALIAS': str(self.alias), 'ZIYU_PROC_ROOT': str(self.proc),
+                    'ZIYU_GOOGLE_FONT_PYTHON': sys.executable,
                     'TEST_ROOT': str(self.root)}
 
     def command(self, name, body):
@@ -118,17 +118,17 @@ class ThemeViewTest(unittest.TestCase):
         commands = '''
 _htf_pids() { echo 101; }
 _gfp_mount_in_pid() {
-    view="$LUOSHU_PROC_ROOT/$1/root$3"
+    view="$ZIYU_PROC_ROOT/$1/root$3"
     mkdir -p "${view%/*}"
     ln "$2" "$view"
 }
 _htf_apply || exit 10
 # Chrome inherits the exact owned inode into a newly created namespace.
-view="$LUOSHU_PROC_ROOT/102/root$HTF_TARGET"
+view="$ZIYU_PROC_ROOT/102/root$HTF_TARGET"
 mkdir -p "${view%/*}"
 ln "$HTF_CLONE" "$view"
 _htf_pids() { echo 102; }
-_gfp_unmount_in_pid() { echo "$1" >> "$TEST_ROOT/unmounted"; rm -f "$LUOSHU_PROC_ROOT/$1/root$2"; }
+_gfp_unmount_in_pid() { echo "$1" >> "$TEST_ROOT/unmounted"; rm -f "$ZIYU_PROC_ROOT/$1/root$2"; }
 _htf_restore || exit 11
 '''
         result = self.shell(commands)
@@ -137,7 +137,7 @@ _htf_restore || exit 11
 
     def test_missing_live_payload_never_uses_pending_selection(self):
         self.source.rename(self.source.with_name('unavailable.font'))
-        pending = self.module / '.luoshu-payload-next/system/fonts/400.ttf'
+        pending = self.module / '.ziyu-payload-next/system/fonts/400.ttf'
         pending.parent.mkdir(parents=True)
         pending.write_bytes(self.target.read_bytes())
         result = self.shell('_htf_source')
@@ -172,7 +172,7 @@ _htf_restore || exit 11
         original = self.target.read_bytes()
         commands = '''
 _gfp_mount_in_pid() {
-    view="$LUOSHU_PROC_ROOT/$1/root$3"
+    view="$ZIYU_PROC_ROOT/$1/root$3"
     mkdir -p "${view%/*}"
     rm -f "$view"
     ln "$2" "$view"
@@ -191,22 +191,22 @@ _htf_apply || exit 11
     def test_restore_releases_only_recorded_inode_and_route_change_releases(self):
         commands = '''
 _gfp_mount_in_pid() {
-    view="$LUOSHU_PROC_ROOT/$1/root$3"
+    view="$ZIYU_PROC_ROOT/$1/root$3"
     mkdir -p "${view%/*}"
     rm -f "$view"
     ln "$2" "$view"
 }
 _gfp_unmount_in_pid() {
     echo "$1" >> "$TEST_ROOT/unmounted"
-    rm -f "$LUOSHU_PROC_ROOT/$1/root$2"
+    rm -f "$ZIYU_PROC_ROOT/$1/root$2"
 }
 _htf_apply || exit 10
 # Simulate a different module/ROM replacing one consumer's view.
-view="$LUOSHU_PROC_ROOT/102/root$HTF_TARGET"
+view="$ZIYU_PROC_ROOT/102/root$HTF_TARGET"
 rm -f "$view"
 cp "$HTF_TARGET" "$view"
 rm "$HTF_ROUTER"
-ln -s "$MODDIR/.luoshu-payload/system/fonts/MiSansVF.ttf" "$HTF_ROUTER"
+ln -s "$MODDIR/.ziyu-payload/system/fonts/MiSansVF.ttf" "$HTF_ROUTER"
 _htf_apply
 [ "$?" = 2 ] || exit 11
 '''
@@ -219,14 +219,14 @@ _htf_apply
 _htf_pids() { echo 101; }
 _gfp_mount_in_pid() {
     echo bind >> "$TEST_ROOT/events"
-    view="$LUOSHU_PROC_ROOT/$1/root$3"
+    view="$ZIYU_PROC_ROOT/$1/root$3"
     mkdir -p "${view%/*}"
     [ ! -e "$view" ] || exit 51
     ln "$2" "$view"
 }
 _gfp_unmount_in_pid() {
     echo unmount >> "$TEST_ROOT/events"
-    rm -f "$LUOSHU_PROC_ROOT/$1/root$2"
+    rm -f "$ZIYU_PROC_ROOT/$1/root$2"
 }
 _htf_apply || exit 10
 source=$(_htf_source)
@@ -245,10 +245,10 @@ _htf_restore || exit 12
 _htf_pids() { echo 101; }
 _htf_prepare || exit 10
 cp "$HTF_CLONE" "$HTF_CACHE/second.ttf"
-view="$LUOSHU_PROC_ROOT/101/root$HTF_TARGET"
+view="$ZIYU_PROC_ROOT/101/root$HTF_TARGET"
 mkdir -p "${view%/*}"
 ln "$HTF_CACHE/second.ttf" "$view"
-ns=$(readlink "$LUOSHU_PROC_ROOT/101/ns/mnt")
+ns=$(readlink "$ZIYU_PROC_ROOT/101/ns/mnt")
 printf '%s|%s|%s\n' "$ns" "$(_htf_identity "$HTF_CLONE")" "$HTF_CLONE" > "$HTF_MOUNTS"
 printf '%s|%s|%s\n' "$ns" "$(_htf_identity "$HTF_CACHE/second.ttf")" "$HTF_CACHE/second.ttf" >> "$HTF_MOUNTS"
 layer=2
@@ -268,7 +268,7 @@ _htf_restore || exit 11
         commands = '''
 _htf_pids() { echo 101; }
 _gfp_mount_in_pid() {
-    view="$LUOSHU_PROC_ROOT/$1/root$3"
+    view="$ZIYU_PROC_ROOT/$1/root$3"
     mkdir -p "${view%/*}"
     ln "$2" "$view"
 }
@@ -294,7 +294,7 @@ exec /bin/mv "$@"
         result = self.shell('''
 _htf_pids() { echo 101; }
 _gfp_mount_in_pid() {
-    view="$LUOSHU_PROC_ROOT/$1/root$3"
+    view="$ZIYU_PROC_ROOT/$1/root$3"
     mkdir -p "${view%/*}"
     ln "$2" "$view"
 }
@@ -306,8 +306,8 @@ _htf_apply
         # nsenter is mocked below. PID 1 is a stable proc fixture even on hosts
         # whose command runner exposes a different PID view to subprocesses.
         self.command('nsenter', 'while [ "$1" != -- ]; do shift; done\nshift\nexec "$@"\n')
-        self.env['LUOSHU_GOOGLE_FONT_NS_SHELL'] = '/bin/sh'
-        self.env['LUOSHU_PROC_ROOT'] = '/proc'
+        self.env['ZIYU_GOOGLE_FONT_NS_SHELL'] = '/bin/sh'
+        self.env['ZIYU_PROC_ROOT'] = '/proc'
         result = self.shell('''
 _gfp_mount_in_pid 1 "$HTF_TARGET" "$HTF_ROUTER" 1
 [ "$?" = 1 ] && [ "$_gfp_mount_detail" = target-is-symlink ] || exit 10

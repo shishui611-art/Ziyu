@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate and validate boot-safe Android font configuration overlays.
 
-The device document remains the source of truth. LuoShu redirects named UI families to
+The device document remains the source of truth. Ziyu redirects named UI families to
 balanced static weights. Named monospace families retain the exact original XML
 face, collection index, axes and spacing. Locale fallbacks, emoji, icons, symbols, serif faces and true italic faces
 remain untouched.
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from legacy_identity import generated_names
 import os
 import re
 import tempfile
@@ -157,7 +158,7 @@ def parse_xml(path: Path) -> ET.ElementTree:
     return ET.parse(path, parser=parser)
 
 
-def rewrite_tree(tree: ET.ElementTree, prefix: str, mono_prefix: str = "LuoShuMono") -> dict[str, object]:
+def rewrite_tree(tree: ET.ElementTree, prefix: str, mono_prefix: str = "ZiyuMono") -> dict[str, object]:
     root = tree.getroot()
     parents = {child: parent for parent in root.iter() for child in list(parent)}
     changed_families: list[str] = []
@@ -207,7 +208,7 @@ def rewrite_tree(tree: ET.ElementTree, prefix: str, mono_prefix: str = "LuoShuMo
 
 
 def generated_references(tree: ET.ElementTree, prefixes: tuple[str, ...]) -> list[str]:
-    prefix_pattern = "|".join(re.escape(prefix) for prefix in prefixes)
+    prefix_pattern = "|".join(re.escape(alias) for prefix in prefixes for alias in generated_names(prefix))
     pattern = re.compile(rf"^(?:{prefix_pattern})-(?:100|200|300|400|500|600|700|800|900)\.ttf$")
     references: list[str] = []
     for element in tree.getroot().iter():
@@ -308,8 +309,8 @@ def main() -> int:
     parser.add_argument("--input", type=Path)
     parser.add_argument("--batch", type=Path)
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--font-prefix", default="LuoShu")
-    parser.add_argument("--mono-font-prefix", default="LuoShuMono")
+    parser.add_argument("--font-prefix", default="Ziyu")
+    parser.add_argument("--mono-font-prefix", default="ZiyuMono")
     parser.add_argument("--font-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the minimum real-device evidence required for a stable LuoShu release."""
+"""Validate the minimum real-device evidence required for a stable Ziyu release."""
 
 from __future__ import annotations
 

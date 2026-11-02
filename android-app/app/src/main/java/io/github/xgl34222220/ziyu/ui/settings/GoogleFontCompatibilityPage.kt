@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
+import io.github.xgl34222220.ziyu.ui.theme.withCardTransparency
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuLoadingSkeleton
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuMotionTokens
 
@@ -123,7 +124,7 @@ internal fun GoogleFontCompatibilityPage() {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = .62f),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = .62f).withCardTransparency(),
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
@@ -213,7 +214,7 @@ private fun GoogleStepCard(number: String, title: String, body: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = .07f),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = .07f).withCardTransparency(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 12.dp),
@@ -243,7 +244,7 @@ private fun GoogleStepCard(number: String, title: String, body: String) {
 @Composable
 private fun GoogleCompatibilityCard(title: String, content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
-        color = LocalZiyuPaletteTokens.current.cardBackground, shadowElevation = ZiyuLayoutTokens.CardElevation) {
+        color = LocalZiyuPaletteTokens.current.cardBackground.withCardTransparency(), shadowElevation = ZiyuLayoutTokens.CardElevation) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
             content()

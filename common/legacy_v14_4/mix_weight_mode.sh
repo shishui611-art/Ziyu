@@ -47,7 +47,7 @@ mix_find_family_source() {
 mix_variable_default_weight() {
     _source="$1"
     _pyroot="${MODDIR:-/data/adb/modules/ziyu}/common/python"
-    _python="$_pyroot/bin/luoshu-python"
+    _python="$_pyroot/bin/ziyu-python"
     [ -x "$_python" ] || return 0
     PYTHONHOME="$_pyroot" \
     PYTHONPATH="$_pyroot/lib/python3.14:$_pyroot/lib/python3.14/site-packages" \

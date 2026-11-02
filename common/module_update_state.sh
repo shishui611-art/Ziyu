@@ -1,18 +1,20 @@
 #!/system/bin/sh
 # 模块更新状态迁移：继承当前字体负载；架构变化只登记一次显式重应用。
 
-LUOSHU_PAYLOAD_SCHEMA_CURRENT="${LUOSHU_PAYLOAD_SCHEMA_CURRENT:-baseline-v9-rolegraph-v2}"
-LUOSHU_UPDATE_ACTIVE=default
-LUOSHU_UPDATE_OLD_SCHEMA=''
-LUOSHU_UPDATE_REBUILD_REQUIRED=false
-LUOSHU_UPDATE_FAILURE_REASON=''
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
+
+ZIYU_PAYLOAD_SCHEMA_CURRENT="${ZIYU_PAYLOAD_SCHEMA_CURRENT:-baseline-v9-rolegraph-v2}"
+ZIYU_UPDATE_ACTIVE=default
+ZIYU_UPDATE_OLD_SCHEMA=''
+ZIYU_UPDATE_REBUILD_REQUIRED=false
+ZIYU_UPDATE_FAILURE_REASON=''
 
 # v3.1-v3.3 changed variable-font preparation, XML overlays, HyperOS metrics and
 # switch caches in several independent layers.  v3.3.4 and later use the v3.0
 # runtime and must not inherit a payload produced before that recovery boundary.
 # The reset is one-shot across the boundary: v3.3.4 -> later keeps its payload,
 # while a direct v3.1-v3.3 -> later upgrade still receives the safe reset.
-luoshu_runtime_recovery_required() {
+ziyu_runtime_recovery_required() {
     _lrr_old="$1"
     _lrr_new="$2"
     [ -f "$_lrr_old/module.prop" ] && [ -f "$_lrr_new/module.prop" ] || return 1
@@ -24,19 +26,21 @@ luoshu_runtime_recovery_required() {
     [ "$_lrr_old_code" -lt 30304 ] && [ "$_lrr_new_code" -ge 30304 ]
 }
 
-luoshu_update_payload_schema() {
+ziyu_update_payload_schema() {
     sed -n 's/^schema=//p' "$1/config/font-payload-schema.conf" 2>/dev/null | head -n1 | tr -d '\r\n'
 }
 
-luoshu_update_config_value() {
-    sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
+ziyu_update_config_value() {
+    _ziuc_value=$(sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n')
+    if [ "$2" = schema ]; then ziyu_legacy_schema "$_ziuc_value"
+    else printf '%s' "$_ziuc_value"; fi
 }
 
 # The installer may carry the current schema forward for the compatibility
 # runtime. Schema equality alone therefore cannot certify generated physical
 # fonts: a new routing/subsetting/metric policy must take effect on the next
 # explicit apply. Compare only the small builders, never the active font trees.
-luoshu_update_font_builder_compatible() {
+ziyu_update_font_builder_compatible() {
     for _lufb_relative in \
         common/hyperos_physical_policy.py \
         common/hyperos_metrics_batch.py \
@@ -51,7 +55,7 @@ luoshu_update_font_builder_compatible() {
 }
 
 
-luoshu_copy_update_tree() {
+ziyu_copy_update_tree() {
     _source="$1"
     _destination="$2"
     [ -d "$_source" ] || return 0
@@ -61,7 +65,7 @@ luoshu_copy_update_tree() {
         cp -rfp "$_source/." "$_destination/" 2>/dev/null
 }
 
-luoshu_update_config_is_volatile() {
+ziyu_update_config_is_volatile() {
     case "$1" in
         version_notes.conf|switch_task.conf|mix_task.conf|axes_task.conf|emoji_task.conf|\
         text_reboot_required.conf|font_weight_reboot_required.conf|emoji_reboot_required.conf|\
@@ -80,10 +84,10 @@ luoshu_update_config_is_volatile() {
     return 1
 }
 
-luoshu_update_payload_partitions() {
+ziyu_update_payload_partitions() {
     _lup_config_module="${1:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
-    if type luoshu_private_partitions >/dev/null 2>&1; then
-        ( MODULE_DIR="$_lup_config_module"; MODDIR="$MODULE_DIR"; luoshu_private_partitions )
+    if type ziyu_private_partitions >/dev/null 2>&1; then
+        ( MODULE_DIR="$_lup_config_module"; MODDIR="$MODULE_DIR"; ziyu_private_partitions )
         return
     fi
     _lup_partitions='system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product'
@@ -97,17 +101,17 @@ luoshu_update_payload_partitions() {
     done < "$_lup_config_module/config/device_font_partitions.conf"
 }
 
-luoshu_update_payload_root() (
+ziyu_update_payload_root() (
     # Hot switching leaves the canonical boot tree at A while the manifest and
     # selection describe B. Use B's validated current-boot generation together
     # with that manifest; never search arbitrary directories until a hash fits.
-    MODULE_DIR="$1"; MODDIR="$1"
+    MODULE_DIR="$1"; MODDIR="$1"; MODPATH="$1"
     _lupr_helper="${2:-$1}/common/font_live_state.sh"
     if [ -f "$_lupr_helper" ]; then
         . "$_lupr_helper" || return 1
         if ziyu_live_current; then
             [ -n "$(ziyu_live_value "$1/config/font-live.conf" request_id)" ] || return 1
-            if [ "$_zlc_source" != "$1/.luoshu-payload" ]; then
+            if [ "$_zlc_source" != "$(ziyu_legacy_path "$1/.ziyu-payload")" ]; then
                 _lupr_generation=${_zlc_source##*/generation-}
                 [ "${#_lupr_generation}" = 64 ] || return 1
                 case "$_lupr_generation" in *[!0-9a-f]*) return 1 ;; esac
@@ -124,31 +128,32 @@ luoshu_update_payload_root() (
     fi
     # Private storage is the durable artifact, while the public partition view
     # may be absent or only partially projected in a flashing namespace.
-    if [ -d "$1/.luoshu-payload" ]; then
-        printf '%s/.luoshu-payload\n' "$1"
+    _lupr_private=$(ziyu_legacy_path "$1/.ziyu-payload")
+    if [ -d "$_lupr_private" ]; then
+        printf '%s\n' "$_lupr_private"
     else
         printf '%s\n' "$1"
     fi
 )
 
-luoshu_update_verify_manifest() {
+ziyu_update_verify_manifest() {
     _luvm_module="$1"
     _luvm_root="$2"
     _luvm_manifest="$_luvm_module/config/font-payload-manifest.conf"
     _luvm_layout="${4:-nomount-partition-roots}"
     case "$_luvm_layout" in nomount-partition-roots|nested-system) ;; *)
-        LUOSHU_UPDATE_FAILURE_REASON=unsupported-payload-layout; return 1 ;; esac
+        ZIYU_UPDATE_FAILURE_REASON=unsupported-payload-layout; return 1 ;; esac
     [ -e "$_luvm_manifest" ] || return 0
-    [ -s "$_luvm_manifest" ] || { LUOSHU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
+    [ -s "$_luvm_manifest" ] || { ZIYU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
     _luvm_normalize="${3:-0}"
     _luvm_pyroot="$_luvm_module/common/python"
-    if [ -x "$_luvm_pyroot/bin/luoshu-python" ] && [ -f "$_luvm_module/common/font_update_manifest.py" ]; then
+    if [ -x "$_luvm_pyroot/bin/ziyu-python" ] && [ -f "$_luvm_module/common/font_update_manifest.py" ]; then
         _luvm_result=$(PYTHONHOME="$_luvm_pyroot" \
             PYTHONPATH="$_luvm_module/common:$_luvm_pyroot/lib/python3.14:$_luvm_pyroot/lib/python3.14/site-packages" \
             LD_LIBRARY_PATH="$_luvm_pyroot/lib:$_luvm_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            "$_luvm_pyroot/bin/luoshu-python" "$_luvm_module/common/font_update_manifest.py" \
+            "$_luvm_pyroot/bin/ziyu-python" "$_luvm_module/common/font_update_manifest.py" \
             "$_luvm_root" "$_luvm_manifest" "$_luvm_normalize" \
-            "$(luoshu_update_payload_partitions "$_luvm_module" | tr '\n' ' ')" "$_luvm_layout" \
+            "$(ziyu_update_payload_partitions "$_luvm_module" | tr '\n' ' ')" "$_luvm_layout" \
             2>>"$_luvm_module/logs/module-update.log")
         _luvm_rc=$?
         if [ "$_luvm_rc" = 0 ]; then
@@ -158,67 +163,67 @@ luoshu_update_verify_manifest() {
         # Only interpreter startup/import failures may use the portable path.
         # A real manifest rejection must never be retried with weaker rules.
         case "$_luvm_result" in update-manifest-rejected:*)
-            LUOSHU_UPDATE_FAILURE_REASON=${_luvm_result#update-manifest-rejected:}; return 1 ;;
+            ZIYU_UPDATE_FAILURE_REASON=${_luvm_result#update-manifest-rejected:}; return 1 ;;
         esac
         printf 'batch verifier unavailable rc=%s; portable verifier used\n' "$_luvm_rc" >>"$_luvm_module/logs/module-update.log"
     fi
     _luvm_records=0
     _luvm_tmp="$_luvm_manifest.tmp.$$"
-    _luvm_parts=$(luoshu_update_payload_partitions "$_luvm_module" | tr '\n' ' ')
+    _luvm_parts=$(ziyu_update_payload_partitions "$_luvm_module" | tr '\n' ' ')
     _luvm_root_real=$(readlink -f "$_luvm_root") || return 1
     [ "$_luvm_normalize" != 1 ] || : > "$_luvm_tmp" || return 1
     while IFS='|' read -r _luvm_rel _luvm_expected _luvm_extra || [ -n "$_luvm_rel" ]; do
         [ -n "$_luvm_rel" ] || continue
         case "$_luvm_rel" in /*|../*|*/../*|*/..|./*|*/./*|*/.|*\\*|*//* )
-            LUOSHU_UPDATE_FAILURE_REASON=unsafe-payload-manifest-path; return 1 ;;
+            ZIYU_UPDATE_FAILURE_REASON=unsafe-payload-manifest-path; return 1 ;;
         esac
         _luvm_partition=${_luvm_rel%%/*}
         case " $_luvm_parts " in *" $_luvm_partition "*) ;; *)
-            LUOSHU_UPDATE_FAILURE_REASON=unsupported-payload-manifest-partition; return 1 ;;
+            ZIYU_UPDATE_FAILURE_REASON=unsupported-payload-manifest-partition; return 1 ;;
         esac
         _luvm_file_rel="$_luvm_rel"
         if [ "$_luvm_layout" = nested-system ] && [ "$_luvm_partition" != system ]; then
             _luvm_file_rel="system/$_luvm_rel"
         fi
         [ -s "$_luvm_root/$_luvm_file_rel" ] || {
-            LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-missing:$_luvm_rel"; return 1;
+            ZIYU_UPDATE_FAILURE_REASON="payload-artifact-missing:$_luvm_rel"; return 1;
         }
         _luvm_resolved=$(readlink -f "$_luvm_root/$_luvm_file_rel") || return 1
         case "$_luvm_resolved" in "$_luvm_root_real"/*) ;; *)
-            LUOSHU_UPDATE_FAILURE_REASON=unsafe-payload-artifact-link; return 1 ;; esac
+            ZIYU_UPDATE_FAILURE_REASON=unsafe-payload-artifact-link; return 1 ;; esac
         case "$_luvm_expected" in ''|*[!0-9a-fA-F]*)
-            LUOSHU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;;
+            ZIYU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;;
         esac
         _luvm_actual=$(sha256sum "$_luvm_root/$_luvm_file_rel" 2>/dev/null | awk '{print $1}')
         if [ "${#_luvm_expected}" -eq 64 ]; then
             [ "$_luvm_actual" = "$(printf '%s' "$_luvm_expected" | tr 'A-F' 'a-f')" ] || {
-                LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-hash-mismatch:$_luvm_rel"; return 1;
+                ZIYU_UPDATE_FAILURE_REASON="payload-artifact-hash-mismatch:$_luvm_rel"; return 1;
             }
         else
             # Older supported payloads used POSIX cksum CRC|size. Validate
             # that contract, then normalize only the staged copy for the new
             # SHA256/PID1 verifier; never rewrite the running module's ledger.
-            case "$_luvm_expected:$_luvm_extra" in *[!0-9:]*|:*|*:) LUOSHU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;; esac
+            case "$_luvm_expected:$_luvm_extra" in *[!0-9:]*|:*|*:) ZIYU_UPDATE_FAILURE_REASON=invalid-payload-manifest-hash; return 1 ;; esac
             _luvm_crc=$(cksum "$_luvm_root/$_luvm_file_rel" 2>/dev/null | awk '{print $1 "|" $2}')
             [ "$_luvm_crc" = "$_luvm_expected|$_luvm_extra" ] || {
-                LUOSHU_UPDATE_FAILURE_REASON="payload-artifact-checksum-mismatch:$_luvm_rel"; return 1;
+                ZIYU_UPDATE_FAILURE_REASON="payload-artifact-checksum-mismatch:$_luvm_rel"; return 1;
             }
         fi
-        [ "${#_luvm_actual}" -eq 64 ] || { LUOSHU_UPDATE_FAILURE_REASON=payload-sha256-unavailable; return 1; }
+        [ "${#_luvm_actual}" -eq 64 ] || { ZIYU_UPDATE_FAILURE_REASON=payload-sha256-unavailable; return 1; }
         if [ "$_luvm_normalize" = 1 ]; then
             printf '%s|%s\n' "$_luvm_rel" "$_luvm_actual" >> "$_luvm_tmp" || return 1
         fi
         _luvm_records=$((_luvm_records + 1))
     done < "$_luvm_manifest"
-    [ "$_luvm_records" -gt 0 ] || { LUOSHU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
+    [ "$_luvm_records" -gt 0 ] || { ZIYU_UPDATE_FAILURE_REASON=empty-payload-manifest; return 1; }
     [ "$_luvm_normalize" != 1 ] || mv -f "$_luvm_tmp" "$_luvm_manifest" || return 1
     return 0
 }
 
-luoshu_update_has_font_payload() {
+ziyu_update_has_font_payload() {
     _module="$2"
-    [ -n "$_module" ] || _module=$(luoshu_update_payload_root "$1") || return 1
-    for _partition in $(luoshu_update_payload_partitions "$1"); do
+    [ -n "$_module" ] || _module=$(ziyu_update_payload_root "$1") || return 1
+    for _partition in $(ziyu_update_payload_partitions "$1"); do
         case "$_partition" in
             system) _directory="$_module/system/fonts" ;;
             *) _directory="$_module/$_partition" ;;
@@ -235,9 +240,9 @@ luoshu_update_has_font_payload() {
 # A selection may describe a committed next-boot transaction, not the payload
 # currently mounted. Preserve that transaction separately and verify its bytes
 # without rewriting either the running module or its current-payload ledger.
-luoshu_update_copy_pending_physical() (
-    _lupc_old="$1"; _lupc_new="$2"; _lupc_source="$_lupc_old/.luoshu-payload-next"
-    _lupc_dest="$_lupc_new/.luoshu-payload-next"
+ziyu_update_copy_pending_physical() (
+    _lupc_old="$1"; _lupc_new="$2"; _lupc_source=$(ziyu_legacy_path "$_lupc_old/.ziyu-payload-next")
+    _lupc_dest="$_lupc_new/.ziyu-payload-next"
     _lupc_check="$_lupc_new/.pending-update-check.$$"
     [ -d "$_lupc_source" ] && [ ! -L "$_lupc_source" ] && [ ! -e "$_lupc_dest" ] || exit 1
     mkdir -p "$_lupc_check/config" || exit 1
@@ -246,7 +251,7 @@ luoshu_update_copy_pending_physical() (
         cp -p "$_lupc_old/config/device_font_partitions.conf" "$_lupc_check/config/" || exit 1
     # Reuse the bundled batch hashers when available; the shell implementation
     # remains the compatibility fallback for recovery and older environments.
-    if [ -x "$_lupc_new/common/python/bin/luoshu-python" ]; then
+    if [ -x "$_lupc_new/common/python/bin/ziyu-python" ]; then
         mkdir -p "$_lupc_check/common" || exit 1
         ln -s "$_lupc_new/common/python" "$_lupc_check/common/python" || exit 1
         for _lupc_script in physical_payload_hashes.py font_update_manifest.py font_digest_cache.py; do
@@ -257,15 +262,20 @@ luoshu_update_copy_pending_physical() (
     mkdir -p "$_lupc_check/logs" || exit 1
     [ -f "$_lupc_new/common/physical_payload_manifest.sh" ] || exit 1
     . "$_lupc_new/common/physical_payload_manifest.sh" || exit 1
-    luoshu_physical_manifest_build "$_lupc_check" "$_lupc_source" || exit 1
-    luoshu_copy_update_tree "$_lupc_source" "$_lupc_dest" || exit 1
-    luoshu_update_verify_manifest "$_lupc_check" "$_lupc_dest" 0 || exit 1
+    ziyu_physical_manifest_build "$_lupc_check" "$_lupc_source" || exit 1
+    ziyu_copy_update_tree "$_lupc_source" "$_lupc_dest" || exit 1
+    ziyu_update_verify_manifest "$_lupc_check" "$_lupc_dest" 0 || exit 1
+    _lupc_marker=$(ziyu_legacy_path "$_lupc_dest/.ziyu-next-transaction.conf")
+    if [ "$_lupc_marker" != "$_lupc_dest/.ziyu-next-transaction.conf" ]; then
+        [ -f "$_lupc_marker" ] && [ ! -L "$_lupc_marker" ] || exit 1
+        mv "$_lupc_marker" "$_lupc_dest/.ziyu-next-transaction.conf" || exit 1
+    fi
 )
 
-luoshu_clear_update_volatile() {
+ziyu_clear_update_volatile() {
     _module="$1"
-    if type luoshu_font_lock_force_clear >/dev/null 2>&1; then
-        luoshu_font_lock_force_clear "$_module/.font_switch.lock" >/dev/null 2>&1 || true
+    if type ziyu_font_lock_force_clear >/dev/null 2>&1; then
+        ziyu_font_lock_force_clear "$_module/.font_switch.lock" >/dev/null 2>&1 || true
     else
         rm -f "$_module/.font_switch.lock/pid" 2>/dev/null || true
         rmdir "$_module/.font_switch.lock" 2>/dev/null || true
@@ -308,13 +318,13 @@ luoshu_clear_update_volatile() {
         "$_module/config"/*.tmp "$_module/config"/*.tmp.* 2>/dev/null || true
     rm -rf "$_module"/.font-payload-stage.* "$_module"/.font-payload-backup.* 2>/dev/null || true
     if [ -e "$_module/.device-font-cache.lock" ]; then
-        if type luoshu_font_lock_reap_stale >/dev/null 2>&1; then
-            luoshu_font_lock_reap_stale "$_module/.device-font-cache.lock" >/dev/null 2>&1 || true
+        if type ziyu_font_lock_reap_stale >/dev/null 2>&1; then
+            ziyu_font_lock_reap_stale "$_module/.device-font-cache.lock" >/dev/null 2>&1 || true
         fi
     fi
 }
 
-luoshu_migrate_update_config() {
+ziyu_migrate_update_config() {
     _old="$1"
     _new="$2"
     [ -d "$_old/config" ] || return 0
@@ -322,14 +332,14 @@ luoshu_migrate_update_config() {
     for _source in "$_old/config"/*; do
         [ -f "$_source" ] || continue
         _name=${_source##*/}
-        luoshu_update_config_is_volatile "$_name" && continue
+        ziyu_update_config_is_volatile "$_name" && continue
         cp -af "$_source" "$_new/config/$_name" 2>/dev/null || \
             cp -fp "$_source" "$_new/config/$_name" 2>/dev/null || return 1
     done
     return 0
 }
 
-luoshu_migrate_update_cache() {
+ziyu_migrate_update_cache() {
     _old="$1"
     _new="$2"
     _schema_compatible="${3:-false}"
@@ -348,7 +358,7 @@ luoshu_migrate_update_cache() {
         [ "$_schema_compatible" = true ] && [ "$_builder_compatible" = true ] || continue
         [ -d "$_old/$_relative" ] || continue
         mkdir -p "${_new}/${_relative%/*}" 2>/dev/null || continue
-        luoshu_copy_update_tree "$_old/$_relative" "$_new/$_relative" || true
+        ziyu_copy_update_tree "$_old/$_relative" "$_new/$_relative" || true
     done
     mkdir -p "$_new/cache" 2>/dev/null || true
     for _probe in "$_old/cache"/runtime_probe.*.ok; do
@@ -370,13 +380,13 @@ luoshu_migrate_update_cache() {
         [ -d "$_old/$_relative" ] || continue
         rm -rf "$_new/$_relative" 2>/dev/null || true
         mkdir -p "${_new}/${_relative%/*}" 2>/dev/null || continue
-        luoshu_copy_update_tree "$_old/$_relative" "$_new/$_relative" || true
+        ziyu_copy_update_tree "$_old/$_relative" "$_new/$_relative" || true
     done
     if [ "$_schema_compatible" = true ] && [ "$_builder_compatible" = true ]; then
         if [ -d "$_old/config/device-font-cache" ]; then
             rm -rf "$_new/config/device-font-cache" 2>/dev/null || true
             mkdir -p "$_new/config" 2>/dev/null || true
-            luoshu_copy_update_tree "$_old/config/device-font-cache" "$_new/config/device-font-cache" || true
+            ziyu_copy_update_tree "$_old/config/device-font-cache" "$_new/config/device-font-cache" || true
         fi
     else
         # Only discard derived artifacts in the replacement installation. Keep
@@ -385,83 +395,84 @@ luoshu_migrate_update_cache() {
     fi
 }
 
-luoshu_migrate_active_install() {
+ziyu_migrate_active_install() {
     [ -f "$1/module.prop" ] || return 2
     [ "$1" != "$2" ] || return 2
     [ -f "$2/common/font_switch_lock.sh" ] && . "$2/common/font_switch_lock.sh"
-    if ! type luoshu_font_lock_acquire >/dev/null 2>&1; then
-        LUOSHU_UPDATE_FAILURE_REASON=migration-lock-unavailable; return 1
+    if ! type ziyu_font_lock_acquire >/dev/null 2>&1; then
+        ZIYU_UPDATE_FAILURE_REASON=migration-lock-unavailable; return 1
     fi
-    luoshu_font_lock_acquire "$1/.font_switch.lock" "$$" || {
-        LUOSHU_UPDATE_FAILURE_REASON=font-switch-in-progress-retry-update; return 1;
+    ziyu_font_lock_acquire "$1/.font_switch.lock" "$$" || {
+        ZIYU_UPDATE_FAILURE_REASON=font-switch-in-progress-retry-update; return 1;
     }
-    _luoshu_migrate_active_install_locked "$1" "$2"
+    _ziyu_migrate_active_install_locked "$1" "$2"
     _luma_rc=$?
-    luoshu_font_lock_release "$1/.font_switch.lock" "$$" >/dev/null 2>&1 || true
+    ziyu_font_lock_release "$1/.font_switch.lock" "$$" >/dev/null 2>&1 || true
     return "$_luma_rc"
 }
 
-_luoshu_migrate_active_install_locked() {
+_ziyu_migrate_active_install_locked() {
     _old="$1"
     _new="$2"
     [ -f "$_old/module.prop" ] || return 2
     [ "$_old" != "$_new" ] || return 2
-    LUOSHU_UPDATE_FAILURE_REASON=migration-copy-failed
+    ZIYU_UPDATE_FAILURE_REASON=migration-copy-failed
     _active=$(head -n1 "$_old/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_active" ] || _active=default
     _lup_current="$_active"
     _lup_pending=false
+    _lup_old_next=$(ziyu_legacy_path "$_old/.ziyu-payload-next")
     if [ "$_active" != default ] && [ ! -s "$_old/config/universal-font-next.conf" ] &&
-       { [ -e "$_old/config/font-payload-next.conf" ] || [ -e "$_old/.luoshu-payload-next" ]; }; then
+       { [ -e "$_old/config/font-payload-next.conf" ] || [ -e "$_lup_old_next" ]; }; then
         _lup_pending_state="$_old/config/font-payload-next.conf"
-        _lup_pending_marker="$_old/.luoshu-payload-next/.luoshu-next-transaction.conf"
-        _lup_pending_request=$(luoshu_update_config_value "$_lup_pending_state" requestId)
-        _lup_pending_previous=$(luoshu_update_config_value "$_lup_pending_state" previousFont)
-        _lup_pending_mode=$(luoshu_update_config_value "$_lup_pending_state" targetMode)
+        _lup_pending_marker=$(ziyu_legacy_path "$_lup_old_next/.ziyu-next-transaction.conf")
+        _lup_pending_request=$(ziyu_update_config_value "$_lup_pending_state" requestId)
+        _lup_pending_previous=$(ziyu_update_config_value "$_lup_pending_state" previousFont)
+        _lup_pending_mode=$(ziyu_update_config_value "$_lup_pending_state" targetMode)
         if [ -L "$_lup_pending_state" ] || [ -L "$_lup_pending_marker" ] ||
-           [ -e "$_old/.luoshu-state/backup/next-transaction" ] ||
+           [ -e "$(ziyu_legacy_path "$_old/.ziyu-state/backup/next-transaction")" ] ||
            [ -s "$_old/config/universal-font-next.conf" ] ||
-           [ "$(luoshu_update_config_value "$_lup_pending_state" undo)" = true ] ||
-           [ "$(luoshu_update_config_value "$_lup_pending_state" state)" != prepared ] ||
-           [ "$(luoshu_update_config_value "$_lup_pending_state" font)" != "$_active" ] ||
+           [ "$(ziyu_update_config_value "$_lup_pending_state" undo)" = true ] ||
+           [ "$(ziyu_update_config_value "$_lup_pending_state" state)" != prepared ] ||
+           [ "$(ziyu_update_config_value "$_lup_pending_state" font)" != "$_active" ] ||
            [ -z "$_lup_pending_previous" ] || [ -z "$_lup_pending_request" ] ||
-           [ "$(luoshu_update_config_value "$_lup_pending_marker" schema)" != luoshu-next-payload-v1 ] ||
-           [ "$(luoshu_update_config_value "$_lup_pending_marker" font)" != "$_active" ] ||
-           [ "$(luoshu_update_config_value "$_lup_pending_marker" requestId)" != "$_lup_pending_request" ]; then
-            LUOSHU_UPDATE_FAILURE_REASON=pending-font-transaction-unconfirmed; return 1
+           [ "$(ziyu_update_config_value "$_lup_pending_marker" schema)" != ziyu-next-payload-v1 ] ||
+           [ "$(ziyu_update_config_value "$_lup_pending_marker" font)" != "$_active" ] ||
+           [ "$(ziyu_update_config_value "$_lup_pending_marker" requestId)" != "$_lup_pending_request" ]; then
+            ZIYU_UPDATE_FAILURE_REASON=pending-font-transaction-unconfirmed; return 1
         fi
         case "$_lup_pending_mode:$_active" in :default|legacy:default|default:*|classic:*)
-            LUOSHU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
+            ZIYU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
             :*|legacy:*) ;;
-            *) LUOSHU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
+            *) ZIYU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
         esac
         _lup_pending=true
         _lup_current="$_lup_pending_previous"
     fi
-    _lup_payload_root=$(luoshu_update_payload_root "$_old" "$_new" "$_lup_current") || {
-        LUOSHU_UPDATE_FAILURE_REASON=live-font-state-unconfirmed-or-pending-switch; return 1;
+    _lup_payload_root=$(ziyu_update_payload_root "$_old" "$_new" "$_lup_current") || {
+        ZIYU_UPDATE_FAILURE_REASON=live-font-state-unconfirmed-or-pending-switch; return 1;
     }
-    _old_schema=$(luoshu_update_payload_schema "$_old")
-    LUOSHU_UPDATE_ACTIVE="$_active"
-    LUOSHU_UPDATE_OLD_SCHEMA="$_old_schema"
-    LUOSHU_UPDATE_REBUILD_REQUIRED=false
-    [ "$_active" = default ] || [ "$_old_schema" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ] || LUOSHU_UPDATE_REBUILD_REQUIRED=true
+    _old_schema=$(ziyu_update_payload_schema "$_old")
+    ZIYU_UPDATE_ACTIVE="$_active"
+    ZIYU_UPDATE_OLD_SCHEMA="$_old_schema"
+    ZIYU_UPDATE_REBUILD_REQUIRED=false
+    [ "$_active" = default ] || [ "$_old_schema" = "$ZIYU_PAYLOAD_SCHEMA_CURRENT" ] || ZIYU_UPDATE_REBUILD_REQUIRED=true
     _lup_builder_compatible=false
-    luoshu_update_font_builder_compatible "$_old" "$_new" && _lup_builder_compatible=true
+    ziyu_update_font_builder_compatible "$_old" "$_new" && _lup_builder_compatible=true
     _lup_rebuild_reason=schema-upgrade
     # Reinstalling before applying must not lose a previous builder migration.
     # Explicit successful switch/mix commits already remove this marker.
-    if [ "$(luoshu_update_config_value "$_old/config/font-payload-rebuild-pending.conf" reason)" = font-builder-changed ]; then
+    if [ "$(ziyu_update_config_value "$_old/config/font-payload-rebuild-pending.conf" reason)" = font-builder-changed ]; then
         _lup_builder_compatible=false
     fi
     if [ "$_active" != default ] && [ "$_lup_builder_compatible" != true ]; then
-        LUOSHU_UPDATE_REBUILD_REQUIRED=true
+        ZIYU_UPDATE_REBUILD_REQUIRED=true
         _lup_rebuild_reason=font-builder-changed
     fi
     # Copying an already generated mix does not need the original recipe or
     # source fonts. Those are only needed for the user's next explicit apply.
-    if [ "$_lup_current" != default ] && ! luoshu_update_has_font_payload "$_old" "$_lup_payload_root"; then
-        LUOSHU_UPDATE_FAILURE_REASON=active-font-payload-missing
+    if [ "$_lup_current" != default ] && ! ziyu_update_has_font_payload "$_old" "$_lup_payload_root"; then
+        ZIYU_UPDATE_FAILURE_REASON=active-font-payload-missing
         return 1
     fi
     if [ "$_lup_current" != default ]; then
@@ -469,15 +480,15 @@ _luoshu_migrate_active_install_locked() {
         # Re-reading the source beforehand provides no extra content proof.
         if [ -s "$_old/config/universal-font-runtime.conf" ]; then
             for _lup_artifact in deployment.json font-plan.json artifact-manifest.json; do
-                [ -s "$_lup_payload_root/.luoshu-runtime/deployment/$_lup_artifact" ] || {
-                    LUOSHU_UPDATE_FAILURE_REASON="universal-artifact-missing:$_lup_artifact"; return 1;
+                [ -s "$(ziyu_legacy_path "$_lup_payload_root/.ziyu-runtime/deployment/$_lup_artifact")" ] || {
+                    ZIYU_UPDATE_FAILURE_REASON="universal-artifact-missing:$_lup_artifact"; return 1;
                 }
             done
         fi
     fi
 
     mkdir -p "$_new/config" "$_new/system/fonts" "$_new/logs" 2>/dev/null || return 1
-    luoshu_migrate_update_config "$_old" "$_new" || return 1
+    ziyu_migrate_update_config "$_old" "$_new" || return 1
     printf 'migration font=%s source=%s validation=staged-manifest\n' "$_active" "$_lup_payload_root" \
         >>"$_new/logs/module-update.log" 2>/dev/null || true
     # The replacement boots from the inherited generation. Old current-boot
@@ -485,7 +496,7 @@ _luoshu_migrate_active_install_locked() {
     rm -f "$_new/config/font-live.conf" "$_new/config/font-live-previous.conf" \
         "$_new/config/font-live-attempt.conf" "$_new/config/font-live-boot-previous.conf" \
         "$_new/config/font-ui-cache.json" 2>/dev/null || true
-    if [ "$_lup_pending" != true ] && [ "$_lup_payload_root" != "$_old" ] && [ "$_lup_payload_root" != "$_old/.luoshu-payload" ]; then
+    if [ "$_lup_pending" != true ] && [ "$_lup_payload_root" != "$_old" ] && [ "$_lup_payload_root" != "$(ziyu_legacy_path "$_old/.ziyu-payload")" ]; then
         rm -f "$_new/config/font-payload-next.conf" "$_new/config/universal-font-next.conf" 2>/dev/null || true
     fi
 
@@ -495,58 +506,62 @@ _luoshu_migrate_active_install_locked() {
         [ -d "$_lup_payload_root/$_relative" ] || continue
         rm -rf "$_new/$_relative" 2>/dev/null || return 1
         mkdir -p "${_new}/${_relative%/*}" 2>/dev/null || return 1
-        luoshu_copy_update_tree "$_lup_payload_root/$_relative" "$_new/$_relative" || return 1
+        ziyu_copy_update_tree "$_lup_payload_root/$_relative" "$_new/$_relative" || return 1
     done
-    for _partition in $(luoshu_update_payload_partitions "$_old"); do
+    for _partition in $(ziyu_update_payload_partitions "$_old"); do
         [ "$_partition" != system ] || continue
         [ -d "$_lup_payload_root/$_partition" ] || continue
         rm -rf "$_new/$_partition" 2>/dev/null || return 1
         mkdir -p "$_new" 2>/dev/null || return 1
-        luoshu_copy_update_tree "$_lup_payload_root/$_partition" "$_new/$_partition" || return 1
+        ziyu_copy_update_tree "$_lup_payload_root/$_partition" "$_new/$_partition" || return 1
     done
     if [ "$_lup_current" != default ] && [ -s "$_old/config/universal-font-runtime.conf" ]; then
         # Keep deployment artifacts beside the fonts they describe, without
         # overwriting the new release's executable runtime/core.
-        luoshu_copy_update_tree "$_lup_payload_root/.luoshu-runtime/deployment" \
-            "$_new/.luoshu-payload/.luoshu-runtime/deployment" || return 1
-        luoshu_copy_update_tree "$_lup_payload_root/.luoshu-dynamic" \
-            "$_new/.luoshu-payload/.luoshu-dynamic" || return 1
+        # Imported contracts hash their original relative paths. Preserve that
+        # immutable layout; a future explicit apply writes the current names.
+        _lup_contract_root=$(ziyu_legacy_path "$_lup_payload_root/.ziyu-runtime")
+        _lup_dynamic_root=$(ziyu_legacy_path "$_lup_payload_root/.ziyu-dynamic")
+        ziyu_copy_update_tree "$_lup_contract_root/deployment" \
+            "$_new/.ziyu-payload/${_lup_contract_root##*/}/deployment" || return 1
+        ziyu_copy_update_tree "$_lup_dynamic_root" \
+            "$_new/.ziyu-payload/${_lup_dynamic_root##*/}" || return 1
     fi
     if [ "$_lup_current" != default ]; then
         if [ ! -e "$_new/config/font-payload-manifest.conf" ] &&
-           [ "$(luoshu_update_config_value "$_new/config/font_runtime_legacy_v14_4.conf" core)" = physical-safe-v1 ] &&
-           [ "$(luoshu_update_config_value "$_new/config/font-payload-schema.conf" schema)" = legacy-physical-safe-v1 ]; then
+           [ "$(ziyu_update_config_value "$_new/config/font_runtime_legacy_v14_4.conf" core)" = physical-safe-v1 ] &&
+           [ "$(ziyu_update_config_value "$_new/config/font-payload-schema.conf" schema)" = legacy-physical-safe-v1 ]; then
             [ -f "$_new/common/physical_payload_manifest.sh" ] &&
                 . "$_new/common/physical_payload_manifest.sh" &&
-                luoshu_physical_manifest_ensure "$_new" "$_new" || {
-                    LUOSHU_UPDATE_FAILURE_REASON=physical-integrity-contract-missing; return 1;
+                ziyu_physical_manifest_ensure "$_new" "$_new" || {
+                    ZIYU_UPDATE_FAILURE_REASON=physical-integrity-contract-missing; return 1;
                 }
         fi
-        luoshu_update_verify_manifest "$_new" "$_new" 1 || return 1
+        ziyu_update_verify_manifest "$_new" "$_new" 1 || return 1
     fi
     if [ "$_lup_pending" = true ]; then
-        luoshu_update_copy_pending_physical "$_old" "$_new" || {
-            LUOSHU_UPDATE_FAILURE_REASON=pending-font-payload-verification-failed; return 1;
+        ziyu_update_copy_pending_physical "$_old" "$_new" || {
+            ZIYU_UPDATE_FAILURE_REASON=pending-font-payload-verification-failed; return 1;
         }
         printf 'pending font=%s request=%s validation=source-and-staged-manifest\n' "$_active" "$_lup_pending_request" \
             >>"$_new/logs/module-update.log" 2>/dev/null || true
     fi
 
     _schema_compatible=false
-    [ "$_old_schema" = "$LUOSHU_PAYLOAD_SCHEMA_CURRENT" ] && _schema_compatible=true
-    luoshu_migrate_update_cache "$_old" "$_new" "$_schema_compatible" "$_lup_builder_compatible"
-    luoshu_clear_update_volatile "$_new"
+    [ "$_old_schema" = "$ZIYU_PAYLOAD_SCHEMA_CURRENT" ] && _schema_compatible=true
+    ziyu_migrate_update_cache "$_old" "$_new" "$_schema_compatible" "$_lup_builder_compatible"
+    ziyu_clear_update_volatile "$_new"
     # active_font.conf is the selection authority. Write the captured value after cleanup so a
     # packaged default or a partial config copy can never relabel an inherited composite as default.
     printf '%s\n' "$_active" >"$_new/config/active_font.conf" || return 1
-    if [ "$LUOSHU_UPDATE_REBUILD_REQUIRED" = true ]; then
+    if [ "$ZIYU_UPDATE_REBUILD_REQUIRED" = true ]; then
         {
             printf 'state=awaiting-explicit-apply\n'
             printf 'mode=preserve-current\n'
             printf 'reason=%s\n' "$_lup_rebuild_reason"
             printf 'font=%s\n' "$_active"
             printf 'oldSchema=%s\n' "${_old_schema:-missing}"
-            printf 'newSchema=%s\n' "$LUOSHU_PAYLOAD_SCHEMA_CURRENT"
+            printf 'newSchema=%s\n' "$ZIYU_PAYLOAD_SCHEMA_CURRENT"
             printf 'time=%s\n' "$(date +%s)"
         } > "$_new/config/font-payload-rebuild-pending.conf" 2>/dev/null || return 1
         rm -f "$_new/config/font-payload-reapply-notified.conf" 2>/dev/null || true
@@ -554,6 +569,6 @@ _luoshu_migrate_active_install_locked() {
     find "$_new/config" -type d -exec chmod 0755 {} \; 2>/dev/null || true
     find "$_new/config" -type f -exec chmod 0644 {} \; 2>/dev/null || true
     find "$_new/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
-    LUOSHU_UPDATE_FAILURE_REASON=''
+    ZIYU_UPDATE_FAILURE_REASON=''
     return 0
 }

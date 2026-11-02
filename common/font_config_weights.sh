@@ -2,19 +2,19 @@
 # 为无 Hook XML 配置准备九个确定的静态字重文件。被 source 时只定义函数。
 set +e
 
-_luoshu_config_weight_module() {
+_ziyu_config_weight_module() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
-_luoshu_config_weight_fonts() {
-    if type _luoshu_font_config_payload_root >/dev/null 2>&1; then
-        printf '%s/system/fonts\n' "$(_luoshu_font_config_payload_root)"
+_ziyu_config_weight_fonts() {
+    if type _ziyu_font_config_payload_root >/dev/null 2>&1; then
+        printf '%s/system/fonts\n' "$(_ziyu_font_config_payload_root)"
     else
-        printf '%s/system/fonts\n' "$(_luoshu_config_weight_module)"
+        printf '%s/system/fonts\n' "$(_ziyu_config_weight_module)"
     fi
 }
 
-_luoshu_config_weight_role() {
+_ziyu_config_weight_role() {
     case "$1" in
         100) printf 'Thin\n' ;;
         200) printf 'ExtraLight\n' ;;
@@ -28,14 +28,14 @@ _luoshu_config_weight_role() {
     esac
 }
 
-_luoshu_config_weight_source() {
+_ziyu_config_weight_source() {
     _lcw_weight="$1"
-    _lcw_module="$(_luoshu_config_weight_module)"
-    _lcw_fonts="$(_luoshu_config_weight_fonts)"
-    _lcw_role="$(_luoshu_config_weight_role "$_lcw_weight")"
+    _lcw_module="$(_ziyu_config_weight_module)"
+    _lcw_fonts="$(_ziyu_config_weight_fonts)"
+    _lcw_role="$(_ziyu_config_weight_role "$_lcw_weight")"
 
     for _lcw_file in \
-        "$_lcw_fonts/.luoshu-font-store/wght-${_lcw_weight}.font" \
+        "$_lcw_fonts/.ziyu-font-store/wght-${_lcw_weight}.font" \
         "$_lcw_fonts/${_lcw_weight}.ttf" \
         "$_lcw_fonts/Roboto-${_lcw_role}.ttf" \
         "$_lcw_fonts/GoogleSans-${_lcw_role}.ttf" \
@@ -57,8 +57,8 @@ _luoshu_config_weight_source() {
     # outline is shared. True multiweight families are picked above whenever the ROM mapping exposes
     # their anchors or named faces.
     for _lcw_file in \
-        "$_lcw_fonts/.luoshu-font-store/regular.font" \
-        "$_lcw_fonts/.luoshu-font-store/mix-composite.font" \
+        "$_lcw_fonts/.ziyu-font-store/regular.font" \
+        "$_lcw_fonts/.ziyu-font-store/mix-composite.font" \
         "$_lcw_fonts/400.ttf" \
         "$_lcw_fonts/Roboto-Regular.ttf" \
         "$_lcw_fonts/GoogleSans-Regular.ttf" \
@@ -78,11 +78,11 @@ _luoshu_config_weight_source() {
     return 1
 }
 
-_luoshu_config_normalize_weight() {
+_ziyu_config_normalize_weight() {
     _lcw_source="$1"
     _lcw_output="$2"
     _lcw_weight="$3"
-    _lcw_module="$(_luoshu_config_weight_module)"
+    _lcw_module="$(_ziyu_config_weight_module)"
     _lcw_tool="$_lcw_module/common/font_name_normalize.py"
     _lcw_instance="$_lcw_module/common/font_instance.py"
     _lcw_raw="${_lcw_output}.raw"
@@ -92,8 +92,8 @@ _luoshu_config_normalize_weight() {
     # OS/2 weight metadata leaves every Android weight visually identical and is a major source of
     # inconsistent hierarchy between titles, body text, keyboards and app controls.
     if type is_variable_font >/dev/null 2>&1 && is_variable_font "$_lcw_source" && \
-       [ -f "$_lcw_instance" ] && type _luoshu_font_config_exec >/dev/null 2>&1; then
-        _luoshu_font_config_exec "$_lcw_instance" --input "$_lcw_source" --output "$_lcw_raw" \
+       [ -f "$_lcw_instance" ] && type _ziyu_font_config_exec >/dev/null 2>&1; then
+        _ziyu_font_config_exec "$_lcw_instance" --input "$_lcw_source" --output "$_lcw_raw" \
             --role cjk --weight "$_lcw_weight" --axes "wght=$_lcw_weight" >/dev/null 2>&1 || {
             rm -f "$_lcw_raw" "$_lcw_output" 2>/dev/null || true
             return 1
@@ -110,9 +110,9 @@ _luoshu_config_normalize_weight() {
     if [ "$_lcw_magic" = ttcf ]; then
         rm -f "$_lcw_raw" "$_lcw_output" 2>/dev/null || true
         return 1
-    elif [ -f "$_lcw_tool" ] && type _luoshu_font_config_exec >/dev/null 2>&1; then
-        if ! _luoshu_font_config_exec "$_lcw_tool" --input "$_lcw_raw" --output "$_lcw_output" \
-            --weight "$_lcw_weight" --family 'LuoShu UI' >/dev/null 2>&1; then
+    elif [ -f "$_lcw_tool" ] && type _ziyu_font_config_exec >/dev/null 2>&1; then
+        if ! _ziyu_font_config_exec "$_lcw_tool" --input "$_lcw_raw" --output "$_lcw_output" \
+            --weight "$_lcw_weight" --family 'Ziyu UI' >/dev/null 2>&1; then
             rm -f "$_lcw_raw" "$_lcw_output" 2>/dev/null || true
             return 1
         fi
@@ -128,8 +128,8 @@ _luoshu_config_normalize_weight() {
 }
 
 font_config_prepare_payload_weights() {
-    _lcw_module="$(_luoshu_config_weight_module)"
-    _lcw_fonts="$(_luoshu_config_weight_fonts)"
+    _lcw_module="$(_ziyu_config_weight_module)"
+    _lcw_fonts="$(_ziyu_config_weight_fonts)"
     mkdir -p "$_lcw_fonts" "$_lcw_module/config" 2>/dev/null || return 1
 
     _lcw_stage="$_lcw_module/config/font-config-weights.$$"
@@ -137,12 +137,12 @@ font_config_prepare_payload_weights() {
     mkdir -p "$_lcw_stage" 2>/dev/null || return 1
 
     for _lcw_weight in 100 200 300 400 500 600 700 800 900; do
-        _lcw_source="$(_luoshu_config_weight_source "$_lcw_weight")" || {
+        _lcw_source="$(_ziyu_config_weight_source "$_lcw_weight")" || {
             rm -rf "$_lcw_stage" 2>/dev/null || true
             return 1
         }
-        _lcw_target="$_lcw_stage/LuoShu-${_lcw_weight}.ttf"
-        _luoshu_config_normalize_weight "$_lcw_source" "$_lcw_target" "$_lcw_weight" || {
+        _lcw_target="$_lcw_stage/Ziyu-${_lcw_weight}.ttf"
+        _ziyu_config_normalize_weight "$_lcw_source" "$_lcw_target" "$_lcw_weight" || {
             rm -rf "$_lcw_stage" 2>/dev/null || true
             return 1
         }
@@ -150,7 +150,7 @@ font_config_prepare_payload_weights() {
     done
 
     for _lcw_weight in 100 200 300 400 500 600 700 800 900; do
-        for _lcw_prefix in LuoShu; do
+        for _lcw_prefix in Ziyu; do
             _lcw_ready="$_lcw_stage/${_lcw_prefix}-${_lcw_weight}.ttf"
             _lcw_dest="$_lcw_fonts/${_lcw_prefix}-${_lcw_weight}.ttf"
             rm -f "$_lcw_dest" 2>/dev/null || true

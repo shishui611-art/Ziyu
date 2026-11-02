@@ -41,6 +41,7 @@ internal data class FontLibraryUiState(
     val visibleCount: Int = 0,
     val filter: FontLibraryFilter = FontLibraryFilter.ALL,
     val sort: FontLibrarySort = FontLibrarySort.ACTIVE_FIRST,
+    val previewText: String = "",
 )
 
 @Immutable
@@ -55,6 +56,7 @@ internal data class FontLibraryActions(
     val details: (FontItem) -> Unit = {},
     val setFilter: (FontLibraryFilter) -> Unit = {},
     val setSort: (FontLibrarySort) -> Unit = {},
+    val editPreviewText: () -> Unit = {},
 )
 
 internal fun FontLibraryUiState.forDisplay(

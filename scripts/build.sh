@@ -2,30 +2,30 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/version.sh"
-VERSION="$LUOSHU_ARTIFACT_VERSION"
+VERSION="$ZIYU_ARTIFACT_VERSION"
 OUT="$ROOT/dist"
 STAGE="$OUT/Ziyu"
 ZIP="$OUT/Ziyu-${VERSION}.zip"
 ZIP_NAME=$(basename "$ZIP")
 SIZE_REPORT="$OUT/Ziyu-${VERSION}-size.txt"
-APP_APK="${LUOSHU_APP_APK:-}"
-ALLOW_DEBUG_APP="${LUOSHU_ALLOW_DEBUG_APP:-0}"
-EXPECTED_VERSION_CODE="$LUOSHU_APP_VERSION_CODE"
+APP_APK="${ZIYU_APP_APK:-}"
+ALLOW_DEBUG_APP="${ZIYU_ALLOW_DEBUG_APP:-0}"
+EXPECTED_VERSION_CODE="$ZIYU_APP_VERSION_CODE"
 # The bundled HarfBuzz executable needs additional space. Keep both builders
 # within the same 13 MiB budget; preserve all dependencies and signature checks.
-MAX_ZIP_BYTES="${LUOSHU_MAX_ZIP_BYTES:-13631488}"
+MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-13631488}"
 
-python3 "$ROOT/scripts/build_font_preload.py" --verify
 python3 "$ROOT/scripts/build_font_instance.py" --verify
-if [ -n "${LUOSHU_SOURCE_CHECK_RECEIPT:-}" ]; then
+python3 "$ROOT/scripts/rebrand_cli.py" --verify
+if [ -n "${ZIYU_SOURCE_CHECK_RECEIPT:-}" ]; then
   # The required CI source job already ran the complete suite on these inputs.
   # Reject missing/stale receipts; standalone builds still run all checks.
-  python3 "$ROOT/scripts/source_check_receipt.py" verify --receipt "$LUOSHU_SOURCE_CHECK_RECEIPT"
+  python3 "$ROOT/scripts/source_check_receipt.py" verify --receipt "$ZIYU_SOURCE_CHECK_RECEIPT"
 else
   sh "$ROOT/scripts/check.sh"
 fi
 [ -n "$APP_APK" ] || {
-  echo 'LUOSHU_APP_APK is required for the App-only module.' >&2
+  echo 'ZIYU_APP_APK is required for the App-only module.' >&2
   exit 65
 }
 [ -s "$APP_APK" ] || {
@@ -33,21 +33,21 @@ fi
   exit 65
 }
 
-APP_PACKAGE="${LUOSHU_APP_PACKAGE:-}"
-APP_VERSION_CODE="${LUOSHU_APP_VERSION_CODE:-}"
-APP_VERSION_NAME="${LUOSHU_APP_VERSION_NAME:-}"
+APP_PACKAGE="${ZIYU_APP_PACKAGE:-}"
+APP_VERSION_CODE="${ZIYU_APP_VERSION_CODE:-}"
+APP_VERSION_NAME="${ZIYU_APP_VERSION_NAME:-}"
 if command -v apkanalyzer >/dev/null 2>&1; then
   [ -n "$APP_PACKAGE" ] || APP_PACKAGE=$(apkanalyzer manifest application-id "$APP_APK" 2>/dev/null || true)
   [ -n "$APP_VERSION_CODE" ] || APP_VERSION_CODE=$(apkanalyzer manifest version-code "$APP_APK" 2>/dev/null || true)
   [ -n "$APP_VERSION_NAME" ] || APP_VERSION_NAME=$(apkanalyzer manifest version-name "$APP_APK" 2>/dev/null || true)
 fi
 [ -n "$APP_PACKAGE" ] || {
-  echo 'Unable to read APK package name. Install apkanalyzer or set LUOSHU_APP_PACKAGE.' >&2
+  echo 'Unable to read APK package name. Install apkanalyzer or set ZIYU_APP_PACKAGE.' >&2
   exit 66
 }
 case "$APP_VERSION_CODE" in
   ''|*[!0-9]*)
-    echo 'Unable to read APK versionCode. Install apkanalyzer or set LUOSHU_APP_VERSION_CODE.' >&2
+    echo 'Unable to read APK versionCode. Install apkanalyzer or set ZIYU_APP_VERSION_CODE.' >&2
     exit 66
     ;;
 esac
@@ -56,7 +56,7 @@ esac
   exit 67
 }
 [ -n "$APP_VERSION_NAME" ] || {
-  echo 'Unable to read APK versionName. Install apkanalyzer or set LUOSHU_APP_VERSION_NAME.' >&2
+  echo 'Unable to read APK versionName. Install apkanalyzer or set ZIYU_APP_VERSION_NAME.' >&2
   exit 66
 }
 case "$APP_PACKAGE" in
@@ -64,7 +64,7 @@ case "$APP_PACKAGE" in
     ;;
   io.github.shishui611_art.ziyu.debug)
     [ "$ALLOW_DEBUG_APP" = "1" ] || {
-      echo 'Debug App packaging requires LUOSHU_ALLOW_DEBUG_APP=1.' >&2
+      echo 'Debug App packaging requires ZIYU_ALLOW_DEBUG_APP=1.' >&2
       exit 68
     }
     ;;
@@ -84,9 +84,7 @@ while IFS= read -r path || [ -n "$path" ]; do
   mkdir -p "$(dirname "$STAGE/$path")"
   cp -a "$ROOT/$path" "$STAGE/$path"
 done < "$PAYLOAD_MANIFEST"
-[ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$LUOSHU_VERSION/" "$STAGE/config/version_notes.conf"
-sed -i -e "s/^version=.*/version=$LUOSHU_VERSION/" -e "s/^versionCode=.*/versionCode=$EXPECTED_VERSION_CODE/" \
-    "$STAGE/common/font_preload_module/module.prop"
+[ ! -f "$STAGE/config/version_notes.conf" ] || sed -i "s/^version=.*/version=$ZIYU_VERSION/" "$STAGE/config/version_notes.conf"
 
 mkdir -p "$STAGE/bundled"
 cp -f "$APP_APK" "$STAGE/bundled/Ziyu-App.apk"
@@ -120,7 +118,7 @@ rm -f "$STAGE/common/stability.sh" "$STAGE/common/fonts_xml_template.sh" \
 sh "$ROOT/scripts/prune_python_runtime.sh" "$STAGE"
 
 find "$STAGE/common" -maxdepth 1 -type f -exec chmod 0755 {} +
-chmod 0755 "$STAGE"/*.sh "$STAGE/system/bin/luoshud" "$STAGE/common/python/bin/luoshu-python"
+chmod 0755 "$STAGE"/*.sh "$STAGE/system/bin/ziyud" "$STAGE/common/python/bin/ziyu-python"
 find "$STAGE/system/fonts" -type f -exec chmod 0644 {} + 2>/dev/null || true
 
 # App-only single-package gates: no WebUI and the native App must always be bundled.
@@ -173,7 +171,7 @@ for name, (raw, compressed, count) in sorted(groups.items(), key=lambda entry: e
 PY
 
 case "$MAX_ZIP_BYTES" in
-  ''|*[!0-9]*) echo 'LUOSHU_MAX_ZIP_BYTES must be an integer.' >&2; exit 90 ;;
+  ''|*[!0-9]*) echo 'ZIYU_MAX_ZIP_BYTES must be an integer.' >&2; exit 90 ;;
 esac
 ZIP_BYTES=$(wc -c < "$ZIP" | tr -d '[:space:]')
 [ "$ZIP_BYTES" -le "$MAX_ZIP_BYTES" ] || {

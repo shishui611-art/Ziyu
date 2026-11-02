@@ -26,7 +26,7 @@ case "$_ah_code" in ''|*[!0-9]*) _ah_code=0 ;; esac
 [ ! -e "$MODDIR/disable" ] || _ah_disabled=true
 [ ! -e "$MODDIR/remove" ] || _ah_remove=true
 case "$MODDIR" in
-    */modules/ziyu|*/modules/LuoShu)
+    */modules/ziyu|*/modules/Ziyu)
         _ah_update="${MODDIR%/modules/*}/modules_update/${MODDIR##*/}"
         [ ! -f "$_ah_update/module.prop" ] || _ah_pending=true ;;
 esac

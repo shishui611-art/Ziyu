@@ -113,10 +113,10 @@ def build(module: Path, stage: Path) -> dict:
                             'typo': list(contract[4:7]), 'win': list(contract[7:9]), **report})
         for output, destination in prepared:
             link_copy(output, destination)
-        report_path = stage / '.luoshu-metrics-report.json'
+        report_path = stage / '.ziyu-metrics-report.json'
         temporary = report_path.with_name(report_path.name + f'.tmp.{os.getpid()}')
         try:
-            temporary.write_text(json.dumps({'schema': 'luoshu-slot-metrics-v1',
+            temporary.write_text(json.dumps({'schema': 'ziyu-slot-metrics-v1',
                                               'romKind': 'originos', 'slots': reports},
                                              ensure_ascii=False), encoding='utf-8')
             temporary.chmod(0o644)

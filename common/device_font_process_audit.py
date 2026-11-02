@@ -135,7 +135,7 @@ class PayloadIndex:
 
 def active_payload_root(module: Path) -> Path:
     """Resolve a validated current-boot immutable generation, else canonical payload."""
-    canonical = module / ".luoshu-payload"
+    canonical = module / ".ziyu-payload"
     unavailable = Path("/dev/null/ziyu-active-payload-unavailable")
     record_path = module / "config/font-live.conf"
     try:
@@ -166,16 +166,16 @@ def active_payload_root(module: Path) -> Path:
 
     source = Path(values.get("source", ""))
     if source != canonical:
-        live_parent = module / ".luoshu-state/cache/live" / boot
+        live_parent = module / ".ziyu-state/cache/live" / boot
         if source.parent != live_parent or not re.fullmatch(r"generation-[0-9a-f]{64}", source.name):
             return unavailable
     work = Path(values.get("work_root", ""))
-    work_parent = Path("/data/adb/luoshu/live-mount")
+    work_parent = Path("/data/adb/ziyu/live-mount")
     if work.parent != work_parent or not work.name.startswith(boot + "."):
         return unavailable
     try:
-        source_chain = (module, module / ".luoshu-state", module / ".luoshu-state/cache",
-                        module / ".luoshu-state/cache/live", module / ".luoshu-state/cache/live" / boot, source)
+        source_chain = (module, module / ".ziyu-state", module / ".ziyu-state/cache",
+                        module / ".ziyu-state/cache/live", module / ".ziyu-state/cache/live" / boot, source)
         work_chain = (work_parent, work,)
         if (any(path.is_symlink() for path in source_chain + work_chain)
                 or source == canonical and canonical.is_symlink()

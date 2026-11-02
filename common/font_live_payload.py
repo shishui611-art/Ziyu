@@ -63,10 +63,10 @@ def current(module):
     if record.get('schema') != 'ziyu-live-font-v1' or record.get('state') != 'mounted' or record.get('boot_id') != boot:
         return {}
     source, work = Path(record.get('source', '')), Path(record.get('work_root', ''))
-    if source != module / '.luoshu-payload':
-        if source.parent != module / '.luoshu-state/cache/live' / boot or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name):
+    if source != module / '.ziyu-payload':
+        if source.parent != module / '.ziyu-state/cache/live' / boot or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name):
             return {}
-    if work.parent != Path('/data/adb/luoshu/live-mount') or not work.name.startswith(boot + '.'):
+    if work.parent != Path('/data/adb/ziyu/live-mount') or not work.name.startswith(boot + '.'):
         return {}
     if source.is_symlink() or work.is_symlink() or not source.is_dir() or not work.is_dir():
         return {}
@@ -79,12 +79,12 @@ def current(module):
 
 
 def work_root(module=None):
-    explicit = os.environ.get('LUOSHU_SELF_MOUNT_STATE_ROOT')
+    explicit = os.environ.get('ZIYU_SELF_MOUNT_STATE_ROOT')
     if explicit:
         return Path(explicit)
     module = module or os.environ.get('MODULE_DIR') or os.environ.get('MODDIR') or Path(__file__).resolve().parent.parent
     record = current(module)
-    return Path(record['work_root']) if record else Path('/data/adb/luoshu/self-mount')
+    return Path(record['work_root']) if record else Path('/data/adb/ziyu/self-mount')
 
 
 def label(path):
@@ -117,7 +117,7 @@ def prepare(source, cache, boot, temporary):
         if any((Path(directory) / name).is_symlink() for name in subdirs):
             raise ValueError('payload directory symlink')
         for name in sorted(files):
-            if Path(directory) == source and name.startswith('.luoshu-'):
+            if Path(directory) == source and name.startswith('.ziyu-'):
                 continue
             path = Path(directory) / name
             info = path.lstat()
@@ -187,7 +187,7 @@ def prepare(source, cache, boot, temporary):
 def transaction(module, action, *args):
     module = Path(module)
     config = module / 'config'
-    backup = module / '.luoshu-state/backup/live-transaction'
+    backup = module / '.ziyu-state/backup/live-transaction'
     journal = config / 'font-live-transaction.conf'
     if action == 'begin':
         if journal.exists():
@@ -259,13 +259,13 @@ def transaction(module, action, *args):
         if not re.fullmatch(r'[0-9a-f-]{36}', old_boot):
             raise ValueError('previous live boot identity invalid')
         source = Path(source)
-        if source != module / '.luoshu-payload' and (source.parent != module / '.luoshu-state/cache/live' / old_boot or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name)):
+        if source != module / '.ziyu-payload' and (source.parent != module / '.ziyu-state/cache/live' / old_boot or not re.fullmatch(r'generation-[0-9a-f]{64}', source.name)):
             raise ValueError('unsafe live undo source')
         if not source.is_dir() or source.is_symlink():
             raise ValueError('live undo source unavailable')
         record_file = config / 'font-live-boot-previous.conf'
         saved = values(record_file)
-        retired = module / '.luoshu-retired'
+        retired = module / '.ziyu-retired'
         destination = Path(saved.get('source', ''))
         if saved.get('request_id') == request and saved.get('font') == target and destination.parent == retired and destination.is_dir() and not destination.is_symlink():
             return
@@ -283,7 +283,7 @@ def transaction(module, action, *args):
         def mounted(path):
             text = str(path)
             return text in tables or text.removeprefix('/data') in tables
-        cache = module / '.luoshu-state/cache/live'
+        cache = module / '.ziyu-state/cache/live'
         if cache.is_dir() and not cache.is_symlink():
             for directory in cache.iterdir():
                 if directory.name == boot or not re.fullmatch(r'[0-9a-f-]{36}', directory.name) or directory.is_symlink() or not directory.is_dir() or mounted(directory):
@@ -295,7 +295,7 @@ def transaction(module, action, *args):
                         shutil.rmtree(generation)
                 if not any(directory.iterdir()):
                     directory.rmdir()
-        working = Path('/data/adb/luoshu/live-mount')
+        working = Path('/data/adb/ziyu/live-mount')
         if working.is_dir() and not working.is_symlink():
             for directory in working.iterdir():
                 saved_boot = directory.name.split('.', 1)[0]

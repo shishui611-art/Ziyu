@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu persistent per-device alignment cache.
+# Ziyu persistent per-device alignment cache.
 # A cache worker is preparation-only: it may create immutable aligned output, but it must never
 # replace the active payload or request another reboot. Only an explicit foreground apply may
 # activate a ready cache inside the caller's outer transaction.
@@ -13,8 +13,8 @@ _dfcache_payload_root() {
     _dfc_module="$(_dfcache_module)"
     if type _lfrp_payload_root >/dev/null 2>&1; then
         _lfrp_payload_root
-    elif [ -d "$_dfc_module/.luoshu-payload" ]; then
-        printf '%s/.luoshu-payload\n' "${_dfc_module%/}"
+    elif [ -d "$_dfc_module/.ziyu-payload" ]; then
+        printf '%s/.ziyu-payload\n' "${_dfc_module%/}"
     else
         printf '%s\n' "${_dfc_module%/}"
     fi
@@ -89,7 +89,7 @@ _dfcache_file_digest() {
 
 _dfcache_source_key() {
     _dfc_module="$(_dfcache_module)"
-    _dfc_store="$(_dfcache_payload_root)/system/fonts/.luoshu-font-store"
+    _dfc_store="$(_dfcache_payload_root)/system/fonts/.ziyu-font-store"
     [ -d "$_dfc_store" ] || return 1
     _dfc_files=$(find "$_dfc_store" -maxdepth 1 -type f -name '*.font' -print 2>/dev/null | LC_ALL=C sort)
     [ -n "$_dfc_files" ] || return 1
@@ -116,7 +116,7 @@ _dfcache_id() {
 # after installation, so a preserved v4 cache can be proved with its original metadata contract
 # once and promoted to the content-addressed contract without rebuilding FontTools output.
 _dfcache_source_key_v4() {
-    _dfc_store="$(_dfcache_payload_root)/system/fonts/.luoshu-font-store"
+    _dfc_store="$(_dfcache_payload_root)/system/fonts/.ziyu-font-store"
     [ -d "$_dfc_store" ] || return 1
     _dfc_files=$(find "$_dfc_store" -maxdepth 1 -type f -name '*.font' -print 2>/dev/null | LC_ALL=C sort)
     [ -n "$_dfc_files" ] || return 1
@@ -203,8 +203,8 @@ device_font_cache_lookup() {
 
 _dfcache_foreground_idle() {
     _dfc_module="$(_dfcache_module)"
-    if type luoshu_font_lock_busy >/dev/null 2>&1; then
-        luoshu_font_lock_busy "$_dfc_module/.font_switch.lock" && return 1
+    if type ziyu_font_lock_busy >/dev/null 2>&1; then
+        ziyu_font_lock_busy "$_dfc_module/.font_switch.lock" && return 1
     else
         [ ! -e "$_dfc_module/.font_switch.lock" ] || return 1
     fi
@@ -219,9 +219,9 @@ _dfcache_foreground_idle() {
 # before it ever runs. It had no failure counter and no ceiling, and the pending marker was only
 # removed on the success path, so a build that could never succeed on a given ROM was relaunched at
 # full CPU on every single boot. That is how a font module ends up looking like a permanent load.
-LUOSHU_CACHE_FAILURE_LIMIT="${LUOSHU_CACHE_FAILURE_LIMIT:-3}"
-case "$LUOSHU_CACHE_FAILURE_LIMIT" in ''|*[!0-9]*) LUOSHU_CACHE_FAILURE_LIMIT=3 ;; esac
-[ "$LUOSHU_CACHE_FAILURE_LIMIT" -ge 1 ] 2>/dev/null || LUOSHU_CACHE_FAILURE_LIMIT=1
+ZIYU_CACHE_FAILURE_LIMIT="${ZIYU_CACHE_FAILURE_LIMIT:-3}"
+case "$ZIYU_CACHE_FAILURE_LIMIT" in ''|*[!0-9]*) ZIYU_CACHE_FAILURE_LIMIT=3 ;; esac
+[ "$ZIYU_CACHE_FAILURE_LIMIT" -ge 1 ] 2>/dev/null || ZIYU_CACHE_FAILURE_LIMIT=1
 
 _dfcache_failure_file() {
     printf '%s/config/device-font-cache-failures.conf\n' "$(_dfcache_module)"
@@ -246,11 +246,11 @@ _dfcache_failure_record() {
         printf 'reason=%s\n' "$_dfcr_reason"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$(_dfcache_failure_file)" 2>/dev/null || true
-    if [ "$_dfcr_count" -ge "$LUOSHU_CACHE_FAILURE_LIMIT" ]; then
+    if [ "$_dfcr_count" -ge "$ZIYU_CACHE_FAILURE_LIMIT" ]; then
         rm -f "$(_dfcache_module)/config/device-font-cache-pending.conf" 2>/dev/null || true
         _dfcache_log "设备对齐缓存连续失败 ${_dfcr_count} 次，已放弃并停止重试（reason=${_dfcr_reason}）；字体本身已由物理槽映射生效，此项仅为增强"
     else
-        _dfcache_log "设备对齐缓存失败 ${_dfcr_count}/${LUOSHU_CACHE_FAILURE_LIMIT}（reason=${_dfcr_reason}）"
+        _dfcache_log "设备对齐缓存失败 ${_dfcr_count}/${ZIYU_CACHE_FAILURE_LIMIT}（reason=${_dfcr_reason}）"
     fi
 }
 
@@ -278,23 +278,23 @@ _dfcache_run_service_lowpri() {
 # Reuse the font-switch identity lock helpers (PID + starttime + boot_id) when available; this
 # avoids treating a recycled PID after reboot as the old cache worker.
 _dfcache_load_lock_helpers() {
-    type luoshu_font_lock_acquire >/dev/null 2>&1 &&
-        type luoshu_font_lock_reap_stale >/dev/null 2>&1 &&
-        type luoshu_font_lock_release >/dev/null 2>&1 && return 0
+    type ziyu_font_lock_acquire >/dev/null 2>&1 &&
+        type ziyu_font_lock_reap_stale >/dev/null 2>&1 &&
+        type ziyu_font_lock_release >/dev/null 2>&1 && return 0
     _dfcl_module="$(_dfcache_module)"
     _dfcl_util="$_dfcl_module/common/util_functions.sh"
     [ -f "$_dfcl_util" ] && . "$_dfcl_util"
-    type luoshu_font_lock_acquire >/dev/null 2>&1 &&
-        type luoshu_font_lock_reap_stale >/dev/null 2>&1 &&
-        type luoshu_font_lock_release >/dev/null 2>&1
+    type ziyu_font_lock_acquire >/dev/null 2>&1 &&
+        type ziyu_font_lock_reap_stale >/dev/null 2>&1 &&
+        type ziyu_font_lock_release >/dev/null 2>&1
 }
 
 _dfcache_lock_reap_stale() {
     _dfclr_lock="$1"
     [ -e "$_dfclr_lock" ] || return 0
     if _dfcache_load_lock_helpers; then
-        luoshu_font_lock_active "$_dfclr_lock" >/dev/null 2>&1 && return 1
-        luoshu_font_lock_reap_stale "$_dfclr_lock" >/dev/null 2>&1 || true
+        ziyu_font_lock_active "$_dfclr_lock" >/dev/null 2>&1 && return 1
+        ziyu_font_lock_reap_stale "$_dfclr_lock" >/dev/null 2>&1 || true
         [ ! -e "$_dfclr_lock" ]
         return $?
     fi
@@ -318,7 +318,7 @@ _dfcache_lock_reap_stale() {
 _dfcache_lock_acquire() {
     _dfcla_lock="$1"
     if _dfcache_load_lock_helpers; then
-        luoshu_font_lock_acquire "$_dfcla_lock" "$$"
+        ziyu_font_lock_acquire "$_dfcla_lock" "$$"
         return $?
     fi
     _dfcache_lock_reap_stale "$_dfcla_lock" >/dev/null 2>&1 || {
@@ -335,7 +335,7 @@ _dfcache_lock_acquire() {
 _dfcache_lock_release() {
     _dfclx_lock="$1"
     if _dfcache_load_lock_helpers; then
-        luoshu_font_lock_release "$_dfclx_lock" "$$" >/dev/null 2>&1 && return 0
+        ziyu_font_lock_release "$_dfclx_lock" "$$" >/dev/null 2>&1 && return 0
     fi
     _dfclx_owner=$(sed -n '1p' "$_dfclx_lock/pid" 2>/dev/null)
     [ -z "$_dfclx_owner" ] || [ "$_dfclx_owner" = "$$" ] || return 1
@@ -348,7 +348,7 @@ _dfcache_autostart_pending() {
     _dfc_font="$1"
     _dfc_module="$(_dfcache_module)"
     _dfc_script="$_dfc_module/common/device_font_cache.sh"
-    [ "${LUOSHU_CACHE_AUTOSTART:-1}" != 0 ] || return 0
+    [ "${ZIYU_CACHE_AUTOSTART:-1}" != 0 ] || return 0
     [ -f "$_dfc_script" ] || return 0
     (
         _dfc_waited=0
@@ -457,8 +457,8 @@ _dfcache_runtime_ready() {
 _dfcache_notify() {
     _dfc_message="$1"
     command -v cmd >/dev/null 2>&1 || return 0
-    cmd notification post -S bigtext -t '字域' luoshu-font-cache "$_dfc_message" >/dev/null 2>&1 || \
-        cmd notification post -t '字域' luoshu-font-cache "$_dfc_message" >/dev/null 2>&1 || true
+    cmd notification post -S bigtext -t '字域' ziyu-font-cache "$_dfc_message" >/dev/null 2>&1 || \
+        cmd notification post -t '字域' ziyu-font-cache "$_dfc_message" >/dev/null 2>&1 || true
 }
 
 _dfcache_prune() {
@@ -480,7 +480,7 @@ _dfcache_build_pending_inner() {
     _dfc_pending="$_dfc_module/config/device-font-cache-pending.conf"
     _dfc_lock="$_dfc_module/.device-font-cache.lock"
     [ -s "$_dfc_pending" ] || return 2
-    [ "${LUOSHU_CACHE_FOREGROUND:-0}" = 1 ] || _dfcache_foreground_idle || {
+    [ "${ZIYU_CACHE_FOREGROUND:-0}" = 1 ] || _dfcache_foreground_idle || {
         _dfcache_log '前台字体事务尚未结束，后台缓存本轮跳过并保留待办'
         return 2
     }
@@ -502,7 +502,7 @@ _dfcache_build_pending_inner() {
     _dfc_expected_source=$(sed -n 's/^sourceKey=//p' "$_dfc_pending" 2>/dev/null | head -n1)
     _dfc_active=$(head -n1 "$_dfc_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
     [ -n "$_dfc_font" ] && [ "$_dfc_font" != default ] && \
-        { [ "${LUOSHU_CACHE_FOREGROUND:-0}" = 1 ] || [ "$_dfc_active" = "$_dfc_font" ]; } || {
+        { [ "${ZIYU_CACHE_FOREGROUND:-0}" = 1 ] || [ "$_dfc_active" = "$_dfc_font" ]; } || {
         _dfcache_log "取消过期缓存任务：pending=$_dfc_font active=$_dfc_active"
         rm -f "$_dfc_pending" 2>/dev/null || true
         return 2
@@ -533,7 +533,7 @@ _dfcache_build_pending_inner() {
         _dfc_build_result=$(_dfpr_exec "$_dfc_build" \
             --template "$_dfc_template" \
             --source-dir "$_dfc_module/config/device-font-sources" \
-            --source-prefix LuoShu \
+            --source-prefix Ziyu \
             --output-dir "$_dfc_stage/payload" \
             --manifest "$_dfc_stage/payload/manifest.json" 2>> "$_dfc_module/logs/device-font-cache.log")
         _dfc_rc=$?
@@ -583,7 +583,7 @@ _dfcache_build_pending_inner() {
         _dfcache_log "后台设备对齐缓存生成完成：font=$_dfc_font verify=$_dfc_verify_result"
     fi
 
-    [ "${LUOSHU_CACHE_FOREGROUND:-0}" = 1 ] || _dfcache_foreground_idle || {
+    [ "${ZIYU_CACHE_FOREGROUND:-0}" = 1 ] || _dfcache_foreground_idle || {
         _dfcache_log '缓存已生成；前台事务正在运行，本轮只保留就绪缓存'
     }
     # Re-read intent after the expensive build. A stale worker may finish its immutable cache, but
@@ -596,7 +596,7 @@ _dfcache_build_pending_inner() {
     fi
     rm -f "$_dfc_pending" 2>/dev/null || true
     _dfcache_prune "$_dfc_root"
-    if [ "${LUOSHU_CACHE_FOREGROUND:-0}" != 1 ]; then
+    if [ "${ZIYU_CACHE_FOREGROUND:-0}" != 1 ]; then
         _dfcache_notify '设备对齐字体缓存已准备完成；下次明确应用该字体时会一次提交。'
     fi
     _dfcache_log "设备对齐缓存已就绪且未改动当前字体：$_dfc_font"

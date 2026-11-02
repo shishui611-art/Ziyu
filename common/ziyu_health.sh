@@ -1,0 +1,363 @@
+#!/system/bin/sh
+# 字域系统体检与模块冲突探测；迁移自仓库既有体检命令，沿用 GPL-3.0-only。
+# 只读 report 不修改任何字体状态；repair-stale 仅清理已确认失效的锁/PID 文件。
+set +e
+
+MOD="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+ADB_ROOT="${ZIYU_ADB_ROOT:-/data/adb}"
+MODULES_ROOT="${ZIYU_MODULES_ROOT:-$ADB_ROOT/modules}"
+ACTION="${1:-report}"
+[ ! -f "$MOD/common/root_manager_detection.sh" ] || . "$MOD/common/root_manager_detection.sh"
+
+read_value() {
+    sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
+}
+
+bool_file() {
+    [ -s "$1" ] && printf 'true\n' || printf 'false\n'
+}
+
+safe_count() {
+    _sc_value="$1"
+    case "$_sc_value" in ''|*[!0-9]*) printf '0\n' ;; *) printf '%s\n' "$_sc_value" ;; esac
+}
+
+root_manager() {
+    if [ -n "${ZIYU_ROOT_MANAGER:-}" ]; then
+        printf '%s\n' "$ZIYU_ROOT_MANAGER"
+    else
+        [ ! -f "$MOD/common/root_manager_detection.sh" ] || . "$MOD/common/root_manager_detection.sh"
+        if type ziyu_detect_root_manager >/dev/null 2>&1; then
+            MODDIR="$MOD" ziyu_detect_root_manager
+        else
+            printf 'unknown\n'
+        fi
+    fi
+}
+
+font_target_list() {
+    cat <<'TARGETS'
+system/fonts
+product/fonts
+system_ext/fonts
+vendor/fonts
+odm/fonts
+oem/fonts
+my_product/fonts
+oplus_product/fonts
+mi_ext/fonts
+system/etc/fonts.xml
+system/etc/font_fallback.xml
+system/etc/fonts_customization.xml
+product/etc/fonts.xml
+product/etc/font_fallback.xml
+product/etc/fonts_customization.xml
+system_ext/etc/fonts.xml
+vendor/etc/fonts.xml
+TARGETS
+}
+
+module_enabled_for_conflict_scan() {
+    _mecs_dir="$1"
+    [ -d "$_mecs_dir" ] || return 1
+    [ "${_mecs_dir##*/}" != ziyu ] || return 1
+    [ ! -e "$_mecs_dir/disable" ] || return 1
+    [ ! -e "$_mecs_dir/remove" ] || return 1
+    return 0
+}
+
+target_is_conflict() {
+    _tic_path="$1"
+    [ -e "$_tic_path" ] || return 1
+    [ -d "$_tic_path" ] || return 0
+    [ -e "$_tic_path/.replace" ] && return 0
+    find "$_tic_path" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' -o -iname '*.xml' \) \
+        -print -quit 2>/dev/null | grep -q .
+}
+
+conflict_target_count() {
+    _ctc_count=0
+    [ -d "$MODULES_ROOT" ] || { printf '0\n'; return; }
+    for _ctc_module in "$MODULES_ROOT"/*; do
+        module_enabled_for_conflict_scan "$_ctc_module" || continue
+        while IFS= read -r _ctc_target; do
+            target_is_conflict "$_ctc_module/$_ctc_target" || continue
+            _ctc_count=$((_ctc_count + 1))
+        done <<EOF_TARGETS
+$(font_target_list)
+EOF_TARGETS
+    done
+    printf '%s\n' "$_ctc_count"
+}
+
+print_conflicts() {
+    [ -d "$MODULES_ROOT" ] || return 0
+    for _pc_module in "$MODULES_ROOT"/*; do
+        module_enabled_for_conflict_scan "$_pc_module" || continue
+        _pc_id="${_pc_module##*/}"
+        _pc_name="$(read_value "$_pc_module/module.prop" name)"
+        [ -n "$_pc_name" ] || _pc_name="$_pc_id"
+        _pc_name="$(printf '%s' "$_pc_name" | tr '|\r\n' '   ')"
+        while IFS= read -r _pc_target; do
+            _pc_path="$_pc_module/$_pc_target"
+            target_is_conflict "$_pc_path" || continue
+            if [ -d "$_pc_path" ]; then
+                _pc_files="$(find "$_pc_path" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' -o -iname '*.xml' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
+                _pc_files="$(safe_count "$_pc_files")"
+                printf 'conflict=%s|%s|%s|directory|%s\n' "$_pc_id" "$_pc_name" "$_pc_target" "$_pc_files"
+            else
+                printf 'conflict=%s|%s|%s|file|1\n' "$_pc_id" "$_pc_name" "$_pc_target"
+            fi
+        done <<EOF_TARGETS
+$(font_target_list)
+EOF_TARGETS
+    done
+}
+
+payload_font_count() {
+    _pfc_total=0
+    _pfc_private="$MOD/.ziyu-payload"
+    if [ -d "$_pfc_private" ]; then
+        _pfc_count="$(find "$_pfc_private" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
+        _pfc_total="$(safe_count "$_pfc_count")"
+        [ "$_pfc_total" -gt 0 ] && { printf '%s\n' "$_pfc_total"; return; }
+    fi
+    for _pfc_path in \
+        "$MOD/product/fonts" "$MOD/system_ext/fonts" "$MOD/vendor/fonts" \
+        "$MOD/odm/fonts" "$MOD/oem/fonts" "$MOD/my_product/fonts" "$MOD/oplus_product/fonts" "$MOD/mi_ext/fonts"; do
+        [ -d "$_pfc_path" ] || continue
+        _pfc_count="$(find "$_pfc_path" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
+        _pfc_count="$(safe_count "$_pfc_count")"
+        _pfc_total=$((_pfc_total + _pfc_count))
+    done
+    # Some providers scan a nested-system module layout.
+    for _pfc_path in "$MOD/system"; do
+        [ -d "$_pfc_path" ] || continue
+        _pfc_count="$(find "$_pfc_path" -type f -path '*/fonts/*' \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) 2>/dev/null | wc -l | tr -d '[:space:]')"
+        _pfc_count="$(safe_count "$_pfc_count")"
+        _pfc_total=$((_pfc_total + _pfc_count))
+    done
+    printf '%s\n' "$_pfc_total"
+}
+
+lock_state() {
+    _ls_lock="$MOD/.font_switch.lock"
+    [ -e "$_ls_lock" ] || { printf 'idle\n'; return; }
+    if [ -f "$MOD/common/util_functions.sh" ]; then
+        MODULE_DIR="$MOD"
+        . "$MOD/common/util_functions.sh" >/dev/null 2>&1 || true
+        if type ziyu_font_lock_active >/dev/null 2>&1 && ziyu_font_lock_active "$_ls_lock"; then
+            printf 'active\n'
+            return
+        fi
+    else
+        _ls_pid="$(cat "$_ls_lock/pid" 2>/dev/null || cat "$_ls_lock" 2>/dev/null)"
+        case "$_ls_pid" in ''|*[!0-9]*) ;; *) kill -0 "$_ls_pid" 2>/dev/null && { printf 'active\n'; return; } ;; esac
+    fi
+    printf 'stale\n'
+}
+
+mount_engine() {
+    _hme_state=$(type ziyu_current_boot_backend_state >/dev/null 2>&1 && MODDIR="$MOD" ziyu_current_boot_backend_state)
+    if [ -n "$_hme_state" ]; then
+        _hme_active=$(read_value "$_hme_state" active_backend)
+        _hme_selected=$(read_value "$_hme_state" selected_backend)
+        _hme_verify=$(read_value "$_hme_state" verification)
+        if [ "$_hme_verify" = not-applicable ]; then
+            if [ "$(head -n1 "$MOD/config/active_font.conf" 2>/dev/null | tr -d '\r\n')" = default ] || \
+               [ ! -s "$MOD/config/active_font.conf" ]; then
+                printf '系统默认字体，无需挂载\n'
+            else
+                printf '自定义字体挂载已跳过\n'
+            fi
+            return
+        fi
+        case "${_hme_active:-none}" in
+            self) _hme_label='字域自挂载' ;;
+            meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" ziyu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD" ;;
+            *) case "$_hme_selected" in
+                self) _hme_label='字域自挂载' ;;
+                meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" ziyu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD" ;;
+                *) _hme_label='挂载后端' ;;
+            esac ;;
+        esac
+        case "$_hme_verify" in
+            partial) printf '%s · 部分应用（有警告）\n' "$_hme_label" ;;
+            failed) printf '%s失败\n' "$_hme_label" ;;
+            pending) printf '%s · 待验证\n' "$_hme_label" ;;
+            *) printf '%s\n' "$_hme_label" ;;
+        esac
+        return
+    fi
+    [ ! -f "$MOD/config/mount-backend.conf" ] || { printf '本次启动尚未确认挂载后端\n'; return; }
+    if [ -f "$MOD/common/mount_compat.sh" ]; then
+        MODULE_DIR="$MOD"
+        . "$MOD/common/mount_compat.sh" >/dev/null 2>&1 || true
+        if type ziyu_detect_mount_engine >/dev/null 2>&1; then
+            ziyu_detect_mount_engine 2>/dev/null | head -n1
+            return
+        fi
+    fi
+    printf 'unknown\n'
+}
+
+report() {
+    _r_active="$(head -n1 "$MOD/config/active_font.conf" 2>/dev/null | tr -d '\r\n')"
+    [ -n "$_r_active" ] || _r_active=default
+    _r_payload="$(payload_font_count)"
+    _r_conflicts="$(conflict_target_count)"
+    _r_log_counts=$(MODDIR="$MOD" sh "$MOD/common/action_control.sh" log-health 2>/dev/null)
+    _r_log_rc=$?
+    _r_ignored=0
+    if [ "$_r_log_rc" -eq 0 ]; then
+        _r_errors=$(printf '%s\n' "$_r_log_counts" | sed -n 's/^recentErrors=//p')
+        _r_warnings=$(printf '%s\n' "$_r_log_counts" | sed -n 's/^recentWarnings=//p')
+        _r_ignored=$(printf '%s\n' "$_r_log_counts" | sed -n 's/^ignoredWarnings=//p')
+    else
+        # Old/incomplete runtimes still must not count WARN retry details as errors.
+        _r_errors=$(tail -n 500 "$MOD/logs/fontswitch.log" 2>/dev/null | grep -Eiv '(^|[^[:alnum:]_])(warn|warning)([^[:alnum:]_]|$)|警告' | grep -Eic '(^|[^[:alnum:]_])(error|failed|failure|fatal)([^[:alnum:]_]|$)|失败|错误')
+        _r_warnings=$(tail -n 500 "$MOD/logs/fontswitch.log" 2>/dev/null | grep -Eic '(^|[^[:alnum:]_])(warn|warning)([^[:alnum:]_]|$)|警告')
+    fi
+    _r_errors=$(safe_count "$_r_errors")
+    _r_warnings=$(safe_count "$_r_warnings")
+    _r_ignored=$(safe_count "$_r_ignored")
+    _r_reboot=false
+    for _r_marker in "$MOD/config"/*reboot_required.conf; do
+        [ -s "$_r_marker" ] || continue
+        _r_reboot=true
+        break
+    done
+    _r_module=false
+    [ -f "$MOD/module.prop" ] && _r_module=true
+    _r_pending=false
+    [ -d "${ZIYU_MODULES_UPDATE_ROOT:-$ADB_ROOT/modules_update}/ziyu" ] && _r_pending=true
+    _r_alignment=$(read_value "$MOD/config/device-font-load-verification.conf" state)
+    _r_alignment_mode=$(read_value "$MOD/config/device-font-load-verification.conf" mode)
+    _r_self_state=$(read_value "$MOD/config/self-mount.conf" state)
+    _r_self_backend=$(read_value "$MOD/config/self-mount.conf" backend)
+    _r_backend_state=$(type ziyu_current_boot_backend_state >/dev/null 2>&1 && MODDIR="$MOD" ziyu_current_boot_backend_state)
+    if [ -n "$_r_backend_state" ]; then
+        case "$(read_value "$_r_backend_state" verification)" in
+            partial)
+                _r_alignment=partial; _r_alignment_mode=mount-partial
+                case "$(read_value "$_r_backend_state" active_backend)" in self) _r_self_state=partial ;; *) _r_self_state=not-active ;; esac
+                ;;
+            failed)
+                _r_alignment=failed; _r_alignment_mode=backend-failed
+                case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=failed ;; *) _r_self_state=not-active ;; esac
+                ;;
+            pending)
+                _r_alignment=pending; _r_alignment_mode=backend-pending
+                case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=pending ;; *) _r_self_state=not-active ;; esac
+                ;;
+            passed|pass)
+                _r_current_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+                _r_verified_boot=$(read_value "$MOD/config/device-font-load-verification.conf" bootId)
+                _r_verified_font=$(read_value "$MOD/config/device-font-load-verification.conf" activeFont)
+                if [ -n "$_r_current_boot" ] && [ "$_r_verified_boot" = "$_r_current_boot" ] && \
+                   [ "$_r_verified_font" = "$_r_active" ]; then
+                    _r_alignment=$(read_value "$MOD/config/device-font-load-verification.conf" state)
+                    _r_alignment_mode=$(read_value "$MOD/config/device-font-load-verification.conf" mode)
+                    [ -n "$_r_alignment" ] || _r_alignment=pending
+                else
+                    _r_alignment=pending; _r_alignment_mode=backend-awaiting-pid1-route-verification
+                fi
+                case "$(read_value "$_r_backend_state" active_backend)" in
+                    self) _r_self_state=mounted; _r_self_backend=self ;;
+                    meta|external) _r_self_state=not-active; _r_self_backend=none ;;
+                esac ;;
+            not-applicable)
+                if [ "$_r_active" = default ]; then
+                    _r_alignment=not-applicable; _r_alignment_mode=system-default
+                else
+                    _r_alignment=skipped; _r_alignment_mode=backend-skipped
+                fi
+                _r_self_state=not-active; _r_self_backend=none
+                ;;
+        esac
+    elif [ -f "$MOD/config/mount-backend.conf" ]; then
+        _r_alignment=pending; _r_alignment_mode=backend-current-boot-unconfirmed; _r_self_state=pending
+    fi
+
+    printf 'healthVersion=1\n'
+    printf 'modulePresent=%s\n' "$_r_module"
+    printf 'pendingModulePresent=%s\n' "$_r_pending"
+    printf 'moduleVersion=%s\n' "$(read_value "$MOD/module.prop" version)"
+    printf 'moduleVersionCode=%s\n' "$(read_value "$MOD/module.prop" versionCode)"
+    printf 'rootManager=%s\n' "$(root_manager)"
+    printf 'androidSdk=%s\n' "$(getprop ro.build.version.sdk 2>/dev/null)"
+    printf 'activeFont=%s\n' "$_r_active"
+    printf 'payloadFonts=%s\n' "$_r_payload"
+    printf 'lockState=%s\n' "$(lock_state)"
+    printf 'engineState=%s\n' "$(read_value "$MOD/config/device-font-engine.conf" state)"
+    printf 'templateState=%s\n' "$(read_value "$MOD/config/device-font-template.state" state)"
+    printf 'alignmentState=%s\n' "$_r_alignment"
+    printf 'alignmentMode=%s\n' "$_r_alignment_mode"
+    printf 'mountWarning=%s\n' "$(read_value "$_r_backend_state" mount_warning)"
+    printf 'selfMountState=%s\n' "$_r_self_state"
+    printf 'selfMountBackend=%s\n' "$_r_self_backend"
+    printf 'mountEngine=%s\n' "$(mount_engine)"
+    printf 'cachePending=%s\n' "$(bool_file "$MOD/config/device-font-cache-pending.conf")"
+    printf 'rebootRequired=%s\n' "$_r_reboot"
+    printf 'recentWarnings=%s\n' "$_r_warnings"
+    printf 'recentErrors=%s\n' "$_r_errors"
+    printf 'ignoredWarnings=%s\n' "$_r_ignored"
+    printf 'conflictCount=%s\n' "$_r_conflicts"
+    print_conflicts
+}
+
+repair_stale() {
+    _rs_changed=0
+    _rs_lock="$MOD/.font_switch.lock"
+    if [ -e "$_rs_lock" ]; then
+        if [ -f "$MOD/common/util_functions.sh" ]; then
+            MODULE_DIR="$MOD"
+            . "$MOD/common/util_functions.sh" >/dev/null 2>&1 || true
+            if type ziyu_font_lock_active >/dev/null 2>&1 && ! ziyu_font_lock_active "$_rs_lock"; then
+                if type ziyu_font_lock_reap_stale >/dev/null 2>&1; then
+                    ziyu_font_lock_reap_stale "$_rs_lock" >/dev/null 2>&1 && _rs_changed=$((_rs_changed + 1))
+                fi
+            fi
+        fi
+    fi
+    [ ! -f "$MOD/common/background_task.sh" ] || . "$MOD/common/background_task.sh"
+    # .pid.task contains a task ID, never a PID. Treating it as a PID used to
+    # delete every live worker's identity and make the App recover active jobs.
+    for _rs_pidfile in "$MOD/config"/*.pid; do
+        [ -f "$_rs_pidfile" ] || continue
+        _rs_alive=0
+        if type ziyu_task_pid_alive >/dev/null 2>&1; then
+            _rs_task=$(cat "${_rs_pidfile}.task" 2>/dev/null)
+            ziyu_task_pid_alive "$_rs_pidfile" "$_rs_task" && _rs_alive=1
+        else
+            _rs_pid="$(head -n1 "$_rs_pidfile" 2>/dev/null | tr -d '\r\n')"
+            case "$_rs_pid" in
+                ''|*[!0-9]*) ;;
+                *) kill -0 "$_rs_pid" 2>/dev/null && _rs_alive=1 ;;
+            esac
+        fi
+        if [ "$_rs_alive" = 0 ]; then
+            rm -f "$_rs_pidfile" "${_rs_pidfile}.task" "${_rs_pidfile}.boot" 2>/dev/null && \
+                _rs_changed=$((_rs_changed + 1))
+        fi
+    done
+    for _rs_sidecar in "$MOD/config"/*.pid.task "$MOD/config"/*.pid.boot; do
+        [ -f "$_rs_sidecar" ] || continue
+        [ -f "${_rs_sidecar%.*}" ] || rm -f "$_rs_sidecar" 2>/dev/null || true
+    done
+    printf 'status=ok\n'
+    printf 'changed=%s\n' "$_rs_changed"
+}
+
+restore_default() {
+    [ -f "$MOD/common/font_manager.sh" ] || { printf 'status=error\nmessage=font_manager_missing\n'; return 2; }
+    _rd_out="$(MODDIR="$MOD" MODULE_DIR="$MOD" sh "$MOD/common/font_manager.sh" action switch default 2>&1)"
+    printf '%s\n' "$_rd_out"
+}
+
+case "$ACTION" in
+    report) report ;;
+    repair-stale) repair_stale ;;
+    restore-default) restore_default ;;
+    *) printf 'status=error\nmessage=unsupported_action\n'; exit 2 ;;
+esac

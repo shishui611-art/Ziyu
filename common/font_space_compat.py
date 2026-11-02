@@ -34,10 +34,10 @@ def _new_glyph_name(font: TTFont, codepoint: int, occupied: set[str]) -> str:
             raise ValueError("CFF 字体没有可用的 CID 编号来补空白字形")
         name = f"cid{cid:05d}"
     else:
-        name = f"luoshuSpace{codepoint:04X}"
+        name = f"ziyuSpace{codepoint:04X}"
         suffix = 1
         while name in occupied:
-            name = f"luoshuSpace{codepoint:04X}_{suffix}"
+            name = f"ziyuSpace{codepoint:04X}_{suffix}"
             suffix += 1
     if name in occupied:
         raise ValueError(f"空白字形名称冲突：{name}")

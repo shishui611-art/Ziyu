@@ -19,7 +19,7 @@ class FontCoverageProcessAuditTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='ziyu-font-coverage-')
         self.root = Path(self.temp.name)
         self.module = self.root / 'module'
-        self.payload_file = self.module / '.luoshu-payload' / 'system' / 'fonts' / 'Roboto-Regular.ttf'
+        self.payload_file = self.module / '.ziyu-payload' / 'system' / 'fonts' / 'Roboto-Regular.ttf'
         self.payload_file.parent.mkdir(parents=True)
         self.payload_file.write_bytes(b'active-payload-font')
         self.proc_root = self.root / 'proc'

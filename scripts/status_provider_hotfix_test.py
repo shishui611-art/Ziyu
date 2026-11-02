@@ -20,12 +20,12 @@ class HotfixTest(unittest.TestCase):
         self.common = self.module / 'common'
         self.common.mkdir(parents=True)
         (self.module / 'config').mkdir()
-        (self.module / 'module.prop').write_text('id=LuoShu\nversion=test\nversionCode=1\n')
+        (self.module / 'module.prop').write_text('id=Ziyu\nversion=test\nversionCode=1\n')
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         self.env = {**os.environ, 'MODDIR': str(self.module), 'MODULE_DIR': str(self.module),
                     'PATH': f'{self.bin}:{os.environ["PATH"]}',
-                    'LUOSHU_PUBLIC_DIR': str(self.root / 'public'), 'TEST_ROOT': str(self.root)}
+                    'ZIYU_PUBLIC_DIR': str(self.root / 'public'), 'TEST_ROOT': str(self.root)}
 
     def command(self, name, content):
         path = self.bin / name
@@ -48,7 +48,7 @@ class HotfixTest(unittest.TestCase):
         self.copy('user_storage.sh')
         self.run_shell(self.common / 'legacy_v14_4/mix_router.sh', 'reconcile')
         self.assertFalse((self.module / '.legacy-v14-runtime').exists())
-        self.assertFalse((self.module / '.luoshu-payload').exists())
+        self.assertFalse((self.module / '.ziyu-payload').exists())
 
     def test_retired_weight_status_avoids_settings_reads_and_font_migration(self):
         for name in ('font_manager_v4.sh', 'font_weight_runtime.sh', 'util_functions.sh', 'util_functions_core.sh'):
@@ -88,7 +88,7 @@ class HotfixTest(unittest.TestCase):
             directory.mkdir(parents=True)
             (directory / 'cmdline').write_bytes(command.encode() + b'\0')
         self.command('pidof', 'exit 1\n')
-        self.env['LUOSHU_PROC_ROOT'] = str(proc)
+        self.env['ZIYU_PROC_ROOT'] = str(proc)
         out = subprocess.run(['sh', '-c', '. "$1"; _gfp_namespace_pids', 'sh',
                               str(ROOT / 'common/google_font_provider_bridge.sh')],
                              env=self.env, text=True, capture_output=True, check=True, timeout=3)

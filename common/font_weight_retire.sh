@@ -1,6 +1,6 @@
 #!/system/bin/sh
 # One-time migration/uninstall restore for legacy global Settings ownership.
-# Never alter a setting changed by another app/user after LuoShu's last write.
+# Never alter a setting changed by another app/user after Ziyu's last write.
 set -u
 _fwr_old="${1:?old module required}"
 _fwr_new="${2:?new module required}"
@@ -47,15 +47,15 @@ for _fwr_number in "$_fwr_saved" "$_fwr_original"; do
 done
 # Supervise Binder commands too: a busy Settings provider must not hang the
 # installer or leave Java/cmd descendants running after the job has ended.
-if [ "${LUOSHU_SCOPE_WORKER_PID:-}" != "$$" ]; then
+if [ "${ZIYU_SCOPE_WORKER_PID:-}" != "$$" ]; then
     _fwr_record pending
     MODDIR="$_fwr_new"; export MODDIR
     exec sh "$_fwr_new/common/task_scope.sh" --timeout 15 -- sh "$0" "$@"
 fi
 MODULE_DIR="$_fwr_new"
 . "$_fwr_new/common/util_functions.sh" || _fwr_defer
-luoshu_font_lock_acquire "$_fwr_new/.display-typography.lock" "$$" || _fwr_defer
-trap 'luoshu_font_lock_release "$_fwr_new/.display-typography.lock" "$$" >/dev/null 2>&1 || true' EXIT
+ziyu_font_lock_acquire "$_fwr_new/.display-typography.lock" "$$" || _fwr_defer
+trap 'ziyu_font_lock_release "$_fwr_new/.display-typography.lock" "$$" >/dev/null 2>&1 || true' EXIT
 command -v settings >/dev/null 2>&1 || _fwr_defer
 _fwr_current=$(settings --user current get secure font_weight_adjustment 2>/dev/null)
 _fwr_get_rc=$?

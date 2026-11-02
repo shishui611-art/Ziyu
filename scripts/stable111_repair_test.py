@@ -52,7 +52,7 @@ class SvgCompatibility(unittest.TestCase):
             self.assertIn(routing.LATIN, output.getBestCmap())
             self.assertIn(48, output.getBestCmap())
         self.assertTrue(rig.reports['/system/fonts/Roboto-Regular.ttf']['svgPreserved'])
-        self.assertFalse(list((rig.fonts/'.luoshu-font-store').glob('hyperos-metrics-*')))
+        self.assertFalse(list((rig.fonts/'.ziyu-font-store').glob('hyperos-metrics-*')))
 
     def test_svg_ttf_without_lxml(self): self.check_svg()
     def test_svg_cff_without_lxml(self): self.check_svg(cff=True)
@@ -140,10 +140,10 @@ class ShellIntegration(unittest.TestCase):
         (self.module/'common/python/bin').mkdir(parents=True)
         (self.module/'config').mkdir()
         (self.module/'logs').mkdir()
-        (self.module/'module.prop').write_text('id=LuoShu\n')
+        (self.module/'module.prop').write_text('id=Ziyu\n')
         for name in ('task_scope.sh','task_scope.py','background_task.sh','font_switch_lock.sh'):
             shutil.copyfile(ROOT/'common'/name,self.module/'common'/name)
-        py=self.module/'common/python/bin/luoshu-python'
+        py=self.module/'common/python/bin/ziyu-python'
         py.write_text(f'#!/bin/sh\nunset PYTHONHOME PYTHONPATH LD_LIBRARY_PATH\nexec {sys.executable} "$@"\n')
         py.chmod(0o755)
         bindir=Path(self.temp.name)/'bin';bindir.mkdir()
@@ -154,10 +154,10 @@ class ShellIntegration(unittest.TestCase):
         pidfile=self.module/'config/test.pid'
         logfile=self.module/'logs/test.log'
         subprocess.run(['sh','-c','''. "$MODDIR/common/background_task.sh"
-luoshu_start_detached "$1" stable111-task "$2" sh -c '
+ziyu_start_detached "$1" stable111-task "$2" sh -c '
 . "$MODDIR/common/background_task.sh"
-luoshu_clear_task_pid "$LUOSHU_TASK_SCOPE_PID_FILE" "$LUOSHU_TASK_SCOPE_TASK"
-[ -s "$LUOSHU_TASK_SCOPE_PID_FILE" ] || exit 12
+ziyu_clear_task_pid "$ZIYU_TASK_SCOPE_PID_FILE" "$ZIYU_TASK_SCOPE_TASK"
+[ -s "$ZIYU_TASK_SCOPE_PID_FILE" ] || exit 12
 ' ''' ,'sh',str(pidfile),str(logfile)],env=self.env,check=True,timeout=5)
         end=time.monotonic()+5
         proof=Path(str(pidfile)+'.cleanup.json')
@@ -179,7 +179,7 @@ restore) echo restore >> "$MODDIR/logs/applies";;
 esac
 ''')
         result=subprocess.run(['sh',str(self.module/'common/google_font_provider_service.sh'),'boot'],
-            env={**self.env,'LUOSHU_GOOGLE_FONT_RETRIES':'999','LUOSHU_GOOGLE_FONT_WATCH_CYCLES':'-1'},
+            env={**self.env,'ZIYU_GOOGLE_FONT_RETRIES':'999','ZIYU_GOOGLE_FONT_WATCH_CYCLES':'-1'},
             capture_output=True,text=True,timeout=6)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual((self.module/'logs/applies').read_text(),'apply\n')
@@ -190,7 +190,7 @@ esac
         script=ROOT/'common/legacy_v14_4/font_switch_safe.sh'
         for action in ('prewarm','prewarm-start'):
             result=subprocess.run(['sh',str(script),'action',action,'example'],
-                env={**self.env,'LUOSHU_PUBLIC_DIR':str(Path(self.temp.name)/'public')},
+                env={**self.env,'ZIYU_PUBLIC_DIR':str(Path(self.temp.name)/'public')},
                 capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,0,result.stderr)
         self.assertFalse(list((self.module/'config').glob('font-prewarm-*.pid')))

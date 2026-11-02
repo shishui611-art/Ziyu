@@ -14,9 +14,10 @@ done
 
 new_module() {
   local path="$1"
-  mkdir -p "$path/config" "$path/logs" "$path/.luoshu-payload/system/fonts"
+  mkdir -p "$path/config" "$path/logs" "$path/common" "$path/.ziyu-payload/system/fonts"
+  cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$path/common/"
   printf 'Demo\n' > "$path/config/active_font.conf"
-  printf 'test-font-payload\n' > "$path/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+  printf 'test-font-payload\n' > "$path/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 }
 
 run_hook() {
@@ -25,24 +26,24 @@ run_hook() {
   local provider_state=absent
   [ "$usable" != 1 ] || provider_state=available
   MODDIR="$path" MODULE_DIR="$path" \
-  LUOSHU_BACKEND_TEST_MODE=1 \
-  LUOSHU_BACKEND_TEST_BOOT_ID="$boot_id" \
-  LUOSHU_BACKEND_TEST_MANAGER="$manager" \
-  LUOSHU_BACKEND_TEST_META_ENGINE="$engine" \
-  LUOSHU_BACKEND_TEST_PROVIDER_STATE="$provider_state" \
-  LUOSHU_BACKEND_TEST_PROVIDER_ID="$engine" \
-  LUOSHU_BACKEND_TEST_META_USABLE="$usable" \
-  LUOSHU_BACKEND_TEST_NOMOUNT_USABLE="$nomount_usable" \
-  LUOSHU_BACKEND_TEST_NOMOUNT_ENABLED="$nomount_enabled" \
-  LUOSHU_BACKEND_TEST_NOMOUNT_RC="$nomount_rc" \
-  LUOSHU_BACKEND_TEST_MOUNT_DELTA="$delta" \
-  LUOSHU_BACKEND_TEST_PREPARE_RC="$prepare_rc" \
-  LUOSHU_BACKEND_TEST_META_VERIFY_RESULT="$verify" \
-  LUOSHU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
-  LUOSHU_BACKEND_TEST_SELF_VERIFY_RESULT="$self_verify" \
-  LUOSHU_BACKEND_TEST_ROLLBACK_RC="$rollback_rc" \
-  LUOSHU_BACKEND_TEST_HYBRID_UNLOAD_RC="$hybrid_unload_rc" \
-  bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
+  ZIYU_BACKEND_TEST_MODE=1 \
+  ZIYU_BACKEND_TEST_BOOT_ID="$boot_id" \
+  ZIYU_BACKEND_TEST_MANAGER="$manager" \
+  ZIYU_BACKEND_TEST_META_ENGINE="$engine" \
+  ZIYU_BACKEND_TEST_PROVIDER_STATE="$provider_state" \
+  ZIYU_BACKEND_TEST_PROVIDER_ID="$engine" \
+  ZIYU_BACKEND_TEST_META_USABLE="$usable" \
+  ZIYU_BACKEND_TEST_NOMOUNT_USABLE="$nomount_usable" \
+  ZIYU_BACKEND_TEST_NOMOUNT_ENABLED="$nomount_enabled" \
+  ZIYU_BACKEND_TEST_NOMOUNT_RC="$nomount_rc" \
+  ZIYU_BACKEND_TEST_MOUNT_DELTA="$delta" \
+  ZIYU_BACKEND_TEST_PREPARE_RC="$prepare_rc" \
+  ZIYU_BACKEND_TEST_META_VERIFY_RESULT="$verify" \
+  ZIYU_BACKEND_TEST_EXTERNAL_VERIFY_RESULT="$verify" \
+  ZIYU_BACKEND_TEST_SELF_VERIFY_RESULT="$self_verify" \
+  ZIYU_BACKEND_TEST_ROLLBACK_RC="$rollback_rc" \
+  ZIYU_BACKEND_TEST_HYBRID_UNLOAD_RC="$hybrid_unload_rc" \
+  bash -c '. "$1/common/mount_backend_runtime.sh"; ziyu_mount_backend_hook "$2"' _ "$ROOT" "$stage"
 }
 
 expect_hook_failure() {
@@ -53,7 +54,7 @@ state() { sed -n "s/^$2=//p" "$1/config/mount-backend.conf" | head -n1; }
 
 # Root manager identity prioritizes SukiSU's explicit identity over KSU env vars.
 detect_root() {
-  env -i PATH="$PATH" "$@" bash -c '. "$1/common/root_manager_detection.sh"; luoshu_detect_root_manager >/dev/null; printf "%s|%s|%s|%s\n" "$ROOT_MANAGER" "$ROOT_VERSION" "$ROOT_VERSION_CODE" "$ROOT_DETECTION_SOURCE"' _ "$ROOT"
+  env -i PATH="$PATH" "$@" bash -c '. "$1/common/root_manager_detection.sh"; ziyu_detect_root_manager >/dev/null; printf "%s|%s|%s|%s\n" "$ROOT_MANAGER" "$ROOT_VERSION" "$ROOT_VERSION_CODE" "$ROOT_DETECTION_SOURCE"' _ "$ROOT"
 }
 detect_root SUKISU=1 SUKISU_VER=1.2.3 SUKISU_VER_CODE=123 KSU=1 KSU_VER=0.9.5 > "$TMP/root.txt"
 assert_eq "$(cat "$TMP/root.txt")" 'SukiSU Ultra|1.2.3|123|env' 'SukiSU root identity'
@@ -66,15 +67,15 @@ assert_eq "$(detect_root MAGISK_VER=29.0 MAGISK_VER_CODE=29000)" 'Magisk|29.0|29
 # SukiSU-specific environment flag is tested above instead of guessing by path.
 ROOT_ADB="$TMP/root-fallback"
 mkdir -p "$ROOT_ADB/data/adb/ksu"
-assert_eq "$(detect_root LUOSHU_ROOT_DETECT_ROOT="$ROOT_ADB")" 'unknown|unknown|0|ambiguous-ksu-family' 'ambiguous shared KSU directory'
+assert_eq "$(detect_root ZIYU_ROOT_DETECT_ROOT="$ROOT_ADB")" 'unknown|unknown|0|ambiguous-ksu-family' 'ambiguous shared KSU directory'
 ln -s "$(command -v bash)" "$ROOT_ADB/data/adb/ksu/ksud"
-assert_eq "$(detect_root LUOSHU_ROOT_DETECT_ROOT="$ROOT_ADB")" 'unknown|unknown|0|ambiguous-ksu-family' 'shared ksud is not a KernelSU identity'
+assert_eq "$(detect_root ZIYU_ROOT_DETECT_ROOT="$ROOT_ADB")" 'unknown|unknown|0|ambiguous-ksu-family' 'shared ksud is not a KernelSU identity'
 ROOT_ADB_AP="$TMP/root-apatch"
 mkdir -p "$ROOT_ADB_AP/data/adb/ap"
-assert_eq "$(detect_root LUOSHU_ROOT_DETECT_ROOT="$ROOT_ADB_AP")" 'APatch|unknown|0|fallback' 'APatch directory fallback'
+assert_eq "$(detect_root ZIYU_ROOT_DETECT_ROOT="$ROOT_ADB_AP")" 'APatch|unknown|0|fallback' 'APatch directory fallback'
 ROOT_ADB_MAGISK="$TMP/root-magisk"
 mkdir -p "$ROOT_ADB_MAGISK/data/adb/magisk"
-assert_eq "$(detect_root LUOSHU_ROOT_DETECT_ROOT="$ROOT_ADB_MAGISK")" 'Magisk|unknown|0|fallback' 'Magisk directory fallback'
+assert_eq "$(detect_root ZIYU_ROOT_DETECT_ROOT="$ROOT_ADB_MAGISK")" 'Magisk|unknown|0|fallback' 'Magisk directory fallback'
 
 META_ADB="$TMP/meta-adb"
 META_MODULE="$META_ADB/modules/meta-overlayfs"
@@ -84,36 +85,36 @@ printf '#!/system/bin/sh\nexit 0\n' > "$META_MODULE/metamount.sh"
 touch "$META_MODULE/modules.img"
 chmod +x "$META_MODULE/metamount.sh"
 ln -s "$META_MODULE" "$META_ADB/metamodule"
-META_STATUS=$(LUOSHU_META_DETECT_ROOT="$META_ADB" LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$TMP/ziyu" \
-  bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$META_ENGINE" "$META_AVAILABLE" "$META_ENABLED" "$META_USABLE"' _ "$ROOT")
+META_STATUS=$(ZIYU_META_DETECT_ROOT="$META_ADB" ZIYU_META_TEST_ASSUME_ACTIVE=1 ZIYU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$TMP/ziyu" \
+  bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$META_ENGINE" "$META_AVAILABLE" "$META_ENABLED" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'meta-overlayfs|1|1|1' 'OverlayFS remains a valid provider with degraded cleanup'
 META_SKIP_MODULE="$TMP/ziyu-skip"
 mkdir -p "$META_SKIP_MODULE/config"
 : > "$META_SKIP_MODULE/skip_mount"
-META_STATUS=$(LUOSHU_META_DETECT_ROOT="$META_ADB" LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$META_SKIP_MODULE" \
-  bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
+META_STATUS=$(ZIYU_META_DETECT_ROOT="$META_ADB" ZIYU_META_TEST_ASSUME_ACTIVE=1 ZIYU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$META_SKIP_MODULE" \
+  bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'meta-overlayfs|0' 'Meta does not select a module excluded by skip_mount'
 : > "$META_SKIP_MODULE/config/self-mount-owned"
-META_STATUS=$(LUOSHU_META_DETECT_ROOT="$META_ADB" LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$META_SKIP_MODULE" \
-  bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
+META_STATUS=$(ZIYU_META_DETECT_ROOT="$META_ADB" ZIYU_META_TEST_ASSUME_ACTIVE=1 ZIYU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$META_SKIP_MODULE" \
+  bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'meta-overlayfs|1' 'Ziyu-owned skip marker remains releasable for backend transitions'
 touch "$META_MODULE/disable"
-META_STATUS=$(LUOSHU_META_DETECT_ROOT="$META_ADB" LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$TMP/ziyu" \
-  bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$META_ENGINE" "$META_AVAILABLE" "$META_ENABLED" "$META_USABLE"' _ "$ROOT")
+META_STATUS=$(ZIYU_META_DETECT_ROOT="$META_ADB" ZIYU_META_TEST_ASSUME_ACTIVE=1 ZIYU_META_TEST_ACTIVE_DIR="$META_MODULE" MODDIR="$TMP/ziyu" \
+  bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$META_ENGINE" "$META_AVAILABLE" "$META_ENABLED" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'meta-overlayfs|1|0|0' 'disabled Meta detection'
 rm -f "$META_MODULE/disable"
 
 NO_META_ROOT="$TMP/no-meta-adb"
 mkdir -p "$NO_META_ROOT/modules"
-META_STATUS=$(LUOSHU_META_DETECT_ROOT="$NO_META_ROOT" MODDIR="$TMP/ziyu" \
-  bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$META_ENGINE" "$META_AVAILABLE" "$META_ENABLED" "$META_USABLE"' _ "$ROOT")
+META_STATUS=$(ZIYU_META_DETECT_ROOT="$NO_META_ROOT" MODDIR="$TMP/ziyu" \
+  bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$META_ENGINE" "$META_AVAILABLE" "$META_ENABLED" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'none|0|0|0' 'no Meta installed'
 
 check_meta_fixture() {
   local engine="$1" module="$2" usable="$3" status
-  status=$(LUOSHU_META_DETECT_ROOT="$META_ADB" LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_META_TEST_ACTIVE_DIR="$module" \
+  status=$(ZIYU_META_DETECT_ROOT="$META_ADB" ZIYU_META_TEST_ASSUME_ACTIVE=1 ZIYU_META_TEST_ACTIVE_DIR="$module" \
     MODDIR="$TMP/ziyu" ROOT_MANAGER=KernelSU \
-    bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s|%s\n" "$META_ENGINE" "$META_INSTALLED" "$META_ENABLED" "$META_AVAILABLE" "$META_USABLE"' _ "$ROOT")
+    bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s|%s\n" "$META_ENGINE" "$META_INSTALLED" "$META_ENABLED" "$META_AVAILABLE" "$META_USABLE"' _ "$ROOT")
   assert_eq "$status" "$engine|1|1|1|$usable" "$engine active detection"
 }
 
@@ -138,11 +139,11 @@ cat > "$HYBRID/hybrid-mount" <<'SH'
 printf '{"supported":false,"reason":"boot ledger not ready","modules":[]}\n'
 SH
 chmod +x "$HYBRID/hybrid-mount"
-printf '[rules.LuoShu]\ndefault_mode="overlay"\n' > "$HYBRID/config.toml"
+printf '[rules.Ziyu]\ndefault_mode="overlay"\n' > "$HYBRID/config.toml"
 check_meta_fixture hybrid-mount "$HYBRID" 1
-printf '[rules.LuoShu]\ndefault_mode="vfs"\n' > "$HYBRID/config.toml"
+printf '[rules.Ziyu]\ndefault_mode="vfs"\n' > "$HYBRID/config.toml"
 check_meta_fixture hybrid-mount "$HYBRID" 1
-printf '[rules.LuoShu]\ndefault_mode="vfs"\n\n[rules.LuoShu.paths]\n"system/fonts/Latin.ttf"="magic"\n' > "$HYBRID/config.toml"
+printf '[rules.Ziyu]\ndefault_mode="vfs"\n\n[rules.Ziyu.paths]\n"system/fonts/Latin.ttf"="magic"\n' > "$HYBRID/config.toml"
 check_meta_fixture hybrid-mount "$HYBRID" 1
 
 MAGIC="$META_ADB/modules/magic_mount_rs"
@@ -155,8 +156,8 @@ check_meta_fixture magic-mount "$MAGIC" 1
 # A Magisk installation may contain an enabled but inactive KSU metamodule
 # alongside Mountify. The active Mountify config must win over that stale install.
 rm -rf "$META_ADB/metamodule"
-META_STATUS=$(LUOSHU_META_DETECT_ROOT="$META_ADB" MODDIR="$TMP/ziyu" ROOT_MANAGER=Magisk \
-  bash -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
+META_STATUS=$(ZIYU_META_DETECT_ROOT="$META_ADB" MODDIR="$TMP/ziyu" ROOT_MANAGER=Magisk \
+  bash -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s\n" "$META_ENGINE" "$META_USABLE"' _ "$ROOT")
 assert_eq "$META_STATUS" 'mountify|1' 'Magisk Mountify is detected as a selected provider'
 
 # Case 1: Explicit self-mount on Magisk activates at post-fs-data.
@@ -210,7 +211,7 @@ assert_eq "$(state "$M6" active_backend)" self 'case 6 active backend'
 
 # A failed external publication schedules self-mount for the KernelSU mount phase.
 M14="$TMP/ksu-meta-prepare-failed"; new_module "$M14"
-rm -rf "$M14/.luoshu-payload"
+rm -rf "$M14/.ziyu-payload"
 run_hook "$M14" KernelSU 1 pass post-fs-data hybrid-mount
 assert_eq "$(state "$M14" selected_backend)" self 'case 14 selects self after publication failure'
 assert_eq "$(state "$M14" active_backend)" none 'case 14 waits for the KernelSU mount phase'
@@ -218,7 +219,7 @@ assert_eq "$(state "$M14" fallback_used)" 1 'case 14 records the automatic fallb
 [ ! -f "$M14/config/test-self-mounted" ] || fail 'case 14 mounted before the KernelSU mount phase'
 # Test mode skips physical-payload validation, so model the missing payload by
 # making the self-mount operation itself fail.
-LUOSHU_BACKEND_TEST_SELF_RC=1 expect_hook_failure "$M14" KernelSU 1 fail post-mount hybrid-mount
+ZIYU_BACKEND_TEST_SELF_RC=1 expect_hook_failure "$M14" KernelSU 1 fail post-mount hybrid-mount
 assert_eq "$(state "$M14" verification)" failed 'case 14 remains failed when the self payload is unavailable'
 [ ! -f "$M14/config/test-self-mounted" ] || fail 'case 14 mounted without a verified payload'
 
@@ -291,12 +292,12 @@ assert_eq "$(state "$M16" last_error)" 'font-route-verification-failed;rollback-
 # longer expose any target recorded by the self-mount transaction.
 M20="$TMP/self-rollback-readback-failed"; new_module "$M20"
 printf 'preferred_backend=self_mount\n' > "$M20/config/mount-backend-preference.conf"
-if MODDIR="$M20" MODULE_DIR="$M20" LUOSHU_BACKEND_TEST_MODE=1 \
-  LUOSHU_BACKEND_TEST_BOOT_ID=backend-test-boot LUOSHU_BACKEND_TEST_MANAGER=Magisk \
-  LUOSHU_BACKEND_TEST_META_ENGINE=meta-overlayfs LUOSHU_BACKEND_TEST_META_USABLE=0 \
-  LUOSHU_BACKEND_TEST_SELF_VERIFY_RESULT=fail LUOSHU_BACKEND_TEST_ROLLBACK_RC=0 \
-  LUOSHU_BACKEND_TEST_ROLLBACK_STILL_ACTIVE=1 \
-  bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook post-fs-data' _ "$ROOT"; then
+if MODDIR="$M20" MODULE_DIR="$M20" ZIYU_BACKEND_TEST_MODE=1 \
+  ZIYU_BACKEND_TEST_BOOT_ID=backend-test-boot ZIYU_BACKEND_TEST_MANAGER=Magisk \
+  ZIYU_BACKEND_TEST_META_ENGINE=meta-overlayfs ZIYU_BACKEND_TEST_META_USABLE=0 \
+  ZIYU_BACKEND_TEST_SELF_VERIFY_RESULT=fail ZIYU_BACKEND_TEST_ROLLBACK_RC=0 \
+  ZIYU_BACKEND_TEST_ROLLBACK_STILL_ACTIVE=1 \
+  bash -c '. "$1/common/mount_backend_runtime.sh"; ziyu_mount_backend_hook post-fs-data' _ "$ROOT"; then
   fail 'case 20 accepted a successful rollback command without an inactive-state readback'
 fi
 assert_eq "$(state "$M20" active_backend)" self 'case 20 preserves possible residual mounts after rollback readback failure'
@@ -392,7 +393,7 @@ printf 'default\n' > "$M33/config/active_font.conf"
 mkdir -p "$M33/system/fonts" "$M33/common" "$M33/.ziyu-state"
 printf 'stale-custom-font\n' > "$M33/system/fonts/Roboto-Regular.ttf"
 printf 'keep-me\n' > "$M33/common/unrelated-runtime-file"
-rm -f "$M33/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+rm -f "$M33/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 printf 'boot_id=previous-boot\nroot_manager=KernelSU\nprovider_state=available\nprovider_id=hybrid-mount\nprovider_layout=nested-system\nprovider_content_root=%s\nselected_backend=external\nactive_backend=external\n' \
   "$M33" > "$M33/config/mount-backend.conf"
 run_hook "$M33" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 restore-default-boot
@@ -407,7 +408,7 @@ assert_eq "$(state "$M33" verification)" not-applicable 'case 33 keeps default-f
 M36="$TMP/restore-default-old-state"
 new_module "$M36"
 printf 'default\n' > "$M36/config/active_font.conf"
-rm -f "$M36/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+rm -f "$M36/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 mkdir -p "$M36/system/fonts" "$M36/.ziyu-state"
 printf 'stale-custom-font\n' > "$M36/system/fonts/Roboto-Regular.ttf"
 printf 'boot_id=previous-boot\nprovider_id=hybrid-mount\nprovider_layout=nested-system\nselected_backend=external\nactive_backend=external\n' \
@@ -420,7 +421,7 @@ run_hook "$M36" KernelSU 1 pass post-fs-data hybrid-mount 0 0 pass 0 0 0 0 0 res
 M35="$TMP/restore-default-receipt"
 new_module "$M35"
 printf 'default\n' > "$M35/config/active_font.conf"
-rm -f "$M35/.luoshu-payload/system/fonts/Roboto-Regular.ttf"
+rm -f "$M35/.ziyu-payload/system/fonts/Roboto-Regular.ttf"
 mkdir -p "$M35/system/fonts" "$M35/.ziyu-state"
 printf 'stale-custom-font\n' > "$M35/system/fonts/Roboto-Regular.ttf"
 printf 'boot_id=previous-boot\nlayout=nested-system\n' > "$M35/.ziyu-state/provider-published.conf"
@@ -447,12 +448,12 @@ printf 'boot_id=foreign-skip-active-boot\nactive_backend=self\nactive_self_backe
   > "$M32/config/mount-backend.conf"
 printf 'user disabled this module\n' > "$M32/skip_mount"
 MODDIR="$M32" MODULE_DIR="$M32" \
-LUOSHU_BACKEND_TEST_MODE=1 \
-LUOSHU_BACKEND_TEST_BOOT_ID=foreign-skip-active-boot \
-LUOSHU_BACKEND_TEST_MANAGER=KernelSU \
-LUOSHU_BACKEND_TEST_META_ENGINE=none \
-LUOSHU_BACKEND_TEST_META_USABLE=0 \
-bash -c '. "$1/common/mount_backend_runtime.sh"; luoshu_mount_backend_hook post-fs-data' _ "$ROOT"
+ZIYU_BACKEND_TEST_MODE=1 \
+ZIYU_BACKEND_TEST_BOOT_ID=foreign-skip-active-boot \
+ZIYU_BACKEND_TEST_MANAGER=KernelSU \
+ZIYU_BACKEND_TEST_META_ENGINE=none \
+ZIYU_BACKEND_TEST_META_USABLE=0 \
+bash -c '. "$1/common/mount_backend_runtime.sh"; ziyu_mount_backend_hook post-fs-data' _ "$ROOT"
 [ -f "$M32/config/test-self-rollback" ] || fail 'case 32 did not clean Ziyu legacy backend state'
 [ -f "$M32/skip_mount" ] || fail 'case 32 removed the user skip marker'
 assert_eq "$(state "$M32" active_backend)" none 'case 32 records that no backend remains active'

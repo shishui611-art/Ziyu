@@ -5,7 +5,7 @@ set +e
 
 MODDIR="${MODDIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." 2>/dev/null && pwd)}"
 APK="$MODDIR/bundled/Ziyu-App.apk"
-[ -s "$APK" ] || APK="$MODDIR/bundled/LuoShu-App.apk"
+[ -s "$APK" ] || APK="$MODDIR/bundled/Ziyu-App.apk"
 META="$MODDIR/bundled/app.prop"
 PENDING="$MODDIR/config/app_install_pending"
 STATE="$MODDIR/config/app_install_state.conf"

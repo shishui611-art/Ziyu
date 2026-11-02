@@ -24,7 +24,7 @@ finally:
         font.close()
 PY
 PYTHONPATH="$PYTHONPATH_DIR" python3 -S "$ROOT/common/font_extract_faces.py" \
-  --input "$TMP/input.ttc" --output-dir "$TMP/out" --label 'LuoShu-CI' > "$TMP/result.json"
+  --input "$TMP/input.ttc" --output-dir "$TMP/out" --label 'Ziyu-CI' > "$TMP/result.json"
 PYTHONPATH="$PYTHONPATH_DIR:$ROOT/common" python3 -S - "$TMP/result.json" "$TMP/out" <<'PY'
 import json
 import sys

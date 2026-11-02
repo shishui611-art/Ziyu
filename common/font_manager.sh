@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu native App font-manager router.
+# Ziyu native App font-manager router.
 # Inventory, preview, delete and weight actions stay on the current manager.
 # Final font apply enters the Phase 9 cutover controller. Universal is attempted
 # first for eligible single-font switches; the isolated physical switch remains fallback.
@@ -19,18 +19,18 @@ fi
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
+ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
 CURRENT_MANAGER="$MODDIR/common/font_manager_v4.sh"
 CUTOVER_SWITCH="$MODDIR/common/universal_font_cutover.sh"
 SAFE_SWITCH="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"
 LEGACY_SWITCH="$MODDIR/common/legacy_v14_4_switch.sh"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 STOCK_SCANNER="$MODDIR/common/stock_inventory_scan.py"
 STOCK_INVENTORY="$MODDIR/config/device_font_inventory.json"
 STOCK_SCAN_LOCK="$MODDIR/.stock-inventory-scan.lock"
 TOPOLOGY_COLLECTOR="$MODDIR/common/font_topology_snapshot.sh"
-export MODDIR LUOSHU_PUBLIC_DIR
+export MODDIR ZIYU_PUBLIC_DIR
 
 json_escape_router() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '
@@ -95,13 +95,13 @@ stock_scan_guard_complete() {
 stock_scan_commit() {
     # Publish the ROM receipt only after inventory AND topology are ready.
     # A failed receipt must not be silently reported as a completed rescan.
-    if ! stock_topology_refresh && [ "${LUOSHU_REQUIRE_TOPOLOGY:-0}" = 1 ]; then
+    if ! stock_topology_refresh && [ "${ZIYU_REQUIRE_TOPOLOGY:-0}" = 1 ]; then
         : > "$MODDIR/config/stock_inventory_scan_pending"
         printf '{"status":"error","message":"原厂字体已读取，但拓扑生成失败；请导出诊断日志"}\n'
         return 1
     fi
     rm -f "$MODDIR/config/stock_inventory_scan_pending" || return 1
-    if ! stock_scan_guard_complete && [ "${LUOSHU_REQUIRE_TOPOLOGY:-0}" = 1 ]; then
+    if ! stock_scan_guard_complete && [ "${ZIYU_REQUIRE_TOPOLOGY:-0}" = 1 ]; then
         : > "$MODDIR/config/stock_inventory_scan_pending"
         printf '{"status":"error","message":"原厂扫描结果与当前 ROM 的核验回执不一致，请重新检测后手动重试"}\n'
         return 1
@@ -109,7 +109,7 @@ stock_scan_commit() {
 }
 
 stock_scan_json() {
-    STOCK_SCAN_ROM_IDENTITY="${LUOSHU_SCAN_ROM_IDENTITY:-}"
+    STOCK_SCAN_ROM_IDENTITY="${ZIYU_SCAN_ROM_IDENTITY:-}"
     if [ -z "$STOCK_SCAN_ROM_IDENTITY" ] && [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
         STOCK_SCAN_ROM_IDENTITY=$(sh "$MODDIR/common/boot_ota_guard.sh" rom-identity "$MODDIR")
     fi
@@ -170,15 +170,15 @@ stock_scan_json() {
 }
 
 if [ "${1:-}" = action ] && [ "${2:-}" = switch ]; then
-    # The legacy composite runtime creates a temporary family (LuoShuAutoMix etc.)
+    # The legacy composite runtime creates a temporary family (ZiyuAutoMix etc.)
     # only as a source container. It must never become the persisted active font.
     # Keep the user-visible/runtime identity as `mix`, while the safe switch still
     # resolves and validates the temporary source family normally.
-    if [ -n "${LUOSHU_REAL_MODDIR:-}" ]; then
+    if [ -n "${ZIYU_REAL_MODDIR:-}" ]; then
         case "$MODDIR" in
             */.legacy-v14-runtime)
-                LUOSHU_SWITCH_ACTIVE_LABEL="${LUOSHU_SWITCH_ACTIVE_LABEL:-mix}"
-                export LUOSHU_SWITCH_ACTIVE_LABEL
+                ZIYU_SWITCH_ACTIVE_LABEL="${ZIYU_SWITCH_ACTIVE_LABEL:-mix}"
+                export ZIYU_SWITCH_ACTIVE_LABEL
                 ;;
         esac
     fi

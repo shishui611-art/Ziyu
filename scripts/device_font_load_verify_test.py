@@ -18,7 +18,7 @@ def fixture() -> tuple[dict, dict, list[dict]]:
                 "family": "google-sans-text",
                 "familyNormalized": "google-sans-text",
                 "weight": 400,
-                "generatedFile": "LuoShuSlot-abc.ttf",
+                "generatedFile": "ZiyuSlot-abc.ttf",
             }
         ],
     }
@@ -28,8 +28,8 @@ def fixture() -> tuple[dict, dict, list[dict]]:
         "copiedFonts": [
             {
                 "partition": "system",
-                "filename": "LuoShuSlot-abc.ttf",
-                "path": "system/fonts/LuoShuSlot-abc.ttf",
+                "filename": "ZiyuSlot-abc.ttf",
+                "path": "system/fonts/ZiyuSlot-abc.ttf",
                 "bytes": 4096,
             }
         ],
@@ -42,8 +42,8 @@ def fixture() -> tuple[dict, dict, list[dict]]:
     }
     mounts = [
         {
-            "relative": "system/fonts/LuoShuSlot-abc.ttf",
-            "visible": "/system/fonts/LuoShuSlot-abc.ttf",
+            "relative": "system/fonts/ZiyuSlot-abc.ttf",
+            "visible": "/system/fonts/ZiyuSlot-abc.ttf",
             "status": "ok",
             "expectedSha256": "a" * 64,
             "actualSha256": "a" * 64,
@@ -58,7 +58,7 @@ def main() -> None:
     verified = verifier.verify(
         payload,
         overlay,
-        "Family google-sans-text file=/system/fonts/LuoShuSlot-abc.ttf LuoShuSlot-google-sans-text-400",
+        "Family google-sans-text file=/system/fonts/ZiyuSlot-abc.ttf ZiyuSlot-google-sans-text-400",
         mounts,
         "DemoFont",
         {"state": "installed", "templateKey": "trusted"},
@@ -70,7 +70,7 @@ def main() -> None:
     missing_dynamic = verifier.verify(
         payload,
         overlay,
-        "file=/system/fonts/LuoShuSlot-abc.ttf",
+        "file=/system/fonts/ZiyuSlot-abc.ttf",
         mounts,
         "DemoFont",
         {"state": "installed"},
@@ -96,7 +96,7 @@ def main() -> None:
     mismatch = verifier.verify(
         payload,
         overlay,
-        "Family google-sans-text file=/system/fonts/LuoShuSlot-abc.ttf",
+        "Family google-sans-text file=/system/fonts/ZiyuSlot-abc.ttf",
         bad_mounts,
         "DemoFont",
         {"state": "installed"},

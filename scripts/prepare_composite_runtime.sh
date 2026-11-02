@@ -2,7 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-WORK=${LUOSHU_RUNTIME_WORK:-"$ROOT/.runtime-work"}
+WORK=${ZIYU_RUNTIME_WORK:-"$ROOT/.runtime-work"}
 PY_VERSION=${PY_VERSION:-3.14.6}
 PY_ARCHIVE=${PY_ARCHIVE:-python-3.14.6-aarch64-linux-android.tar.gz}
 PY_SHA256=${PY_SHA256:-38bbe77d3167b5cd554e03b1021324926f09f3825202b065951dd7638e9c37e5}
@@ -36,7 +36,7 @@ READELF="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
 test -x "$CC"
 test -x "$CXX"
 test -x "$AR"
-cat > "$WORK/luoshu_python.c" <<'C'
+cat > "$WORK/ziyu_python.c" <<'C'
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,16 +51,16 @@ int main(int argc, char **argv) {
             handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
         }
     }
-    if (!handle) { fprintf(stderr, "LuoShu: %s\n", dlerror()); return 126; }
+    if (!handle) { fprintf(stderr, "Ziyu: %s\n", dlerror()); return 126; }
     py_bytes_main_fn run = (py_bytes_main_fn)dlsym(handle, "Py_BytesMain");
-    if (!run) { fprintf(stderr, "LuoShu: %s\n", dlerror()); return 127; }
+    if (!run) { fprintf(stderr, "Ziyu: %s\n", dlerror()); return 127; }
     return run(argc, argv);
 }
 C
 "$CC" -O2 -fPIE -pie -Wl,--build-id=none -Wl,-z,relro,-z,now \
-  "$WORK/luoshu_python.c" -ldl -o "$R/bin/luoshu-python"
-"$STRIP" "$R/bin/luoshu-python"
-file "$R/bin/luoshu-python" | grep -q 'ARM aarch64'
+  "$WORK/ziyu_python.c" -ldl -o "$R/bin/ziyu-python"
+"$STRIP" "$R/bin/ziyu-python"
+file "$R/bin/ziyu-python" | grep -q 'ARM aarch64'
 
 # WOFF2 cannot be decoded by the pruned embedded Python runtime without a Brotli
 # extension. Build Google's reference decoder as a self-contained Android ARM64
@@ -86,12 +86,12 @@ make -C "$WOFF2_SRC" -j2 all \
   LFLAGS='-fPIE -pie -static-libstdc++ -Wl,--build-id=none -Wl,-z,relro,-z,now' >/dev/null
 test -x "$WOFF2_SRC/woff2_decompress"
 "$STRIP" "$WOFF2_SRC/woff2_decompress"
-mkdir -p "$ROOT/.luoshu-runtime/bin"
-cp -f "$WOFF2_SRC/woff2_decompress" "$ROOT/.luoshu-runtime/bin/woff2_decompress"
-chmod 0755 "$ROOT/.luoshu-runtime/bin/woff2_decompress"
-file "$ROOT/.luoshu-runtime/bin/woff2_decompress" | grep -q 'ARM aarch64'
+mkdir -p "$ROOT/.ziyu-runtime/bin"
+cp -f "$WOFF2_SRC/woff2_decompress" "$ROOT/.ziyu-runtime/bin/woff2_decompress"
+chmod 0755 "$ROOT/.ziyu-runtime/bin/woff2_decompress"
+file "$ROOT/.ziyu-runtime/bin/woff2_decompress" | grep -q 'ARM aarch64'
 if [ -x "$READELF" ]; then
-  ! "$READELF" -d "$ROOT/.luoshu-runtime/bin/woff2_decompress" 2>/dev/null | grep -q 'libc++_shared'
+  ! "$READELF" -d "$ROOT/.ziyu-runtime/bin/woff2_decompress" 2>/dev/null | grep -q 'libc++_shared'
 fi
 
 python3 -m venv "$WORK/host-venv"
@@ -108,7 +108,7 @@ test -n "$DIST"
 R_DIST="$R/lib/python3.14/site-packages/$(basename "$DIST")"
 cp -a "$DIST" "$R/lib/python3.14/site-packages/"
 
-# Remove files not needed by LuoShu's offline font builder.
+# Remove files not needed by Ziyu's offline font builder.
 rm -rf \
   "$R/include" "$R/share" "$R/lib/pkgconfig" \
   "$R/lib/python3.14/test" "$R/lib/python3.14/idlelib" \
@@ -122,7 +122,7 @@ find "$R" -type f \( -name '*.a' -o -name '*.la' -o -name '*.pyc' -o -name '*.c'
 find "$R/lib/python3.14/site-packages" -type f -name '*.so' -delete
 
 cp -a "$R"/. "$ROOT/common/python/"
-chmod 0755 "$ROOT/common/python/bin/luoshu-python"
+chmod 0755 "$ROOT/common/python/bin/ziyu-python"
 
 # Copy exact upstream license files. Do not use a broad find over the combined
 # runtime tree: after FontTools is installed, that can select the wrong file.

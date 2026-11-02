@@ -1,0 +1,4 @@
+#!/system/bin/sh
+# Compatibility CLI; implementation stays outside the replaceable font payload.
+MOD="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+exec sh "$MOD/common/ziyu_health.sh" "$@"

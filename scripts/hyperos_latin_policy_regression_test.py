@@ -70,7 +70,7 @@ def shell_result(names: tuple[str, ...]) -> list[bool]:
     # Do not source another compatibility layer or inspect host font files.
     with tempfile.TemporaryDirectory() as temp:
         env = os.environ.copy()
-        for key in ('LUOSHU_REAL_MODDIR', 'MODDIR', 'MODULE_DIR', 'PWD'):
+        for key in ('ZIYU_REAL_MODDIR', 'MODDIR', 'MODULE_DIR', 'PWD'):
             env[key] = temp
         proc = subprocess.run(
             ['sh', '-c', '. "$1"; shift; for name do '
@@ -119,7 +119,7 @@ class LatinPolicyRegressionTest(unittest.TestCase):
             (root / 'NotoSansMono-Directory.ttf').mkdir()
             (root / 'NotoSansMono-Broken.ttf').symlink_to(root / 'missing')
             env = os.environ.copy()
-            for key in ('LUOSHU_REAL_MODDIR', 'MODDIR', 'MODULE_DIR', 'PWD'):
+            for key in ('ZIYU_REAL_MODDIR', 'MODDIR', 'MODULE_DIR', 'PWD'):
                 env[key] = temp
             proc = subprocess.run(
                 ['sh', '-c', '. "$1"; _lhcc_static_names() { '

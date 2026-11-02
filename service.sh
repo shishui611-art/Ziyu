@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu service router.
+# Ziyu service router.
 # Normal installations keep the current v4 service unchanged. Once the isolated
 # physical compatibility runtime is selected, background v4 payload rebuilds stay off.
 # App font inventory remains prewarmed through config/native_font_index.json.
@@ -10,7 +10,7 @@ UNIVERSAL_RUNTIME="$MODDIR/common/universal_mount_runtime.sh"
 UNIVERSAL_VERIFY="$MODDIR/common/universal_font_runtime_verify.sh"
 MOUNT_BACKEND_RUNTIME="$MODDIR/common/mount_backend_runtime.sh"
 LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
-V4_SERVICE="$MODDIR/.luoshu-runtime/core/service.sh"
+V4_SERVICE="$MODDIR/.ziyu-runtime/core/service.sh"
 mkdir -p "$MODDIR/logs" 2>/dev/null || true
 
 
@@ -123,7 +123,7 @@ fi
     _backend_state="$MODDIR/config/mount-backend.conf"
     _backend_active=$(sed -n 's/^active_backend=//p' "$_backend_state" 2>/dev/null | head -n1 | tr -d '\r\n')
     _backend_verify=$(sed -n 's/^verification=//p' "$_backend_state" 2>/dev/null | head -n1 | tr -d '\r\n')
-    _boot_id="${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
+    _boot_id="${ZIYU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
     _now=$(date +%s 2>/dev/null || echo 0)
 
     _verify_state=pending
@@ -194,17 +194,17 @@ fi
             # Reconcile against the pending transaction and its boot identity;
             # success for an older mounted font cannot consume the new marker.
             if [ -f "$MODDIR/common/font_boot_state.sh" ]; then
-                LUOSHU_BOOT_RECONCILE_CACHED_ONLY=1 MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+                ZIYU_BOOT_RECONCILE_CACHED_ONLY=1 MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
                     sh "$MODDIR/common/font_boot_state.sh" reconcile >/dev/null 2>&1 || true
             elif [ ! -s "$MODDIR/config/font-payload-next.conf" ]; then
                 rm -f "$MODDIR/config/text_reboot_required.conf" 2>/dev/null || true
             fi
             # Keep the previous actual payload for explicit undo across reboots.
-            rm -rf "$MODDIR"/.luoshu-payload-stage.* 2>/dev/null || true
+            rm -rf "$MODDIR"/.ziyu-payload-stage.* 2>/dev/null || true
             if [ -f "$MODDIR/common/action_control.sh" ]; then
-                LUOSHU_ACTION_CONTROL_LIBRARY=true . "$MODDIR/common/action_control.sh"
-                LUOSHU_ACTION_CONTROL_LIBRARY=false
-                luoshu_undo_prune_retired "$MODDIR" >> "$LOG" 2>&1 || true
+                ZIYU_ACTION_CONTROL_LIBRARY=true . "$MODDIR/common/action_control.sh"
+                ZIYU_ACTION_CONTROL_LIBRARY=false
+                ziyu_undo_prune_retired "$MODDIR" >> "$LOG" 2>&1 || true
             fi
             printf '[%s] font load confirmed: active=%s mount=%s\n' \
                 "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_active" "$_mount_state" >> "$LOG" 2>/dev/null
@@ -231,7 +231,7 @@ fi
     fi
     if [ -f "$MODDIR/common/font_manager.sh" ]; then
         if [ -f "$MODDIR/config/stock_inventory_scan_pending" ]; then
-            _stock_scan=$(LUOSHU_FRESH_STOCK_SCAN=1 MODDIR="$MODDIR" sh "$MODDIR/common/font_manager.sh" action stock_scan 2>&1)
+            _stock_scan=$(ZIYU_FRESH_STOCK_SCAN=1 MODDIR="$MODDIR" sh "$MODDIR/common/font_manager.sh" action stock_scan 2>&1)
             printf '[%s] deferred stock inventory: %s\n' \
                 "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_stock_scan" >> "$LOG" 2>/dev/null || true
         fi

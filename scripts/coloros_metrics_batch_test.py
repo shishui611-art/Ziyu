@@ -58,10 +58,10 @@ class ColorOSMetricsTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.module = self.root / 'module'
-        self.stage = self.module / '.luoshu-payload-next'
+        self.stage = self.module / '.ziyu-payload-next'
         self.stage.mkdir(parents=True)
         (self.module / 'config').mkdir()
-        self.env = patch.dict(os.environ, {'LUOSHU_BUILD_KEY': 'coloros-fixture'})
+        self.env = patch.dict(os.environ, {'ZIYU_BUILD_KEY': 'coloros-fixture'})
         self.env.start(); self.addCleanup(self.env.stop)
 
     def target(self, name='SysSans-Hans-Regular.ttf', partition='system'):
@@ -73,8 +73,8 @@ class ColorOSMetricsTest(unittest.TestCase):
             'state': 'ready', 'buildKey': build, 'slots': slots}))
 
     def report(self):
-        result = json.loads((self.stage / '.luoshu-metrics-report.json').read_text())
-        self.assertEqual(result['schema'], 'luoshu-slot-metrics-v1')
+        result = json.loads((self.stage / '.ziyu-metrics-report.json').read_text())
+        self.assertEqual(result['schema'], 'ziyu-slot-metrics-v1')
         self.assertEqual(result['romKind'], 'coloros')
         return result['slots']
 
@@ -193,6 +193,30 @@ class ColorOSMetricsTest(unittest.TestCase):
         self.assertEqual(path.read_bytes(), original)
         self.assertEqual(self.report()[0]['reason'], 'collection-metrics-preserved')
 
+    def test_synthetic_compatibility_alias_keeps_preserved_collection(self):
+        first = self.root / 'first.ttf'; second = self.root / 'second.ttf'
+        font_file(first); font_file(second, top=900)
+        canonical = self.target('SysSans-Hans-Regular.ttf')
+        alias = self.target('SysFont-Hans-Regular.ttf')
+        canonical.parent.mkdir(parents=True)
+        with TTFont(first) as a, TTFont(second) as b:
+            collection = TTCollection(); collection.fonts = [a, b]; collection.save(canonical)
+        os.link(canonical, alias)
+        original = canonical.read_bytes()
+        inode = canonical.stat().st_ino
+        self.inventory({'/system/fonts/SysSans-Hans-Regular.ttf': stock()})
+
+        result = batch.build(self.module, self.stage)
+
+        self.assertEqual(result['mapped'], 0)
+        self.assertEqual(canonical.read_bytes(), original)
+        self.assertEqual(alias.read_bytes(), original)
+        self.assertEqual(alias.stat().st_ino, inode)
+        reasons = {slot['slot']: slot.get('reason') for slot in self.report()}
+        self.assertEqual(reasons['/system/fonts/SysSans-Hans-Regular.ttf'], 'collection-metrics-preserved')
+        self.assertEqual(reasons['/system/fonts/SysFont-Hans-Regular.ttf'],
+                         'collection-alias-preserved-with-canonical')
+
     def test_generation_failure_does_not_replace_any_existing_alias(self):
         first = self.target('SysSans-Hans-Regular.ttf'); font_file(first)
         second = self.target('SysSans-Z-Broken.ttf'); second.write_bytes(b'brokenfont')
@@ -203,11 +227,11 @@ class ColorOSMetricsTest(unittest.TestCase):
             batch.build(self.module, self.stage)
         self.assertEqual(first.read_bytes(), original)
         self.assertFalse(list(self.stage.glob('.coloros-metrics-*')))
-        self.assertFalse((self.stage / '.luoshu-metrics-report.json').exists())
+        self.assertFalse((self.stage / '.ziyu-metrics-report.json').exists())
 
     def test_rejects_live_and_module_roots(self):
-        for target in (self.module, self.module / '.luoshu-payload',
-                       self.module / '.luoshu-payload/system'):
+        for target in (self.module, self.module / '.ziyu-payload',
+                       self.module / '.ziyu-payload/system'):
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, '本次启动'):
                 batch.build(self.module, target)
 
@@ -218,18 +242,18 @@ class ColorOSMetricsTest(unittest.TestCase):
         for name in ('coloros_metrics_batch.py', 'font_inventory.py', 'font_inventory_scan.py',
                      'hyperos_metrics_batch.py', 'font_metrics_normalize.py'):
             (common / name).symlink_to(ROOT / 'common' / name)
-        launcher = common / 'python/bin/luoshu-python'
-        launcher.write_text('#!/bin/sh\necho called >> "$LUOSHU_TEST_CALLS"\n'
+        launcher = common / 'python/bin/ziyu-python'
+        launcher.write_text('#!/bin/sh\necho called >> "$ZIYU_TEST_CALLS"\n'
                             'unset PYTHONHOME LD_LIBRARY_PATH\n'
-                            'PYTHONPATH="$LUOSHU_TEST_PATH" exec "$LUOSHU_TEST_PYTHON" "$@"\n')
+                            'PYTHONPATH="$ZIYU_TEST_PATH" exec "$ZIYU_TEST_PYTHON" "$@"\n')
         launcher.chmod(0o755)
         font_file(self.target())
         self.inventory({'/system/fonts/SysSans-Hans-Regular.ttf': stock()})
         calls = self.root / 'calls'
         result = subprocess.run(['sh', str(ROOT / 'common/coloros_stage_complete.sh'), str(self.stage)],
-            env={**os.environ, 'LUOSHU_REAL_MODDIR': str(self.module),
-                 'LUOSHU_TEST_PATH': os.pathsep.join(sys.path),
-                 'LUOSHU_TEST_PYTHON': sys.executable, 'LUOSHU_TEST_CALLS': str(calls)},
+            env={**os.environ, 'ZIYU_REAL_MODDIR': str(self.module),
+                 'ZIYU_TEST_PATH': os.pathsep.join(sys.path),
+                 'ZIYU_TEST_PYTHON': sys.executable, 'ZIYU_TEST_CALLS': str(calls)},
             capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls.read_text().splitlines(), ['called'])

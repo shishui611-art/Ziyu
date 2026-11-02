@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书 v2.0.0：原生 App 文件选择器导入桥。
+# 字域 v2.0.0：原生 App 文件选择器导入桥。
 # 只接受 App 私有缓存中的 TTF/OTF/TTC/WOFF/WOFF2/ZIP；网页字体先安全转换为 SFNT。
 set +e
 
@@ -16,10 +16,10 @@ MODULE_DIR="$MODDIR"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
-USER_IMPORT_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/import"
+USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+USER_IMPORT_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/import"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 WEB_CONVERTER="$MODDIR/common/font_web_convert.py"
 MAX_BYTES=268435456
 
@@ -84,7 +84,7 @@ schedule_font_prewarm() {
     [ -n "$_sfp_family" ] || return 0
     _sfp_switch="$MODDIR/common/legacy_v14_4/font_switch_safe.sh"
     [ -f "$_sfp_switch" ] || return 0
-    MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}" \
+    MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}" \
         sh "$_sfp_switch" action prewarm-start "$_sfp_family" >/dev/null 2>&1 || true
     return 0
 }

@@ -6,16 +6,16 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 export MODDIR="$TMP/module"
-export LUOSHU_SWITCH_TASK_FILE="$MODDIR/config/switch_task.conf"
-export LUOSHU_SWITCH_LOG="$MODDIR/logs/fontswitch.log"
+export ZIYU_SWITCH_TASK_FILE="$MODDIR/config/switch_task.conf"
+export ZIYU_SWITCH_LOG="$MODDIR/logs/fontswitch.log"
 # Production clamps the task timeout to at least 30 seconds. Keep this integration
 # fixture on the same contract instead of depending on the old 5-second test path.
-export LUOSHU_SWITCH_TIMEOUT_SECONDS=30
-export LUOSHU_SWITCH_WORKER_PID_FILE="$MODDIR/config/switch_task_worker.pid"
+export ZIYU_SWITCH_TIMEOUT_SECONDS=30
+export ZIYU_SWITCH_WORKER_PID_FILE="$MODDIR/config/switch_task_worker.pid"
 mkdir -p "$MODDIR/common" "$MODDIR/config" "$MODDIR/logs"
 cp "$ROOT/common/background_task.sh" "$MODDIR/common/background_task.sh"
 cp "$ROOT/common/util_functions.sh" "$ROOT/common/util_functions_core.sh" "$MODDIR/common/"
-cp "$ROOT/common/font_switch_lock.sh" "$ROOT/common/font_live_state.sh" "$MODDIR/common/"
+cp "$ROOT/common/font_switch_lock.sh" "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODDIR/common/"
 
 MANAGER="$TMP/fake-manager.sh"
 cat > "$MANAGER" <<'EOF_MANAGER'
@@ -25,7 +25,7 @@ case "${3:-}" in
     reused) printf '%s\n' '{"status":"ok","data":{"font":"reused","reused":true}}' ;;
     bad) printf '%s\n' '{"status":"error","message":"fake failure"}' ;;
     slow)
-        printf 'percent=76\nmessage=正在处理 HyperOS 字体度量\n' > "$LUOSHU_SWITCH_PROGRESS_FILE"
+        printf 'percent=76\nmessage=正在处理 HyperOS 字体度量\n' > "$ZIYU_SWITCH_PROGRESS_FILE"
         trap 'printf "%s\n" rolled-back > "${ROLLBACK_MARKER:?}"; exit 143' TERM INT
         # Leave scheduling headroom around the 30-second boundary. On a loaded
         # CI host the one-second polling loop can be delayed long enough for a
@@ -41,7 +41,7 @@ case "${3:-}" in
 esac
 EOF_MANAGER
 chmod +x "$MANAGER"
-export LUOSHU_FONT_MANAGER="$MANAGER"
+export ZIYU_FONT_MANAGER="$MANAGER"
 export ROLLBACK_MARKER="$TMP/rollback"
 
 wait_state() {
@@ -49,38 +49,38 @@ wait_state() {
     i=0
     state=''
     while [ "$i" -lt 420 ]; do
-        state="$(sed -n 's/^state=//p' "$LUOSHU_SWITCH_TASK_FILE" 2>/dev/null | head -n1)"
+        state="$(sed -n 's/^state=//p' "$ZIYU_SWITCH_TASK_FILE" 2>/dev/null | head -n1)"
         [ "$state" = "$wanted" ] && return 0
         sleep 0.1
         i=$((i + 1))
     done
     echo "timed out waiting for state=$wanted; current=${state:-missing}" >&2
-    cat "$LUOSHU_SWITCH_TASK_FILE" >&2 || true
+    cat "$ZIYU_SWITCH_TASK_FILE" >&2 || true
     return 1
 }
 
 start_output="$(sh "$ROOT/common/font_switch_task.sh" start good)"
 printf '%s\n' "$start_output" | grep -q '"status":"ok"'
 wait_state success
-grep -q '^message=100% · 字体已准备完成，完整重启后生效$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^percent=100$' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q '^message=100% · 字体已准备完成，完整重启后生效$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^percent=100$' "$ZIYU_SWITCH_TASK_FILE"
 grep -q '^state=pending$' "$MODDIR/config/device-font-load-verification.conf"
 grep -q '^reason=awaiting-full-reboot$' "$MODDIR/config/device-font-load-verification.conf"
-grep -q '^heartbeat=[0-9][0-9]*$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^timeout=30$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^elapsed=[0-9][0-9]*$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^bootId=.' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^reused=false$' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q '^heartbeat=[0-9][0-9]*$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^timeout=30$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^elapsed=[0-9][0-9]*$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^bootId=.' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^reused=false$' "$ZIYU_SWITCH_TASK_FILE"
 
 rm -f "$MODDIR/config/device-font-load-verification.conf"
 start_output="$(sh "$ROOT/common/font_switch_task.sh" start reused)"
 printf '%s\n' "$start_output" | grep -q '"status":"ok"'
 wait_state success
-grep -q '^message=100% · 当前字体已验证，无需重新生成或重启$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^percent=100$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^reused=true$' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q '^message=100% · 当前字体已验证，无需重新生成或重启$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^percent=100$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^reused=true$' "$ZIYU_SWITCH_TASK_FILE"
 test ! -e "$MODDIR/config/device-font-load-verification.conf"
-reused_task=$(sed -n 's/^task=//p' "$LUOSHU_SWITCH_TASK_FILE")
+reused_task=$(sed -n 's/^task=//p' "$ZIYU_SWITCH_TASK_FILE")
 reused_status="$(sh "$ROOT/common/font_switch_task.sh" status "$reused_task")"
 printf '%s\n' "$reused_status" | grep -q '"reused":true'
 printf '%s\n' "$reused_status" | grep -q '"percent":100'
@@ -88,8 +88,8 @@ printf '%s\n' "$reused_status" | grep -q '"percent":100'
 start_output="$(sh "$ROOT/common/font_switch_task.sh" start bad)"
 printf '%s\n' "$start_output" | grep -q '"status":"ok"'
 wait_state failed
-grep -q 'fake failure' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^percent=100$' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q 'fake failure' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^percent=100$' "$ZIYU_SWITCH_TASK_FILE"
 
 # Two simultaneous App requests must produce exactly one accepted task. The
 # launch lock protects the queued/running task record before the manager lock
@@ -113,11 +113,11 @@ wait_state success
 start_output="$(sh "$ROOT/common/font_switch_task.sh" start slow)"
 printf '%s\n' "$start_output" | grep -q '"status":"ok"'
 wait_state failed
-grep -q '达到 30 秒运行时限' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '76% · 正在处理 HyperOS 字体度量' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^percent=100$' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q '达到 30 秒运行时限' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '76% · 正在处理 HyperOS 字体度量' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^percent=100$' "$ZIYU_SWITCH_TASK_FILE"
 
-cat > "$LUOSHU_SWITCH_TASK_FILE" <<'EOF_STALE'
+cat > "$ZIYU_SWITCH_TASK_FILE" <<'EOF_STALE'
 task=old-boot-task
 state=running
 font=stale-font
@@ -132,14 +132,14 @@ percent=50
 bootId=different-boot-id
 EOF_STALE
 sh "$ROOT/common/font_switch_task.sh" reconcile
-grep -q '^state=failed$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^message=设备已重启，上一字体切换任务已结束$' "$LUOSHU_SWITCH_TASK_FILE"
-grep -q '^percent=100$' "$LUOSHU_SWITCH_TASK_FILE"
+grep -q '^state=failed$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^message=设备已重启，上一字体切换任务已结束$' "$ZIYU_SWITCH_TASK_FILE"
+grep -q '^percent=100$' "$ZIYU_SWITCH_TASK_FILE"
 
 status_output="$(sh "$ROOT/common/font_switch_task.sh" status)"
 printf '%s\n' "$status_output" | grep -q '"state":"failed"'
 printf '%s\n' "$status_output" | grep -q '"bootId":"'
 printf '%s\n' "$status_output" | grep -q '"percent":100'
-grep -q 'luoshu_start_detached' "$ROOT/common/font_switch_task.sh"
+grep -q 'ziyu_start_detached' "$ROOT/common/font_switch_task.sh"
 
 echo 'font_switch_task_test: PASS'

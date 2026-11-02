@@ -50,13 +50,13 @@ _zpr_cleanup() {
         PROVIDER_RELOAD_REASON=mountify-boot-cycle-not-finished; return 1 ;; esac
     _zpr_lock_dir="$_zpr_module/.ziyu-state/provider-reload.lock"
     . "$_zpr_module/common/font_switch_lock.sh" || return 1
-    luoshu_font_lock_acquire "$_zpr_lock_dir" "$$" || { PROVIDER_RELOAD_REASON=provider-reload-busy; return 1; }
+    ziyu_font_lock_acquire "$_zpr_lock_dir" "$$" || { PROVIDER_RELOAD_REASON=provider-reload-busy; return 1; }
     cp "$_zpr_plan_file" "$_zpr_module/.ziyu-state/provider-reload.started" || {
-        luoshu_font_lock_release "$_zpr_lock_dir" "$$"; return 1;
+        ziyu_font_lock_release "$_zpr_lock_dir" "$$"; return 1;
     }
     # Match the installed provider's exact single-instance protocol. Keep its
     # anti-bootloop counter intact, and don't run the provider's mount script here.
-    touch /dev/mountify_single_instance || { luoshu_font_lock_release "$_zpr_lock_dir" "$$"; return 1; }
+    touch /dev/mountify_single_instance || { ziyu_font_lock_release "$_zpr_lock_dir" "$$"; return 1; }
     _zpr_cleanup_rc=0
     _zpr_attempt=0
     while [ "$_zpr_attempt" -lt 256 ]; do
@@ -80,7 +80,7 @@ _zpr_cleanup() {
     else
         _zpr_cleanup_rc=1
     fi
-    luoshu_font_lock_release "$_zpr_lock_dir" "$$" 2>/dev/null || true
+    ziyu_font_lock_release "$_zpr_lock_dir" "$$" 2>/dev/null || true
     if [ "$_zpr_cleanup_rc" != 0 ]; then
         PROVIDER_RELOAD_REASON=mountify-cleanup-incomplete
         return 1

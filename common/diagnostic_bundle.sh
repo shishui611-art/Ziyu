@@ -2,7 +2,7 @@
 # One-file diagnostic bundle for failures on devices without adb.
 # Usage: sh common/diagnostic_bundle.sh dump [reason]
 # Writes a plain-text bundle under logs/diagnostics/ and copies it to
-# /sdcard/Ziyu/reports/ when public storage is mounted, so the file can be
+# the selected user-storage reports/ folder when storage is mounted, so it can be
 # shared from any file manager without a root shell.
 set +e
 
@@ -13,12 +13,12 @@ ziyu_user_storage_environment "$MODDIR"
 _REASON="${1:-manual}"
 
 _diag_stamp() { date '+%Y%m%d-%H%M%S' 2>/dev/null || echo unknown; }
-_diag_boot() { printf '%s\n' "${LUOSHU_DIAG_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"; }
-_diag_public_root() { printf '%s\n' "${LUOSHU_DIAG_PUBLIC_DIR:-$LUOSHU_PUBLIC_DIR/reports}"; }
+_diag_boot() { printf '%s\n' "${ZIYU_DIAG_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"; }
+_diag_public_root() { printf '%s\n' "${ZIYU_DIAG_PUBLIC_DIR:-$ZIYU_PUBLIC_DIR/reports}"; }
 _diag_public_ready() {
-    if [ -n "${LUOSHU_DIAG_PUBLIC_DIR:-}" ]; then
-        [ -d "${LUOSHU_DIAG_PUBLIC_DIR%/*}" ] || mkdir -p "${LUOSHU_DIAG_PUBLIC_DIR%/*}" 2>/dev/null
-        [ -d "${LUOSHU_DIAG_PUBLIC_DIR%/*}" ]
+    if [ -n "${ZIYU_DIAG_PUBLIC_DIR:-}" ]; then
+        [ -d "${ZIYU_DIAG_PUBLIC_DIR%/*}" ] || mkdir -p "${ZIYU_DIAG_PUBLIC_DIR%/*}" 2>/dev/null
+        [ -d "${ZIYU_DIAG_PUBLIC_DIR%/*}" ]
     else
         [ -d /sdcard ]
     fi
@@ -43,7 +43,7 @@ _diag_emit_file() {
 _diag_mount_snapshot() {
     printf '\n[%s]\n' "$1"
     [ -r "$1" ] || { printf '(inaccessible)\n'; return 0; }
-    awk '/fonts|font|overlay|luoshu\/self-mount/ || $5=="/" || $5=="/data" || $5=="/system" || $5=="/product" || $5=="/vendor" {if (++shown<=300) print; else skipped++} END {if (!shown) print "(no relevant mount rows)"; if (skipped) print "(truncated rows="skipped")"}' "$1"
+    awk '/fonts|font|overlay|ziyu\/self-mount/ || $5=="/" || $5=="/data" || $5=="/system" || $5=="/product" || $5=="/vendor" {if (++shown<=300) print; else skipped++} END {if (!shown) print "(no relevant mount rows)"; if (skipped) print "(truncated rows="skipped")"}' "$1"
 }
 
 _diag_kernel_snapshot() {
@@ -82,8 +82,8 @@ _diag_dump_once() {
         printf '\n[live root detection]\n'
         [ ! -f "$MODDIR/common/root_manager_detection.sh" ] || \
             MODDIR="$MODDIR" MODULE_DIR="$MODDIR" . "$MODDIR/common/root_manager_detection.sh"
-        type luoshu_root_manager_info >/dev/null 2>&1 && \
-            luoshu_root_manager_info 2>/dev/null
+        type ziyu_root_manager_info >/dev/null 2>&1 && \
+            ziyu_root_manager_info 2>/dev/null
         printf '\n[kernel / credentials / namespaces]\n'
         uname -a 2>&1
         id 2>&1
@@ -104,15 +104,15 @@ _diag_dump_once() {
         printf '\n[live mount engine / meta detection]\n'
         [ ! -f "$MODDIR/common/meta_mount_detection.sh" ] || \
             . "$MODDIR/common/meta_mount_detection.sh"
-        if type luoshu_meta_mount_detect >/dev/null 2>&1; then
-            luoshu_meta_mount_detect >/dev/null 2>&1
-            luoshu_meta_detection_info 2>/dev/null
+        if type ziyu_meta_mount_detect >/dev/null 2>&1; then
+            ziyu_meta_mount_detect >/dev/null 2>&1
+            ziyu_meta_detection_info 2>/dev/null
             printf 'META_HYBRID_ROUTE_REASON=%s\n' "${META_HYBRID_ROUTE_REASON:-}"
         fi
 
         printf '\n[health]\n'
-        _ldb_health="$MODDIR/.luoshu-payload/system/bin/luoshu-health"
-        [ -f "$_ldb_health" ] || _ldb_health="$MODDIR/system/bin/luoshu-health"
+        _ldb_health="$MODDIR/.ziyu-payload/system/bin/ziyu-health"
+        [ -f "$_ldb_health" ] || _ldb_health="$MODDIR/system/bin/ziyu-health"
         sh "$_ldb_health" 2>/dev/null || echo '(health unavailable)'
 
         _diag_mount_snapshot /proc/self/mountinfo
@@ -120,7 +120,7 @@ _diag_dump_once() {
         _diag_kernel_snapshot
 
         printf '\n[payload files]\n'
-        find "$MODDIR/.luoshu-payload" -type f 2>/dev/null | head -n 60
+        find "$MODDIR/.ziyu-payload" -type f 2>/dev/null | head -n 60
         _diag_emit_file 'boot-ota-guard.conf' "$MODDIR/config/boot-ota-guard.conf"
         _diag_emit_file 'boot-ota-pending.conf' "$MODDIR/config/boot-ota-pending.conf"
         _diag_emit_file 'boot-safety-mode.conf' "$MODDIR/config/boot-safety-mode.conf"
@@ -156,7 +156,7 @@ _diag_dump_once() {
         _diag_emit_file 'device-font-load-verification.conf' "$MODDIR/config/device-font-load-verification.conf"
         _diag_emit_file 'self-mount.conf' "$MODDIR/config/self-mount.conf"
         _diag_emit_file 'self-mount-required.conf' "$MODDIR/config/self-mount-required.conf"
-        _diag_self_root="${LUOSHU_SELF_MOUNT_STATE_ROOT:-/data/adb/luoshu/self-mount}"
+        _diag_self_root="${ZIYU_SELF_MOUNT_STATE_ROOT:-/data/adb/ziyu/self-mount}"
         _diag_emit_file 'self mount journal boot' "$_diag_self_root/boot-id"
         _diag_emit_file 'self mount journal' "$_diag_self_root/mounts.list" 400
         _diag_emit_file 'active_font.conf' "$MODDIR/config/active_font.conf"
@@ -176,7 +176,7 @@ _diag_dump_once() {
         _diag_emit_file 'universal-font-cutover.conf' "$MODDIR/config/universal-font-cutover.conf"
         _diag_emit_file 'switch task' "$MODDIR/config/switch_task.conf"
         _diag_emit_file 'switch cleanup proof' "$MODDIR/config/switch_task_worker.pid.cleanup.json"
-        _diag_emit_file 'next transaction journal' "$MODDIR/.luoshu-state/backup/next-transaction/journal.conf"
+        _diag_emit_file 'next transaction journal' "$MODDIR/.ziyu-state/backup/next-transaction/journal.conf"
         _diag_emit_file 'pending module metadata' '/data/adb/modules_update/ziyu/module.prop'
         _diag_emit_file 'device-font-engine.conf' "$MODDIR/config/device-font-engine.conf"
         _diag_emit_file 'font-runtime legacy conf' "$MODDIR/config/font_runtime_legacy_v14_4.conf"
@@ -192,8 +192,11 @@ _diag_dump_once() {
         _diag_emit_file 'stock ROM receipt' "$MODDIR/config/stock-rom-scan.conf"
         _diag_emit_file 'font inventory log' "$MODDIR/logs/font-inventory.log" 120
         _diag_emit_file 'font topology log' "$MODDIR/logs/font-topology.log" 120
-        _diag_emit_file 'stock rescan task' '/data/adb/.ziyu-luoshu-stock-rescan.lock/state'
-        _diag_emit_file 'stock rescan cleanup' '/data/adb/.ziyu-luoshu-stock-rescan.lock/worker.pid.cleanup.json'
+        _diag_emit_file 'data directory migration' "$MODDIR/config/adb-storage-migration.conf"
+        _diag_emit_file 'data directory migration log' "$MODDIR/logs/adb-storage.log" 120
+        _diag_emit_file 'owned data directory receipt' /data/adb/ziyu/migration.json
+        _diag_emit_file 'stock rescan task' '/data/adb/ziyu/locks/.ziyu-stock-rescan.lock/state'
+        _diag_emit_file 'stock rescan cleanup' '/data/adb/ziyu/locks/.ziyu-stock-rescan.lock/worker.pid.cleanup.json'
         _diag_emit_file 'self-mount.log' "$MODDIR/logs/self-mount.log" 600
         _diag_emit_file 'mount-diagnostics.log' "$MODDIR/logs/mount-diagnostics.log" 1200
         _diag_emit_file 'mount-diagnostics previous' "$MODDIR/logs/mount-diagnostics.log.previous" 400

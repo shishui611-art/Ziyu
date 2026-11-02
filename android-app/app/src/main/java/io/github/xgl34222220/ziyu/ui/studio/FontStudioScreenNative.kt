@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Warning
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCardDefaults
+import io.github.xgl34222220.ziyu.ui.theme.withCardTransparency
 import androidx.compose.material3.CardDefaults
 import io.github.xgl34222220.ziyu.ui.design.ZiyuCircularProgressIndicator as CircularProgressIndicator
 import io.github.xgl34222220.ziyu.ui.design.ZiyuHorizontalDivider as HorizontalDivider
@@ -548,7 +549,7 @@ private fun NativeStudioNotice(message: String, error: Boolean) {
     val tokens = LocalZiyuPaletteTokens.current
     val containerColor = if (error) MaterialTheme.colorScheme.errorContainer else tokens.cardBackground
     Surface(
-        color = containerColor,
+        color = containerColor.withCardTransparency(),
         border = ZiyuCardDefaults.border(containerColor),
         shadowElevation = LocalZiyuThemeTokens.current.layout.cardElevation,
     ) {

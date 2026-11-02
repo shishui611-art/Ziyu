@@ -10,14 +10,14 @@ export MODDIR MODULE_DIR
 LIVE_JOURNAL="$MODDIR/config/font-live-transaction.conf"
 LIVE_PY="$MODDIR/common/font_live_payload.py"
 LIVE_LOG="$MODDIR/logs/font-live.log"
-mkdir -p "$MODDIR/logs" "$MODDIR/.luoshu-state/tmp" || exit 1
+mkdir -p "$MODDIR/logs" "$MODDIR/.ziyu-state/tmp" || exit 1
 
 live_python() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then "$LUOSHU_PYTHON" "$@"; return $?; fi
+    if [ -n "${ZIYU_PYTHON:-}" ]; then "$ZIYU_PYTHON" "$@"; return $?; fi
     PYTHONHOME="$MODDIR/common/python" \
     PYTHONPATH="$MODDIR/common:$MODDIR/common/python/lib/python3.14:$MODDIR/common/python/lib/python3.14/site-packages" \
     LD_LIBRARY_PATH="$MODDIR/common/python/lib:$MODDIR/common/python/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$MODDIR/common/python/bin/luoshu-python" "$@"
+        "$MODDIR/common/python/bin/ziyu-python" "$@"
 }
 live_log() {
     printf '[%s] [LIVE] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LIVE_LOG"
@@ -30,30 +30,30 @@ live_defer() {
 }
 live_mount() (
     # Each attempt, including rollback, gets fresh work files. Old mmaps remain valid.
-    LUOSHU_SELF_MOUNT_STATE_ROOT="$3"
-    LUOSHU_MOUNT_ACTIVE_FONT="$2"
-    LUOSHU_LIVE_MOUNT_SOURCE="$1"
-    LUOSHU_SELF_MOUNT_MODE="$4"
-    LUOSHU_SELF_ALLOW_LAZY_UMOUNT=1
-    export LUOSHU_SELF_MOUNT_STATE_ROOT LUOSHU_MOUNT_ACTIVE_FONT LUOSHU_LIVE_MOUNT_SOURCE LUOSHU_SELF_MOUNT_MODE LUOSHU_SELF_ALLOW_LAZY_UMOUNT
+    ZIYU_SELF_MOUNT_STATE_ROOT="$3"
+    ZIYU_MOUNT_ACTIVE_FONT="$2"
+    ZIYU_LIVE_MOUNT_SOURCE="$1"
+    ZIYU_SELF_MOUNT_MODE="$4"
+    ZIYU_SELF_ALLOW_LAZY_UMOUNT=1
+    export ZIYU_SELF_MOUNT_STATE_ROOT ZIYU_MOUNT_ACTIVE_FONT ZIYU_LIVE_MOUNT_SOURCE ZIYU_SELF_MOUNT_MODE ZIYU_SELF_ALLOW_LAZY_UMOUNT
     . "$MODDIR/common/mount_compat.sh" || exit 1
     rm -f "$MODDIR/config/self-mount-required.conf" || exit 1
-    luoshu_private_self_mount_ensure || exit 1
+    ziyu_private_self_mount_ensure || exit 1
     . "$MODDIR/common/physical_payload_manifest.sh" || exit 1
-    luoshu_physical_manifest_build "$MODDIR" "$LUOSHU_LIVE_MOUNT_SOURCE" || exit 1
+    ziyu_physical_manifest_build "$MODDIR" "$ZIYU_LIVE_MOUNT_SOURCE" || exit 1
     live_python "$MODDIR/common/font_route_verify.py" --module-root "$MODDIR" \
-        --payload-root "$LUOSHU_LIVE_MOUNT_SOURCE" --active-font "$LUOSHU_MOUNT_ACTIVE_FONT" \
+        --payload-root "$ZIYU_LIVE_MOUNT_SOURCE" --active-font "$ZIYU_MOUNT_ACTIVE_FONT" \
         --mode legacy --output "$MODDIR/config/mount-backend-verification.json" || exit 1
 )
 live_detach() (
     [ -n "$1" ] || exit 1
-    case "$1" in /data/adb/luoshu/self-mount|/data/adb/luoshu/live-mount/"$BOOT".*) ;; *) exit 1 ;; esac
+    case "$1" in /data/adb/ziyu/self-mount|/data/adb/ziyu/live-mount/"$BOOT".*) ;; *) exit 1 ;; esac
     case "$1" in *'/../'*|*'/./'*) exit 1 ;; esac
-    LUOSHU_SELF_MOUNT_STATE_ROOT="$1"
-    LUOSHU_SELF_ALLOW_LAZY_UMOUNT=1
-    export LUOSHU_SELF_MOUNT_STATE_ROOT LUOSHU_SELF_ALLOW_LAZY_UMOUNT
+    ZIYU_SELF_MOUNT_STATE_ROOT="$1"
+    ZIYU_SELF_ALLOW_LAZY_UMOUNT=1
+    export ZIYU_SELF_MOUNT_STATE_ROOT ZIYU_SELF_ALLOW_LAZY_UMOUNT
     . "$MODDIR/common/mount_compat.sh" || exit 1
-    _luoshu_atomic_rollback "$1/mounts.list" detach
+    _ziyu_atomic_rollback "$1/mounts.list" detach
 )
 live_recover() {
     [ -f "$LIVE_JOURNAL" ] || return 0
@@ -70,7 +70,7 @@ live_recover() {
     REC_MODE=$(ziyu_live_value "$LIVE_JOURNAL" mode)
     REC_NEW_WORK=$(ziyu_live_value "$LIVE_JOURNAL" work_root)
     REC_OLD_WORK=$(ziyu_live_value "$LIVE_JOURNAL" old_work)
-    case "$REC_SOURCE" in "$MODDIR/.luoshu-payload"|"$MODDIR/.luoshu-state/cache/live/$BOOT/"generation-*) ;; *) return 1 ;; esac
+    case "$REC_SOURCE" in "$MODDIR/.ziyu-payload"|"$MODDIR/.ziyu-state/cache/live/$BOOT/"generation-*) ;; *) return 1 ;; esac
     case "$REC_SOURCE" in *'/../'*|*'/./'*) return 1 ;; esac
     [ -d "$REC_SOURCE" ] && [ -n "$REC_FONT" ] && [ "$REC_FONT" != default ] || return 1
     live_log "正在恢复上一套字体：$REC_FONT"
@@ -78,7 +78,7 @@ live_recover() {
     # Old detach can have been interrupted before mounting the new payload.
     live_detach "$REC_OLD_WORK" || return 1
     live_python "$LIVE_PY" "$MODDIR" restore || return 1
-    REC_WORK="/data/adb/luoshu/live-mount/$BOOT.$$.rollback"
+    REC_WORK="/data/adb/ziyu/live-mount/$BOOT.$$.rollback"
     [ ! -e "$REC_WORK" ] || REC_WORK="$REC_WORK.$(date +%s)"
     # Persist the rollback work root before its first mount for SIGKILL recovery.
     live_python "$LIVE_PY" "$MODDIR" work "$REC_WORK" || return 1
@@ -116,8 +116,8 @@ live_apply() {
     REQUEST=$(ziyu_live_value "$NEXT" requestId)
     [ -n "$FONT" ] && [ -n "$REQUEST" ] && [ "$(ziyu_live_value "$NEXT" state)" = prepared ] || return 1
     [ "$FONT" != default ] || { live_defer restoring-default-requires-reboot; return 3; }
-    OLD_SOURCE="$MODDIR/.luoshu-payload"
-    OLD_WORK=/data/adb/luoshu/self-mount
+    OLD_SOURCE="$MODDIR/.ziyu-payload"
+    OLD_WORK=/data/adb/ziyu/self-mount
     OLD_FONT=$(ziyu_live_value "$MODDIR/config/font-payload-activated.conf" font)
     if [ -z "$OLD_FONT" ]; then
         case "$(ziyu_live_value "$MODDIR/config/device-font-load-verification.conf" state)" in
@@ -132,23 +132,23 @@ live_apply() {
     if grep -q '\.xml|' "$MODDIR/config/font-payload-manifest.conf" 2>/dev/null; then
         live_defer previous-xml-runtime-requires-reboot; return 3
     fi
-    if ! ( LUOSHU_SELF_MOUNT_STATE_ROOT="$OLD_WORK"; export LUOSHU_SELF_MOUNT_STATE_ROOT
+    if ! ( ZIYU_SELF_MOUNT_STATE_ROOT="$OLD_WORK"; export ZIYU_SELF_MOUNT_STATE_ROOT
            . "$MODDIR/common/mount_compat.sh" || exit 1
-           _luoshu_atomic_partial_fonts_enabled && LUOSHU_PARTIAL_FONT_MOUNT=1
-           export LUOSHU_PARTIAL_FONT_MOUNT
-           _luoshu_atomic_verify_manifest "$MODDIR/config/self-mount-required.conf" ); then
+           _ziyu_atomic_partial_fonts_enabled && ZIYU_PARTIAL_FONT_MOUNT=1
+           export ZIYU_PARTIAL_FONT_MOUNT
+           _ziyu_atomic_verify_manifest "$MODDIR/config/self-mount-required.conf" ); then
         live_defer previous-mount-readback-failed; return 3
     fi
     live_log "正在建立独立字体代：$FONT；挂载方式=$MODE"
-    CACHE="$MODDIR/.luoshu-state/cache/live/$BOOT"
-    SOURCE=$(live_python "$LIVE_PY" prepare "$MODDIR/.luoshu-payload-next" "$CACHE" "$BOOT" "$CACHE/.prepare.$$" 2>> "$LIVE_LOG") || { live_defer immutable-generation-prepare-failed; return 3; }
-    WORK="/data/adb/luoshu/live-mount/$BOOT.$$.apply"
+    CACHE="$MODDIR/.ziyu-state/cache/live/$BOOT"
+    SOURCE=$(live_python "$LIVE_PY" prepare "$MODDIR/.ziyu-payload-next" "$CACHE" "$BOOT" "$CACHE/.prepare.$$" 2>> "$LIVE_LOG") || { live_defer immutable-generation-prepare-failed; return 3; }
+    WORK="/data/adb/ziyu/live-mount/$BOOT.$$.apply"
     [ ! -e "$WORK" ] || { live_defer working-directory-already-exists; return 3; }
     # Boot may already need an ext4 loop layer on casefold F2FS. Check the
     # long-path helper before detaching that working font.
     if [ -n "$(find "$OLD_WORK/work" -maxdepth 1 -name 'overlay-*.img' -type f -print -quit 2>/dev/null)" ]; then
         ( . "$MODDIR/common/mount_overlay_layer.sh" &&
-          _luoshu_overlay_select_loop_mounter ) || {
+          _ziyu_overlay_select_loop_mounter ) || {
             live_defer ext4-loop-long-path-helper-unavailable; return 3
         }
     fi
@@ -180,7 +180,7 @@ live_apply() {
     return 1
 }
 
-BOOT=$(luoshu_current_boot_id) || exit 1
+BOOT=$(ziyu_current_boot_id) || exit 1
 ACTION="${1:-apply}"
 case "$ACTION" in apply|recover|retire) ;; *) exit 2 ;; esac
 # Ordinary reboot-only users do not need a live runtime or namespace entry.
@@ -190,23 +190,23 @@ if [ "${ZIYU_LIVE_INNER:-0}" != 1 ]; then
     # Verify the actual canonical lock owner, not an untrusted bypass boolean.
     OWNER="${ZIYU_LIVE_OWNER_PID:-}"
     if [ -n "$OWNER" ]; then
-        [ "$(luoshu_font_lock_pid "$MODDIR/.font_switch.lock")" = "$OWNER" ] && \
-        [ "$(luoshu_font_lock_boot_id "$MODDIR/.font_switch.lock")" = "$BOOT" ] && \
-        [ "$(luoshu_font_lock_starttime "$MODDIR/.font_switch.lock")" = "$(luoshu_process_starttime "$OWNER")" ] || exit 1
+        [ "$(ziyu_font_lock_pid "$MODDIR/.font_switch.lock")" = "$OWNER" ] && \
+        [ "$(ziyu_font_lock_boot_id "$MODDIR/.font_switch.lock")" = "$BOOT" ] && \
+        [ "$(ziyu_font_lock_starttime "$MODDIR/.font_switch.lock")" = "$(ziyu_process_starttime "$OWNER")" ] || exit 1
     else
-        luoshu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || exit 1
-        trap 'luoshu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+        ziyu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || exit 1
+        trap 'ziyu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
         OWNER="$$"
     fi
     ZIYU_LIVE_OWNER_PID="$OWNER" ZIYU_LIVE_INNER=1 \
-        live_python "$LIVE_PY" --lock-exec "$MODDIR/.luoshu-state/tmp/font-live.lock" sh "$0" "$ACTION"
+        live_python "$LIVE_PY" --lock-exec "$MODDIR/.ziyu-state/tmp/font-live.lock" sh "$0" "$ACTION"
     exit $?
 fi
 # Both inherited identities must survive namespace entry.
 [ -n "${ZIYU_LIVE_OWNER_PID:-}" ] && \
-    [ "$(luoshu_font_lock_pid "$MODDIR/.font_switch.lock")" = "$ZIYU_LIVE_OWNER_PID" ] && \
-    [ "$(luoshu_font_lock_starttime "$MODDIR/.font_switch.lock")" = "$(luoshu_process_starttime "$ZIYU_LIVE_OWNER_PID")" ] && \
-    [ "$(readlink "/proc/self/fd/${ZIYU_LIVE_LOCK_FD:-invalid}")" = "$MODDIR/.luoshu-state/tmp/font-live.lock" ] || exit 1
+    [ "$(ziyu_font_lock_pid "$MODDIR/.font_switch.lock")" = "$ZIYU_LIVE_OWNER_PID" ] && \
+    [ "$(ziyu_font_lock_starttime "$MODDIR/.font_switch.lock")" = "$(ziyu_process_starttime "$ZIYU_LIVE_OWNER_PID")" ] && \
+    [ "$(readlink "/proc/self/fd/${ZIYU_LIVE_LOCK_FD:-invalid}")" = "$MODDIR/.ziyu-state/tmp/font-live.lock" ] || exit 1
 # The wrapper holds both locks while nsenter and all child mount commands execute.
 NEEDS_NAMESPACE=1
 if [ "$ACTION" = retire ] && [ "$(ziyu_live_value "$MODDIR/config/font-live.conf" boot_id)" != "$BOOT" ] && \

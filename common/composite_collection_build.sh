@@ -2,7 +2,7 @@
 # Build or validate TTC/OTC mix collections using only verified OEM snapshots.
 set +e
 
-REALMOD="${LUOSHU_REAL_MODDIR:-${MODDIR:-${MODULE_DIR:-}}}"
+REALMOD="${ZIYU_REAL_MODDIR:-${MODDIR:-${MODULE_DIR:-}}}"
 if [ -z "$REALMOD" ] || [ ! -f "$REALMOD/module.prop" ]; then
     _self_dir=$(CDPATH= cd -- "${0%/*}" 2>/dev/null && pwd)
     REALMOD=$(CDPATH= cd -- "$_self_dir/.." 2>/dev/null && pwd)
@@ -12,7 +12,7 @@ fi
     exit 2
 }
 
-_python="${LUOSHU_PYTHON:-}"
+_python="${ZIYU_PYTHON:-}"
 if [ -n "$_python" ]; then
     MODDIR="$REALMOD" MODULE_DIR="$REALMOD" exec "$_python" \
         "$REALMOD/common/composite_collection_build.py" "$@"
@@ -20,7 +20,7 @@ if [ -n "$_python" ]; then
 fi
 
 _pyroot="$REALMOD/common/python"
-_python="$_pyroot/bin/luoshu-python"
+_python="$_pyroot/bin/ziyu-python"
 [ -x "$_python" ] || {
     echo '字域字体运行时不可用，无法构建字体集合' >&2
     exit 20

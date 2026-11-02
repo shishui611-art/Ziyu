@@ -114,7 +114,7 @@ class CompositeCollectionBuildTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.module = self.root / 'module'
         (self.module / 'config').mkdir(parents=True)
-        self.payload = self.module / '.luoshu-state/tmp/stage'
+        self.payload = self.module / '.ziyu-state/tmp/stage'
         (self.payload / 'system/fonts').mkdir(parents=True)
         self.work = self.root / 'task'
         self.work.mkdir()
@@ -215,7 +215,7 @@ class CompositeCollectionBuildTest(unittest.TestCase):
         with TTFont(self.target_path, fontNumber=3, lazy=True) as specialized:
             self.assertEqual(specialized['OS/2'].usWeightClass, 500)
 
-        report_path = self.payload / '.luoshu-collection-proofs' / (
+        report_path = self.payload / '.ziyu-collection-proofs' / (
             hashlib.sha256(b'system/fonts/Core.ttc').hexdigest() + '.json')
         import json
         face_report = json.loads(report_path.read_text(encoding='utf-8'))
@@ -232,7 +232,7 @@ class CompositeCollectionBuildTest(unittest.TestCase):
 
         # All-retained collections are real OEM bytes with an explicit proof,
         # replacing any prior generated single-face alias in the staged slot.
-        emoji_report = json.loads((self.payload / '.luoshu-collection-proofs' / (
+        emoji_report = json.loads((self.payload / '.ziyu-collection-proofs' / (
             hashlib.sha256(b'system/fonts/Emoji.ttc').hexdigest() + '.json'
         )).read_text(encoding='utf-8'))
         self.assertEqual(emoji_report['mode'], 'retained-original-collection')
@@ -243,7 +243,7 @@ class CompositeCollectionBuildTest(unittest.TestCase):
     def test_required_proof_rejects_missing_stale_and_tampered_outputs(self):
         _, verified = self.run_payload_build()
         self.assertEqual(verified['result'], 'PASS')
-        proof_root = self.payload / '.luoshu-collection-proofs'
+        proof_root = self.payload / '.ziyu-collection-proofs'
         proof = proof_root / (hashlib.sha256(b'system/fonts/Core.ttc').hexdigest() + '.json')
         saved = proof.read_bytes()
 
@@ -282,7 +282,7 @@ class CompositeCollectionBuildTest(unittest.TestCase):
     def test_required_proof_rejects_sidecar_contract_not_matching_stock(self):
         _, verified = self.run_payload_build()
         self.assertEqual(verified['result'], 'PASS')
-        proof_root = self.payload / '.luoshu-collection-proofs'
+        proof_root = self.payload / '.ziyu-collection-proofs'
         proof = proof_root / (hashlib.sha256(b'system/fonts/Core.ttc').hexdigest() + '.json')
         import json
         report = json.loads(proof.read_text(encoding='utf-8'))

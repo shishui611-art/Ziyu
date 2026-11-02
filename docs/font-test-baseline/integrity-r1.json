@@ -1,0 +1,14 @@
+{
+  "revision": "coolapk-53620096-r1",
+  "checked_at": "2026-11-02T14:55:10+08:00",
+  "status": "verified-corpus-integrity",
+  "snapshot_sha256": "e45b90d6244268251d69d9b95d0ae5f36df4b0174b8b6dce280236be2db30bd2",
+  "original_bytes_match": true,
+  "derived_digests_match": true,
+  "original_test_lines_and_offsets_match": true,
+  "codepoint_index_matches": true,
+  "sections": 34,
+  "test_lines": 37,
+  "distinct_test_codepoints": 3994,
+  "scope": "file and dataset integrity only; no font coverage, generated font, mounting or device rendering tests performed"
+}

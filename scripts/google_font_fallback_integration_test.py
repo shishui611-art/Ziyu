@@ -19,7 +19,7 @@ class IntegrationTest(unittest.TestCase):
         self.backend = FakeAndroid()
         self.module = self.root / 'module'
         (self.module / 'config').mkdir(parents=True)
-        (self.module / 'module.prop').write_text('id=LuoShu\n')
+        (self.module / 'module.prop').write_text('id=Ziyu\n')
         (self.module / 'config/active_font.conf').write_text('custom\n')
 
     def status(self):
@@ -34,7 +34,7 @@ class IntegrationTest(unittest.TestCase):
         self.assertEqual(self.backend.calls, [])
 
     def test_previously_distributed_v1_script_record_is_recognized_and_restorable(self):
-        saved = {**self.backend.snapshot(0), 'schema': 'luoshu-google-font-fallback-v1', 'original': 0}
+        saved = {**self.backend.snapshot(0), 'schema': 'ziyu-google-font-fallback-v1', 'original': 0}
         self.journal.save(saved)
         original = self.journal.path.read_bytes()
         self.backend.states[0] = 2
@@ -108,8 +108,8 @@ class IntegrationTest(unittest.TestCase):
         self.assertEqual(self.backend.calls, [])
 
     def test_old_script_store_and_schema_are_unchanged(self):
-        self.assertEqual(str(m.STORE), '/data/adb/luoshu-google-font-fallback')
-        self.assertEqual(m.SCHEMA, 'luoshu-google-font-fallback-v1')
+        self.assertEqual(str(m.STORE), '/data/adb/ziyu-google-font-fallback')
+        self.assertEqual(m.SCHEMA, 'ziyu-google-font-fallback-v1')
 
     def test_runtime_and_ui_are_in_real_routes_and_payload(self):
         manifest = (ROOT / 'scripts/module_payload_manifest.txt').read_text().splitlines()
@@ -123,7 +123,7 @@ class IntegrationTest(unittest.TestCase):
             self.assertIn(text, page)
         self.assertNotIn('model.enable()', page.split('confirmButton')[0])
         uninstall = (ROOT / 'uninstall.sh').read_text()
-        self.assertLess(uninstall.index('restore-owned --json'), uninstall.index('. "$MODDIR/.luoshu-runtime/compat/v227/uninstall.sh"'))
+        self.assertLess(uninstall.index('restore-owned --json'), uninstall.index('. "$MODDIR/.ziyu-runtime/compat/v227/uninstall.sh"'))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -18,12 +18,12 @@ chmod 0755 "$TMP/module/common/dummy_worker.sh"
   MODDIR="$TMP/module"
   DUMMY_STATE="$TMP/state"; export DUMMY_STATE
   . "$TMP/module/common/background_task.sh"
-  luoshu_start_detached "$TMP/module/config/dummy.pid" dummy-task "$TMP/module/logs/dummy.log" sh "$TMP/module/common/dummy_worker.sh" worker dummy-task
+  ziyu_start_detached "$TMP/module/config/dummy.pid" dummy-task "$TMP/module/logs/dummy.log" sh "$TMP/module/common/dummy_worker.sh" worker dummy-task
 )
 for _n in 1 2 3 4 5; do [ "$(cat "$TMP/state" 2>/dev/null)" = finished ] && break; sleep 1; done
 [ "$(cat "$TMP/state" 2>/dev/null)" = finished ]
 grep -q 'nohup setsid\|toybox nohup toybox setsid' "$ROOT/common/background_task.sh"
-grep -q 'luoshu_start_detached.*worker' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
+grep -q 'ziyu_start_detached.*worker' "$ROOT/common/legacy_v14_4/v142_weighted_mix.sh"
 grep -q 'exec sh.*weighted_mix_task.sh' "$ROOT/common/multiweight_mix_task.sh"
 grep -q 'font_mix_controller.sh' "$ROOT/common/font_mix.sh"
 # The App entry must delegate without loading validators or enumerating fonts.

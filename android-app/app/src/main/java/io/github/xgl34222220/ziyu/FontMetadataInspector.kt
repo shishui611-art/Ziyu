@@ -1,5 +1,6 @@
 package io.github.xgl34222220.ziyu
 
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -164,7 +165,7 @@ private fun MetadataPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(if (style == UiStyle.MIUIX) 20.dp else 16.dp),
-                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                    leadingIcon = { ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, contentDescription = null) } },
                     placeholder = { Text("搜索字体") },
                 )
                 LazyColumn(

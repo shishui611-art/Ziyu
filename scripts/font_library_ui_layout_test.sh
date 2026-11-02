@@ -145,10 +145,10 @@ grep -q 'log_rom_detection_once hyperos' "$UTIL"
 # ready cache, but activation, reboot markers and transaction commits belong exclusively
 # to the explicit foreground switch.
 CACHE_WORKER=$(sed -n '/^_dfcache_build_pending_inner()/,/^}/p' "$CACHE")
-printf '%s\n' "$CACHE_WORKER" | grep -q 'LUOSHU_CACHE_FOREGROUND'
+printf '%s\n' "$CACHE_WORKER" | grep -q 'ZIYU_CACHE_FOREGROUND'
 ! printf '%s\n' "$CACHE_WORKER" | grep -q 'device_font_cache_activate'
 ! printf '%s\n' "$CACHE_WORKER" | grep -q 'text_reboot_required.conf'
-! printf '%s\n' "$CACHE_WORKER" | grep -q 'luoshu_payload_transaction_commit'
+! printf '%s\n' "$CACHE_WORKER" | grep -q 'ziyu_payload_transaction_commit'
 grep -q '设备对齐缓存已就绪且未改动当前字体' "$CACHE"
 
 # Task center separates user-facing tasks/issues from raw logs and all routed header
@@ -266,7 +266,7 @@ grep -q 'maxOf(LocalDockContentPadding.current, layout.dockSafeBottom)' "$COMPAC
 grep -q 'controlsBottomPadding + layout.dockSafeBottom / 3' "$LOGS_COMPACT"
 grep -q 'onSizeChanged { importControlsHeight = it.height }' "$LOGS_ROUTE"
 grep -q 'HomeConnectionRow' "$HOME_COMPACT"
-grep -q 'luoshu_mount_backend_details' "$APP_BRIDGE"
+grep -q 'ziyu_mount_backend_details' "$APP_BRIDGE"
 grep -q 'MOUNT_PROVIDER_NAME.*MOUNT_METHOD' "$APP_BRIDGE"
 grep -q '"mountEngine":"%s"' "$APP_BRIDGE"
 grep -q 'mountEngineLabel(state.mountEngine)' "$SETTINGS"

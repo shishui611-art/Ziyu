@@ -20,14 +20,14 @@ class HomeBackendStatusTest(unittest.TestCase):
         (self.module / 'config').mkdir()
         for name in ('app_bridge.sh', 'root_manager_detection.sh', 'mount_backend_details.sh', 'mount_backend_state.sh'):
             shutil.copy2(ROOT / 'common' / name, self.module / 'common' / name)
-        (self.module / 'module.prop').write_text('id=LuoShu\nversion=test\nversionCode=1\n')
+        (self.module / 'module.prop').write_text('id=Ziyu\nversion=test\nversionCode=1\n')
         for directory in ('ksu', 'magisk'):
             (self.base / 'data' / 'adb' / directory).mkdir(parents=True)
         self.shell = shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(('KSU', 'SUKISU', 'MAGISK', 'APATCH'))}
         self.env.update(MODDIR=str(self.module), MODULE_DIR=str(self.module),
-                        LUOSHU_ROOT_DETECT_ROOT=str(self.base))
+                        ZIYU_ROOT_DETECT_ROOT=str(self.base))
         self.env['PATH'] = str(Path(self.shell).parent) + os.pathsep + self.env.get('PATH', '')
         # Native Windows MSYS lacks Linux boot_id. A read-only proc fixture
         # exercises the same boot check without introducing a production bypass.
@@ -64,7 +64,7 @@ class HomeBackendStatusTest(unittest.TestCase):
     def test_shared_boot_identity_wins_over_residual_directories_in_home_and_settings(self):
         self.backend()
         self.assertEqual('SukiSU Ultra', self.status()['rootManager'])
-        report = subprocess.run([self.shell, str(ROOT / 'system' / 'bin' / 'luoshu-health'), 'report'],
+        report = subprocess.run([self.shell, str(ROOT / 'system' / 'bin' / 'ziyu-health'), 'report'],
                                 env=self.env, capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(0, report.returncode, report.stderr)
         self.assertIn('rootManager=SukiSU Ultra\n', report.stdout)

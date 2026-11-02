@@ -85,7 +85,7 @@ class FontLibraryBackupTest {
     private fun validProfileRaw(): String = """
         {
           "schema": 1,
-          "type": "luoshu-studio-profile",
+          "type": "ziyu-studio-profile",
           "name": "test",
           "slots": {
             "cjk": {"fontId":"cjk","fontName":"CJK Family","weight":400,"axes":{"wght":400}},

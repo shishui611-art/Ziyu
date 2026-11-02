@@ -33,8 +33,8 @@ pidof() {
         *) return 1 ;;
     esac
 }
-LUOSHU_PROC_ROOT="$FAKE"
-export LUOSHU_PROC_ROOT
+ZIYU_PROC_ROOT="$FAKE"
+export ZIYU_PROC_ROOT
 _gfp_namespace_pids > "$TMP/out"
 
 CASE='pidof 命中不能吞掉通配发现的额外进程'
@@ -65,7 +65,7 @@ ok command grep -qx 2100 "$TMP/unique"
 CASE='源码不得恢复逐进程 fork'
 no command grep -q 'basename "\$_gfp_proc"' "$ROOT/common/google_font_provider_bridge.sh"
 no command grep -q '_gfp_cmd=$(tr' "$ROOT/common/google_font_provider_bridge.sh"
-ok command grep -q 'LUOSHU_PROC_ROOT:-/proc' "$ROOT/common/google_font_provider_bridge.sh"
+ok command grep -q 'ZIYU_PROC_ROOT:-/proc' "$ROOT/common/google_font_provider_bridge.sh"
 ok command grep -q '_gfp_namespace_pid_list=$(_gfp_unique_namespace_pids)' "$ROOT/common/google_font_provider_bridge.sh"
 
 CASE='语法'

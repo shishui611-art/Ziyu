@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Classify Android font slots by semantic role and emit a read-only shadow plan.
 
-Phase 2 of the LuoShu universal font engine. This module never modifies fonts,
+Phase 2 of the Ziyu universal font engine. This module never modifies fonts,
 XML, mount state or /data/fonts. It only consumes device_font_topology.json and
 writes two diagnostic/planning JSON files.
 """

@@ -62,6 +62,7 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCardDefaults
+import io.github.xgl34222220.ziyu.ui.theme.withCardTransparency
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuSegmentedTabs
 import androidx.compose.material3.CardDefaults
 import io.github.xgl34222220.ziyu.ui.design.ZiyuCircularProgressIndicator as CircularProgressIndicator
@@ -152,6 +153,7 @@ data class AppearanceActions(
     val setBackgroundPath: (String) -> Unit = {},
     val setThemeDisplay: (ThemeMode, Boolean) -> Unit = { _, _ -> },
     val setPredictiveBack: (Boolean) -> Unit = {},
+    val setCardTransparency: (Int) -> Unit = {},
 )
 
 internal enum class SettingsSection(
@@ -409,7 +411,7 @@ private fun SettingsOverviewCard(health: SystemHealthSnapshot, currentFontLabel:
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = ZiyuShapeTokens.Card,
-        color = if (style == UiStyle.MATERIAL) scheme.surfaceContainerLow else tokens.cardBackground,
+        color = (if (style == UiStyle.MATERIAL) scheme.surfaceContainerLow else tokens.cardBackground).withCardTransparency(),
         border = ZiyuCardDefaults.border(),
         shadowElevation = layout.cardElevation,
     ) {
@@ -637,6 +639,7 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
             }
         }
         item { AppearancePaletteCard(settings, actions) }
+        item { AppearanceCardTransparencyCard(settings, actions) }
         item { BackgroundImageCard(settings, actions.setBackgroundPath) }
     }
 }
@@ -649,33 +652,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
     var temporaryRootEnabled by remember { mutableStateOf(false) }
     var temporaryRootBusy by remember { mutableStateOf(false) }
     var temporaryRootMessage by remember { mutableStateOf("") }
-    var preloadState by remember { mutableStateOf("loading") }
-    var preloadCallback by remember { mutableStateOf("unobserved") }
-    var preloadBusy by remember { mutableStateOf(false) }
-    var preloadMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    suspend fun refreshPreload() {
-        val result = RootShell.exec("sh /data/adb/modules/ziyu/common/font_preload_control.sh status", 8_000L)
-        if (result.code != 0) {
-            preloadState = "error"
-            preloadMessage = result.stderr.ifBlank { "无法读取预加载组件状态" }
-        } else {
-            val values = result.stdout.lineSequence().filter { '=' in it }
-                .associate { it.substringBefore('=') to it.substringAfter('=') }
-            preloadState = values["state"] ?: "error"
-            preloadCallback = values["callback"] ?: "unobserved"
-        }
-    }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && !preloadBusy) {
-                scope.launch { refreshPreload() }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
     val ksuAvailable = h.rootManager == "KernelSU" || h.rootManager == "SukiSU Ultra"
     LaunchedEffect(ksuAvailable) {
         if (ksuAvailable) {
@@ -686,36 +663,6 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
     }
     pageList {
         item {
-            SettingCard("Zygisk 字体预加载") {
-                val stateText = when (preloadState) {
-                    "enabled" -> if (preloadCallback == "observed") "已启用，本次开机已收到回调" else "已启用，尚未观察到回调"
-                    "disabled" -> "已停用"
-                    "removed" -> "已标记移除"
-                    "absent" -> "配套组件未安装"
-                    "foreign" -> "组件身份不匹配"
-                    "loading" -> "正在读取…"
-                    else -> "状态不可用"
-                }
-                InfoLine("配套组件", stateText)
-                InfoLine("本次开机回调", if (preloadCallback == "observed") "已观察到" else "尚未观察到")
-                Text("仅在 Zygisk 实际加载并执行回调时预加载已验证字体；不会自动启用框架或修改排除列表。回调记录不等于字体显示验证。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                if (preloadState == "enabled" || preloadState == "disabled") {
-                    ToggleLine("启用预加载组件", "更改后完整重启生效", preloadState == "enabled", { enabled ->
-                        scope.launch {
-                            preloadBusy = true
-                            val action = if (enabled) "enable" else "disable"
-                            val result = RootShell.exec("sh /data/adb/modules/ziyu/common/font_preload_control.sh $action", 8_000L)
-                            preloadMessage = if (result.code == 0) "已更新组件状态，完整重启后生效" else result.stderr.ifBlank { "更新组件状态失败" }
-                            refreshPreload()
-                            preloadBusy = false
-                        }
-                    }, !preloadBusy)
-                }
-                if (preloadMessage.isNotBlank()) Text(preloadMessage, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
-                TextButton(onClick = { scope.launch { preloadBusy = true; refreshPreload(); preloadBusy = false } }, enabled = !preloadBusy) { Text("刷新状态") }
-            }
-        }
-        item {
             SettingCard("LSPosed 网页字体") {
                 Text("在 LSPosed 中启用字域并手动勾选目标应用，然后重新打开应用。支持系统 WebView 中允许 JavaScript 的网页文字，使用当前系统无衬线字体；图标和代码区尽量保留原样。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Text("自带浏览器内核、画布文字、部分 iframe 或受网页策略限制的内容可能不生效。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
@@ -725,7 +672,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
             SettingCard("KernelSU 软重启") {
                 ToggleLine(
                     title = "使用临时 Root 流程",
-                    description = "完整重启会掉 Root 时开启。字体准备后可在字域内确认软重启；late-load 会自动识别，无需手动开启。",
+                    description = "刷入模块时的音量键选择会同步到这里，也可手动修改。完整重启会掉 Root 时开启；字体准备后可确认软重启。late-load 会自动识别。",
                     checked = temporaryRootEnabled,
                     enabled = !temporaryRootBusy,
                     onChange = { enabled ->
@@ -750,6 +697,8 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
         }
         item {
             StatusCard("字域安全体检", h.summary, h.level, h.loading) {
+                Text("检查字体文件、挂载状态、切换任务、模块冲突和近期错误。体检只读取状态；安全清理仅处理已确认失效的锁和任务记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
                 if (h.error.isNotBlank()) Text(h.error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 else {
                     InfoLine("Root 管理器", h.rootManager)

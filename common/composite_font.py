@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LuoShu full composite font builder.
+"""Ziyu full composite font builder.
 
 The CJK font is kept as the complete base. Latin and digit glyph outlines are
 copied into glyph slots which already exist in the base font, so the output
@@ -278,7 +278,7 @@ def _replace_codepoints(base: TTFont, src: TTFont, codepoints: Iterable[int], ro
 
 
 def _set_names(font: TTFont) -> None:
-    replacements = {1: "LuoShu Composite", 4: "LuoShu Composite", 6: "LuoShuComposite"}
+    replacements = {1: "Ziyu Composite", 4: "Ziyu Composite", 6: "ZiyuComposite"}
     if "name" not in font:
         return
     for record in font["name"].names:

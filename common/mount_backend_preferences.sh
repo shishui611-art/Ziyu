@@ -27,14 +27,14 @@ _lmp_normalize() {
 }
 _lmp_json_string() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'; }
 _lmp_boot_id() {
-    printf '%s\n' "${LUOSHU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
+    printf '%s\n' "${ZIYU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
 }
-luoshu_mount_preference_get() {
+ziyu_mount_preference_get() {
     _lmp_read_module="${1:-$(_lmp_module)}"
     _lmp_read_file="$_lmp_read_module/config/mount-backend-preference.conf"
     _lmp_normalize "$(_lmp_value "$_lmp_read_file" preferred_backend)"
 }
-luoshu_mount_preference_write() {
+ziyu_mount_preference_write() {
     _lmp_write_preference="$1"
     _lmp_write_module="${2:-$(_lmp_module)}"
     _lmp_valid "$_lmp_write_preference" || return 2
@@ -45,20 +45,20 @@ luoshu_mount_preference_write() {
     (umask 077; printf 'schema=ziyu-mount-preference-v2\npreferred_backend=%s\n' "$_lmp_write_preference" > "$_lmp_write_tmp") || return 1
     mv -f "$_lmp_write_tmp" "$_lmp_write_file" 2>/dev/null || { rm -f "$_lmp_write_tmp"; return 1; }
 }
-luoshu_mount_preference_restore() {
+ziyu_mount_preference_restore() {
     # Explicitly migrate even when the font payload itself cannot be migrated.
     [ -f "$1/config/mount-backend-preference.conf" ] || return 0
     _lmp_restore=$(_lmp_normalize "$(_lmp_value "$1/config/mount-backend-preference.conf" preferred_backend)")
-    luoshu_mount_preference_write "$_lmp_restore" "$2"
+    ziyu_mount_preference_write "$_lmp_restore" "$2"
 }
-luoshu_mount_preference_status() {
+ziyu_mount_preference_status() {
     _lmp_status_module=$(_lmp_module)
     _lmp_status_file="$_lmp_status_module/config/mount-backend.conf"
     _lmp_load_state_reader || return 1
     ziyu_backend_state_load "$_lmp_status_file" || :
     . "$_lmp_status_module/common/mount_backend_details.sh"
-    luoshu_mount_backend_details snapshot
-    _lmp_preferred=$(luoshu_mount_preference_get)
+    ziyu_mount_backend_details snapshot
+    _lmp_preferred=$(ziyu_mount_preference_get)
     _lmp_boot_preference=$ZIYU_BACKEND_PREFERRED_BACKEND
     _lmp_state_boot=$ZIYU_BACKEND_BOOT_ID
     _lmp_current_boot=$(_lmp_boot_id)
@@ -112,7 +112,7 @@ luoshu_mount_preference_status() {
         "$(_lmp_json_string "${_lmp_failure:-none}")" "$(_lmp_json_string "${_lmp_error:-none}")" \
         "$(_lmp_json_string "$MOUNT_PROVIDER_NAME")" "$(_lmp_json_string "$MOUNT_PROVIDER_VERSION")" "$(_lmp_json_string "$MOUNT_METHOD")" "$(_lmp_json_string "$MOUNT_METHOD_EVIDENCE")" "$(_lmp_json_string "$MOUNT_ROOT_MANAGER")" "$(_lmp_json_string "$MOUNT_ROOT_VERSION")"
 }
-luoshu_mount_preference_cancel() {
+ziyu_mount_preference_cancel() {
     _lmp_cancel_file="$(_lmp_module)/config/mount-backend.conf"
     _lmp_load_state_reader || return 1
     ziyu_backend_state_load "$_lmp_cancel_file" || return 1
@@ -122,21 +122,21 @@ luoshu_mount_preference_cancel() {
     [ -n "$_lmp_cancel_current" ] && [ "$_lmp_cancel_boot" = "$_lmp_cancel_current" ] || return 1
     _lmp_cancel_preference=$ZIYU_BACKEND_PREFERRED_BACKEND
     _lmp_valid "$_lmp_cancel_preference" || _lmp_cancel_preference=auto
-    luoshu_mount_preference_write "$_lmp_cancel_preference"
+    ziyu_mount_preference_write "$_lmp_cancel_preference"
 }
 if [ "${0##*/}" = mount_backend_preferences.sh ]; then
     case "${1:-get}" in
-        get) luoshu_mount_preference_status ;;
+        get) ziyu_mount_preference_status ;;
         set)
             if ! _lmp_valid "${2:-}"; then
                 printf '{"ok":false,"error":"invalid-backend-preference"}\n'; exit 2
             fi
-            luoshu_mount_preference_write "$2" || { printf '{"ok":false,"error":"preference-write-failed"}\n'; exit 1; }
-            luoshu_mount_preference_status
+            ziyu_mount_preference_write "$2" || { printf '{"ok":false,"error":"preference-write-failed"}\n'; exit 1; }
+            ziyu_mount_preference_status
             ;;
         cancel)
-            luoshu_mount_preference_cancel || { printf '{"ok":false,"error":"no-current-boot-preference"}\n'; exit 1; }
-            luoshu_mount_preference_status
+            ziyu_mount_preference_cancel || { printf '{"ok":false,"error":"no-current-boot-preference"}\n'; exit 1; }
+            ziyu_mount_preference_status
             ;;
         *) printf '{"ok":false,"error":"unknown-command"}\n'; exit 2 ;;
     esac

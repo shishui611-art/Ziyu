@@ -23,11 +23,11 @@ import sys, xml.etree.ElementTree as ET
 sys.path.insert(0, sys.argv[1] + "/common")
 from font_config_overlay import rewrite_tree
 tree = ET.parse(sys.argv[2])
-report = rewrite_tree(tree, "LuoShu", "LuoShuMono")
+report = rewrite_tree(tree, "LuoShu", "ZiyuMono")
 assert report["changed_mono_families"] == [], report
 names = {f.attrib.get("name"): [c.text for c in f] for f in tree.getroot()}
 assert names["monospace"] == ["DroidSansMono.ttf"], names
-assert names["sans-serif"] == ["LuoShu-400.ttf"], names
+assert names["sans-serif"] == ["Ziyu-400.ttf"], names
 PY
 
 # XML/monospace generation remains implemented and regression-tested in the preserved

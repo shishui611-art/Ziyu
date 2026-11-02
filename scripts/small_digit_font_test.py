@@ -78,7 +78,7 @@ class SmallDigitFontTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "digits.ttf"
             digit_fixture(source)
-            env = {**os.environ, "MODDIR": ROOT.as_posix(), "LUOSHU_HOST_PYTHON": Path(sys.executable).as_posix()}
+            env = {**os.environ, "MODDIR": ROOT.as_posix(), "ZIYU_HOST_PYTHON": Path(sys.executable).as_posix()}
             for check_script in ("common/font_check.sh", "common/legacy_v14_4/font_check.sh"):
                 result = subprocess.run([shell, (ROOT / check_script).as_posix(), "--json", source.as_posix()],
                                         env=env, capture_output=True, text=True, encoding="utf-8", timeout=20)

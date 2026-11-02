@@ -50,7 +50,7 @@ class FontArchiveExportTest {
         )
         val root = JSONObject(raw)
 
-        assertEquals("luoshu-font-archive", root.getString("type"))
+        assertEquals("ziyu-font-archive", root.getString("type"))
         assertTrue(root.getBoolean("includesFontFiles"))
         assertEquals(1, root.getInt("familyCount"))
         assertEquals(2, root.getInt("fileCount"))

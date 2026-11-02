@@ -12,6 +12,7 @@ import argparse
 from contextlib import contextmanager
 import fcntl
 import json
+from legacy_identity import schema as identity_schema
 import os
 from pathlib import Path
 import re
@@ -24,9 +25,9 @@ from typing import Any
 GMS = 'com.google.android.gms'
 PROVIDER = GMS + '.fonts.provider.FontsProvider'
 COMPONENT = GMS + '/' + PROVIDER
-STORE = Path('/data/adb/luoshu-google-font-fallback')
+STORE = Path('/data/adb/ziyu/google-font-fallback')
 MODULE = Path('/data/adb/modules/ziyu')
-SCHEMA = 'luoshu-google-font-fallback-v1'
+SCHEMA = 'ziyu-google-font-fallback-v1'
 
 
 class FallbackError(RuntimeError):
@@ -147,7 +148,7 @@ def same_install(saved: dict, current: dict) -> bool:
 
 
 def validate_journal(data: dict, user: int) -> None:
-    if (not isinstance(data, dict) or data.get('schema') != SCHEMA
+    if (not isinstance(data, dict) or identity_schema(data.get('schema')) != SCHEMA
             or data.get('component') != COMPONENT or type(data.get('user')) is not int
             or data['user'] != user or type(data.get('appId')) is not int
             or not isinstance(data.get('firstInstallTime'), str)
@@ -205,7 +206,9 @@ class Journal:
 
 @contextmanager
 def locked_store(directory: Path):
-    directory.mkdir(mode=0o700, parents=False, exist_ok=True)
+    if directory.parent.is_symlink() or directory.is_symlink():
+        raise FallbackError('恢复目录不能是符号链接。')
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = directory.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o077:
         raise FallbackError('恢复目录不是当前 Root 独占的真实目录。')

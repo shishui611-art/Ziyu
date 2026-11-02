@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a complete per-device font payload from captured stock slots.
 
-The builder consumes the ROM template and LuoShu's prepared 100-900 source files.
+The builder consumes the ROM template and Ziyu's prepared 100-900 source files.
 Every slot is planned against the matching source weight, equivalent contracts are
 deduplicated, and a failed build never replaces the previous complete cache.
 """
@@ -197,7 +197,7 @@ def build_payload(
             signature = build_signature(plan, source_profile, source_weight)
             generated = generated_by_signature.get(signature)
             if generated is None:
-                filename = f"LuoShuSlot-{signature[:20]}-{target_weight}.ttf"
+                filename = f"ZiyuSlot-{signature[:20]}-{target_weight}.ttf"
                 destination = fonts_dir / filename
                 try:
                     report = slot_builder.build_slot(source_path, -1, plan, destination)
@@ -283,7 +283,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--template", required=True, type=Path)
     parser.add_argument("--source-dir", required=True, type=Path)
-    parser.add_argument("--source-prefix", default="LuoShu")
+    parser.add_argument("--source-prefix", default="Ziyu")
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--manifest", type=Path)
     return parser.parse_args()

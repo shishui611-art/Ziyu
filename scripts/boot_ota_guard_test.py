@@ -7,7 +7,7 @@ helper=(root/'common/boot_ota_guard.sh').as_posix()
 with tempfile.TemporaryDirectory() as directory:
     module=pathlib.Path(directory)
     config=module/'config'; config.mkdir()
-    (module/'module.prop').write_text('id=LuoShu\n')
+    (module/'module.prop').write_text('id=Ziyu\n')
     (config/'active_font.conf').write_text('Demo\n')
     (config/'boot-ota-guard.conf').write_text('schema=ziyu-boot-ota-guard-v1\nunfinished_boots=0\nfingerprint=rom-a\n')
     env=dict(os.environ, ZIYU_BOOT_OTA_DISABLE_WORKER='1', ZIYU_BOOT_OTA_TEST_FINGERPRINT='rom-a', ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED='0')
@@ -37,10 +37,10 @@ with tempfile.TemporaryDirectory() as directory:
 
 with tempfile.TemporaryDirectory() as directory:
     module=pathlib.Path(directory); config=module/'config'; config.mkdir()
-    (module/'module.prop').write_text('id=LuoShu\n')
+    (module/'module.prop').write_text('id=Ziyu\n')
     (config/'active_font.conf').write_text('Demo\n')
     (config/'boot-ota-guard.conf').write_text('schema=ziyu-boot-ota-guard-v1\nunfinished_boots=0\nfingerprint=rom-a\n')
-    payload=module/'.luoshu-payload'; payload.mkdir(); (payload/'sentinel').write_text('keep-old-generation')
+    payload=module/'.ziyu-payload'; payload.mkdir(); (payload/'sentinel').write_text('keep-old-generation')
     env=dict(os.environ, ZIYU_BOOT_OTA_DISABLE_WORKER='1', ZIYU_BOOT_OTA_TEST_FINGERPRINT='rom-b', ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED='0')
     env['PATH']=str(pathlib.Path(shell).parent)+os.pathsep+env.get('PATH','')
     def call(action,boot='ota-1',expected=0,*extra):
@@ -66,9 +66,9 @@ with tempfile.TemporaryDirectory() as directory:
     (config/'stock_inventory_scan_pending').unlink()
     call('scan-complete')
     call('allow-apply','ota-1',0,'Demo')
-    stage=module/'.luoshu-payload-next'; stage.mkdir()
-    marker='schema=luoshu-next-payload-v1\nfont=Demo\nrequestId=review-next-1\n'
-    (stage/'.luoshu-next-transaction.conf').write_text(marker)
+    stage=module/'.ziyu-payload-next'; stage.mkdir()
+    marker='schema=ziyu-next-payload-v1\nfont=Demo\nrequestId=review-next-1\n'
+    (stage/'.ziyu-next-transaction.conf').write_text(marker)
     (config/'font-payload-next.conf').write_text('state=prepared\nfont=Demo\nrequestId=review-next-1\n')
     call('record-apply','ota-1',0,'Demo')
     assert not (module/'disable').exists()
@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory() as directory:
     call('hook','ota-2',0)
     # Model actual transaction activation: the prepared marker becomes live.
     (config/'font-payload-next.conf').unlink()
-    shutil.copy2(stage/'.luoshu-next-transaction.conf',payload/'.luoshu-next-transaction.conf')
+    shutil.copy2(stage/'.ziyu-next-transaction.conf',payload/'.ziyu-next-transaction.conf')
     (config/'device-font-load-verification.conf').write_text('state=verified\nactiveFont=Demo\nbootId=ota-1\n')
     call('apply-verified', 'ota-2',1)
     (config/'device-font-load-verification.conf').write_text('state=verified\nactiveFont=Demo\nbootId=ota-2\ngenerationIdentity=old-generation\n')
@@ -108,7 +108,7 @@ with tempfile.TemporaryDirectory() as directory:
     print('Supervisor exact argv and PID/start identity PASS',flush=True)
 
     module=work/'module'; (module/'config').mkdir(parents=True)
-    lockroot=work/'locks'; lock=lockroot/'.ziyu-luoshu-stock-rescan.lock'; lock.mkdir(parents=True)
+    lockroot=work/'locks'; lock=lockroot/'.ziyu-stock-rescan.lock'; lock.mkdir(parents=True)
     (module/'config/boot-ota-pending.conf').write_text('schema=ziyu-ota-pending-v1\nscan_complete=0\nfingerprint=rom-b\n')
     (lock/'state').write_text(f'module={module.as_posix()}\nboot_id=previous-boot\ntask={task}\n')
     env.update(ZIYU_BOOT_OTA_TEST_LOCK_ROOT=lockroot.as_posix(), ZIYU_BOOT_OTA_TEST_BOOT_ID='new-boot')
@@ -125,8 +125,8 @@ with tempfile.TemporaryDirectory() as directory:
     state=work/'private-state'; state.mkdir()
     target=module/'system'; target.mkdir()
     mounts=state/'module-view.mounts'; mounts.write_text(target.as_posix()+'\n')
-    env.update(MODDIR=module.as_posix(),MODULE_DIR=module.as_posix(),LUOSHU_PRIVATE_STATE_ROOT=state.as_posix())
-    result=subprocess.run([shell,'-c','. "$1"; _luoshu_private_is_mountpoint() { return 0; }; _luoshu_private_umount_cmd() { return 1; }; luoshu_private_unmount_module_view "$2"',
+    env.update(MODDIR=module.as_posix(),MODULE_DIR=module.as_posix(),ZIYU_PRIVATE_STATE_ROOT=state.as_posix())
+    result=subprocess.run([shell,'-c','. "$1"; _ziyu_private_is_mountpoint() { return 0; }; _ziyu_private_umount_cmd() { return 1; }; ziyu_private_unmount_module_view "$2"',
                            'cleanup-fixture',(root/'common/private_payload.sh').as_posix(),module.as_posix()],
                           env=env,capture_output=True,text=True,timeout=20)
     assert result.returncode!=0 and mounts.read_text().strip()==target.as_posix(),result.stderr

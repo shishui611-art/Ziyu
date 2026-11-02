@@ -66,7 +66,7 @@ cat > "$ODM_ETC/fonts_customization.xml" <<'XML'
 </familyset>
 XML
 
-for prefix in LuoShu; do
+for prefix in Ziyu; do
     for weight in 100 200 300 400 500 600 700 800 900; do
         dd if=/dev/zero of="$MOD/system/fonts/${prefix}-${weight}.ttf" bs=2048 count=1 2>/dev/null
         chmod 0644 "$MOD/system/fonts/${prefix}-${weight}.ttf"
@@ -76,13 +76,13 @@ done
 export MODDIR="$MOD"
 export MODULE_DIR="$MOD"
 export CONFIG_DIR="$MOD/config"
-export LUOSHU_PYTHON=python3
-export LUOSHU_SYSTEM_ETC_ROOT="$SYSTEM_ETC"
-export LUOSHU_PRODUCT_ETC_ROOT="$PRODUCT_ETC"
-export LUOSHU_SYSTEM_EXT_ETC_ROOT="$SYSTEM_EXT_ETC"
-export LUOSHU_MY_PRODUCT_ETC_ROOT="$MY_PRODUCT_ETC"
-export LUOSHU_VENDOR_ETC_ROOT="$VENDOR_ETC"
-export LUOSHU_ODM_ETC_ROOT="$ODM_ETC"
+export ZIYU_PYTHON=python3
+export ZIYU_SYSTEM_ETC_ROOT="$SYSTEM_ETC"
+export ZIYU_PRODUCT_ETC_ROOT="$PRODUCT_ETC"
+export ZIYU_SYSTEM_EXT_ETC_ROOT="$SYSTEM_EXT_ETC"
+export ZIYU_MY_PRODUCT_ETC_ROOT="$MY_PRODUCT_ETC"
+export ZIYU_VENDOR_ETC_ROOT="$VENDOR_ETC"
+export ZIYU_ODM_ETC_ROOT="$ODM_ETC"
 . "$MOD/common/font_config_runtime.sh"
 . "$MOD/common/font_config_partitions.sh"
 set -eu
@@ -100,19 +100,19 @@ for overlay in \
     test -s "$overlay"
 done
 
-grep -q 'LuoShu-400.ttf' "$MOD/system/etc/fonts.xml"
-grep -q 'LuoShu-700.ttf' "$MOD/system/etc/fonts.xml"
+grep -q 'Ziyu-400.ttf' "$MOD/system/etc/fonts.xml"
+grep -q 'Ziyu-700.ttf' "$MOD/system/etc/fonts.xml"
 grep -q 'NotoSerif-Regular.ttf' "$MOD/system/etc/fonts.xml"
-grep -q 'LuoShu-500.ttf' "$MOD/product/etc/mi_fonts_customization.xml"
+grep -q 'Ziyu-500.ttf' "$MOD/product/etc/mi_fonts_customization.xml"
 grep -q 'Mitype2019.ttf' "$MOD/product/etc/mi_fonts_customization.xml"
-grep -q 'LuoShu-400.ttf' "$MOD/system_ext/etc/fonts_customization.xml"
+grep -q 'Ziyu-400.ttf' "$MOD/system_ext/etc/fonts_customization.xml"
 grep -q 'MaterialIcons.ttf' "$MOD/system_ext/etc/fonts_customization.xml"
-grep -q 'LuoShu-500.ttf' "$MOD/my_product/etc/oplus_fonts_customization.xml"
+grep -q 'Ziyu-500.ttf' "$MOD/my_product/etc/oplus_fonts_customization.xml"
 grep -q 'MaterialIcons-Rounded.ttf' "$MOD/my_product/etc/oplus_fonts_customization.xml"
-grep -q 'LuoShu-600.ttf' "$MOD/vendor/etc/fonts.xml"
-! grep -q 'LuoShuMono-400.ttf' "$MOD/vendor/etc/fonts.xml"
+grep -q 'Ziyu-600.ttf' "$MOD/vendor/etc/fonts.xml"
+! grep -q 'ZiyuMono-400.ttf' "$MOD/vendor/etc/fonts.xml"
 grep -q 'VendorMono-Regular.ttf' "$MOD/vendor/etc/fonts.xml"
-grep -q 'LuoShu-300.ttf' "$MOD/odm/etc/fonts_customization.xml"
+grep -q 'Ziyu-300.ttf' "$MOD/odm/etc/fonts_customization.xml"
 grep -q 'Mitype2019.ttf' "$MOD/odm/etc/fonts_customization.xml"
 
 test -s "$MOD/config/font-config-source/system/fonts.xml"
@@ -123,7 +123,7 @@ test -s "$MOD/config/font-config-source/vendor/fonts.xml"
 test -s "$MOD/config/font-config-source/odm/fonts_customization.xml"
 
 for partition in system product system_ext my_product vendor odm; do
-    for prefix in LuoShu; do
+    for prefix in Ziyu; do
         for weight in 100 200 300 400 500 600 700 800 900; do
             test -s "$MOD/$partition/fonts/${prefix}-${weight}.ttf"
         done
@@ -131,7 +131,7 @@ for partition in system product system_ext my_product vendor odm; do
 done
 
 # A missing UI alias in any OEM partition must disable every generated XML before boot.
-rm -f "$MOD/my_product/fonts/LuoShu-500.ttf"
+rm -f "$MOD/my_product/fonts/Ziyu-500.ttf"
 if font_config_boot_guard DemoFamily; then
     echo 'boot guard unexpectedly accepted a missing my_product UI weight alias' >&2
     exit 1
@@ -148,18 +148,18 @@ done
 
 # Regeneration repairs every partition alias from the validated system UI weight sets.
 mkdir -p "$MOD/system/fonts"
-for prefix in LuoShu; do
+for prefix in Ziyu; do
     for weight in 100 200 300 400 500 600 700 800 900; do
         dd if=/dev/zero of="$MOD/system/fonts/${prefix}-${weight}.ttf" bs=2048 count=1 2>/dev/null
     done
 done
 font_config_generate DemoFamily
-test -s "$MOD/my_product/fonts/LuoShu-500.ttf"
-test ! -e "$MOD/my_product/fonts/LuoShuMono-500.ttf"
+test -s "$MOD/my_product/fonts/Ziyu-500.ttf"
+test ! -e "$MOD/my_product/fonts/ZiyuMono-500.ttf"
 font_config_disable
 for partition in system product system_ext my_product vendor odm; do
-    test ! -e "$MOD/$partition/fonts/LuoShu-400.ttf"
-    test ! -e "$MOD/$partition/fonts/LuoShuMono-400.ttf"
+    test ! -e "$MOD/$partition/fonts/Ziyu-400.ttf"
+    test ! -e "$MOD/$partition/fonts/ZiyuMono-400.ttf"
 done
 for overlay in \
     "$MOD/system/etc/fonts.xml" \
@@ -175,7 +175,7 @@ done
 
 mk_weights() {
     mkdir -p "$MOD/system/fonts"
-    for _prefix in LuoShu; do
+    for _prefix in Ziyu; do
         for _weight in 100 200 300 400 500 600 700 800 900; do
             dd if=/dev/zero of="$MOD/system/fonts/${_prefix}-${_weight}.ttf" bs=2048 count=1 2>/dev/null
             chmod 0644 "$MOD/system/fonts/${_prefix}-${_weight}.ttf"
@@ -197,11 +197,11 @@ cat > "$PRODUCT_ETC/ACME_FONT_CONFIG.xml" <<'XML'
 XML
 font_config_generate DemoFamily
 test -s "$MOD/product/etc/hihonor_magic_fonts.xml"
-grep -q 'LuoShu-400.ttf' "$MOD/product/etc/hihonor_magic_fonts.xml"
+grep -q 'Ziyu-400.ttf' "$MOD/product/etc/hihonor_magic_fonts.xml"
 grep -q 'HonorIcons.ttf' "$MOD/product/etc/hihonor_magic_fonts.xml"
 test -s "$MOD/product/etc/ACME_FONT_CONFIG.xml"
-grep -q 'LuoShu-500.ttf' "$MOD/product/etc/ACME_FONT_CONFIG.xml"
-test "$(_luoshu_font_config_specs | sort | uniq -d | wc -l)" -eq 0
+grep -q 'Ziyu-500.ttf' "$MOD/product/etc/ACME_FONT_CONFIG.xml"
+test "$(_ziyu_font_config_specs | sort | uniq -d | wc -l)" -eq 0
 
 # One unusable overlay partition does not veto validated XML from the others.
 font_config_disable
@@ -210,7 +210,7 @@ rm -rf "$MOD/odm"
 : > "$MOD/odm"
 font_config_generate DemoFamily
 test -s "$MOD/system/etc/fonts.xml"
-grep -q 'LuoShu-400.ttf' "$MOD/system/etc/fonts.xml"
+grep -q 'Ziyu-400.ttf' "$MOD/system/etc/fonts.xml"
 test -s "$MOD/product/etc/mi_fonts_customization.xml"
 test ! -e "$MOD/odm/etc/fonts_customization.xml"
 rm -f "$MOD/odm"
@@ -218,8 +218,8 @@ rm -f "$MOD/odm"
 # Missing master weights are a global XML failure.
 font_config_disable
 mk_weights
-rm -f "$MOD/system/fonts/LuoShu-500.ttf"
-if _luoshu_font_config_generate_base DemoFamily; then
+rm -f "$MOD/system/fonts/Ziyu-500.ttf"
+if _ziyu_font_config_generate_base DemoFamily; then
     echo 'XML overlay unexpectedly generated without a complete nine-weight set' >&2
     exit 1
 fi

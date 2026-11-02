@@ -4,6 +4,11 @@ set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
 mkdir -p "$MODDIR/logs" || exit 1
+# Migration is one-shot and never unmounts live fonts or touches other modules.
+if [ -f "$MODDIR/common/adb_storage.sh" ]; then
+    . "$MODDIR/common/adb_storage.sh"
+    ziyu_adb_storage "$MODDIR" boot || printf '[STORAGE] migration incomplete; see adb-storage.log\n' >> "$MODDIR/logs/mount-backend.log"
+fi
 
 # Resolve boot-loop/OTA holds before APatch's NoMount scan, payload activation,
 # stock snapshotting or any later provider discovery.
@@ -54,7 +59,7 @@ if [ -n "$_soft_boot" ] &&
    [ "$(sed -n 's/^boot_id=//p' "$_soft_stage" 2>/dev/null | head -n1)" = "$_soft_boot" ] &&
    { [ "$_soft_saved_state" = nomount-cleanup-pending ] ||
      { [ "$_soft_saved_state" = failed ] &&
-       { [ "$_soft_saved_reason" = nomount-still-routes-luoshu-payload ] ||
+       { [ "$_soft_saved_reason" = nomount-still-routes-ziyu-payload ] ||
          [ "$_soft_saved_reason" = nomount-cleanup-window-not-quiescent ]; }; }; } &&
    [ -f "$MODDIR/common/mount_nomount_backend.sh" ] && [ -f "$MODDIR/emulated-soft-reboot.sh" ]; then
     printf '[TEMP-ROOT] retrying legacy NoMount cleanup with updated hook before activation\n' >> "$MODDIR/logs/mount-backend.log"
@@ -96,11 +101,11 @@ fi
 # Capture only proven stock views before any provider sees our font payload.
 # This never mounts/unmounts and may defer without blocking the existing boot.
 _stock_pyroot="$MODDIR/common/python"
-if [ -x "$_stock_pyroot/bin/luoshu-python" ] && [ -f "$MODDIR/common/stock_font_snapshot.py" ]; then
+if [ -x "$_stock_pyroot/bin/ziyu-python" ] && [ -f "$MODDIR/common/stock_font_snapshot.py" ]; then
     PYTHONHOME="$_stock_pyroot" \
     PYTHONPATH="$MODDIR/common:$_stock_pyroot/lib/python3.14:$_stock_pyroot/lib/python3.14/site-packages" \
     LD_LIBRARY_PATH="$_stock_pyroot/lib:$_stock_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$_stock_pyroot/bin/luoshu-python" "$MODDIR/common/stock_font_snapshot.py" "$MODDIR" \
+        "$_stock_pyroot/bin/ziyu-python" "$MODDIR/common/stock_font_snapshot.py" "$MODDIR" \
         >> "$MODDIR/logs/stock-font-snapshot.log" 2>&1
 fi
 
@@ -111,10 +116,10 @@ if [ -f "$MODDIR/common/font_next_transaction.sh" ] &&
    [ -f "$MODDIR/common/font_switch_lock.sh" ]; then
     . "$MODDIR/common/font_next_transaction.sh"
     . "$MODDIR/common/font_switch_lock.sh"
-    luoshu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || exit 1
-    luoshu_next_transaction_recover "$MODDIR"
+    ziyu_font_lock_acquire "$MODDIR/.font_switch.lock" "$$" || exit 1
+    ziyu_next_transaction_recover "$MODDIR"
     _pending_recovery_rc=$?
-    luoshu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1 || true
+    ziyu_font_lock_release "$MODDIR/.font_switch.lock" "$$" >/dev/null 2>&1 || true
     if [ "$_pending_recovery_rc" -ne 0 ]; then
         mkdir -p "$MODDIR/logs"
         printf '[NEXT-TRANSACTION] recovery unconfirmed rc=%s; activation deferred\n' \
@@ -136,8 +141,8 @@ if [ -s "$UNIVERSAL_NEXT_STATE" ]; then
 else
     NEXT_BOOT_HELPER="$MODDIR/common/next_boot_payload.sh"
     [ -f "$NEXT_BOOT_HELPER" ] && . "$NEXT_BOOT_HELPER"
-    type luoshu_next_boot_activate >/dev/null 2>&1 || exit 1
-    luoshu_next_boot_activate >> "$MODDIR/logs/fontswitch.log" 2>&1
+    type ziyu_next_boot_activate >/dev/null 2>&1 || exit 1
+    ziyu_next_boot_activate >> "$MODDIR/logs/fontswitch.log" 2>&1
     _activation_rc=$?
 fi
 case "$_activation_rc" in 0|2) ;; *)
@@ -146,7 +151,7 @@ case "$_activation_rc" in 0|2) ;; *)
 esac
 
 RUNTIME="$MODDIR/common/mount_backend_runtime.sh"
-V4_POST_FS="$MODDIR/.luoshu-runtime/core/post-fs-data.sh"
+V4_POST_FS="$MODDIR/.ziyu-runtime/core/post-fs-data.sh"
 LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
 UNIVERSAL_MODE="$MODDIR/config/universal-font-runtime.conf"
 

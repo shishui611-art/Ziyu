@@ -2,7 +2,7 @@
 """Discover the stock Android UI font slots for the current ROM.
 
 The scanner is intentionally read-only. It runs while the module is being installed, before the
-new LuoShu overlay is mounted, and records only replaceable UI text slots. Explicit family mappings
+new Ziyu overlay is mounted, and records only replaceable UI text slots. Explicit family mappings
 come from the stock fonts XML. OEM files that bypass fonts.xml are admitted only by conservative
 filename heuristics and the existing font_check.sh validator.
 """

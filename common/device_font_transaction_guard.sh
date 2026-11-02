@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu v2.2 transaction guard.
+# Ziyu v2.2 transaction guard.
 # Every font switch snapshots the complete current payload first, then removes the
 # previous device-specific files. Pending cache work and load proof are transaction
 # state too: a failed switch must restore them, while a new switch must invalidate them.
@@ -8,11 +8,11 @@ set +e
 device_font_payload_clear() {
     _dfpc_module="$(_dfpr_module)"
     type _dfpr_remove_installed_files >/dev/null 2>&1 && _dfpr_remove_installed_files
-    for _dfpc_part in $(_luoshu_payload_parts); do
+    for _dfpc_part in $(_ziyu_payload_parts); do
         _dfpc_fonts="$_dfpc_module/$_dfpc_part/fonts"
         if [ -d "$_dfpc_fonts" ]; then
-            find "$_dfpc_fonts" -maxdepth 1 -type f -name 'LuoShuSlot-*.ttf' -delete 2>/dev/null || {
-                for _dfpc_font in "$_dfpc_fonts"/LuoShuSlot-*.ttf; do
+            find "$_dfpc_fonts" -maxdepth 1 -type f \( -name 'ZiyuSlot-*.ttf' -o -name 'LuoShuSlot-*.ttf' \) -delete 2>/dev/null || {
+                for _dfpc_font in "$_dfpc_fonts"/ZiyuSlot-*.ttf "$_dfpc_fonts"/LuoShuSlot-*.ttf; do
                     [ -f "$_dfpc_font" ] && rm -f "$_dfpc_font" 2>/dev/null || true
                 done
             }
@@ -21,7 +21,7 @@ device_font_payload_clear() {
         [ -d "$_dfpc_etc" ] || continue
         for _dfpc_xml in "$_dfpc_etc"/*.xml; do
             [ -f "$_dfpc_xml" ] || continue
-            grep -q 'LuoShuSlot-' "$_dfpc_xml" 2>/dev/null && rm -f "$_dfpc_xml" 2>/dev/null || true
+            grep -Eq '(Ziyu|LuoShu)Slot-' "$_dfpc_xml" 2>/dev/null && rm -f "$_dfpc_xml" 2>/dev/null || true
         done
     done
     rm -f "$_dfpc_module/config/device-font-installed.conf" \
@@ -32,56 +32,56 @@ device_font_payload_clear() {
           "$_dfpc_module/config/device-font-load-verification.json" \
           "$_dfpc_module/config/device-font-manager-dump.txt" \
           "$_dfpc_module/config/device-font-mount-evidence.txt" \
-          "$_dfpc_module/system/etc/.luoshu-data-fonts-config.xml" 2>/dev/null || true
+          "$_dfpc_module/system/etc/.ziyu-data-fonts-config.xml" 2>/dev/null || true
     return 0
 }
 
-luoshu_payload_transaction_begin() {
-    [ -z "$LUOSHU_PAYLOAD_TXN" ] || return 1
-    LUOSHU_PAYLOAD_VALIDATED_ACTIVE=''
-    _lpt_module="$(_luoshu_safety_module)"
-    _lpt_config="$(_luoshu_safety_config)"
-    LUOSHU_PAYLOAD_TXN="$_lpt_config/.payload-transaction.$$"
-    rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-    mkdir -p "$LUOSHU_PAYLOAD_TXN/tree" "$LUOSHU_PAYLOAD_TXN/config" 2>/dev/null || {
-        LUOSHU_PAYLOAD_TXN=''
+ziyu_payload_transaction_begin() {
+    [ -z "$ZIYU_PAYLOAD_TXN" ] || return 1
+    ZIYU_PAYLOAD_VALIDATED_ACTIVE=''
+    _lpt_module="$(_ziyu_safety_module)"
+    _lpt_config="$(_ziyu_safety_config)"
+    ZIYU_PAYLOAD_TXN="$_lpt_config/.payload-transaction.$$"
+    rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+    mkdir -p "$ZIYU_PAYLOAD_TXN/tree" "$ZIYU_PAYLOAD_TXN/config" 2>/dev/null || {
+        ZIYU_PAYLOAD_TXN=''
         return 1
     }
-    : > "$LUOSHU_PAYLOAD_TXN/paths" 2>/dev/null || {
-        rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-        LUOSHU_PAYLOAD_TXN=''
+    : > "$ZIYU_PAYLOAD_TXN/paths" 2>/dev/null || {
+        rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+        ZIYU_PAYLOAD_TXN=''
         return 1
     }
 
-    for _lpt_part in $(_luoshu_payload_parts); do
+    for _lpt_part in $(_ziyu_payload_parts); do
         for _lpt_sub in fonts etc; do
             _lpt_rel="$_lpt_part/$_lpt_sub"
             _lpt_src="$_lpt_module/$_lpt_rel"
             if [ -d "$_lpt_src" ]; then
-                mkdir -p "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_part" 2>/dev/null || {
-                    rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-                    LUOSHU_PAYLOAD_TXN=''
+                mkdir -p "$ZIYU_PAYLOAD_TXN/tree/$_lpt_part" 2>/dev/null || {
+                    rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+                    ZIYU_PAYLOAD_TXN=''
                     return 1
                 }
                 if [ "$_lpt_sub" = fonts ]; then
                     # Font payloads are removed/replaced during switching, so hard-link snapshots
                     # remain safe and avoid copying large font files on every transaction.
-                    cp -al "$_lpt_src" "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null ||
-                    cp -af "$_lpt_src" "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || {
-                        mkdir -p "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || return 1
-                        cp -rfp "$_lpt_src/." "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel/" 2>/dev/null || return 1
+                    cp -al "$_lpt_src" "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null ||
+                    cp -af "$_lpt_src" "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || {
+                        mkdir -p "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || return 1
+                        cp -rfp "$_lpt_src/." "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel/" 2>/dev/null || return 1
                     }
                 else
                     # XML/config payloads may be rewritten in place. Never hard-link them into
                     # the transaction snapshot or the rollback copy would mutate with the live file.
-                    cp -af "$_lpt_src" "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || {
-                        mkdir -p "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || return 1
-                        cp -rfp "$_lpt_src/." "$LUOSHU_PAYLOAD_TXN/tree/$_lpt_rel/" 2>/dev/null || return 1
+                    cp -af "$_lpt_src" "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || {
+                        mkdir -p "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel" 2>/dev/null || return 1
+                        cp -rfp "$_lpt_src/." "$ZIYU_PAYLOAD_TXN/tree/$_lpt_rel/" 2>/dev/null || return 1
                     }
                 fi
-                printf 'present|%s\n' "$_lpt_rel" >> "$LUOSHU_PAYLOAD_TXN/paths"
+                printf 'present|%s\n' "$_lpt_rel" >> "$ZIYU_PAYLOAD_TXN/paths"
             else
-                printf 'absent|%s\n' "$_lpt_rel" >> "$LUOSHU_PAYLOAD_TXN/paths"
+                printf 'absent|%s\n' "$_lpt_rel" >> "$ZIYU_PAYLOAD_TXN/paths"
             fi
         done
     done
@@ -97,20 +97,20 @@ luoshu_payload_transaction_begin() {
         device-font-mount-evidence.txt font-boot-failures font-boot-inconclusive.conf \
         font-mount-verify-failures; do
         if [ -f "$_lpt_config/$_lpt_name" ]; then
-            cp -fp "$_lpt_config/$_lpt_name" "$LUOSHU_PAYLOAD_TXN/config/$_lpt_name" 2>/dev/null || {
-                rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-                LUOSHU_PAYLOAD_TXN=''
+            cp -fp "$_lpt_config/$_lpt_name" "$ZIYU_PAYLOAD_TXN/config/$_lpt_name" 2>/dev/null || {
+                rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+                ZIYU_PAYLOAD_TXN=''
                 return 1
             }
-            printf 'present|config/%s\n' "$_lpt_name" >> "$LUOSHU_PAYLOAD_TXN/paths"
+            printf 'present|config/%s\n' "$_lpt_name" >> "$ZIYU_PAYLOAD_TXN/paths"
         else
-            printf 'absent|config/%s\n' "$_lpt_name" >> "$LUOSHU_PAYLOAD_TXN/paths"
+            printf 'absent|config/%s\n' "$_lpt_name" >> "$ZIYU_PAYLOAD_TXN/paths"
         fi
     done
 
     if ! device_font_payload_clear; then
-        rm -rf "$LUOSHU_PAYLOAD_TXN" 2>/dev/null || true
-        LUOSHU_PAYLOAD_TXN=''
+        rm -rf "$ZIYU_PAYLOAD_TXN" 2>/dev/null || true
+        ZIYU_PAYLOAD_TXN=''
         return 1
     fi
     return 0

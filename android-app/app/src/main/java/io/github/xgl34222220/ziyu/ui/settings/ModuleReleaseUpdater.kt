@@ -196,7 +196,7 @@ internal class ModuleReleaseUpdater(private val context: Context) {
         done
         if [ -f "${'$'}MODDIR/common/root_manager_detection.sh" ]; then
             . "${'$'}MODDIR/common/root_manager_detection.sh"
-            luoshu_detect_root_manager >/dev/null
+            ziyu_detect_root_manager >/dev/null
         else
             root_su_version=${'$'}(su -v 2>/dev/null)
             case "${'$'}root_su_version" in

@@ -37,7 +37,7 @@ class CompatibilitySmokeRun(base.SmokeRun):
         for _ in range(8):
             root = self.hierarchy()
             texts = {text for node in root.iter('node') for text in base.labels(node)}
-            if any('停用或卸载洛书前' in text for text in texts):
+            if any('停用或卸载字域前' in text for text in texts):
                 self.capture('google-font-chinese-help', root)
                 return
             if not details_expanded:

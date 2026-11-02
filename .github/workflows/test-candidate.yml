@@ -48,14 +48,14 @@ jobs:
         with:
           path: |
             common/python
-            .luoshu-runtime/bin/woff2_decompress
+            .ziyu-runtime/bin/woff2_decompress
             licenses/WOFF2-LICENSE.txt
             licenses/Brotli-LICENSE.txt
-          key: luoshu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
+          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
 
       - name: Prepare ARM64 runtime
         run: |
-          if [ ! -x common/python/bin/luoshu-python ] || [ ! -x .luoshu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
+          if [ ! -x common/python/bin/ziyu-python ] || [ ! -x .ziyu-runtime/bin/woff2_decompress ] || [ ! -s licenses/WOFF2-LICENSE.txt ] || [ ! -s licenses/Brotli-LICENSE.txt ]; then
             sh ./scripts/prepare_composite_runtime.sh
           fi
 
@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          log="$RUNNER_TEMP/luoshu-source-check.log"
+          log="$RUNNER_TEMP/ziyu-source-check.log"
           if ! sh ./scripts/check.sh >"$log" 2>&1; then
             echo '源码门禁失败，输出最后 180 行：' >&2
             tail -n 180 "$log" >&2
@@ -95,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          log="$RUNNER_TEMP/luoshu-gradle-debug.log"
+          log="$RUNNER_TEMP/ziyu-gradle-debug.log"
           if ! gradle --no-daemon --stacktrace :app:lintDebug :app:testDebugUnitTest :app:assembleDebug >"$log" 2>&1; then
             echo 'Gradle 构建失败，输出最后 180 行：' >&2
             tail -n 180 "$log" >&2
@@ -111,27 +111,27 @@ jobs:
           test -s "$apk"
           rm -rf dist
           mkdir -p dist
-          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          app="dist/Ziyu-App-${ZIYU_ARTIFACT_VERSION}-Debug.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
-          LUOSHU_APP_APK="$apk" LUOSHU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
+          ZIYU_APP_APK="$apk" ZIYU_ALLOW_DEBUG_APP=1 sh ./scripts/build.sh
 
       - name: Verify current candidate
         shell: bash
         run: |
           set -euxo pipefail
           . ./scripts/version.sh
-          module="dist/Ziyu-${LUOSHU_ARTIFACT_VERSION}.zip"
-          app="dist/Ziyu-App-${LUOSHU_ARTIFACT_VERSION}-Debug.apk"
+          module="dist/Ziyu-${ZIYU_ARTIFACT_VERSION}.zip"
+          app="dist/Ziyu-App-${ZIYU_ARTIFACT_VERSION}-Debug.apk"
           test -s "$module"
           test -s "$app"
           unzip -t "$module" >/dev/null
           (cd dist && sha256sum -c "$(basename "$module").sha256")
           (cd dist && sha256sum -c "$(basename "$app").sha256")
-          test "$(unzip -p "$module" module.prop | sed -n 's/^version=//p')" = "$LUOSHU_VERSION"
-          test "$(unzip -p "$module" module.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_VERSION_CODE"
-          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$LUOSHU_APP_VERSION_CODE"
-          unzip -Z1 "$module" > /tmp/luoshu-candidate-files.txt
+          test "$(unzip -p "$module" module.prop | sed -n 's/^version=//p')" = "$ZIYU_VERSION"
+          test "$(unzip -p "$module" module.prop | sed -n 's/^versionCode=//p')" = "$ZIYU_VERSION_CODE"
+          test "$(unzip -p "$module" bundled/app.prop | sed -n 's/^versionCode=//p')" = "$ZIYU_APP_VERSION_CODE"
+          unzip -Z1 "$module" > /tmp/ziyu-candidate-files.txt
           for path in \
             common/background_task.sh \
             common/device_font_template.sh \
@@ -169,7 +169,7 @@ jobs:
             common/universal_font_runtime_verify.sh \
             common/universal_font_cutover_gate.py \
             common/universal_font_cutover.sh; do
-            grep -qx "$path" /tmp/luoshu-candidate-files.txt
+            grep -qx "$path" /tmp/ziyu-candidate-files.txt
           done
           unzip -p "$module" common/background_task.sh | grep -q '_lsd_task'
           unzip -p "$module" common/background_task.sh | grep -q 'every new worker wrote an empty .task sidecar'
@@ -189,10 +189,10 @@ jobs:
           unzip -p "$module" common/font_inventory_scan.py | grep -q 'stockFontUniqueFileCount'
           unzip -p "$module" common/font_inventory_scan.py | grep -q 'themeOverrideRoots'
           unzip -p "$module" common/mix_weight_mode.sh | grep -q '快速单文件组合'
-          unzip -p "$module" .luoshu-runtime/compat/v227/customize.sh | grep -q '原厂字体文件'
+          unzip -p "$module" .ziyu-runtime/compat/v227/customize.sh | grep -q '原厂字体文件'
           # Verify the real install-time discovery chain, not an old comment string.
-          unzip -p "$module" .luoshu-runtime/compat/v227/customize.sh | grep -q 'stock_inventory_scan.py'
-          unzip -p "$module" .luoshu-runtime/compat/v227/customize.sh | grep -q 'font_topology_snapshot.sh'
+          unzip -p "$module" .ziyu-runtime/compat/v227/customize.sh | grep -q 'stock_inventory_scan.py'
+          unzip -p "$module" .ziyu-runtime/compat/v227/customize.sh | grep -q 'font_topology_snapshot.sh'
           unzip -p "$module" common/font_manager.sh | grep -q 'universal_font_cutover.sh'
           unzip -p "$module" common/universal_font_cutover.sh | grep -q 'universal_font_cutover_gate.py'
           unzip -p "$module" post-fs-data.sh | grep -q 'universal_font_next_boot_activate'

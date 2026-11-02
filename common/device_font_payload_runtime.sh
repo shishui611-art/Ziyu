@@ -1,7 +1,7 @@
 #!/system/bin/sh
-# LuoShu v2.2 per-device payload runtime.
+# Ziyu v2.2 per-device payload runtime.
 # Builds a complete device-specific payload after the legacy adapter has prepared
-# source weights, then installs the generated systemless tree inside LuoShu's
+# source weights, then installs the generated systemless tree inside Ziyu's
 # existing outer payload transaction. Unsupported sources fail soft and keep the
 # legacy mapping; partial v2 trees are never committed.
 set +e
@@ -14,8 +14,8 @@ _dfpr_payload_root() {
     _dfpr_module_dir="$(_dfpr_module)"
     if type _lfrp_payload_root >/dev/null 2>&1; then
         _lfrp_payload_root
-    elif [ -d "$_dfpr_module_dir/.luoshu-payload" ]; then
-        printf '%s/.luoshu-payload\n' "${_dfpr_module_dir%/}"
+    elif [ -d "$_dfpr_module_dir/.ziyu-payload" ]; then
+        printf '%s/.ziyu-payload\n' "${_dfpr_module_dir%/}"
     else
         printf '%s\n' "${_dfpr_module_dir%/}"
     fi
@@ -32,7 +32,7 @@ _dfpr_log() {
 
 _dfpr_python() {
     _dfpr_module_dir="$(_dfpr_module)"
-    printf '%s/common/python/bin/luoshu-python\n' "$_dfpr_module_dir"
+    printf '%s/common/python/bin/ziyu-python\n' "$_dfpr_module_dir"
 }
 
 _dfpr_exec() {
@@ -107,7 +107,7 @@ EOF_DFPR_ANCHORS
 
 _dfpr_prepare_sources() {
     _dfpr_module_dir="$(_dfpr_module)"
-    _dfpr_store="$(_dfpr_payload_root)/system/fonts/.luoshu-font-store"
+    _dfpr_store="$(_dfpr_payload_root)/system/fonts/.ziyu-font-store"
     _dfpr_output="$_dfpr_module_dir/config/device-font-sources"
     _dfpr_stage="$_dfpr_module_dir/config/.device-font-sources.$$"
     [ -d "$_dfpr_store" ] || return 2
@@ -120,7 +120,7 @@ _dfpr_prepare_sources() {
             rm -rf "$_dfpr_stage" 2>/dev/null || true
             return 2
         }
-        _dfpr_link_or_copy "$_dfpr_anchor" "$_dfpr_stage/LuoShu-${_dfpr_weight}.ttf" || {
+        _dfpr_link_or_copy "$_dfpr_anchor" "$_dfpr_stage/Ziyu-${_dfpr_weight}.ttf" || {
             rm -rf "$_dfpr_stage" 2>/dev/null || true
             return 1
         }
@@ -168,11 +168,11 @@ _dfpr_prepare_dynamic_state() {
     _dfpr_manifest_tmp="$2"
     _dfpr_module_dir="$(_dfpr_module)"
     _dfpr_dynamic_source="$_dfpr_overlay/dynamic/data-fonts-config.xml"
-    _dfpr_dynamic_dest="$(_dfpr_payload_root)/system/etc/.luoshu-data-fonts-config.xml"
+    _dfpr_dynamic_dest="$(_dfpr_payload_root)/system/etc/.ziyu-data-fonts-config.xml"
     _dfpr_dynamic_state="$_dfpr_module_dir/config/device-font-dynamic-mount.conf"
     # Keep the real target in a dedicated variable. _dfpr_link_or_copy uses shell-global
     # scratch variables named _dfpr_source/_dfpr_target and must never overwrite this path.
-    _dfpr_dynamic_target="${LUOSHU_DATA_FONTS_CONFIG_TARGET:-/data/fonts/config/config.xml}"
+    _dfpr_dynamic_target="${ZIYU_DATA_FONTS_CONFIG_TARGET:-/data/fonts/config/config.xml}"
     if [ ! -s "$_dfpr_dynamic_source" ]; then
         rm -f "$_dfpr_dynamic_dest" "$_dfpr_dynamic_state" 2>/dev/null || true
         return 0
@@ -189,7 +189,7 @@ _dfpr_prepare_dynamic_state() {
     _dfpr_state_tmp="${_dfpr_dynamic_state}.tmp.$$"
     {
         printf 'state=prepared\n'
-        printf 'source=system/etc/.luoshu-data-fonts-config.xml\n'
+        printf 'source=system/etc/.ziyu-data-fonts-config.xml\n'
         printf 'target=%s\n' "$_dfpr_dynamic_target"
         printf 'targetSha256=%s\n' "$_dfpr_target_hash"
         printf 'sourceSha256=%s\n' "$_dfpr_source_hash"
@@ -198,7 +198,7 @@ _dfpr_prepare_dynamic_state() {
     mv -f "$_dfpr_state_tmp" "$_dfpr_dynamic_state" 2>/dev/null || return 1
     chmod 0600 "$_dfpr_dynamic_state" 2>/dev/null || true
     _dfpr_bytes="$(_dfpr_size "$_dfpr_dynamic_dest")"
-    printf 'file|system/etc/.luoshu-data-fonts-config.xml|%s|%s\n' "$_dfpr_source_hash" "$_dfpr_bytes" >> "$_dfpr_manifest_tmp"
+    printf 'file|system/etc/.ziyu-data-fonts-config.xml|%s|%s\n' "$_dfpr_source_hash" "$_dfpr_bytes" >> "$_dfpr_manifest_tmp"
     return 0
 }
 
@@ -278,7 +278,7 @@ device_font_payload_clear() {
     rm -f "$_dfpr_module_dir/config/device-font-installed.conf" \
           "$_dfpr_module_dir/config/device-font-engine.conf" \
           "$_dfpr_module_dir/config/device-font-dynamic-mount.conf" \
-          "$(_dfpr_payload_root)/system/etc/.luoshu-data-fonts-config.xml" 2>/dev/null || true
+          "$(_dfpr_payload_root)/system/etc/.ziyu-data-fonts-config.xml" 2>/dev/null || true
     return 0
 }
 
@@ -311,7 +311,7 @@ device_font_payload_build_install() {
     _dfpr_build_result=$(_dfpr_exec "$_dfpr_build" \
         --template "$_dfpr_template" \
         --source-dir "$_dfpr_module_dir/config/device-font-sources" \
-        --source-prefix LuoShu \
+        --source-prefix Ziyu \
         --output-dir "$_dfpr_payload" \
         --manifest "$_dfpr_payload/manifest.json" 2>> "$_dfpr_module_dir/logs/device-font-payload.log")
     _dfpr_build_rc=$?
@@ -376,8 +376,8 @@ device_font_dynamic_mount_apply() {
     _dfpr_target=$(sed -n 's/^target=//p' "$_dfpr_state" 2>/dev/null | head -n1)
     _dfpr_target_hash=$(sed -n 's/^targetSha256=//p' "$_dfpr_state" 2>/dev/null | head -n1)
     _dfpr_source_hash=$(sed -n 's/^sourceSha256=//p' "$_dfpr_state" 2>/dev/null | head -n1)
-    case "$_dfpr_source_rel" in system/etc/.luoshu-data-fonts-config.xml) ;; *) return 1 ;; esac
-    [ "$_dfpr_target" = "${LUOSHU_DATA_FONTS_CONFIG_TARGET:-/data/fonts/config/config.xml}" ] || return 1
+    case "$_dfpr_source_rel" in system/etc/.ziyu-data-fonts-config.xml) ;; *) return 1 ;; esac
+    [ "$_dfpr_target" = "${ZIYU_DATA_FONTS_CONFIG_TARGET:-/data/fonts/config/config.xml}" ] || return 1
     _dfpr_source="$(_dfpr_payload_root)/$_dfpr_source_rel"
     [ -s "$_dfpr_source" ] && [ -s "$_dfpr_target" ] || return 2
     [ "$(_dfpr_hash "$_dfpr_source")" = "$_dfpr_source_hash" ] || return 1

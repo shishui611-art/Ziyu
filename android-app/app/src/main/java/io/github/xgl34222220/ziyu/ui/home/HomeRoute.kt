@@ -242,15 +242,20 @@ fun HomeRoute(
             title = { Text("是否重启验证挂载？") },
             text = {
                 Text("已保存为${mountModeLabel(mode)}。" +
-                    if (state.temporaryRootMode) "字域将请求 KernelSU 软重启应用选择，完成后回到字域查看实际挂载方式和验证结果。"
-                    else "完整重启后执行所选挂载方式，完成后回到字域查看实际挂载方式和验证结果。")
+                    if (state.temporaryRootMode) "下一步选择可用的重启方式。重启完成后回到字域查看实际挂载方式和验证结果。"
+                    else "完整重启后执行所选挂载方式。下一步确认重启，完成后回到字域查看实际挂载方式和验证结果。")
             },
             confirmButton = {
-                TextButton(onClick = { actions.dismissMountBackendRebootPrompt(); actions.reboot() }) {
-                    Text(if (state.temporaryRootMode) "立即软重启" else "立即重启")
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ZiyuButton(onClick = { actions.dismissMountBackendRebootPrompt(); actions.reboot() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("继续选择重启方式")
+                    }
+                    ZiyuOutlinedButton(onClick = actions.dismissMountBackendRebootPrompt, modifier = Modifier.fillMaxWidth()) {
+                        Text("稍后重启")
+                    }
                 }
             },
-            dismissButton = { TextButton(onClick = actions.dismissMountBackendRebootPrompt) { Text("稍后重启") } },
+            dismissButton = null,
         )
     }
     if (showUndo) {
@@ -285,9 +290,18 @@ fun HomeRoute(
         AlertDialog(
             onDismissRequest = { showTemporaryRootGuide = false },
             title = { Text("KernelSU 软重启") },
-            text = { Text("是否请求 KernelSU 软重启？完成后回到字域，查看本次挂载和字体加载验证结果。") },
-            confirmButton = { TextButton(onClick = { showTemporaryRootGuide = false; actions.reboot() }) { Text("立即软重启") } },
-            dismissButton = { TextButton(onClick = { showTemporaryRootGuide = false }) { Text("稍后") } },
+            text = { Text("下一步确认本机可用的重启方式，再由你选择是否执行。重启完成后回到字域，查看本次挂载和字体加载验证结果。") },
+            confirmButton = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ZiyuButton(onClick = { showTemporaryRootGuide = false; actions.reboot() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("继续选择重启方式")
+                    }
+                    ZiyuOutlinedButton(onClick = { showTemporaryRootGuide = false }, modifier = Modifier.fillMaxWidth()) {
+                        Text("稍后")
+                    }
+                }
+            },
+            dismissButton = null,
         )
     }
 }

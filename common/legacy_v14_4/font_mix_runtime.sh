@@ -4,7 +4,7 @@
 # This wrapper only bridges its async task lifecycle to the current private payload boot mode.
 set +e
 RUNTIME="${MODDIR:-}"
-REALMOD="${LUOSHU_REAL_MODDIR:-/data/adb/modules/ziyu}"
+REALMOD="${ZIYU_REAL_MODDIR:-/data/adb/modules/ziyu}"
 ENGINE="$RUNTIME/common/font_mix_engine.sh"
 TASK_FILE="$RUNTIME/config/mix_task.conf"
 LEGACY_MODE="$RUNTIME/config/font_runtime_legacy_v14_4.conf"
@@ -43,7 +43,7 @@ mark_legacy_mix_mode() {
 
 finalize_next_payload() {
     [ -f "$MIX_ROUTER" ] || return 1
-    MODDIR="$REALMOD" LUOSHU_REAL_MODDIR="$REALMOD" \
+    MODDIR="$REALMOD" ZIYU_REAL_MODDIR="$REALMOD" \
         sh "$MIX_ROUTER" finalize >> "$LOG_FILE" 2>&1
 }
 
@@ -53,7 +53,7 @@ write_finalize_state() {
     _mfs_tmp="${FINALIZE_STATE}.tmp.$$"
     {
         printf 'state=%s\n' "$_mfs_state"
-        printf 'requestId=%s\n' "${LUOSHU_MIX_REQUEST_ID:-}"
+        printf 'requestId=%s\n' "${ZIYU_MIX_REQUEST_ID:-}"
         printf 'message=%s\n' "$_mfs_message"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } >"$_mfs_tmp" 2>/dev/null && mv -f "$_mfs_tmp" "$FINALIZE_STATE" 2>/dev/null || true
@@ -78,7 +78,7 @@ monitor_task() {
                     # module's next-boot payload from this background monitor too.
                     # Selected preparation is finalized by the owning axes worker;
                     # it remains responsible for cancellation and library status.
-                    [ "${LUOSHU_MIX_PREPARE_ONLY:-false}" != true ] || exit 0
+                    [ "${ZIYU_MIX_PREPARE_ONLY:-false}" != true ] || exit 0
                     write_finalize_state running '正在提交下一启动字体负载'
                     if finalize_next_payload; then
                         write_finalize_state success '复合字体已准备，完整重启后生效'
@@ -114,14 +114,14 @@ case "${1:-status}" in
         _response="$RUNTIME/cache/mix-engine-start.$$.json"
         rm -f "$_response" 2>/dev/null || true
         rm -f "$FINALIZE_STATE" 2>/dev/null || true
-        MODDIR="$RUNTIME" LUOSHU_REAL_MODDIR="$REALMOD" \
+        MODDIR="$RUNTIME" ZIYU_REAL_MODDIR="$REALMOD" \
             sh "$ENGINE" "$@" >"$_response" 2>&1
         _rc=$?
         cat "$_response" 2>/dev/null || true
         if [ "$_rc" -eq 0 ]; then
             _task=$(sed -n 's/^.*"task":"\([^"]*\)".*$/\1/p' "$_response" 2>/dev/null | tail -n1)
             if [ -n "$_task" ]; then
-                ( trap '' HUP; MODDIR="$RUNTIME" LUOSHU_REAL_MODDIR="$REALMOD" sh "$0" monitor "$_task" ) </dev/null >>"$LOG_FILE" 2>&1 &
+                ( trap '' HUP; MODDIR="$RUNTIME" ZIYU_REAL_MODDIR="$REALMOD" sh "$0" monitor "$_task" ) </dev/null >>"$LOG_FILE" 2>&1 &
             fi
         fi
         rm -f "$_response" 2>/dev/null || true

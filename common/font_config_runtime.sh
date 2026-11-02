@@ -1,39 +1,39 @@
 #!/system/bin/sh
-# 洛书无 Hook 字体配置运行层。被 source 时只定义函数。
+# 字域无 Hook 字体配置运行层。被 source 时只定义函数。
 set +e
 
-_luoshu_font_config_module() {
+_ziyu_font_config_module() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
 }
 
 # Font/config overlays live in the canonical private payload when that layout is enabled. The App
 # shell can run in a mount namespace where the public module view is only an empty placeholder;
 # writing XML there made the task report success while post-fs-data mounted a different tree.
-_luoshu_font_config_payload_root() {
-    _lfc_module="$(_luoshu_font_config_module)"
+_ziyu_font_config_payload_root() {
+    _lfc_module="$(_ziyu_font_config_module)"
     if type _lfrp_payload_root >/dev/null 2>&1; then
         _lfc_payload=$(_lfrp_payload_root 2>/dev/null)
         [ -n "$_lfc_payload" ] && { printf '%s\n' "${_lfc_payload%/}"; return 0; }
     fi
-    if [ -d "$_lfc_module/.luoshu-payload" ]; then
-        printf '%s/.luoshu-payload\n' "${_lfc_module%/}"
+    if [ -d "$_lfc_module/.ziyu-payload" ]; then
+        printf '%s/.ziyu-payload\n' "${_lfc_module%/}"
     else
         printf '%s\n' "${_lfc_module%/}"
     fi
 }
 
-_luoshu_font_config_python() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        printf '%s\n' "$LUOSHU_PYTHON"
+_ziyu_font_config_python() {
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        printf '%s\n' "$ZIYU_PYTHON"
     else
-        printf '%s/common/python/bin/luoshu-python\n' "$(_luoshu_font_config_module)"
+        printf '%s/common/python/bin/ziyu-python\n' "$(_ziyu_font_config_module)"
     fi
 }
 
-_luoshu_font_config_exec() {
-    _lfc_module="$(_luoshu_font_config_module)"
-    _lfc_python="$(_luoshu_font_config_python)"
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
+_ziyu_font_config_exec() {
+    _lfc_module="$(_ziyu_font_config_module)"
+    _lfc_python="$(_ziyu_font_config_python)"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
         "$_lfc_python" "$@"
     else
         _lfc_root="$_lfc_module/common/python"
@@ -44,7 +44,7 @@ _luoshu_font_config_exec() {
     fi
 }
 
-_luoshu_font_config_log() {
+_ziyu_font_config_log() {
     if type log_message >/dev/null 2>&1; then
         log_message "$1" "$2"
     elif type _log_step >/dev/null 2>&1; then
@@ -53,12 +53,12 @@ _luoshu_font_config_log() {
 }
 
 # key | real XML | module overlay XML | font directory used by that config
-_luoshu_font_config_specs() {
-    _lfc_module="$(_luoshu_font_config_module)"
-    _lfc_payload="$(_luoshu_font_config_payload_root)"
-    _lfc_system_etc="${LUOSHU_SYSTEM_ETC_ROOT:-/system/etc}"
-    _lfc_product_etc="${LUOSHU_PRODUCT_ETC_ROOT:-/product/etc}"
-    _lfc_system_ext_etc="${LUOSHU_SYSTEM_EXT_ETC_ROOT:-/system_ext/etc}"
+_ziyu_font_config_specs() {
+    _lfc_module="$(_ziyu_font_config_module)"
+    _lfc_payload="$(_ziyu_font_config_payload_root)"
+    _lfc_system_etc="${ZIYU_SYSTEM_ETC_ROOT:-/system/etc}"
+    _lfc_product_etc="${ZIYU_PRODUCT_ETC_ROOT:-/product/etc}"
+    _lfc_system_ext_etc="${ZIYU_SYSTEM_EXT_ETC_ROOT:-/system_ext/etc}"
 
     printf 'system/fonts.xml|%s/fonts.xml|%s/system/etc/fonts.xml|%s/system/fonts\n' \
         "$_lfc_system_etc" "$_lfc_payload" "$_lfc_payload"
@@ -86,25 +86,25 @@ _luoshu_font_config_specs() {
         "$_lfc_system_ext_etc" "$_lfc_payload" "$_lfc_payload"
 }
 
-_luoshu_font_config_validate() {
+_ziyu_font_config_validate() {
     _lfc_xml="$1"
     _lfc_fonts="${2:-}"
-    _lfc_module="$(_luoshu_font_config_module)"
+    _lfc_module="$(_ziyu_font_config_module)"
     _lfc_tool="$_lfc_module/common/font_config_overlay.py"
     [ -f "$_lfc_xml" ] && [ -f "$_lfc_tool" ] || return 1
     if [ -n "$_lfc_fonts" ]; then
-        _luoshu_font_config_exec "$_lfc_tool" --input "$_lfc_xml" --validate-only \
-            --font-prefix LuoShu --mono-font-prefix LuoShuMono --font-dir "$_lfc_fonts" >/dev/null 2>&1
+        _ziyu_font_config_exec "$_lfc_tool" --input "$_lfc_xml" --validate-only \
+            --font-prefix Ziyu --mono-font-prefix ZiyuMono --font-dir "$_lfc_fonts" >/dev/null 2>&1
     else
-        _luoshu_font_config_exec "$_lfc_tool" --input "$_lfc_xml" --validate-only >/dev/null 2>&1
+        _ziyu_font_config_exec "$_lfc_tool" --input "$_lfc_xml" --validate-only >/dev/null 2>&1
     fi
 }
 
-_luoshu_font_config_alias_partition() {
+_ziyu_font_config_alias_partition() {
     _lfc_target="$1"
-    _lfc_system_fonts="$(_luoshu_font_config_payload_root)/system/fonts"
+    _lfc_system_fonts="$(_ziyu_font_config_payload_root)/system/fonts"
     mkdir -p "$_lfc_target" 2>/dev/null || return 1
-    for _lfc_prefix in LuoShu; do
+    for _lfc_prefix in Ziyu; do
         for _lfc_weight in 100 200 300 400 500 600 700 800 900; do
             _lfc_source="$_lfc_system_fonts/${_lfc_prefix}-${_lfc_weight}.ttf"
             _lfc_dest="$_lfc_target/${_lfc_prefix}-${_lfc_weight}.ttf"
@@ -119,9 +119,9 @@ _luoshu_font_config_alias_partition() {
     return 0
 }
 
-_luoshu_font_config_remove_aliases() {
+_ziyu_font_config_remove_aliases() {
     _lfc_dir="$1"
-    for _lfc_prefix in LuoShu LuoShuMono; do
+    for _lfc_prefix in Ziyu ZiyuMono; do
         for _lfc_weight in 100 200 300 400 500 600 700 800 900; do
             rm -f "$_lfc_dir/${_lfc_prefix}-${_lfc_weight}.ttf" 2>/dev/null || true
         done
@@ -131,9 +131,9 @@ _luoshu_font_config_remove_aliases() {
 # Validate a list of documents in one interpreter. Input lines are XML paths; the function prints
 # the subset that parsed successfully. Batching matters because the per-document form cost a full
 # embedded-CPython start each, and a ROM can ship a dozen font configuration files.
-_luoshu_font_config_validate_batch() {
+_ziyu_font_config_validate_batch() {
     _lfcvb_list="$1"
-    _lfcvb_module="$(_luoshu_font_config_module)"
+    _lfcvb_module="$(_ziyu_font_config_module)"
     _lfcvb_tool="$_lfcvb_module/common/font_config_overlay.py"
     [ -s "$_lfcvb_list" ] && [ -f "$_lfcvb_tool" ] || return 1
     _lfcvb_jobs="${_lfcvb_list}.jobs"
@@ -142,7 +142,7 @@ _luoshu_font_config_validate_batch() {
         [ -n "$_lfcvb_xml" ] || continue
         printf 'validate\t%s\t\n' "$_lfcvb_xml" >> "$_lfcvb_jobs"
     done < "$_lfcvb_list"
-    _luoshu_font_config_exec "$_lfcvb_tool" --batch "$_lfcvb_jobs" 2>/dev/null | \
+    _ziyu_font_config_exec "$_lfcvb_tool" --batch "$_lfcvb_jobs" 2>/dev/null | \
         while IFS="$(printf '\t')" read -r _lfcvb_op _lfcvb_src _lfcvb_status _lfcvb_rest; do
             [ "$_lfcvb_op" = validate ] && [ "$_lfcvb_status" = ok ] || continue
             printf '%s\n' "$_lfcvb_src"
@@ -151,7 +151,7 @@ _luoshu_font_config_validate_batch() {
 }
 
 font_config_capture_original() {
-    _lfc_module="$(_luoshu_font_config_module)"
+    _lfc_module="$(_ziyu_font_config_module)"
     _lfc_config="${CONFIG_DIR:-$_lfc_module/config}"
     _lfc_backup_root="$_lfc_config/font-config-source"
     mkdir -p "$_lfc_backup_root" 2>/dev/null || return 1
@@ -169,7 +169,7 @@ font_config_capture_original() {
         _lfc_backup="$_lfc_backup_root/$_lfc_key"
         mkdir -p "${_lfc_backup%/*}" 2>/dev/null || continue
         # Never snapshot our own upper-layer document. Keep a valid previous source when mounted.
-        if grep -Eq 'LuoShu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lfc_real" 2>/dev/null; then
+        if grep -Eq 'Ziyu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lfc_real" 2>/dev/null; then
             continue
         fi
         if [ -s "$_lfc_backup" ]; then
@@ -178,14 +178,14 @@ font_config_capture_original() {
         else
             printf '%s\t%s\t%s\n' "$_lfc_real" "$_lfc_backup" fresh >> "$_lfc_work/pending"
         fi
-    done <<EOF_LUOSHU_FONT_CONFIG
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_FONT_CONFIG
+    done <<EOF_ZIYU_FONT_CONFIG
+$(_ziyu_font_config_specs)
+EOF_ZIYU_FONT_CONFIG
 
     # Pass 2: one interpreter validates every existing backup.
     : > "$_lfc_work/valid"
     if [ -s "$_lfc_work/check" ]; then
-        _luoshu_font_config_validate_batch "$_lfc_work/check" > "$_lfc_work/valid" 2>/dev/null || true
+        _ziyu_font_config_validate_batch "$_lfc_work/check" > "$_lfc_work/valid" 2>/dev/null || true
     fi
 
     # Pass 3: stage the snapshots that are missing, stale or unusable.
@@ -204,7 +204,7 @@ EOF_LUOSHU_FONT_CONFIG
 
     # Pass 4: one interpreter validates every staged snapshot, then the good ones are committed.
     if [ -s "$_lfc_work/verify" ]; then
-        _luoshu_font_config_validate_batch "$_lfc_work/verify" > "$_lfc_work/verified" 2>/dev/null || : > "$_lfc_work/verified"
+        _ziyu_font_config_validate_batch "$_lfc_work/verify" > "$_lfc_work/verified" 2>/dev/null || : > "$_lfc_work/verified"
         while IFS="$(printf '\t')" read -r _lfc_temp _lfc_backup; do
             [ -n "$_lfc_temp" ] || continue
             if grep -Fxq "$_lfc_temp" "$_lfc_work/verified" 2>/dev/null; then
@@ -220,38 +220,38 @@ EOF_LUOSHU_FONT_CONFIG
     [ "$_lfc_found" -gt 0 ]
 }
 
-_luoshu_font_config_disable_base() {
-    _lfc_module="$(_luoshu_font_config_module)"
+_ziyu_font_config_disable_base() {
+    _lfc_module="$(_ziyu_font_config_module)"
     _lfc_state="${CONFIG_DIR:-$_lfc_module/config}/font-config-overlay.conf"
     _lfc_dirs=''
     while IFS='|' read -r _lfc_key _lfc_real _lfc_overlay _lfc_fonts; do
-        if [ -f "$_lfc_overlay" ] && grep -Eq 'LuoShu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lfc_overlay" 2>/dev/null; then
+        if [ -f "$_lfc_overlay" ] && grep -Eq 'Ziyu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lfc_overlay" 2>/dev/null; then
             rm -f "$_lfc_overlay" 2>/dev/null || true
         fi
         case " $_lfc_dirs " in *" $_lfc_fonts "*) ;; *) _lfc_dirs="$_lfc_dirs $_lfc_fonts" ;; esac
-    done <<EOF_LUOSHU_FONT_CONFIG
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_FONT_CONFIG
-    for _lfc_dir in $_lfc_dirs; do _luoshu_font_config_remove_aliases "$_lfc_dir"; done
+    done <<EOF_ZIYU_FONT_CONFIG
+$(_ziyu_font_config_specs)
+EOF_ZIYU_FONT_CONFIG
+    for _lfc_dir in $_lfc_dirs; do _ziyu_font_config_remove_aliases "$_lfc_dir"; done
     rm -f "$_lfc_state" 2>/dev/null || true
 }
 
-_luoshu_font_config_generate_base() {
+_ziyu_font_config_generate_base() {
     _lfc_family="$1"
-    _lfc_module="$(_luoshu_font_config_module)"
+    _lfc_module="$(_ziyu_font_config_module)"
     _lfc_config="${CONFIG_DIR:-$_lfc_module/config}"
     _lfc_backup_root="$_lfc_config/font-config-source"
     _lfc_tool="$_lfc_module/common/font_config_overlay.py"
     _lfc_stage="$_lfc_config/font-config-stage.$$"
-    _lfc_payload="$(_luoshu_font_config_payload_root)"
+    _lfc_payload="$(_ziyu_font_config_payload_root)"
     font_config_capture_original || return 1
 
     # Weight availability is a global invariant. Never publish XML that references a half-built
     # family merely because one partition happens to be writable.
-    for _lfc_prefix in LuoShu; do
+    for _lfc_prefix in Ziyu; do
         for _lfc_weight in 100 200 300 400 500 600 700 800 900; do
             [ -s "$_lfc_payload/system/fonts/${_lfc_prefix}-${_lfc_weight}.ttf" ] || {
-                _luoshu_font_config_disable_base
+                _ziyu_font_config_disable_base
                 return 1
             }
         done
@@ -272,18 +272,18 @@ _luoshu_font_config_generate_base() {
     while IFS='|' read -r _lfc_key _lfc_real _lfc_overlay _lfc_fonts; do
         _lfc_input="$_lfc_backup_root/$_lfc_key"
         [ -s "$_lfc_input" ] || continue
-        _luoshu_font_config_alias_partition "$_lfc_fonts" || { _lfc_failed=$((_lfc_failed + 1)); continue; }
+        _ziyu_font_config_alias_partition "$_lfc_fonts" || { _lfc_failed=$((_lfc_failed + 1)); continue; }
         _lfc_output="$_lfc_stage/$_lfc_key"
         mkdir -p "${_lfc_output%/*}" 2>/dev/null || { _lfc_failed=$((_lfc_failed + 1)); continue; }
         printf 'generate\t%s\t%s\t%s\n' "$_lfc_input" "$_lfc_output" "$_lfc_fonts" >> "$_lfc_jobs"
-    done <<EOF_LUOSHU_FONT_CONFIG
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_FONT_CONFIG
+    done <<EOF_ZIYU_FONT_CONFIG
+$(_ziyu_font_config_specs)
+EOF_ZIYU_FONT_CONFIG
 
     if [ -s "$_lfc_jobs" ]; then
         _lfc_results="$_lfc_stage/.results"
-        if _luoshu_font_config_exec "$_lfc_tool" --batch "$_lfc_jobs" \
-            --font-prefix LuoShu --mono-font-prefix LuoShuMono > "$_lfc_results" 2>/dev/null; then
+        if _ziyu_font_config_exec "$_lfc_tool" --batch "$_lfc_jobs" \
+            --font-prefix Ziyu --mono-font-prefix ZiyuMono > "$_lfc_results" 2>/dev/null; then
             while IFS="$(printf '\t')" read -r _lfc_op _lfc_src _lfc_status _lfc_flag _lfc_refs _lfc_msg; do
                 [ "$_lfc_op" = generate ] || continue
                 if [ "$_lfc_status" = ok ] && [ "$_lfc_flag" = 1 ]; then
@@ -301,68 +301,68 @@ EOF_LUOSHU_FONT_CONFIG
 
     if [ "$_lfc_changed" -eq 0 ]; then
         rm -rf "$_lfc_stage" 2>/dev/null || true
-        _luoshu_font_config_disable_base
+        _ziyu_font_config_disable_base
         return 1
     fi
-    [ "$_lfc_failed" -eq 0 ] || _luoshu_font_config_log WARN \
+    [ "$_lfc_failed" -eq 0 ] || _ziyu_font_config_log WARN \
         "部分分区未能生成字体别名，已按通过校验的可用分区提交 XML 覆盖：ok=$_lfc_changed failed=$_lfc_failed"
 
     # Commit only independently generated documents whose referenced aliases already validated.
     while IFS='|' read -r _lfc_key _lfc_real _lfc_overlay _lfc_fonts; do
         _lfc_ready="$_lfc_stage/$_lfc_key"
         if [ -s "$_lfc_ready" ]; then
-            mkdir -p "${_lfc_overlay%/*}" 2>/dev/null || { rm -rf "$_lfc_stage"; _luoshu_font_config_disable_base; return 1; }
+            mkdir -p "${_lfc_overlay%/*}" 2>/dev/null || { rm -rf "$_lfc_stage"; _ziyu_font_config_disable_base; return 1; }
             _lfc_temp="${_lfc_overlay}.tmp.$$"
-            cp -f "$_lfc_ready" "$_lfc_temp" 2>/dev/null || { rm -rf "$_lfc_stage"; _luoshu_font_config_disable_base; return 1; }
+            cp -f "$_lfc_ready" "$_lfc_temp" 2>/dev/null || { rm -rf "$_lfc_stage"; _ziyu_font_config_disable_base; return 1; }
             chmod 0644 "$_lfc_temp" 2>/dev/null || true
-            mv -f "$_lfc_temp" "$_lfc_overlay" 2>/dev/null || { rm -rf "$_lfc_stage"; _luoshu_font_config_disable_base; return 1; }
-        elif [ -f "$_lfc_overlay" ] && grep -Eq 'LuoShu(Mono)?-' "$_lfc_overlay" 2>/dev/null; then
+            mv -f "$_lfc_temp" "$_lfc_overlay" 2>/dev/null || { rm -rf "$_lfc_stage"; _ziyu_font_config_disable_base; return 1; }
+        elif [ -f "$_lfc_overlay" ] && grep -Eq 'Ziyu(Mono)?-' "$_lfc_overlay" 2>/dev/null; then
             rm -f "$_lfc_overlay" 2>/dev/null || true
         fi
-    done <<EOF_LUOSHU_FONT_CONFIG
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_FONT_CONFIG
+    done <<EOF_ZIYU_FONT_CONFIG
+$(_ziyu_font_config_specs)
+EOF_ZIYU_FONT_CONFIG
     rm -rf "$_lfc_stage" 2>/dev/null || true
     {
         printf 'mode=enabled\nfamily=%s\nconfigs=%s\ntime=%s\n' \
             "$_lfc_family" "$_lfc_changed" "$(date +%s)"
     } > "$_lfc_config/font-config-overlay.conf" 2>/dev/null || true
     chmod 0644 "$_lfc_config/font-config-overlay.conf" 2>/dev/null || true
-    _luoshu_font_config_log INFO "无 Hook 字体配置已生成：$_lfc_changed 份 XML"
+    _ziyu_font_config_log INFO "无 Hook 字体配置已生成：$_lfc_changed 份 XML"
     return 0
 }
 
-_luoshu_font_config_boot_guard_base() {
+_ziyu_font_config_boot_guard_base() {
     _lfc_active="${1:-default}"
-    _lfc_module="$(_luoshu_font_config_module)"
+    _lfc_module="$(_ziyu_font_config_module)"
     font_config_capture_original >/dev/null 2>&1 || true
     [ "$_lfc_active" != default ] || { font_config_disable; return 0; }
     _lfc_seen=0
     _lfc_bad=0
     while IFS='|' read -r _lfc_key _lfc_real _lfc_overlay _lfc_fonts; do
         [ -f "$_lfc_overlay" ] || continue
-        grep -Eq 'LuoShu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lfc_overlay" 2>/dev/null || continue
+        grep -Eq 'Ziyu(Mono)?-[1-9][0-9][0-9]\.ttf' "$_lfc_overlay" 2>/dev/null || continue
         _lfc_seen=$((_lfc_seen + 1))
-        _luoshu_font_config_validate "$_lfc_overlay" "$_lfc_fonts" || _lfc_bad=$((_lfc_bad + 1))
-    done <<EOF_LUOSHU_FONT_CONFIG
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_FONT_CONFIG
+        _ziyu_font_config_validate "$_lfc_overlay" "$_lfc_fonts" || _lfc_bad=$((_lfc_bad + 1))
+    done <<EOF_ZIYU_FONT_CONFIG
+$(_ziyu_font_config_specs)
+EOF_ZIYU_FONT_CONFIG
     if [ "$_lfc_bad" -gt 0 ]; then
         # Removing the upper-layer XML reveals the untouched ROM document below. File-slot aliases
         # remain available as the compatibility fallback, so an invalid generated config never boots.
         while IFS='|' read -r _lfc_key _lfc_real _lfc_overlay _lfc_fonts; do
-            [ -f "$_lfc_overlay" ] && grep -Eq 'LuoShu(Mono)?-' "$_lfc_overlay" 2>/dev/null && rm -f "$_lfc_overlay" 2>/dev/null || true
-        done <<EOF_LUOSHU_FONT_CONFIG
-$(_luoshu_font_config_specs)
-EOF_LUOSHU_FONT_CONFIG
+            [ -f "$_lfc_overlay" ] && grep -Eq 'Ziyu(Mono)?-' "$_lfc_overlay" 2>/dev/null && rm -f "$_lfc_overlay" 2>/dev/null || true
+        done <<EOF_ZIYU_FONT_CONFIG
+$(_ziyu_font_config_specs)
+EOF_ZIYU_FONT_CONFIG
         rm -f "${CONFIG_DIR:-$_lfc_module/config}/font-config-overlay.conf" 2>/dev/null || true
-        _luoshu_font_config_log ERROR '字体 XML 校验失败，已撤销配置覆盖并保留文件槽映射'
+        _ziyu_font_config_log ERROR '字体 XML 校验失败，已撤销配置覆盖并保留文件槽映射'
         return 1
     fi
-    [ "$_lfc_seen" -eq 0 ] || _luoshu_font_config_log INFO "无 Hook 字体配置启动校验通过：$_lfc_seen 份 XML"
+    [ "$_lfc_seen" -eq 0 ] || _ziyu_font_config_log INFO "无 Hook 字体配置启动校验通过：$_lfc_seen 份 XML"
     return 0
 }
 
 # Load the fail-open transaction and boot-confirmation layer for every runtime caller.
-_luoshu_font_safety="$(_luoshu_font_config_module)/common/font_safety.sh"
-[ -f "$_luoshu_font_safety" ] && . "$_luoshu_font_safety"
+_ziyu_font_safety="$(_ziyu_font_config_module)/common/font_safety.sh"
+[ -f "$_ziyu_font_safety" ] && . "$_ziyu_font_safety"

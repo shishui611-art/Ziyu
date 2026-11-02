@@ -1,14 +1,14 @@
 #!/system/bin/sh
-# LuoShu safe physical font switch core.
+# Ziyu safe physical font switch core.
 # Foreground switching never renames, deletes or rewrites the payload used by the
-# current Android boot. It builds .luoshu-payload-next off-line; post-fs-data activates
-# that tree before LuoShu mounts fonts on the following complete boot.
+# current Android boot. It builds .ziyu-payload-next off-line; post-fs-data activates
+# that tree before Ziyu mounts fonts on the following complete boot.
 set +e
 
 # Composite compatibility workers execute inside .legacy-v14-runtime and pass that
-# directory as MODDIR. Their actual module is exported as LUOSHU_REAL_MODDIR. Always
+# directory as MODDIR. Their actual module is exported as ZIYU_REAL_MODDIR. Always
 # commit next-boot payload/state to the real module when that trusted hint is present.
-_REALMOD_HINT="${LUOSHU_REAL_MODDIR:-}"
+_REALMOD_HINT="${ZIYU_REAL_MODDIR:-}"
 if [ -n "$_REALMOD_HINT" ] && [ -f "$_REALMOD_HINT/module.prop" ]; then
     MODDIR="$_REALMOD_HINT"
 else
@@ -28,11 +28,11 @@ LEGACY_DIR="$MODDIR/common/legacy_v14_4"
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-USER_ROOT="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}"
+USER_ROOT="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}"
 USER_FONTS_DIR="$USER_ROOT/fonts"
-LIVE_PAYLOAD="$MODDIR/.luoshu-payload"
-STAGE_PAYLOAD="$MODDIR/.luoshu-state/tmp/.luoshu-payload-stage.$$"
-NEXT_PAYLOAD="$MODDIR/.luoshu-payload-next"
+LIVE_PAYLOAD="$MODDIR/.ziyu-payload"
+STAGE_PAYLOAD="$MODDIR/.ziyu-state/tmp/.ziyu-payload-stage.$$"
+NEXT_PAYLOAD="$MODDIR/.ziyu-payload-next"
 NEXT_STATE="$CONFIG_DIR/font-payload-next.conf"
 SCHEMA_STATE="$CONFIG_DIR/font-payload-schema.conf"
 ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
@@ -40,19 +40,19 @@ LEGACY_MODE_CONF="$CONFIG_DIR/font_runtime_legacy_v14_4.conf"
 TEXT_REBOOT_REQUIRED="$CONFIG_DIR/text_reboot_required.conf"
 LOG_FILE="$MODDIR/logs/fontswitch.log"
 SWITCH_LOCK="$MODDIR/.font_switch.lock"
-PROGRESS_FILE="${LUOSHU_SWITCH_PROGRESS_FILE:-}"
+PROGRESS_FILE="${ZIYU_SWITCH_PROGRESS_FILE:-}"
 SWITCH_CACHE_ROOT="$CONFIG_DIR/safe-switch-cache"
 SWITCH_VALIDATION_CACHE_ROOT="$CONFIG_DIR/safe-switch-validation"
 SWITCH_CACHE_SCHEMA="safe-switch-metrics-v3-roles-real-weights"
-SWITCH_CACHE_MAX_ENTRIES="${LUOSHU_SWITCH_CACHE_MAX_ENTRIES:-3}"
-SWITCH_CACHE_MAX_KB="${LUOSHU_SWITCH_CACHE_MAX_KB:-786432}"
+SWITCH_CACHE_MAX_ENTRIES="${ZIYU_SWITCH_CACHE_MAX_ENTRIES:-3}"
+SWITCH_CACHE_MAX_KB="${ZIYU_SWITCH_CACHE_MAX_KB:-786432}"
 case "$SWITCH_CACHE_MAX_ENTRIES" in ''|*[!0-9]*) SWITCH_CACHE_MAX_ENTRIES=3 ;; esac
 case "$SWITCH_CACHE_MAX_KB" in ''|*[!0-9]*) SWITCH_CACHE_MAX_KB=786432 ;; esac
 [ "$SWITCH_CACHE_MAX_ENTRIES" -ge 1 ] 2>/dev/null || SWITCH_CACHE_MAX_ENTRIES=1
 [ "$SWITCH_CACHE_MAX_KB" -ge 131072 ] 2>/dev/null || SWITCH_CACHE_MAX_KB=131072
 LOCK_HELD=false
 
-export MODULE_DIR LUOSHU_PUBLIC_DIR="$USER_ROOT"
+export MODULE_DIR ZIYU_PUBLIC_DIR="$USER_ROOT"
 [ -f "$LEGACY_DIR/util_functions.sh" ] && . "$LEGACY_DIR/util_functions.sh"
 [ -f "$LEGACY_DIR/font_check.sh" ] && . "$LEGACY_DIR/font_check.sh"
 [ -f "$LEGACY_DIR/rom_adapters.sh" ] && . "$LEGACY_DIR/rom_adapters.sh"
@@ -118,11 +118,11 @@ safe_inventory_identity() {
     _sii_pyroot="$MODDIR/common/python"
     if [ -n "$_sii_content" ]; then
         :
-    elif [ -x "$_sii_pyroot/bin/luoshu-python" ] && [ -f "$MODDIR/common/font_cache_identity.py" ]; then
+    elif [ -x "$_sii_pyroot/bin/ziyu-python" ] && [ -f "$MODDIR/common/font_cache_identity.py" ]; then
         _sii_content=$(PYTHONHOME="$_sii_pyroot" \
             PYTHONPATH="$_sii_pyroot/lib/python3.14:$_sii_pyroot/lib/python3.14/site-packages" \
             LD_LIBRARY_PATH="$_sii_pyroot/lib:$_sii_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            "$_sii_pyroot/bin/luoshu-python" "$MODDIR/common/font_cache_identity.py" "$_sii_file" 2>/dev/null)
+            "$_sii_pyroot/bin/ziyu-python" "$MODDIR/common/font_cache_identity.py" "$_sii_file" 2>/dev/null)
         [ "$?" -eq 0 ] || _sii_content=''
     fi
     if [ -z "$_sii_content" ] && [ -s "$_sii_file" ]; then
@@ -321,7 +321,7 @@ safe_switch_cache_restore() {
     [ "$(read_state_value "$_scr_conf" rom)" = "$_sck_rom" ] || return 1
     [ "$(read_state_value "$_scr_conf" mapperIdentity)" = "$_sck_mapper" ] || return 1
 
-    rm -rf "$STAGE_PAYLOAD/.luoshu-collection-proofs" 2>/dev/null || true
+    rm -rf "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || true
     _scr_restored=0
     for _scr_part in $(safe_partition_list); do
         _scr_src="$_scr_root/tree/$_scr_part/fonts"
@@ -336,15 +336,15 @@ safe_switch_cache_restore() {
     done
     [ "$_scr_restored" -gt 0 ] || return 1
     if [ "${_collection_mix:-false}" = true ]; then
-        _scr_proofs="$_scr_root/tree/.luoshu-collection-proofs"
+        _scr_proofs="$_scr_root/tree/.ziyu-collection-proofs"
         [ -d "$_scr_proofs" ] && [ ! -L "$_scr_proofs" ] || return 1
-        cp -a "$_scr_proofs" "$STAGE_PAYLOAD/.luoshu-collection-proofs" 2>/dev/null || return 1
+        cp -a "$_scr_proofs" "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || return 1
     fi
     [ "$(safe_source_identity "$_scr_file")" = "$_sck_identity" ] || return 1
     [ "$(safe_family_identity "$_scr_font")" = "$_sck_family" ] || return 1
     # Pruning is ordered by directory mtime. A successful reuse is a use, too.
     touch "$_scr_root" 2>/dev/null || true
-    [ ! -f "$_scr_root/tree/.luoshu-metrics-report.json" ] ||         cp -f "$_scr_root/tree/.luoshu-metrics-report.json" "$STAGE_PAYLOAD/.luoshu-metrics-report.json" 2>/dev/null || true
+    [ ! -f "$_scr_root/tree/.ziyu-metrics-report.json" ] ||         cp -f "$_scr_root/tree/.ziyu-metrics-report.json" "$STAGE_PAYLOAD/.ziyu-metrics-report.json" 2>/dev/null || true
     printf '[%s] [SAFE-SWITCH] cache hit font=%s key=%s partitions=%s\n'         "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$_scr_font" "$_scr_key" "$_scr_restored"         >> "$LOG_FILE" 2>/dev/null || true
     return 0
 }
@@ -407,14 +407,14 @@ safe_switch_cache_store() {
         _scs_saved=$((_scs_saved + 1))
     done
     [ "$_scs_saved" -gt 0 ] || { rm -rf "$_scs_stage" 2>/dev/null || true; return 1; }
-    if [ -d "$STAGE_PAYLOAD/.luoshu-collection-proofs" ] &&
-       [ ! -L "$STAGE_PAYLOAD/.luoshu-collection-proofs" ]; then
-        cp -a "$STAGE_PAYLOAD/.luoshu-collection-proofs" "$_scs_stage/tree/.luoshu-collection-proofs" 2>/dev/null || {
+    if [ -d "$STAGE_PAYLOAD/.ziyu-collection-proofs" ] &&
+       [ ! -L "$STAGE_PAYLOAD/.ziyu-collection-proofs" ]; then
+        cp -a "$STAGE_PAYLOAD/.ziyu-collection-proofs" "$_scs_stage/tree/.ziyu-collection-proofs" 2>/dev/null || {
             rm -rf "$_scs_stage" 2>/dev/null || true
             return 1
         }
     fi
-    [ ! -f "$STAGE_PAYLOAD/.luoshu-metrics-report.json" ] ||         cp -f "$STAGE_PAYLOAD/.luoshu-metrics-report.json" "$_scs_stage/tree/.luoshu-metrics-report.json" 2>/dev/null || true
+    [ ! -f "$STAGE_PAYLOAD/.ziyu-metrics-report.json" ] ||         cp -f "$STAGE_PAYLOAD/.ziyu-metrics-report.json" "$_scs_stage/tree/.ziyu-metrics-report.json" 2>/dev/null || true
     _scs_identity=$(safe_source_identity "$_scs_file") || { rm -rf "$_scs_stage"; return 1; }
     [ "$_scs_identity" = "$_sck_identity" ] || { rm -rf "$_scs_stage"; return 1; }
     [ "$(safe_family_identity "$_scs_font")" = "$_sck_family" ] || { rm -rf "$_scs_stage"; return 1; }
@@ -458,9 +458,9 @@ safe_error() {
 
 lock_cleanup() {
     [ "$LOCK_HELD" = true ] || return 0
-    if type luoshu_font_lock_release >/dev/null 2>&1; then
-        luoshu_font_lock_release "$SWITCH_LOCK" "$$" >/dev/null 2>&1 || \
-            luoshu_font_lock_force_clear "$SWITCH_LOCK" "$$" >/dev/null 2>&1 || true
+    if type ziyu_font_lock_release >/dev/null 2>&1; then
+        ziyu_font_lock_release "$SWITCH_LOCK" "$$" >/dev/null 2>&1 || \
+            ziyu_font_lock_force_clear "$SWITCH_LOCK" "$$" >/dev/null 2>&1 || true
     fi
     LOCK_HELD=false
 }
@@ -490,8 +490,8 @@ wait_for_prewarm_cache() {
 }
 
 lock_acquire() {
-    type luoshu_font_lock_acquire >/dev/null 2>&1 || { safe_error '缺少字体切换身份锁'; return 1; }
-    luoshu_font_lock_acquire "$SWITCH_LOCK" "$$"
+    type ziyu_font_lock_acquire >/dev/null 2>&1 || { safe_error '缺少字体切换身份锁'; return 1; }
+    ziyu_font_lock_acquire "$SWITCH_LOCK" "$$"
     _rc=$?
     case "$_rc" in
         0) LOCK_HELD=true; return 0 ;;
@@ -501,15 +501,15 @@ lock_acquire() {
 }
 
 cleanup_stage() {
-    if [ "$LOCK_HELD" = true ] && type luoshu_next_transaction_rollback >/dev/null 2>&1; then
-        luoshu_next_transaction_rollback "$MODDIR" >/dev/null 2>&1 || true
+    if [ "$LOCK_HELD" = true ] && type ziyu_next_transaction_rollback >/dev/null 2>&1; then
+        ziyu_next_transaction_rollback "$MODDIR" >/dev/null 2>&1 || true
     fi
     rm -rf "$STAGE_PAYLOAD" 2>/dev/null || true
-    rm -f "$MODDIR/.luoshu-state/tmp/next-state.$$" 2>/dev/null || true
+    rm -f "$MODDIR/.ziyu-state/tmp/next-state.$$" 2>/dev/null || true
 }
 
 cleanup_stale_stages() {
-    for _stale_stage in "$MODDIR"/.luoshu-payload-stage.* "$MODDIR"/.luoshu-state/tmp/.luoshu-payload-stage.*; do
+    for _stale_stage in "$MODDIR"/.ziyu-payload-stage.* "$MODDIR"/.ziyu-state/tmp/.ziyu-payload-stage.*; do
         [ -e "$_stale_stage" ] || continue
         [ "$_stale_stage" = "$STAGE_PAYLOAD" ] && continue
         rm -rf "$_stale_stage" 2>/dev/null || true
@@ -553,7 +553,7 @@ validate_global() {
     if type font_validate >/dev/null 2>&1; then
         font_validate "$_file" text || return 1
     fi
-    _python="$MODDIR/common/python/bin/luoshu-python"
+    _python="$MODDIR/common/python/bin/ziyu-python"
     _checker="$LEGACY_DIR/font_coverage.py"
     if [ -x "$_python" ] && [ -f "$_checker" ]; then
         _pyroot="$MODDIR/common/python"
@@ -583,7 +583,7 @@ payload_clone_source() {
     _activated="$CONFIG_DIR/font-payload-activated.conf"
     _retired=$(read_state_value "$_activated" retired)
     case "$_retired" in
-        "$MODDIR"/.luoshu-retired/*)
+        "$MODDIR"/.ziyu-retired/*)
             [ -d "$_retired" ] && { printf '%s\n' "$_retired"; return 0; }
             ;;
     esac
@@ -595,7 +595,7 @@ clone_payload_tree() {
     cleanup_stage
     mkdir -p "$STAGE_PAYLOAD" 2>/dev/null || return 1
 
-    if luoshu_clone_payload_metadata "$_clone_source" "$STAGE_PAYLOAD"; then
+    if ziyu_clone_payload_metadata "$_clone_source" "$STAGE_PAYLOAD"; then
         return 0
     fi
     cleanup_stage
@@ -619,8 +619,8 @@ stage_clone_live() {
 stage_clear_text_payload() {
     # These sidecars describe one payload/inventory, not permanent device policy.
     # A new build must not inherit exclusions from a previous font/OTA state.
-    rm -f "$STAGE_PAYLOAD/.luoshu-stock-preserved.paths"           "$STAGE_PAYLOAD/.luoshu-font-role-report.json"           "$STAGE_PAYLOAD/.luoshu-metrics-report.json" 2>/dev/null || return 1
-    rm -rf "$STAGE_PAYLOAD/.luoshu-collection-proofs" 2>/dev/null || true
+    rm -f "$STAGE_PAYLOAD/.ziyu-stock-preserved.paths"           "$STAGE_PAYLOAD/.ziyu-font-role-report.json"           "$STAGE_PAYLOAD/.ziyu-metrics-report.json" 2>/dev/null || return 1
+    rm -rf "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || true
     for _part in $(safe_partition_list); do
         rm -rf "$STAGE_PAYLOAD/$_part/fonts" 2>/dev/null || true
         _etc="$STAGE_PAYLOAD/$_part/etc"
@@ -629,7 +629,7 @@ stage_clear_text_payload() {
               "$_etc/fonts_customization.xml" "$_etc/font_customization.xml" 2>/dev/null || true
         for _xml in "$_etc"/*.xml; do
             [ -f "$_xml" ] || continue
-            grep -a -qE 'LuoShuSlot-|LuoShu-|luoshu' "$_xml" 2>/dev/null && rm -f "$_xml" 2>/dev/null || true
+            grep -a -qE '(Ziyu|LuoShu)Slot-|(Ziyu|LuoShu)-|ziyu|luoshu' "$_xml" 2>/dev/null && rm -f "$_xml" 2>/dev/null || true
         done
     done
     mkdir -p "$STAGE_PAYLOAD/system/fonts" 2>/dev/null || return 1
@@ -664,7 +664,7 @@ stage_hyperos_complete() {
     # real partitions without ever touching the live payload used by this boot.
     _stage_bridge="$MODDIR/common/hyperos_stage_complete.sh"
     if [ -f "$_stage_bridge" ]; then
-        LUOSHU_REAL_MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$USER_ROOT" \
+        ZIYU_REAL_MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="$USER_ROOT" \
             sh "$_stage_bridge" "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1 && return 0
     fi
 
@@ -676,12 +676,12 @@ stage_coloros_complete() {
     [ "${IS_COLOROS:-false}" = true ] || return 0
     _stage_bridge="$MODDIR/common/coloros_stage_complete.sh"
     [ -f "$_stage_bridge" ] || return 1
-    LUOSHU_REAL_MODDIR="$MODDIR" sh "$_stage_bridge" "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1
+    ZIYU_REAL_MODDIR="$MODDIR" sh "$_stage_bridge" "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1
 }
 
 stage_originos_complete() {
     _pyroot="$MODDIR/common/python"
-    _python="$_pyroot/bin/luoshu-python"
+    _python="$_pyroot/bin/ziyu-python"
     [ -x "$_python" ] || return 1
     PYTHONHOME="$_pyroot" \
     PYTHONPATH="$MODDIR/common:$_pyroot/lib/python3.14:$_pyroot/lib/python3.14/site-packages" \
@@ -691,7 +691,7 @@ stage_originos_complete() {
 
 stage_preserve_font_roles() {
     _pyroot="$MODDIR/common/python"
-    _python="$_pyroot/bin/luoshu-python"
+    _python="$_pyroot/bin/ziyu-python"
     [ -x "$_python" ] || return 1
     PYTHONHOME="$_pyroot" \
     PYTHONPATH="$MODDIR/common:$_pyroot/lib/python3.14:$_pyroot/lib/python3.14/site-packages" \
@@ -706,8 +706,8 @@ stage_verify() {
         2>/dev/null | wc -l | tr -d '[:space:]')
     case "$_count" in ''|*[!0-9]*) _count=0 ;; esac
     [ "$_count" -gt 0 ] || return 1
-    [ -s "$STAGE_PAYLOAD/system/fonts/.luoshu-font-store/regular.font" ] || \
-        [ -s "$STAGE_PAYLOAD/system/fonts/.luoshu-font-store/mix-composite.font" ] || \
+    [ -s "$STAGE_PAYLOAD/system/fonts/.ziyu-font-store/regular.font" ] || \
+        [ -s "$STAGE_PAYLOAD/system/fonts/.ziyu-font-store/mix-composite.font" ] || \
         find "$STAGE_PAYLOAD/system/fonts" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) \
             -print -quit 2>/dev/null | grep -q .
 }
@@ -732,20 +732,20 @@ resolve_previous_state() {
 
 prepare_next_payload() {
     _font="$1"; _previous="$2"; _previous_legacy="$3"
-    _next_tmp="$MODDIR/.luoshu-state/tmp/next-state.$$"
-    _next_request="${LUOSHU_MIX_REQUEST_ID:-${LUOSHU_TASK_SCOPE_TASK:-${LUOSHU_SWITCH_TASK_ID:-}}}"
+    _next_tmp="$MODDIR/.ziyu-state/tmp/next-state.$$"
+    _next_request="${ZIYU_MIX_REQUEST_ID:-${ZIYU_TASK_SCOPE_TASK:-${ZIYU_SWITCH_TASK_ID:-}}}"
     [ -n "$_next_request" ] || _next_request="$(cat /proc/sys/kernel/random/boot_id)-$$-$(date +%s)"
     {
         printf 'state=prepared\n'
         printf 'font=%s\n' "$_font"
         printf 'previousFont=%s\n' "$_previous"
-        printf 'taskId=%s\n' "${LUOSHU_TASK_SCOPE_TASK:-${LUOSHU_SWITCH_TASK_ID:-}}"
+        printf 'taskId=%s\n' "${ZIYU_TASK_SCOPE_TASK:-${ZIYU_SWITCH_TASK_ID:-}}"
         printf 'requestId=%s\n' "$_next_request"
         printf 'previousLegacy=%s\n' "$_previous_legacy"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_next_tmp" || return 1
-    luoshu_next_transaction_begin "$MODDIR" "$STAGE_PAYLOAD" "$_next_tmp" || return 1
-    STAGE_PAYLOAD="$MODDIR/.luoshu-state/tmp/.luoshu-payload-stage.committed.$$"
+    ziyu_next_transaction_begin "$MODDIR" "$STAGE_PAYLOAD" "$_next_tmp" || return 1
+    STAGE_PAYLOAD="$MODDIR/.ziyu-state/tmp/.ziyu-payload-stage.committed.$$"
     # Supersede Universal only after the new payload and rollback snapshot exist.
     rm -f "$CONFIG_DIR/universal-font-next.conf" || return 1
     {
@@ -758,7 +758,7 @@ prepare_next_payload() {
 }
 
 cancel_next_payload() {
-    luoshu_next_transaction_rollback "$MODDIR"
+    ziyu_next_transaction_rollback "$MODDIR"
 }
 
 write_runtime_state() {
@@ -810,7 +810,7 @@ switch_font() {
     else
         ZIYU_FONT_CLIP_ENABLED=0; export ZIYU_FONT_CLIP_ENABLED
     fi
-    _active_label="${LUOSHU_SWITCH_ACTIVE_LABEL:-$_font}"
+    _active_label="${ZIYU_SWITCH_ACTIVE_LABEL:-$_font}"
     [ -n "$_active_label" ] || _active_label="$_font"
     # A logical composite label must never turn a real default restoration
     # into a custom-font request at the safety gate or next-boot commit.
@@ -877,10 +877,10 @@ switch_font() {
 
     progress 20 '正在获取字体切换锁'
     lock_acquire || return 1
-    type luoshu_next_transaction_recover >/dev/null 2>&1 || {
+    type ziyu_next_transaction_recover >/dev/null 2>&1 || {
         safe_error '缺少连续切换事务组件'; return 1;
     }
-    luoshu_next_transaction_recover "$MODDIR" || {
+    ziyu_next_transaction_recover "$MODDIR" || {
         safe_error '上一字体提交尚未安全恢复，请导出诊断日志'; return 1;
     }
     ZIYU_LIVE_OWNER_PID="$$" sh "$MODDIR/common/font_live_switch.sh" recover >> "$LOG_FILE" 2>&1 || {
@@ -892,8 +892,8 @@ switch_font() {
     if ziyu_live_current; then
         PREVIOUS_FONT=$_zlc_font
         PREVIOUS_LEGACY=true
-        LUOSHU_SELF_MOUNT_STATE_ROOT=$_zlc_root
-        export LUOSHU_SELF_MOUNT_STATE_ROOT
+        ZIYU_SELF_MOUNT_STATE_ROOT=$_zlc_root
+        export ZIYU_SELF_MOUNT_STATE_ROOT
     fi
 
     progress 28 '正在保留非字体负载并建立安全暂存区'
@@ -957,7 +957,7 @@ switch_font() {
             progress 88 '正在生成原厂 CJK 字体集合'
             if [ "$_collection_cache_hit" = true ]; then
                 : # The restored per-face proof is checked immediately before commit.
-            elif ! LUOSHU_REAL_MODDIR="$MODDIR" LUOSHU_TASK_SCOPE_TMPDIR="$STAGE_PAYLOAD" sh "$_collection_helper" build \
+            elif ! ZIYU_REAL_MODDIR="$MODDIR" ZIYU_TASK_SCOPE_TMPDIR="$STAGE_PAYLOAD" sh "$_collection_helper" build \
                 --module "$MODDIR" --payload "$STAGE_PAYLOAD" --source "$_source" \
                 --mix-config "$_collection_config" --request "$_collection_request" \
                 >> "$LOG_FILE" 2>&1; then
@@ -973,7 +973,7 @@ switch_font() {
             safe_error '校验期间源字体或字重文件已变化，请重新切换'; return 1;
         }
         if [ "$_collection_mix" = true ]; then
-            if ! LUOSHU_REAL_MODDIR="$MODDIR" sh "$_collection_helper" validate \
+            if ! ZIYU_REAL_MODDIR="$MODDIR" sh "$_collection_helper" validate \
                 --module "$MODDIR" --payload "$STAGE_PAYLOAD" \
                 --request "$_collection_request" --require-proof --source "$_source" \
                 >> "$LOG_FILE" 2>&1; then
@@ -988,10 +988,10 @@ switch_font() {
             safe_switch_cache_store "$_source" "$_font" >/dev/null 2>&1 || true
         fi
         if [ "$_collection_mix" = true ]; then
-            [ ! -L "$STAGE_PAYLOAD/.luoshu-collection-proofs" ] || {
+            [ ! -L "$STAGE_PAYLOAD/.ziyu-collection-proofs" ] || {
                 safe_error '组合字体集合证明目录包含外部链接'; return 1;
             }
-            rm -rf "$STAGE_PAYLOAD/.luoshu-collection-proofs" 2>/dev/null || {
+            rm -rf "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || {
                 safe_error '无法清理组合字体集合临时证明'; return 1;
             }
             safe_switch_sources_unchanged || {
@@ -1012,7 +1012,7 @@ switch_font() {
         return 1
     fi
 
-    if ! luoshu_next_transaction_commit "$MODDIR"; then
+    if ! ziyu_next_transaction_commit "$MODDIR"; then
         cancel_next_payload
         safe_error '字体事务提交失败，已尝试恢复上一份待应用字体'
         return 1

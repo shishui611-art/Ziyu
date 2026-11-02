@@ -23,7 +23,7 @@ import universal_font_compiler_test as fixture
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="luoshu-phase7-") as raw:
+    with tempfile.TemporaryDirectory(prefix="ziyu-phase7-") as raw:
         temp = Path(raw)
         source = temp / "User-Regular.ttf"
         stock_xml_font = temp / "Stock-Regular.ttf"
@@ -147,7 +147,7 @@ def main() -> int:
         def assert_staged_dynamic_source(path: Path) -> Path:
             staged_path = Path(path).resolve()
             assert staged_path.is_file()
-            assert staged_path.parent.name == ".luoshu-dynamic"
+            assert staged_path.parent.name == ".ziyu-dynamic"
             stage_root = staged_path.parent.parent
             assert any(
                 stage_root.parent == parent and stage_root.name.startswith(prefix)
@@ -196,7 +196,7 @@ def main() -> int:
         assert rendered_xml.is_file()
         rendered = ET.parse(rendered_xml)
         text = (rendered.getroot().find("family/font").text or "").strip()
-        assert text.startswith("LuoShu-UF-")
+        assert text.startswith("Ziyu-UF-")
         assert (payload_root / "system/fonts" / text).is_file()
         assert (payload_root / "vendor/fonts/Vendor-Regular.ttf").is_file()
 
@@ -222,7 +222,7 @@ def main() -> int:
         )
         assert not sealed_sources[0].parent.parent.exists()
         assert sealed_digests[0] == deployment._sha256(dynamic_source) == dynamic["sha256"]
-        runtime_conf = payload_root / ".luoshu-runtime/deployment/dynamic-mounts.conf"
+        runtime_conf = payload_root / ".ziyu-runtime/deployment/dynamic-mounts.conf"
         assert runtime_conf.is_file()
         assert dynamic_logical in runtime_conf.read_text(encoding="utf-8")
 

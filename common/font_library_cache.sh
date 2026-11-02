@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 洛书字体库轻量指纹与缓存辅助。
+# 字域字体库轻量指纹与缓存辅助。
 # 只读取文件名、大小和修改时间，不解析字体轮廓，可用于 App 后台快速判断是否需要重建索引。
 
 font_library_fingerprint_value() {
@@ -7,7 +7,7 @@ font_library_fingerprint_value() {
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 }
-    _font_dir="${USER_FONTS_DIR:-${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts}"
+    _font_dir="${USER_FONTS_DIR:-${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts}"
     _config_dir="${CONFIG_DIR:-/data/adb/modules/ziyu/config}"
     mkdir -p "$_config_dir" 2>/dev/null || true
     _tmp="$_config_dir/.font-fingerprint.$$"
@@ -67,7 +67,7 @@ if [ "${0##*/}" = "font_library_cache.sh" ]; then
     MODDIR="${MODDIR:-$(CDPATH= cd -- "${0%/*}/.." 2>/dev/null && pwd)}"
     . "$MODDIR/common/user_storage.sh" || exit 1
     ziyu_user_storage_environment "$MODDIR" || exit 1
-    USER_FONTS_DIR="${LUOSHU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
+    USER_FONTS_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/fonts"
     CONFIG_DIR="$MODDIR/config"
     ACTIVE_FONT_CONF="$CONFIG_DIR/active_font.conf"
     json_escape() {

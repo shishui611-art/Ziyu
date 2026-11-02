@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-DETECT_SHELL="${LUOSHU_TEST_SHELL:-bash}"
+DETECT_SHELL="${ZIYU_TEST_SHELL:-bash}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 ADB="$TMP/adb"
 HYBRID="$ADB/modules/hybrid_mount"
-MOD="$ADB/modules/LuoShu"
+MOD="$ADB/modules/Ziyu"
 CONFIG="$ADB/hybrid-mount/config.toml"
 mkdir -p "$HYBRID" "$MOD/config" "$(dirname "$CONFIG")"
 printf 'id=hybrid_mount\nname=Hybrid Mount\nmetamodule=1\n' > "$HYBRID/module.prop"
-printf 'id=LuoShu\n' > "$MOD/module.prop"
+printf 'id=Ziyu\n' > "$MOD/module.prop"
 
 write_api() {
   cat > "$HYBRID/hybrid-mount" <<'SH'
@@ -28,9 +28,9 @@ printf '{"supported":false,"reason":"boot ledger not ready","modules":[]}\n' > "
 FAILURES=0
 CHECKS=0
 detect() {
-  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$HYBRID" \
-  LUOSHU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
-  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; if [ "${2:-}" = route ]; then printf "%s|%s\n" "$META_USABLE_REASON" "$META_HYBRID_DEFAULT_MODE"; else printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"; fi' _ "$ROOT" "${1:-summary}"
+  ZIYU_META_DETECT_ROOT="$ADB" ZIYU_META_TEST_ACTIVE_DIR="$HYBRID" \
+  ZIYU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; if [ "${2:-}" = route ]; then printf "%s|%s\n" "$META_USABLE_REASON" "$META_HYBRID_DEFAULT_MODE"; else printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"; fi' _ "$ROOT" "${1:-summary}"
 }
 check() {
   local label="$1" expected="$2" actual
@@ -48,19 +48,19 @@ check 'official Overlay default degrades to Meta without scoped unload' '1|1|hyb
 check 'Overlay diagnostics keep a separate nonempty reason and mode' 'hybrid-overlay-route|overlay' route
 printf '# no default_mode: upstream uses Overlay\n[rules.other]\ndefault_mode="vfs"\n' > "$CONFIG"
 check 'another module default must not become the global default' '1|1|hybrid-overlay-route'
-printf 'default_mode="overlay"\n[rules."LuoShu"]\ndefault_mode="vfs"\n' > "$CONFIG"
+printf 'default_mode="overlay"\n[rules."Ziyu"]\ndefault_mode="vfs"\n' > "$CONFIG"
 check 'module VFS overrides global Overlay with quoted official schema' '1|1|hybrid-pure-vfs-scoped-unload'
-printf '[rules.luoshu]\ndefault_mode="vfs"\n' > "$CONFIG"
+printf '[rules.ziyu]\ndefault_mode="vfs"\n' > "$CONFIG"
 check 'module IDs are case sensitive upstream' '1|1|hybrid-overlay-route'
-printf 'default_mode="vfs"\n[rules.LuoShu.paths]\n"system/etc/hosts"="ignore"\n' > "$CONFIG"
+printf 'default_mode="vfs"\n[rules.Ziyu.paths]\n"system/etc/hosts"="ignore"\n' > "$CONFIG"
 check 'ignore paths do not introduce real mounts' '1|1|hybrid-pure-vfs-scoped-unload'
-printf 'default_mode="vfs"\n[rules.LuoShu.paths]\n"system/fonts/Latin.ttf"="magic"\n' > "$CONFIG"
+printf 'default_mode="vfs"\n[rules.Ziyu.paths]\n"system/fonts/Latin.ttf"="magic"\n' > "$CONFIG"
 check 'quoted Magic path degrades to Meta without scoped unload' '1|1|hybrid-overlay-route'
-printf 'default_mode="vfs"\n[rules.LuoShu.paths]\nsystem="overlay"\n' > "$CONFIG"
+printf 'default_mode="vfs"\n[rules.Ziyu.paths]\nsystem="overlay"\n' > "$CONFIG"
 check 'bare TOML path keys also degrade to Meta' '1|1|hybrid-overlay-route'
-printf 'default_mode="vfs"\n[rules.LuoShu]\npaths={system="magic"}\n' > "$CONFIG"
+printf 'default_mode="vfs"\n[rules.Ziyu]\npaths={system="magic"}\n' > "$CONFIG"
 check 'unparsed inline paths cannot silently pass as pure VFS' '0|0|hybrid-config-unverified'
-printf 'default_mode="vfs"\n[rules.LuoShu]\ndefault_mode="ignore"\n' > "$CONFIG"
+printf 'default_mode="vfs"\n[rules.Ziyu]\ndefault_mode="ignore"\n' > "$CONFIG"
 check 'ignored module has a distinct exclusion reason' '0|0|hybrid-module-excluded'
 rm -f "$CONFIG"
 check 'missing config is distinguished from a real mount route' '0|0|hybrid-config-missing'
@@ -90,10 +90,10 @@ rm -f "$MOD/skip_mount" "$MOD/config/self-mount-owned"
 check 'font module pending removal is excluded' '0|0|hybrid-module-excluded'
 rm -f "$MOD/remove"
 
-printf 'blacklist = [\n "other",\n "LuoShu",\n]\n' > "$ADB/hybrid-mount/module_blacklist.toml"
+printf 'blacklist = [\n "other",\n "Ziyu",\n]\n' > "$ADB/hybrid-mount/module_blacklist.toml"
 check 'persistent upstream blacklist excludes the module' '0|0|hybrid-module-excluded'
 rm -f "$ADB/hybrid-mount/module_blacklist.toml"
-printf 'blacklist=["LuoShu"]\n' > "$HYBRID/module_blacklist.toml"
+printf 'blacklist=["Ziyu"]\n' > "$HYBRID/module_blacklist.toml"
 check 'bundled upstream blacklist also excludes the module' '0|0|hybrid-module-excluded'
 rm -f "$HYBRID/module_blacklist.toml"
 
@@ -121,9 +121,9 @@ exit 0
 SH
 chmod +x "$MM/meta-mm"
 detect_mm() {
-  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$MM" \
-  LUOSHU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
-  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
+  ZIYU_META_DETECT_ROOT="$ADB" ZIYU_META_TEST_ACTIVE_DIR="$MM" \
+  ZIYU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
 }
 check_mm() {
   local label="$1" expected="$2" actual
@@ -166,9 +166,9 @@ exit 2
 SH
 chmod +x "$NM/bin/nm"
 detect_nm() {
-  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$NM" \
-  LUOSHU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
-  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
+  ZIYU_META_DETECT_ROOT="$ADB" ZIYU_META_TEST_ACTIVE_DIR="$NM" \
+  ZIYU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
 }
 check_nm() {
   local label="$1" expected="$2" actual
@@ -180,9 +180,9 @@ check_nm() {
   fi
 }
 detect_nm_capability() {
-  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$NM" \
-  LUOSHU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
-  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$NOMOUNT_KERNEL_USABLE" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
+  ZIYU_META_DETECT_ROOT="$ADB" ZIYU_META_TEST_ACTIVE_DIR="$NM" \
+  ZIYU_META_TEST_ASSUME_ACTIVE="${ASSUME_ACTIVE:-1}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s\n" "$NOMOUNT_KERNEL_USABLE" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT"
 }
 ASSUME_ACTIVE=0
 check_nm 'nomount without an active selector names it' '0|0|nomount-not-active'
@@ -226,10 +226,10 @@ esac
 SH
 chmod +x "$SUITE/bin/arm64-v8a/nm"
 suite_detect() {
-  LUOSHU_META_DETECT_ROOT="$ADB" LUOSHU_META_TEST_ACTIVE_DIR="$SUITE" \
-  LUOSHU_META_TEST_ASSUME_ACTIVE=1 LUOSHU_NOMOUNT_TEST_ABI="${1:-arm64-v8a}" \
-  LUOSHU_META_PROVIDER_SCAN="${2:-0}" MODDIR="$MOD" \
-  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s|%s\n" "$META_READY" "$META_USABLE" "$NOMOUNT_KERNEL_USABLE" "$META_USABLE_REASON" "$META_NOMOUNT_CLI"' _ "$ROOT"
+  ZIYU_META_DETECT_ROOT="$ADB" ZIYU_META_TEST_ACTIVE_DIR="$SUITE" \
+  ZIYU_META_TEST_ASSUME_ACTIVE=1 ZIYU_NOMOUNT_TEST_ABI="${1:-arm64-v8a}" \
+  ZIYU_META_PROVIDER_SCAN="${2:-0}" MODDIR="$MOD" \
+  "$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s|%s|%s\n" "$META_READY" "$META_USABLE" "$NOMOUNT_KERNEL_USABLE" "$META_USABLE_REASON" "$META_NOMOUNT_CLI"' _ "$ROOT"
 }
 suite_cli="$SUITE/bin/arm64-v8a/nm"
 suite_actual=$(suite_detect)
@@ -271,8 +271,8 @@ rm -f "$MOD/skip_mount"
 MF="$ADB/modules/mountify_meta"
 mkdir -p "$MF"
 printf 'id=mountify\nname=Mountify\nmetamodule=1\n' > "$MF/module.prop"
-LUOSHU_META_TEST_ACTIVE_DIR="$MF" LUOSHU_META_TEST_ASSUME_ACTIVE=1 MODDIR="$MOD" \
-"$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT" > "$TMP/mm-out"
+ZIYU_META_TEST_ACTIVE_DIR="$MF" ZIYU_META_TEST_ASSUME_ACTIVE=1 MODDIR="$MOD" \
+"$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT" > "$TMP/mm-out"
 eq_line='0|0|mountify-runtime-unavailable'
 actual_line=$(cat "$TMP/mm-out")
 if [ "$actual_line" != "$eq_line" ]; then
@@ -286,8 +286,8 @@ exit 0
 SH
 chmod +x "$MF/post-fs-data.sh"
 : > "$MOD/skip_mount"
-LUOSHU_META_TEST_ACTIVE_DIR="$MF" LUOSHU_META_TEST_ASSUME_ACTIVE=1 MODDIR="$MOD" \
-"$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; luoshu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT" > "$TMP/mf-out"
+ZIYU_META_TEST_ACTIVE_DIR="$MF" ZIYU_META_TEST_ASSUME_ACTIVE=1 MODDIR="$MOD" \
+"$DETECT_SHELL" -c '. "$1/common/meta_mount_detection.sh"; ziyu_meta_mount_detect >/dev/null; printf "%s|%s|%s\n" "$META_READY" "$META_USABLE" "$META_USABLE_REASON"' _ "$ROOT" > "$TMP/mf-out"
 eq_line='0|0|mountify-module-excluded'
 actual_line=$(cat "$TMP/mf-out")
 if [ "$actual_line" != "$eq_line" ]; then

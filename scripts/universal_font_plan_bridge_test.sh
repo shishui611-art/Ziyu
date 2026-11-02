@@ -144,12 +144,12 @@ JSON
 
 export TEST_PROFILE="$PROFILE"
 
-RESULT=$(MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON=python3 \
+RESULT=$(MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON=python3 \
   sh "$MOD/common/universal_font_plan.sh" build Bridge-Regular)
 printf '%s\n' "$RESULT" | grep -q '"status":"ok"'
 printf '%s\n' "$RESULT" | grep -q '"executableNow":false'
 
-PLAN=$(MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON=python3 \
+PLAN=$(MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON=python3 \
   sh "$MOD/common/universal_font_plan.sh" path Bridge-Regular)
 test -s "$PLAN"
 
@@ -164,7 +164,7 @@ assert target['source']['family'] == 'Bridge'
 assert 'metrics-normalization' in target['requirements']
 PY
 
-VALID=$(MODDIR="$MOD" MODULE_DIR="$MOD" LUOSHU_PYTHON=python3 \
+VALID=$(MODDIR="$MOD" MODULE_DIR="$MOD" ZIYU_PYTHON=python3 \
   sh "$MOD/common/universal_font_plan.sh" validate Bridge-Regular)
 printf '%s\n' "$VALID" | grep -q '"status":"ok"'
 

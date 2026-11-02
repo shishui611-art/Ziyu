@@ -19,12 +19,12 @@ MODDIR="$TMP/module"
 PUBLIC_DIR="$TMP/public"
 LOCK="$MODDIR/.font_switch.lock"
 mkdir -p "$MODDIR/common" "$MODDIR/config" "$MODDIR/logs" "$PUBLIC_DIR/fonts" \
-    "$MODDIR/.luoshu-payload/system/fonts"
+    "$MODDIR/.ziyu-payload/system/fonts"
 cp "$ROOT/common/font_manager.sh" "$MODDIR/common/font_manager.sh"
 cp "$ROOT/common/legacy_v14_4_switch.sh" "$MODDIR/common/legacy_v14_4_switch.sh"
 cp "$ROOT/common/font_switch_lock.sh" "$MODDIR/common/font_switch_lock.sh"
 cp "$ROOT/common/font_next_transaction.sh" "$MODDIR/common/font_next_transaction.sh"
-cp "$ROOT/common/font_live_state.sh" "$MODDIR/common/font_live_state.sh"
+cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODDIR/common/"
 cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/font_live_switch.sh"
 cp "$ROOT/common/font_live_payload.py" "$MODDIR/common/font_live_payload.py"
 ln -s "$ROOT/common/legacy_v14_4" "$MODDIR/common/legacy_v14_4"
@@ -39,7 +39,7 @@ case "\${1:-}" in
 esac
 EOF
 chmod 0755 "$TEST_BIN/readlink"
-printf 'live-payload-must-not-change\n' > "$MODDIR/.luoshu-payload/live-marker"
+printf 'live-payload-must-not-change\n' > "$MODDIR/.ziyu-payload/live-marker"
 printf 'BeforeSwitch\n' > "$MODDIR/config/active_font.conf"
 
 MODULE_DIR="$MODDIR"
@@ -49,42 +49,42 @@ LIVE_PID="$$"
 if [ ! -r "/proc/$LIVE_PID/stat" ] && [ -n "${PPID:-}" ] && [ -r "/proc/$PPID/stat" ]; then
     LIVE_PID="$PPID"
 fi
-LIVE_START="$(luoshu_process_starttime "$LIVE_PID")"
-LIVE_BOOT="$(luoshu_current_boot_id)"
+LIVE_START="$(ziyu_process_starttime "$LIVE_PID")"
+LIVE_BOOT="$(ziyu_current_boot_id)"
 
 # A live PID with a mismatched process birth time is stale unless a fresh token
 # explicitly bridges a Root/PID namespace visibility gap.
 IDENTITY_LOCK="$TMP/identity.lock"
 mkdir "$IDENTITY_LOCK"
 printf '%s\nstarttime=0\nboot_id=%s\n' "$LIVE_PID" "$LIVE_BOOT" > "$IDENTITY_LOCK/pid"
-if luoshu_font_lock_active "$IDENTITY_LOCK"; then
+if ziyu_font_lock_active "$IDENTITY_LOCK"; then
     echo 'PID reuse was incorrectly treated as active' >&2
     exit 1
 fi
-luoshu_font_lock_reap_stale "$IDENTITY_LOCK"
+ziyu_font_lock_reap_stale "$IDENTITY_LOCK"
 test ! -e "$IDENTITY_LOCK"
 
 mkdir "$IDENTITY_LOCK"
 printf '%s\nstarttime=0\nboot_id=%s\ntoken=fixture\ncreated=%s\n' \
     "$LIVE_PID" "$LIVE_BOOT" "$(date +%s)" > "$IDENTITY_LOCK/pid"
-luoshu_font_lock_active "$IDENTITY_LOCK"
+ziyu_font_lock_active "$IDENTITY_LOCK"
 sed -i 's/^created=.*/created=0/' "$IDENTITY_LOCK/pid"
-if luoshu_font_lock_active "$IDENTITY_LOCK"; then
+if ziyu_font_lock_active "$IDENTITY_LOCK"; then
     echo 'expired token lease was incorrectly treated as active' >&2
     exit 1
 fi
-luoshu_font_lock_reap_stale "$IDENTITY_LOCK"
+ziyu_font_lock_reap_stale "$IDENTITY_LOCK"
 test ! -e "$IDENTITY_LOCK"
 
 # A previous-boot identity is always stale even if PID/starttime collide.
 mkdir "$IDENTITY_LOCK"
 printf '%s\nstarttime=%s\nboot_id=00000000-0000-0000-0000-000000000000\n' \
     "$LIVE_PID" "$LIVE_START" > "$IDENTITY_LOCK/pid"
-if luoshu_font_lock_active "$IDENTITY_LOCK"; then
+if ziyu_font_lock_active "$IDENTITY_LOCK"; then
     echo 'previous-boot identity was incorrectly treated as active' >&2
     exit 1
 fi
-luoshu_font_lock_reap_stale "$IDENTITY_LOCK"
+ziyu_font_lock_reap_stale "$IDENTITY_LOCK"
 test ! -e "$IDENTITY_LOCK"
 
 # Atomic mkdir must produce exactly one winner while all contenders hold the lock
@@ -101,12 +101,12 @@ for contender in 1 2 3 4 5 6 7 8; do
         . "$ROOT/common/font_switch_lock.sh"
         while [ ! -e "$RACE_GATE" ]; do sleep 0.01; done
         won=false
-        luoshu_font_lock_acquire "$RACE_LOCK" "$$" && won=true || true
+        ziyu_font_lock_acquire "$RACE_LOCK" "$$" && won=true || true
         printf '%s\n' "$contender" >> "$RACE_ATTEMPTS"
         if [ "$won" = true ]; then
             while [ "$(wc -l < "$RACE_ATTEMPTS")" -lt 8 ]; do sleep 0.01; done
             printf '%s\n' "$contender" >> "$RACE_WINNERS"
-            luoshu_font_lock_release "$RACE_LOCK" "$$"
+            ziyu_font_lock_release "$RACE_LOCK" "$$"
         fi
     ) &
     race_pids="$race_pids $!"
@@ -119,18 +119,18 @@ test ! -e "$RACE_LOCK"
 # Integration: a live lock must stop the actual App-facing switch router before it
 # touches either the current-boot payload or the next-boot payload.
 PHASE='active lock rejection'
-luoshu_font_lock_acquire "$LOCK" "$$"
+ziyu_font_lock_acquire "$LOCK" "$$"
 set +e
-PATH="$TEST_BIN:$PATH" MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" \
+PATH="$TEST_BIN:$PATH" MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="$PUBLIC_DIR" \
     sh "$MODDIR/common/font_manager.sh" action switch default > "$TMP/busy.out" 2>&1
 busy_rc=$?
 set -e
 test "$busy_rc" -ne 0
 grep -q '字体正在切换中' "$TMP/busy.out"
 test -d "$LOCK"
-test "$(cat "$MODDIR/.luoshu-payload/live-marker")" = 'live-payload-must-not-change'
-test ! -e "$MODDIR/.luoshu-payload-next"
-luoshu_font_lock_release "$LOCK" "$$"
+test "$(cat "$MODDIR/.ziyu-payload/live-marker")" = 'live-payload-must-not-change'
+test ! -e "$MODDIR/.ziyu-payload-next"
+ziyu_font_lock_release "$LOCK" "$$"
 test ! -e "$LOCK"
 
 # Dead locks are reaped by the same real entrypoint. A default switch now completes
@@ -140,15 +140,15 @@ PHASE='stale lock recovery'
 mkdir "$LOCK"
 DEAD_PID="$(($(cat /proc/sys/kernel/pid_max) + 100))"
 printf '%s\n' "$DEAD_PID" > "$LOCK/pid"
-PATH="$TEST_BIN:$PATH" MODDIR="$MODDIR" LUOSHU_PUBLIC_DIR="$PUBLIC_DIR" LUOSHU_PYTHON=python3 \
+PATH="$TEST_BIN:$PATH" MODDIR="$MODDIR" ZIYU_PUBLIC_DIR="$PUBLIC_DIR" ZIYU_PYTHON=python3 \
     sh "$MODDIR/common/font_manager.sh" action switch default > "$TMP/stale.out" 2>&1
 grep -q '"status":"ok"' "$TMP/stale.out"
 grep -q '"core":"physical-safe-v1"' "$TMP/stale.out"
 grep -q '"pipeline":"next-boot-stage"' "$TMP/stale.out"
 test ! -e "$LOCK"
 test "$(cat "$MODDIR/config/active_font.conf")" = default
-test "$(cat "$MODDIR/.luoshu-payload/live-marker")" = 'live-payload-must-not-change'
-test -d "$MODDIR/.luoshu-payload-next"
+test "$(cat "$MODDIR/.ziyu-payload/live-marker")" = 'live-payload-must-not-change'
+test -d "$MODDIR/.ziyu-payload-next"
 grep -q '^state=prepared$' "$MODDIR/config/font-payload-next.conf"
 grep -q '^font=default$' "$MODDIR/config/font-payload-next.conf"
 grep -q '^previousFont=BeforeSwitch$' "$MODDIR/config/font-payload-next.conf"
@@ -160,7 +160,7 @@ PHASE='release-source assertions'
 SAFE_BACKEND="$ROOT/common/legacy_v14_4/font_switch_safe.sh"
 grep -q 'font_switch_lock.sh' "$SAFE_BACKEND"
 grep -q 'lock_acquire' "$SAFE_BACKEND"
-grep -q 'NEXT_PAYLOAD=.*\.luoshu-payload-next' "$SAFE_BACKEND"
+grep -q 'NEXT_PAYLOAD=.*\.ziyu-payload-next' "$SAFE_BACKEND"
 ! grep -q 'mv "$LIVE_PAYLOAD"' "$SAFE_BACKEND"
 ! grep -qE 'font_validate_fast_v4|device_font_template|device_font_slot|font_config_overlay|device_font_payload_build' \
     "$SAFE_BACKEND"

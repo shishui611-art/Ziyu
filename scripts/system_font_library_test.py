@@ -56,7 +56,7 @@ class SystemFontLibraryTest(unittest.TestCase):
         self.stock.mkdir(parents=True)
         self.out = self.root / 'library'
         self.addCleanup(patch.stopall)
-        patch.dict(os.environ, {'LUOSHU_SELF_MOUNT_STATE_ROOT': str(self.root / 'state'), 'LUOSHU_STOCK_VIEW_VERIFIED': '0'}).start()
+        patch.dict(os.environ, {'ZIYU_SELF_MOUNT_STATE_ROOT': str(self.root / 'state'), 'ZIYU_STOCK_VIEW_VERIFIED': '0'}).start()
         patch.object(library.stock, '_logical_font_roots', return_value=[('system', Path('/system/fonts'))]).start()
 
     def fonts(self, variable=False):

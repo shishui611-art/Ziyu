@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read variable-axis capability for the LuoShu native App without modifying a font."""
+"""Read variable-axis capability for the Ziyu native App without modifying a font."""
 from __future__ import annotations
 
 import argparse

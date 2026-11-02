@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# LuoShu Phase 7 backend-neutral deployment bridge.
+# Ziyu Phase 7 backend-neutral deployment bridge.
 # Phase 9 may stage an already validated prepared payload for the official next boot.
 set +e
 
@@ -12,11 +12,11 @@ PLAN_BRIDGE="$MODDIR/common/universal_font_plan.sh"
 ROUTE_BRIDGE="$MODDIR/common/minimal_xml_router.sh"
 DEPLOY_ROOT="$CONFIG_DIR/universal-font-deployments"
 PYROOT="$MODDIR/common/python"
-PYBIN="$PYROOT/bin/luoshu-python"
+PYBIN="$PYROOT/bin/ziyu-python"
 
 _ud_exec() {
-    if [ -n "${LUOSHU_PYTHON:-}" ]; then
-        "$LUOSHU_PYTHON" "$@"
+    if [ -n "${ZIYU_PYTHON:-}" ]; then
+        "$ZIYU_PYTHON" "$@"
         return $?
     fi
     [ -x "$PYBIN" ] || return 127
@@ -183,8 +183,8 @@ _ud_stage_prepared() {
 
     _ud_capture_previous
 
-    _uds_next="$MODDIR/.luoshu-payload-next"
-    _uds_stage="$MODDIR/.luoshu-payload-next.stage.$$"
+    _uds_next="$MODDIR/.ziyu-payload-next"
+    _uds_stage="$MODDIR/.ziyu-payload-next.stage.$$"
     rm -rf "$_uds_stage" 2>/dev/null || true
     mkdir -p "$_uds_stage" "$CONFIG_DIR" 2>/dev/null || return 1
     cp -af "$_uds_payload/." "$_uds_stage/" 2>/dev/null || {
@@ -204,7 +204,7 @@ _ud_stage_prepared() {
     {
         printf 'state=prepared\n'
         printf 'font=%s\n' "$_uds_family"
-        printf 'taskId=%s\n' "${LUOSHU_TASK_SCOPE_TASK:-${LUOSHU_SWITCH_TASK_ID:-}}"
+        printf 'taskId=%s\n' "${ZIYU_TASK_SCOPE_TASK:-${ZIYU_SWITCH_TASK_ID:-}}"
         printf 'deploymentId=%s\n' "$_uds_id"
         printf 'payloadDigest=%s\n' "$_uds_digest"
         printf 'previousFont=%s\n' "$UD_PREVIOUS_FONT"

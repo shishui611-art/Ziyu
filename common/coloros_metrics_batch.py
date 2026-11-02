@@ -59,10 +59,10 @@ def eligible_slot(slot: object, logical: str, digits_enabled: bool = True) -> bo
 
 
 def write_report(stage: Path, slots: list[dict]) -> None:
-    report = stage / '.luoshu-metrics-report.json'
+    report = stage / '.ziyu-metrics-report.json'
     temporary = report.with_name(report.name + f'.tmp.{os.getpid()}')
     try:
-        temporary.write_text(json.dumps({'schema': 'luoshu-slot-metrics-v1',
+        temporary.write_text(json.dumps({'schema': 'ziyu-slot-metrics-v1',
                                          'romKind': 'coloros', 'slots': slots},
                                         ensure_ascii=False), encoding='utf-8')
         temporary.chmod(0o644)
@@ -73,7 +73,7 @@ def write_report(stage: Path, slots: list[dict]) -> None:
 
 def build(module: Path, stage: Path) -> dict:
     started = time.perf_counter()
-    live = (module / '.luoshu-payload').resolve()
+    live = (module / '.ziyu-payload').resolve()
     resolved = stage.resolve()
     if resolved == module.resolve() or resolved == live or live in resolved.parents:
         raise ValueError('拒绝修改本次启动正在使用的字体负载')
@@ -111,6 +111,16 @@ def build(module: Path, stage: Path) -> dict:
                 canonical_logical = (logical_root / canonical_name).as_posix()
                 if (eligible_slot(indexed.get(canonical_logical), canonical_logical, digits_enabled)
                         and canonical.is_file() and source.samefile(canonical)):
+                    # A TTC is intentionally preserved byte-for-byte because
+                    # rewriting one face would discard its other faces. When
+                    # this synthetic alias is already the same file, keep that
+                    # verified relationship instead of requiring a rewritten
+                    # canonical output that must not exist for collections.
+                    with canonical.open('rb') as stream:
+                        is_collection = stream.read(4) == b'ttcf'
+                    if is_collection:
+                        report['reason'] = 'collection-alias-preserved-with-canonical'
+                        continue
                     compatibility_aliases.append((source, canonical, report, file_identity(source.stat())))
                     continue
             if not eligible_slot(slot, logical, digits_enabled):

@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
@@ -41,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.ui.appearance.*
 import io.github.xgl34222220.ziyu.ui.design.*
 import io.github.xgl34222220.ziyu.ui.theme.rememberAppearancePreviewColors
+import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,9 +125,10 @@ private fun MiniThemePreview(settings: AppearanceSettings, dark: Boolean, modifi
         }
         rect(10f, 9f, 16f, 2f, 1f, colors.onBackground.copy(alpha = .4f))
         rect(79f, 9f, 11f, 2f, 1f, colors.onBackground.copy(alpha = .3f))
-        rect(8f, 42f, 84f, 28f, 9f, colors.primaryContainer)
+        val cardAlpha = 1f - settings.cardTransparency.coerceIn(0, 100) / 100f
+        rect(8f, 42f, 84f, 28f, 9f, colors.primaryContainer.copy(alpha = colors.primaryContainer.alpha * cardAlpha))
         val card = if (dark && settings.amoledBlack) colors.surfaceContainerLow else if (native) colors.surfaceContainer else colors.surfaceBright
-        rect(8f, 75f, 84f, 78f, 9f, card)
+        rect(8f, 75f, 84f, 78f, 9f, card.copy(alpha = card.alpha * cardAlpha))
         repeat(3) { i -> rect(16f, 88f + i * 9, if (i == 0) 48f else 36f, 2.5f, 1f, colors.onSurface.copy(alpha = if (i == 0) .5f else .2f)) }
         val bottom = size.height / unit - 23f
         rect(if (settings.floatingDock) 8f else 0f, bottom, if (settings.floatingDock) 84f else 100f, 16f,
@@ -132,6 +136,65 @@ private fun MiniThemePreview(settings: AppearanceSettings, dark: Boolean, modifi
         rect(10f, bottom + 2f, 20f, 12f, 6f, colors.primaryContainer)
         repeat(4) { i -> rect(17f + i * 21f, bottom + 6f, 5f, 4f, 2f, if (i == 0) colors.primary else colors.onSurfaceVariant) }
     }
+}
+
+@Composable
+internal fun AppearanceCardTransparencyCard(settings: AppearanceSettings, actions: AppearanceActions) {
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var draft by rememberSaveable { mutableIntStateOf(0) }
+    SettingCard("卡片透明度") {
+        ZiyuListItem(
+            headlineContent = { ZiyuText("卡片透明度") },
+            supportingContent = { ZiyuText("调整卡片底色，文字和按钮保持清晰") },
+            leadingContent = { ZiyuIcon(Icons.Rounded.Opacity, null) },
+            trailingContent = { ZiyuText("${settings.cardTransparency}%", color = MaterialTheme.colorScheme.primary) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            onClick = { draft = settings.cardTransparency; editing = true },
+        )
+    }
+    if (editing) ZiyuAlertDialog(
+        onDismissRequest = { editing = false },
+        title = { ZiyuText("卡片透明度") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val palette = LocalZiyuPaletteTokens.current
+                val scheme = MaterialTheme.colorScheme
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                        .background(Brush.linearGradient(listOf(scheme.primaryContainer, scheme.tertiaryContainer)))
+                        .padding(12.dp),
+                ) {
+                    ZiyuSurface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = palette.cardBackground.copy(alpha = palette.cardBackground.alpha * (1f - draft / 100f)),
+                        contentColor = palette.textPrimary,
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            ZiyuText("卡片效果预览", style = MaterialTheme.typography.titleMedium)
+                            ZiyuText("山海有相逢 Aa 0123", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                ZiyuText("透明度 $draft%")
+                ZiyuSlider(
+                    value = draft.toFloat(),
+                    onValueChange = { draft = it.roundToInt().coerceIn(0, 100) },
+                    valueRange = 0f..100f,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "卡片透明度" },
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    ZiyuText("0% 不透明", style = MaterialTheme.typography.bodySmall)
+                    ZiyuText("100% 全透明", style = MaterialTheme.typography.bodySmall)
+                }
+                ZiyuTextButton(onClick = { draft = 0 }) { ZiyuText("恢复默认") }
+            }
+        },
+        dismissButton = { ZiyuTextButton(onClick = { editing = false }) { ZiyuText("取消") } },
+        confirmButton = {
+            ZiyuButton(onClick = { actions.setCardTransparency(draft); editing = false }) { ZiyuText("保存") }
+        },
+    )
 }
 
 @Composable

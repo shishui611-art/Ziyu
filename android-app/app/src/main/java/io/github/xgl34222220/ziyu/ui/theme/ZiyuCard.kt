@@ -29,8 +29,10 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import io.github.xgl34222220.ziyu.ui.appearance.LocalAppearanceSettings
 import io.github.xgl34222220.ziyu.ui.design.LocalZiyuContentColor
 import io.github.xgl34222220.ziyu.ui.design.ZiyuSurface
+import io.github.xgl34222220.ziyu.ui.design.ziyuSurfaceShadowElevation
 import io.github.xgl34222220.ziyu.ui.design.nativeSquircleBorder
 import io.github.xgl34222220.ziyu.ui.design.rememberNativeSquircleShape
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
@@ -42,6 +44,12 @@ import io.github.suqi8.coui.kmp.utils.PressFeedbackType as CouiPressFeedback
 
 // Identity marks the omitted argument while keeping the existing Shape parameter contract.
 private val DefaultZiyuCardShape: Shape = RoundedCornerShape(0.dp)
+
+/** Change only the container paint; text, controls and other child layers keep their opacity. */
+@Composable
+internal fun Color.withCardTransparency(): Color = copy(
+    alpha = alpha * (1f - LocalAppearanceSettings.current.cardTransparency.coerceIn(0, 100) / 100f),
+)
 
 /** Shared edge treatment for cards, including page groups implemented as Surface. */
 internal object ZiyuCardDefaults {
@@ -73,9 +81,13 @@ internal fun ZiyuCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val style = LocalUiStyle.current
-    val background = if (enabled) colors.containerColor else colors.disabledContainerColor
+    val resolvedColors = colors.copy(
+        containerColor = colors.containerColor.withCardTransparency(),
+        disabledContainerColor = colors.disabledContainerColor.withCardTransparency(),
+    )
+    val background = if (enabled) resolvedColors.containerColor else resolvedColors.disabledContainerColor
     val resolvedBorder = border ?: ZiyuCardDefaults.border(background)
-    val shadow = LocalZiyuThemeTokens.current.layout.cardElevation
+    val shadow = ziyuSurfaceShadowElevation(background, LocalZiyuThemeTokens.current.layout.cardElevation)
     if (style != UiStyle.MATERIAL) {
         val foreground = if (enabled) colors.contentColor else colors.disabledContentColor
         val usesNativeShape = shape === DefaultZiyuCardShape
@@ -147,7 +159,7 @@ internal fun ZiyuCard(
         CompositionLocalProvider(LocalZiyuContentColor provides if (enabled) colors.contentColor else colors.disabledContentColor) { content() }
     }
     if (onClick == null) {
-        MaterialCard(modifier = modifier, shape = materialShape, colors = colors,
+        MaterialCard(modifier = modifier, shape = materialShape, colors = resolvedColors,
             elevation = elevation, border = materialBorder, content = materialContent)
     } else {
         // SukiSU TonalCard uses a spring-driven press scale; reuse Card's own
@@ -158,7 +170,7 @@ internal fun ZiyuCard(
             animationSpec = spring(dampingRatio = .8f, stiffness = 400f), label = "tonalCardPress")
         MaterialCard(
             onClick = onClick, modifier = modifier.scale(scale), enabled = enabled,
-            shape = materialShape, colors = colors, elevation = elevation,
+            shape = materialShape, colors = resolvedColors, elevation = elevation,
             border = materialBorder, interactionSource = interactions, content = materialContent,
         )
     }

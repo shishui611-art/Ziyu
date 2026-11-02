@@ -17,6 +17,6 @@ pyroot="$MODDIR/common/python"
 PYTHONHOME="$pyroot" \
 PYTHONPATH="$MODDIR/common:$pyroot/lib/python3.14:$pyroot/lib/python3.14/site-packages" \
 LD_LIBRARY_PATH="$pyroot/lib:$pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-    exec "$pyroot/bin/luoshu-python" "$MODDIR/common/task_scope.py" \
+    exec "$pyroot/bin/ziyu-python" "$MODDIR/common/task_scope.py" \
         --task font-ttf-export --timeout 300 -- \
-        "$pyroot/bin/luoshu-python" "$MODDIR/common/font_ttf_export.py" "$@"
+        "$pyroot/bin/ziyu-python" "$MODDIR/common/font_ttf_export.py" "$@"

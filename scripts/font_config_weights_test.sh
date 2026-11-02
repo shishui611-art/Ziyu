@@ -17,8 +17,8 @@ set -eu
 TTC="$TMP/collection.ttc"
 printf 'ttcf' > "$TTC"
 dd if=/dev/zero bs=2048 count=1 >> "$TTC" 2>/dev/null
-OUTPUT="$TMP/LuoShu-400.ttf"
-if _luoshu_config_normalize_weight "$TTC" "$OUTPUT" 400; then
+OUTPUT="$TMP/Ziyu-400.ttf"
+if _ziyu_config_normalize_weight "$TTC" "$OUTPUT" 400; then
     echo 'TTC collection unexpectedly entered deterministic XML weights' >&2
     exit 1
 fi

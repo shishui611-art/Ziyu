@@ -47,10 +47,10 @@ def destination(raw):
     if not path.is_absolute() or any(c in raw for c in '\r\n\0|') or len(raw.encode()) > 500 or '..' in path.parts:
         raise ValueError('请输入不含换行或上级跳转的绝对目录路径')
     resolved = path.resolve()
-    prefixes = ('/storage/emulated/0/', '/data/adb/ziyu-data/')
+    prefixes = ('/storage/emulated/0/', '/data/adb/ziyu/user-data/')
     external = len(resolved.parts) >= 4 and resolved.parts[1] == 'storage' and resolved.parts[2] not in {'emulated', 'self'}
     if not (external or any(str(resolved).startswith(prefix) for prefix in prefixes)) or str(resolved) in {'/storage/emulated/0', '/storage/emulated', '/storage/self'}:
-        raise ValueError('请选择共享存储中的专用子目录，或 /data/adb/ziyu-data 下的子目录')
+        raise ValueError('请选择共享存储中的专用子目录，或 /data/adb/ziyu/user-data 下的子目录')
     if any(part in {'Android', 'modules', 'modules_update'} for part in resolved.parts):
         raise ValueError('用户字体目录不能放在 Android 应用数据或 Root 模块目录中')
     if path.is_symlink():
@@ -188,7 +188,7 @@ def main():
             raise ValueError('用户文件正在迁移，请稍后重试')
         os.set_inheritable(lock.fileno(), True)
         env = dict(os.environ, ZIYU_STORAGE_LOCKED='1', MODDIR=str(module))
-        env.pop('LUOSHU_PUBLIC_DIR', None)
+        env.pop('ZIYU_PUBLIC_DIR', None)
         args = sys.argv[3:]
         tool = module / 'common/app_bridge.sh'
         if args and args[0] == '--backup':

@@ -80,6 +80,7 @@ internal fun FontDetailsDialogRoute(
     busy: Boolean,
     onDismiss: () -> Unit,
     onApply: () -> Unit,
+    customPreviewText: String = "",
 ) {
     val scheme = MaterialTheme.colorScheme
     val tokens = LocalZiyuPaletteTokens.current
@@ -111,11 +112,11 @@ internal fun FontDetailsDialogRoute(
         }
     }
     val previewText = when (previewMode) {
-        FontPreviewMode.Mixed -> if (font.supportsCjk) {
+        FontPreviewMode.Mixed -> customPreviewText.ifBlank { if (font.supportsCjk) {
             "花间一壶酒\nZiyu Aa 0123456789"
         } else {
             "Ziyu Typeface\nAa 0123456789"
-        }
+        } }
         FontPreviewMode.Cjk -> "花间一壶酒\n天地玄黄 宇宙洪荒"
         FontPreviewMode.Latin -> "The quick brown fox\nZiyu Typeface"
         FontPreviewMode.Numbers -> "0123456789\n¥ 123,456.78"

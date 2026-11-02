@@ -16,17 +16,17 @@ xml = """<familyset>
   <family name="emoji"><font weight="400">NotoColorEmoji.ttf</font></family>
 </familyset>"""
 tree = ET.ElementTree(ET.fromstring(xml))
-report = rewrite_tree(tree, "LuoShu", "LuoShuMono")
+report = rewrite_tree(tree, "LuoShu", "ZiyuMono")
 families = {family.attrib.get("name"): family.find("font").text for family in tree.getroot()}
-assert families["sans-serif"] == "LuoShu-400.ttf"
+assert families["sans-serif"] == "Ziyu-400.ttf"
 assert families["monospace"] == "RobotoMono-Regular.ttf"
 assert families["emoji"] == "NotoColorEmoji.ttf"
 assert report["changed_mono_families"] == []
-refs = generated_references(tree, ("LuoShu", "LuoShuMono"))
-assert refs == ["LuoShu-400.ttf"]
+refs = generated_references(tree, ("LuoShu", "ZiyuMono"))
+assert refs == ["Ziyu-400.ttf"]
 with tempfile.TemporaryDirectory() as directory:
     font_dir = Path(directory)
     for filename in refs:
         (font_dir / filename).write_bytes(b"0" * 2048)
-    assert validate_generated_references(tree, ("LuoShu", "LuoShuMono"), font_dir) == 1
+    assert validate_generated_references(tree, ("LuoShu", "ZiyuMono"), font_dir) == 1
 print("UI overlay and stock monospace preservation passed.")

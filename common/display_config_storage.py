@@ -42,8 +42,8 @@ def directory(raw, module):
     if resolved == (module / 'config').resolve():
         return resolved
     external = len(resolved.parts) >= 4 and resolved.parts[1] == 'storage' and resolved.parts[2] not in {'emulated', 'self'}
-    if not (external or str(resolved).startswith(('/storage/emulated/0/', '/data/adb/ziyu-data/'))):
-        raise ValueError('请选择共享存储的专用子目录，或 /data/adb/ziyu-data 下的子目录')
+    if not (external or str(resolved).startswith(('/storage/emulated/0/', '/data/adb/ziyu/user-data/'))):
+        raise ValueError('请选择共享存储的专用子目录，或 /data/adb/ziyu/user-data 下的子目录')
     if any(part in {'Android', 'modules', 'modules_update'} for part in resolved.parts) or path.is_symlink():
         raise ValueError('请勿使用应用数据、其他模块目录或符号链接')
     marker = resolved / '.ziyu-display-config'
@@ -94,7 +94,7 @@ def current(module):
         external = len(value.parts) >= 4 and value.parts[1] == 'storage' and value.parts[2] not in {'emulated', 'self'}
         if (value.is_absolute() and '..' not in value.parts and len(path.encode()) <= 500 and '|' not in path
                 and not any(ord(c) < 32 or ord(c) == 127 for c in path)
-                and (external or path.startswith(('/storage/emulated/0/', '/data/adb/ziyu-data/')))):
+                and (external or path.startswith(('/storage/emulated/0/', '/data/adb/ziyu/user-data/', '/data/adb/ziyu-data/')))):
             return value
     return module / 'config'
 

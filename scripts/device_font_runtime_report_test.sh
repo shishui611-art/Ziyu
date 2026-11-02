@@ -4,7 +4,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$ROOT/scripts/assert.sh"
 CASE='运行时报告'
-TMP=$(mktemp -d 2>/dev/null || mktemp -d -t luoshu-runtime-report)
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-runtime-report)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MOD="$TMP/module"
 REPORT="$TMP/report"
@@ -24,9 +24,9 @@ printf 'schema=device-template-v1\n' > "$MOD/config/font-payload-schema.conf"
 printf '{"schema":"device-font-template-v1","slots":[]}' > "$MOD/config/device-font-template.json"
 printf '{"schema":"device-font-payload-v1"}' > "$MOD/config/device-font-payload/manifest.json"
 printf '{"schema":"device-font-overlay-v1"}' > "$MOD/config/device-font-overlay/overlay-manifest.json"
-printf '<fontConfig><family name="emoji"/></fontConfig>\n' > "$MOD/system/etc/.luoshu-data-fonts-config.xml"
-printf 'file|system/fonts/LuoShuSlot-fixture.ttf|hash|2048\n' > "$MOD/config/device-font-installed.conf"
-printf 'state=prepared\nsource=system/etc/.luoshu-data-fonts-config.xml\ntarget=/data/fonts/config/config.xml\n' > "$MOD/config/device-font-dynamic-mount.conf"
+printf '<fontConfig><family name="emoji"/></fontConfig>\n' > "$MOD/system/etc/.ziyu-data-fonts-config.xml"
+printf 'file|system/fonts/ZiyuSlot-fixture.ttf|hash|2048\n' > "$MOD/config/device-font-installed.conf"
+printf 'state=prepared\nsource=system/etc/.ziyu-data-fonts-config.xml\ntarget=/data/fonts/config/config.xml\n' > "$MOD/config/device-font-dynamic-mount.conf"
 
 cat > "$BIN/getprop" <<'EOF_GETPROP'
 #!/bin/sh
@@ -40,18 +40,18 @@ EOF_GETPROP
 cat > "$BIN/cmd" <<'EOF_CMD'
 #!/bin/sh
 if [ "${1:-}" = font ] && [ "${2:-}" = dump ]; then
-  echo 'google-sans-text -> /system/fonts/LuoShuSlot-fixture.ttf'
+  echo 'google-sans-text -> /system/fonts/ZiyuSlot-fixture.ttf'
   exit 0
 fi
 exit 1
 EOF_CMD
 chmod 0755 "$BIN/getprop" "$BIN/cmd"
 
-_luoshu_safety_module() { printf '%s\n' "$MOD"; }
-_luoshu_safety_config() { printf '%s/config\n' "$MOD"; }
-_luoshu_safety_log() { :; }
-luoshu_detect_root_manager() { printf 'KernelSU\n'; }
-export LUOSHU_RUNTIME_REPORT_ROOT="$REPORT"
+_ziyu_safety_module() { printf '%s\n' "$MOD"; }
+_ziyu_safety_config() { printf '%s/config\n' "$MOD"; }
+_ziyu_safety_log() { :; }
+ziyu_detect_root_manager() { printf 'KernelSU\n'; }
+export ZIYU_RUNTIME_REPORT_ROOT="$REPORT"
 export PATH="$BIN:$PATH"
 # shellcheck disable=SC1090
 . "$ROOT/common/device_font_runtime_report.sh"
@@ -62,8 +62,8 @@ ok grep -q '^state=confirmed$' "$MOD/config/font-payload-boot.conf"
 ok grep -q '^moduleVersion=v2.2.0 Alpha 1$' "$REPORT/summary.txt"
 ok grep -q '^activeFont=Fixture Font$' "$REPORT/summary.txt"
 ok grep -q '^engineState=installed$' "$REPORT/summary.txt"
-ok grep -q 'google-sans-text.*LuoShuSlot-fixture.ttf' "$REPORT/font-manager-dump.txt"
-ok grep -q 'google-sans-text.*LuoShuSlot-fixture.ttf' "$REPORT/dynamic-font-proof.txt"
+ok grep -q 'google-sans-text.*ZiyuSlot-fixture.ttf' "$REPORT/font-manager-dump.txt"
+ok grep -q 'google-sans-text.*ZiyuSlot-fixture.ttf' "$REPORT/dynamic-font-proof.txt"
 ok test -s "$REPORT/device-font-template.json"
 ok test -s "$REPORT/device-font-payload-manifest.json"
 ok test -s "$REPORT/device-font-overlay-manifest.json"

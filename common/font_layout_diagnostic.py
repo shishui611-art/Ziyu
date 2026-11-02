@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from legacy_identity import owned_path, schema as identity_schema
 import os
 from pathlib import Path, PurePosixPath
 from font_live_payload import work_root as live_work_root
@@ -26,7 +27,7 @@ from fontTools.ttLib import TTFont
 from font_inventory import LOGICAL_FONT_ROOTS, MIRROR_PREFIXES, validate_inventory
 from font_slot_coverage import valid_coverage
 
-SCHEMA = "luoshu-font-layout-diagnostic-v1"
+SCHEMA = "ziyu-font-layout-diagnostic-v1"
 PROBES = "中永国岁你好AHIx01247"
 PACKAGES = ("com.android.deskclock", "com.duokan.phone.remotecontroller",
             "com.tencent.mobileqq", "com.coolapk.market")
@@ -214,7 +215,7 @@ class Collector:
                 "appSelectedTypefaceCollected": False, "appProcessMapsCollected": False,
                 "providerCachesCollected": False, "variableGlyphLocation": "default",
                 "mountedFontsScope": "collector-process-mount-namespace",
-                "activePayloadScope": "current .luoshu-payload only; not proof of app usage",
+                "activePayloadScope": "current .ziyu-payload only; not proof of app usage",
                 "apkAssetsScope": "candidate resources only; not proof of selected Typeface",
                 "stockGlyphScope": "trusted lower/mirror only; unavailable sources stay missing",
             }, "errors": [],
@@ -254,7 +255,7 @@ class Collector:
         for _, logical_root in LOGICAL_FONT_ROOTS:
             self.check_budget()
             for root in (self.physical(str(logical_root)),
-                         self.module / ".luoshu-payload" / logical_root.relative_to("/")):
+                         self.module / ".ziyu-payload" / logical_root.relative_to("/")):
                 try:
                     # No recursive walk and no source-font directory scan.
                     with os.scandir(root) as entries:
@@ -336,7 +337,7 @@ class Collector:
                               "validatedBy": entry.get("validatedBy", "unknown"),
                               "validatedFormat": entry.get("validatedFormat", "unknown"),
                               "glyphs": {"status": "not-collected"}}
-        item["activePayload"] = self.reference(self.module / ".luoshu-payload" / logical.lstrip("/"), face)
+        item["activePayload"] = self.reference(self.module / ".ziyu-payload" / logical.lstrip("/"), face)
         item["mountedInCollector"] = self.reference(self.physical(logical), face)
         route = self.route(logical)
         if route:
@@ -359,8 +360,8 @@ class Collector:
 
     def processing_report(self) -> dict:
         try:
-            data = load_json(self.module / ".luoshu-payload/.luoshu-metrics-report.json")
-            if data.get("schema") != "luoshu-slot-metrics-v1" or not isinstance(data.get("slots"), list):
+            data = load_json(owned_path(self.module / ".ziyu-payload/.ziyu-metrics-report.json"))
+            if identity_schema(data.get("schema")) != "ziyu-slot-metrics-v1" or not isinstance(data.get("slots"), list):
                 return {}
             result = {}
             for item in data["slots"][:2048]:
@@ -458,7 +459,7 @@ class Collector:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--module", type=Path, required=True)
-    parser.add_argument("--output", type=Path, default=Path("/sdcard/LuoShu/reports/LuoShu-font-layout.json"))
+    parser.add_argument("--output", type=Path, default=Path("/sdcard/ziyu/reports/Ziyu-font-layout.json"))
     args = parser.parse_args()
     report = Collector(args.module).collect()
     temporary = None

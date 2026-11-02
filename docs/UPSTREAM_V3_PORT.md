@@ -28,6 +28,6 @@
 
 最初移植阶段只修改并推送源码，未发布。现按用户明确授权发布字域 v1.4.0，正式状态以 GitHub Release 及对应 CI 记录为准；自动化构建和发布不代表真机验收，不自动安装或操作手机。
 
-新增运行 helper `common/composite_tune.sh` 已登记到模块打包清单。上游来源和许可证登记在 `THIRD_PARTY_NOTICES.md` 和 `licenses/LuoShu-v3.0.0-GPL-3.0.txt`。
+新增运行 helper `common/composite_tune.sh` 已登记到模块打包清单。上游来源和许可证登记在 `THIRD_PARTY_NOTICES.md` 和 `licenses/upstream-v3.0.0-GPL-3.0.txt`。
 
 最初移植提交使用 `[skip ci]`；v1.4.0 版本提交走现有正式自动发布工作流，由检查通过的工作流创建不可变标签与 Release。

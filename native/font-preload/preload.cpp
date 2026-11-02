@@ -132,7 +132,7 @@ bool snapshot(int dir, Snapshot &out) {
     memcpy(out.boot, companionBoot, sizeof(out.boot));
     if (fstatat(dir, "module.prop", &out.metadata, AT_SYMLINK_NOFOLLOW) || !S_ISREG(out.metadata.st_mode) ||
         fstatat(dir, "config/mount-backend.conf", &out.state, AT_SYMLINK_NOFOLLOW) || !S_ISREG(out.state.st_mode) ||
-        fstatat(dir, ".luoshu-payload", &out.payload, AT_SYMLINK_NOFOLLOW) || !S_ISDIR(out.payload.st_mode) ||
+        fstatat(dir, ".ziyu-payload", &out.payload, AT_SYMLINK_NOFOLLOW) || !S_ISDIR(out.payload.st_mode) ||
         fstatat(dir, "config/mount-backend-verification.json", &out.proof, AT_SYMLINK_NOFOLLOW) || !S_ISREG(out.proof.st_mode) ||
         fstatat(dir, "config/font-preload-generation.conf", &out.permission, AT_SYMLINK_NOFOLLOW) || !S_ISREG(out.permission.st_mode)) return false;
     // Revalidate identities and disable/remove every time; reread metadata and
@@ -201,10 +201,10 @@ bool prepare(int dir, const Snapshot &before) {
     ++catalog.generation;
     catalog.initialized = true;
     catalog.identity = before;
-    int payload = openat(dir, ".luoshu-payload", O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    int payload = openat(dir, ".ziyu-payload", O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (payload < 0) return false;
     char real[4096]{};
-    bool ok = realpath("/data/adb/modules/ziyu/.luoshu-payload", real) &&
+    bool ok = realpath("/data/adb/modules/ziyu/.ziyu-payload", real) &&
         readText(dir, "config/font-preload-generation.conf", catalog.allowed, sizeof(catalog.allowed));
     char value[32]{};
     if (ok && field(catalog.allowed, "omitted_fonts", value, sizeof(value)))
@@ -228,7 +228,7 @@ bool prepare(int dir, const Snapshot &before) {
         char full[4096]{}, resolved[4096]{}, sourceIdentity[128]{};
         bool valid = !fstatat(payload, fields[1], &source, 0) && S_ISREG(source.st_mode) &&
             source.st_size > 0 && source.st_size <= kMaxFont &&
-            snprintf(full, sizeof(full), "%s/.luoshu-payload/%s", kModule, fields[1]) < static_cast<int>(sizeof(full)) &&
+            snprintf(full, sizeof(full), "%s/.ziyu-payload/%s", kModule, fields[1]) < static_cast<int>(sizeof(full)) &&
             realpath(full, resolved) && !strncmp(resolved, real, strlen(real)) && resolved[strlen(real)] == '/';
         if (valid) { statIdentity(source, sourceIdentity, sizeof(sourceIdentity)); valid = !strcmp(sourceIdentity, fields[2]); }
         if (!valid || catalog.count == kLimit ||

@@ -9,10 +9,10 @@ MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 HTF_CACHE="$MODDIR/config/hyperos-theme-font"
 HTF_STATE="$MODDIR/config/hyperos-theme-font-mount.conf"
 HTF_MOUNTS="$MODDIR/config/hyperos-theme-font-namespaces.conf"
-HTF_TARGET="${LUOSHU_THEME_FONT_TARGET:-/data/system/theme/fonts/Roboto-Regular.ttf}"
+HTF_TARGET="${ZIYU_THEME_FONT_TARGET:-/data/system/theme/fonts/Roboto-Regular.ttf}"
 HTF_THEME_TARGET="$HTF_TARGET"
-HTF_ALIAS="${LUOSHU_THEME_FONT_ALIAS:-/system/fonts/MiSansVF_Overlay.ttf}"
-HTF_ROUTER="${LUOSHU_THEME_FONT_ROUTER:-/data/system/fonts/theme_webview/Roboto-Regular.ttf}"
+HTF_ALIAS="${ZIYU_THEME_FONT_ALIAS:-/system/fonts/MiSansVF_Overlay.ttf}"
+HTF_ROUTER="${ZIYU_THEME_FONT_ROUTER:-/data/system/fonts/theme_webview/Roboto-Regular.ttf}"
 
 _htf_active() {
     [ "$(_gfp_active_font)" != default ] || return 1
@@ -34,11 +34,11 @@ _htf_active() {
 _htf_source() {
     # Only the boot-activated payload is authoritative. A pending selection
     # must not change Chrome before its system font generation is activated.
-    _htf_fonts="$MODDIR/.luoshu-payload/system/fonts"
+    _htf_fonts="$MODDIR/.ziyu-payload/system/fonts"
     for _htf_candidate in \
-        "$_htf_fonts/.luoshu-font-store/mix-composite.font" \
-        "$_htf_fonts/.luoshu-font-store/regular.font" \
-        "$_htf_fonts/.luoshu-font-store/compact-regular.font" \
+        "$_htf_fonts/.ziyu-font-store/mix-composite.font" \
+        "$_htf_fonts/.ziyu-font-store/regular.font" \
+        "$_htf_fonts/.ziyu-font-store/compact-regular.font" \
         "$_htf_fonts/MiSansVF.ttf" "$_htf_fonts/400.ttf"; do
         _gfp_valid_font "$_htf_candidate" && { printf '%s\n' "$_htf_candidate"; return 0; }
     done
@@ -61,7 +61,7 @@ _htf_pids() {
 _htf_fingerprint() {
     _htf_active || { printf 'theme-font:inactive\n'; return 0; }
     _htf_donor=$(_htf_source) || { printf 'theme-font:source-pending\n'; return 0; }
-    _htf_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _htf_proc="${ZIYU_PROC_ROOT:-/proc}"
     {
         printf 'theme-font:v2|%s|%s\n' "$_htf_donor" "$HTF_TARGET"
         _htf_stamp "$_htf_donor"
@@ -130,7 +130,7 @@ _htf_clear_owned_pid() {
     # Multiple old layers are possible after an interrupted earlier attempt.
     # Never pop a foreign layer; retain the journal if a layer cannot be removed.
     while [ "$_htf_clear_round" -lt 64 ]; do
-        _htf_clear_id=$(_htf_identity "${LUOSHU_PROC_ROOT:-/proc}/$_htf_clear_pid/root$_htf_clear_target")
+        _htf_clear_id=$(_htf_identity "${ZIYU_PROC_ROOT:-/proc}/$_htf_clear_pid/root$_htf_clear_target")
         [ -n "$_htf_clear_id" ] || return 0
         _htf_owned_identity "$_htf_clear_id" "$_htf_clear_target" || return 0
         _gfp_unmount_in_pid "$_htf_clear_pid" "$_htf_clear_target" || return 1
@@ -141,8 +141,8 @@ _htf_clear_owned_pid() {
 
 _htf_mount_pid() {
     _htf_mount_pid_value="$1"
-    _htf_mount_ns=$(readlink "${LUOSHU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/ns/mnt" 2>/dev/null)
-    _htf_mount_id=$(_htf_identity "${LUOSHU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/root$HTF_TARGET")
+    _htf_mount_ns=$(readlink "${ZIYU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/ns/mnt" 2>/dev/null)
+    _htf_mount_id=$(_htf_identity "${ZIYU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/root$HTF_TARGET")
     _htf_mount_previous=$_htf_mount_id
     _htf_mount_changed=0
     # Prepare the journal before mounting, and commit each namespace promptly.
@@ -161,7 +161,7 @@ _htf_mount_pid() {
         _htf_clear_owned_pid "$_htf_mount_pid_value" || { rm -f "$_htf_mount_row"; return 1; }
         _gfp_mount_in_pid "$_htf_mount_pid_value" "$HTF_CLONE" "$HTF_TARGET" 1 || { rm -f "$_htf_mount_row"; return 1; }
         [ "$_gfp_mount_mode" = already ] || _htf_mount_changed=1
-        _htf_mount_id=$(_htf_identity "${LUOSHU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/root$HTF_TARGET")
+        _htf_mount_id=$(_htf_identity "${ZIYU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/root$HTF_TARGET")
     fi
     _htf_mount_saved=0
     if [ -n "$_htf_mount_ns" ] && [ -n "$_htf_mount_id" ]; then
@@ -170,7 +170,7 @@ _htf_mount_pid() {
     fi
     rm -f "$_htf_mount_row"
     if [ "$_htf_mount_saved" != 1 ]; then
-        if [ "$_htf_mount_changed" = 1 ] && [ "$(_htf_identity "${LUOSHU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/root$HTF_TARGET")" = "$_htf_mount_id" ]; then
+        if [ "$_htf_mount_changed" = 1 ] && [ "$(_htf_identity "${ZIYU_PROC_ROOT:-/proc}/$_htf_mount_pid_value/root$HTF_TARGET")" = "$_htf_mount_id" ]; then
             _gfp_unmount_in_pid "$_htf_mount_pid_value" "$HTF_TARGET" || true
         fi
         return 1
@@ -208,7 +208,7 @@ EOF
     _htf_current_identity=$(_gfp_identity "$HTF_CLONE")
     [ "$_htf_original_identity" = "${_htf_current_identity%:*}" ] || _gfp_queue_all_consumers "$_htf_original_identity"
     _htf_ok=0; _htf_failed=0
-    _htf_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _htf_proc="${ZIYU_PROC_ROOT:-/proc}"
     _htf_journal="${HTF_MOUNTS}.tmp.$$"
     : > "$_htf_journal" || return 1
     : > "${_htf_journal}.live" || return 1
@@ -246,7 +246,7 @@ _htf_restore_internal() {
     [ -s "$HTF_MOUNTS" ] || { rm -f "$HTF_STATE"; return 0; }
     # Mount ownership is checked by inode before unmounting; never detach a
     # replacement installed by the ROM/theme manager or another module.
-    _htf_proc="${LUOSHU_PROC_ROOT:-/proc}"
+    _htf_proc="${ZIYU_PROC_ROOT:-/proc}"
     _htf_restore_failed=0
     _htf_restore_targets=$(awk -F '|' -v legacy="$HTF_THEME_TARGET" '{target=(NF == 4 ? $4 : legacy); if (!seen[target]++) print target}' "$HTF_MOUNTS")
     _htf_restore_pids=$(_htf_pids)

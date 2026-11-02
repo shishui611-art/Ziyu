@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # Read-only details. Provider identity belongs to this boot, never redetect/switch it here.
 _mbd_value() { ziyu_mount_conf_value "$1" "$2"; }
-luoshu_mount_backend_details() {
+ziyu_mount_backend_details() {
     _mbd_module="${MODDIR:-/data/adb/modules/ziyu}"
     _mbd_file="$_mbd_module/config/mount-backend.conf"
     MOUNT_PROVIDER_NAME='尚未确认'
@@ -49,7 +49,7 @@ luoshu_mount_backend_details() {
         esac
     fi
     if [ "$_mbd_selected" = self ] &&
-       [ "$(cat /data/adb/luoshu/self-mount/boot-id 2>/dev/null | tr -d '\r\n')" = "$_mbd_boot" ] &&
+       [ "$(cat /data/adb/ziyu/self-mount/boot-id 2>/dev/null | tr -d '\r\n')" = "$_mbd_boot" ] &&
        [ "$(_mbd_value "$_mbd_module/config/self-mount.conf" state)" = mounted ]; then
         _mbd_self_method=$(awk -F'|' '
             $3=="overlay" {overlay=1} $3=="bind" {bind=1} $3=="mirror" {mirror=1}

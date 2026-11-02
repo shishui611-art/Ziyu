@@ -4,7 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
-FONT=${LUOSHU_TEST_FONT_TTF:-}
+FONT=${ZIYU_TEST_FONT_TTF:-}
 if [ ! -s "$FONT" ]; then
     FONT=$(find /usr/share/fonts -type f -iname 'DejaVuSans.ttf' -print -quit 2>/dev/null || true)
 fi
@@ -28,12 +28,12 @@ cp "$FONT" "$PUBLIC/fonts/Alpha-Bold.ttf"
 cp "$FONT" "$PUBLIC/fonts/Beta-Regular.ttf"
 cp "$FONT" "$PUBLIC/fonts/Gamma-Regular.ttf"
 
-BEFORE=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action list refresh)
+BEFORE=$(MODDIR="$MODULE" ZIYU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action list refresh)
 printf '%s\n' "$BEFORE" | grep -q '"count":3'
 printf '%s\n' "$BEFORE" | grep -q '"id":"Alpha"'
 printf '%s\n' "$BEFORE" | grep -q '"id":"Beta"'
 
-DELETED=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete_many Alpha Beta)
+DELETED=$(MODDIR="$MODULE" ZIYU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete_many Alpha Beta)
 printf '%s\n' "$DELETED" | grep -q '"status":"ok"'
 printf '%s\n' "$DELETED" | grep -q '"deletedFamilies":2'
 printf '%s\n' "$DELETED" | grep -q '"deletedFiles":3'
@@ -42,7 +42,7 @@ test ! -e "$PUBLIC/fonts/Alpha-Bold.ttf"
 test ! -e "$PUBLIC/fonts/Beta-Regular.ttf"
 test -s "$PUBLIC/fonts/Gamma-Regular.ttf"
 
-AFTER=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action list refresh)
+AFTER=$(MODDIR="$MODULE" ZIYU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action list refresh)
 printf '%s\n' "$AFTER" | grep -q '"count":1'
 ! printf '%s\n' "$AFTER" | grep -q '"id":"Alpha"'
 ! printf '%s\n' "$AFTER" | grep -q '"id":"Beta"'
@@ -53,7 +53,7 @@ cp "$FONT" "$PUBLIC/fonts/Alpha-Regular.ttf"
 cp "$FONT" "$PUBLIC/fonts/Alpha-Bold.ttf"
 printf 'Gamma\n' > "$MODULE/config/active_font.conf"
 touch "$MODULE/config/text_reboot_required.conf"
-BLOCKED=$(MODDIR="$MODULE" LUOSHU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete_many Alpha Gamma)
+BLOCKED=$(MODDIR="$MODULE" ZIYU_PUBLIC_DIR="$PUBLIC" sh "$MODULE/common/font_manager.sh" action delete_many Alpha Gamma)
 printf '%s\n' "$BLOCKED" | grep -q '"status":"error"'
 test -s "$PUBLIC/fonts/Alpha-Regular.ttf"
 test -s "$PUBLIC/fonts/Alpha-Bold.ttf"

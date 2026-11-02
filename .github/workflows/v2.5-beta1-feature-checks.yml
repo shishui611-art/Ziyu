@@ -8,8 +8,8 @@ on:
     branches:
       - main
     paths:
-      - system/bin/luoshu-history
-      - system/bin/luoshu-backup
+      - system/bin/ziyu-history
+      - system/bin/ziyu-backup
       - common/font_coverage_info.py
       - scripts/switch_history_test.sh
       - scripts/full_backup_root_test.sh
@@ -27,8 +27,8 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check 'fonttools>=4.50,<5'
       - name: Validate history, backup and coverage map
         run: |
-          sh -n system/bin/luoshu-history
-          sh -n system/bin/luoshu-backup
+          sh -n system/bin/ziyu-history
+          sh -n system/bin/ziyu-backup
           sh scripts/switch_history_test.sh
           sh scripts/full_backup_root_test.sh
           python3 -m py_compile common/font_coverage_info.py

@@ -184,10 +184,10 @@ def fallback_match(
 
 
 def stock_xml_input(template: dict[str, Any], source_xml: str) -> Path:
-    """Return a stock XML view even while LuoShu's current overlay is mounted.
+    """Return a stock XML view even while Ziyu's current overlay is mounted.
 
     New captures freeze XML under ``xmlSourceRoot``. Existing installations may
-    predate that snapshot, so use the lower directory captured by LuoShu's atomic
+    predate that snapshot, so use the lower directory captured by Ziyu's atomic
     self-mount before falling back to the live path. Reading the live overlaid XML
     during a switch was the main cause of first-apply failure and a second reboot.
     """
