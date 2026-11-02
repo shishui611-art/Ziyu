@@ -19,7 +19,7 @@ class IntegrationTest(unittest.TestCase):
         self.backend = FakeAndroid()
         self.module = self.root / 'module'
         (self.module / 'config').mkdir(parents=True)
-        (self.module / 'module.prop').write_text('id=Ziyu\n')
+        (self.module / 'module.prop').write_text((ROOT / 'module.prop').read_text())
         (self.module / 'config/active_font.conf').write_text('custom\n')
 
     def status(self):
@@ -107,8 +107,8 @@ class IntegrationTest(unittest.TestCase):
         self.assertEqual(result['status'], 'unchanged')
         self.assertEqual(self.backend.calls, [])
 
-    def test_old_script_store_and_schema_are_unchanged(self):
-        self.assertEqual(str(m.STORE), '/data/adb/ziyu-google-font-fallback')
+    def test_current_store_uses_unified_root_and_preserves_journal_schema(self):
+        self.assertEqual(str(m.STORE), '/data/adb/ziyu/google-font-fallback')
         self.assertEqual(m.SCHEMA, 'ziyu-google-font-fallback-v1')
 
     def test_runtime_and_ui_are_in_real_routes_and_payload(self):

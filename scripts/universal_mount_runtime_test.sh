@@ -7,6 +7,7 @@ MOD="$TMP/module"
 VISIBLE="$TMP/visible"
 mkdir -p "$MOD/common" "$MOD/config" "$MOD/logs" "$MOD/.ziyu-payload/.ziyu-runtime/deployment" "$MOD/.ziyu-payload/.ziyu-dynamic" "$MOD/.ziyu-payload/system/fonts" "$VISIBLE/data/fonts/files"
 cp "$ROOT/common/universal_mount_runtime.sh" "$MOD/common/"
+cp "$ROOT/common/legacy_identity.sh" "$MOD/common/"
 # The fake mount copies ordinary files on the host filesystem. Model verity
 # checks here; the real seal implementation has its own tests and requires a
 # supporting kernel/filesystem. Never make the production check optional.

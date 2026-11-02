@@ -7,6 +7,7 @@ MOD="$TMP/module"
 mkdir -p "$MOD/common" "$MOD/config/universal-font-plans" "$MOD/config/minimal-xml-route-plans" "$MOD/config/universal-font-artifact-manifests"
 cp "$ROOT/common/universal_font_deployment.sh" "$MOD/common/"
 cp "$ROOT/common/universal_next_boot.sh" "$MOD/common/"
+cp "$ROOT/common/legacy_identity.sh" "$MOD/common/"
 cp "$ROOT/common/action_control.sh" "$MOD/common/"
 
 cat > "$MOD/common/universal_font_plan.sh" <<'SH'
