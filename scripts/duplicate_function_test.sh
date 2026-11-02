@@ -15,6 +15,19 @@ CASE='重复函数定义'
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
+# The health command now lives in common/ outside the replaceable payload.
+# It is executed (never sourced) by system/bin/ziyu-health, so these private
+# command helpers do not override App/router helpers. Pin the exact files;
+# an additional definition must still fail instead of inheriting this exception.
+for fn in mount_engine read_value root_manager; do
+    case "$fn" in
+        read_value) expected='common/font_switch_task.sh common/ziyu_health.sh' ;;
+        *) expected='common/app_bridge.sh common/ziyu_health.sh' ;;
+    esac
+    actual=$(grep -l "^${fn}()" "$ROOT"/common/*.sh "$ROOT"/*.sh 2>/dev/null | sed "s|$ROOT/||" | sort | tr '\n' ' ' | sed 's/ $//')
+    [ "$actual" = "$expected" ] || fail "independent health helper changed: $fn -> $actual"
+done
+
 # Every function that is intentionally overridden by a later-loaded layer, with the reason.
 cat > "$TMP/allow" <<'ALLOW'
 _copy_as_inventory
@@ -93,6 +106,9 @@ ziyu_write_mount_probe
 ziyu_write_mount_probes
 python_run
 read_prop
+mount_engine
+read_value
+root_manager
 ALLOW
 
 # v4.0.0 deliberately sources common/module_update_hotfix_v4.sh after

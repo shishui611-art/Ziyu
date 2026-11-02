@@ -38,7 +38,9 @@ class DiagnosticExportTest(unittest.TestCase):
             command = textwrap.dedent(kotlin.split('val command = """', 1)[1].split('""".trimIndent()', 1)[0]).replace("${'$'}", "$")
             self.assertEqual(command.count("MOD=/data/adb/modules/ziyu"), 1)
             command = command.replace("MOD=/data/adb/modules/ziyu", 'MOD="$TEST_ROOT/module"')
-            command = command.replace("OUT_DIR=/sdcard/Ziyu/reports", 'OUT_DIR="$TEST_ROOT/reports"')
+            output_dir = 'OUT_DIR="${ZIYU_PUBLIC_DIR:-/sdcard/ziyu}/reports"'
+            self.assertEqual(command.count(output_dir), 1)
+            command = command.replace(output_dir, 'OUT_DIR="$TEST_ROOT/reports"')
             app_path = 'APP_UPDATES=${RootShell.quote(File(context.filesDir, "module-update").absolutePath)}'
             self.assertEqual(command.count(app_path), 1)
             command = command.replace(app_path, 'APP_UPDATES="$TEST_ROOT/app-files/module-update"')

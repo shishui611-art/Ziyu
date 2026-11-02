@@ -98,7 +98,7 @@ def main() -> None:
         payload = payload_builder.build_payload(
             template,
             source_dir,
-            "LuoShu",
+            "Ziyu",
             output_dir,
             output_dir / "manifest.json",
         )
@@ -130,7 +130,7 @@ def main() -> None:
                 payload_builder.build_payload(
                     changed,
                     source_dir,
-                    "LuoShu",
+                    "Ziyu",
                     output_dir,
                     output_dir / "manifest.json",
                 )

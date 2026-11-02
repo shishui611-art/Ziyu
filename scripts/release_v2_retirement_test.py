@@ -76,17 +76,23 @@ case "$1" in get) cat "$VALUE";; put) printf '%s\n' "$4" > "$VALUE";; delete) pr
         self.assertIn('font_weight_runtime.sh" service', (ROOT/'service.sh').read_text())
     def test_global_weight_controls_have_been_removed(self):
         base=ROOT/'android-app/app/src/main/java/io/github/xgl34222220/ziyu'
-        sources=sorted(base.rglob('*.kt'))
+        # Archived screens moved below the current package's legacy/ directory.
+        # Check active sources and also reject imports that reconnect that archive.
+        sources=sorted(path for path in base.rglob('*.kt')
+                       if path.relative_to(base).parts[0] != 'legacy')
         self.assertTrue(sources, 'current Ziyu Kotlin sources must be present')
         current_source='\n'.join(path.read_text(encoding='utf-8') for path in sources)
+        self.assertFalse('io.github.xgl34222220.ziyu.legacy' in current_source,
+                         'active App must not reconnect archived legacy controls')
         for retired_control in ('HomeGlobalWeightCard', 'refreshSystemWeight', 'previewSystemWeight'):
             with self.subTest(retired_control=retired_control):
-                self.assertNotIn(retired_control, current_source)
+                self.assertFalse(retired_control in current_source,
+                                 f'retired control returned to active App: {retired_control}')
 
     def test_installer_static_phases_no_fake_percent_or_background_jobs(self):
         s=(ROOT/'common/install_ui.sh').read_text();self.assertNotIn('sleep ',s)
         r=subprocess.run(['sh','-c','ui_print() { printf "%s\\n" "$*"; }; . "$1"; ziyu_install_header v2.0.0; ziyu_install_step 1 环境; ziyu_install_step 2 扫描; ziyu_install_step 3 App; ziyu_install_step 4 挂载; ziyu_install_complete','sh',str(ROOT/'common/install_ui.sh')],capture_output=True,text=True,check=True)
         self.assertIn('2.0.0',r.stdout);self.assertNotIn('%',r.stdout)
         for n in range(1,5):self.assertEqual(r.stdout.count(f'[{n}/4]'),1)
-        self.assertIn('请完整重启；实际挂载结果见字域 App「挂载详情」',r.stdout)
+        self.assertRegex(r.stdout, r'请完整重启[；\s]+实际挂载结果见字域 App「挂载详情」')
 if __name__=='__main__':unittest.main(verbosity=2)

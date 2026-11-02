@@ -4,13 +4,18 @@ import hashlib, os, pathlib, shutil, subprocess, tempfile
 root=pathlib.Path(__file__).resolve().parents[1]
 shell=shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
 helper=(root/'common/boot_ota_guard.sh').as_posix()
+
+def install_identity(module):
+    (module/'common').mkdir(exist_ok=True)
+    shutil.copy2(root/'common/legacy_identity.sh', module/'common/legacy_identity.sh')
+    return dict(MODDIR=module.as_posix(), MODULE_DIR=module.as_posix(), MODPATH=module.as_posix())
 with tempfile.TemporaryDirectory() as directory:
     module=pathlib.Path(directory)
     config=module/'config'; config.mkdir()
     (module/'module.prop').write_text('id=Ziyu\n')
     (config/'active_font.conf').write_text('Demo\n')
     (config/'boot-ota-guard.conf').write_text('schema=ziyu-boot-ota-guard-v1\nunfinished_boots=0\nfingerprint=rom-a\n')
-    env=dict(os.environ, ZIYU_BOOT_OTA_DISABLE_WORKER='1', ZIYU_BOOT_OTA_TEST_FINGERPRINT='rom-a', ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED='0')
+    env=dict(os.environ, **install_identity(module), ZIYU_BOOT_OTA_DISABLE_WORKER='1', ZIYU_BOOT_OTA_TEST_FINGERPRINT='rom-a', ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED='0')
     env['PATH']=str(pathlib.Path(shell).parent)+os.pathsep+env.get('PATH','')
     def run(action,boot,expected):
         result=subprocess.run([shell,helper,action,module.as_posix()],env=dict(env,ZIYU_BOOT_OTA_TEST_BOOT_ID=boot),capture_output=True,text=True,timeout=15)
@@ -41,7 +46,7 @@ with tempfile.TemporaryDirectory() as directory:
     (config/'active_font.conf').write_text('Demo\n')
     (config/'boot-ota-guard.conf').write_text('schema=ziyu-boot-ota-guard-v1\nunfinished_boots=0\nfingerprint=rom-a\n')
     payload=module/'.ziyu-payload'; payload.mkdir(); (payload/'sentinel').write_text('keep-old-generation')
-    env=dict(os.environ, ZIYU_BOOT_OTA_DISABLE_WORKER='1', ZIYU_BOOT_OTA_TEST_FINGERPRINT='rom-b', ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED='0')
+    env=dict(os.environ, **install_identity(module), ZIYU_BOOT_OTA_DISABLE_WORKER='1', ZIYU_BOOT_OTA_TEST_FINGERPRINT='rom-b', ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED='0')
     env['PATH']=str(pathlib.Path(shell).parent)+os.pathsep+env.get('PATH','')
     def call(action,boot='ota-1',expected=0,*extra):
         result=subprocess.run([shell,helper,action,module.as_posix(),*extra],env=dict(env,ZIYU_BOOT_OTA_TEST_BOOT_ID=boot),capture_output=True,text=True,timeout=25)
@@ -96,7 +101,7 @@ with tempfile.TemporaryDirectory() as directory:
     (record/'stat').write_text('123 (fixture task) '+' '.join(tail)+'\n')
     task='ziyu-stock-rescan-fixture'; supervisor='/data/adb/modules/LuoShu/common/task_scope.py'
     (record/'cmdline').write_bytes(b'python\0'+supervisor.encode()+b'\0--task\0'+task.encode()+b'\0')
-    env=dict(os.environ, ZIYU_BOOT_OTA_TEST_PROC_ROOT=proc.as_posix())
+    env=dict(os.environ, MODDIR=root.as_posix(), MODULE_DIR=root.as_posix(), MODPATH=root.as_posix(), ZIYU_BOOT_OTA_TEST_PROC_ROOT=proc.as_posix())
     env['PATH']=str(pathlib.Path(shell).parent)+os.pathsep+env.get('PATH','')
     def identity(expected_task=task, expected_start='123'):
         return subprocess.run([shell,'-c','. "$1"; _zbg_worker_identity 123 "$2" "$3" "$4"',
@@ -108,6 +113,7 @@ with tempfile.TemporaryDirectory() as directory:
     print('Supervisor exact argv and PID/start identity PASS',flush=True)
 
     module=work/'module'; (module/'config').mkdir(parents=True)
+    env.update(install_identity(module))
     lockroot=work/'locks'; lock=lockroot/'.ziyu-stock-rescan.lock'; lock.mkdir(parents=True)
     (module/'config/boot-ota-pending.conf').write_text('schema=ziyu-ota-pending-v1\nscan_complete=0\nfingerprint=rom-b\n')
     (lock/'state').write_text(f'module={module.as_posix()}\nboot_id=previous-boot\ntask={task}\n')
