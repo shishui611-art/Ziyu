@@ -221,6 +221,8 @@ common/font_slot_overrides.py
 common/font_slot_overrides.sh
 common/import_preview.py
 common/import_preview.sh
+common/diagnostic_capture.py
+common/diagnostic_capture.sh
 common/font_role_shadow.sh
 common/font_slot_weight.py
 common/font_source_profile.py

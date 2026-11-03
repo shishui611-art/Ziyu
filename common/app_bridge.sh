@@ -11,6 +11,10 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 export MODDIR
+if [ "${1:-}" = diagnostic_capture ]; then
+    shift
+    exec sh "$MODDIR/common/diagnostic_capture.sh" "$@"
+fi
 if [ "${1:-}" = import_preview ]; then
     [ "$#" -eq 2 ] || exit 2
     exec sh "$MODDIR/common/import_preview.sh" "$2"

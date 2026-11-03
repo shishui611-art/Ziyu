@@ -158,6 +158,7 @@ internal fun LogsPageContent(
                 if (tab == LogsTab.LOGS) layout.compactPadding / 2 else layout.itemGap - 4.dp,
             ),
         ) {
+            item(key = "diagnostic-capture") { DiagnosticCaptureCard() }
             when (tab) {
                 LogsTab.TASKS -> {
                     item(key = "overview") { OverviewCard(state) }
