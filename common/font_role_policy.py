@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+VENDOR_CLOCK = re.compile(r"^(?:RedMagicDigit|ZDigit)(?:VF)?(?:[-_.][A-Za-z0-9_.-]+)?\.(?:ttf|otf|ttc|otc)$", re.I)
 
 
 def families(slot: dict | None) -> list[str]:
@@ -22,7 +23,7 @@ def families(slot: dict | None) -> list[str]:
 
 def is_clock_slot(name: str, slot: dict | None = None) -> bool:
     label = ' '.join([name.lower(), *families(slot)])
-    return any(word in label for word in ('clock', 'mitype', 'lockscreen', 'lock-screen', 'numeral'))
+    return bool(VENDOR_CLOCK.fullmatch(name)) or any(word in label for word in ('clock', 'mitype', 'lockscreen', 'lock-screen', 'numeral'))
 
 
 def is_code_monospace(name: str, slot: dict | None = None) -> bool:
@@ -71,7 +72,7 @@ def protected_aliases(stage: Path, data: dict) -> list[Path]:
             if path.suffix.lower() not in ('.ttf', '.otf', '.ttc', '.otc'):
                 continue
             logical = '/' + path.relative_to(stage).as_posix()
-            if is_code_monospace(path.name, slot_for(data, logical)):
+            if is_code_monospace(path.name, slot_for(data, logical)) or VENDOR_CLOCK.fullmatch(path.name):
                 result.append(path)
     return result
 

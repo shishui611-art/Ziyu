@@ -17,10 +17,12 @@ from typing import Any
 
 ROLE_SCHEMA = "device-font-roles-v1"
 PLAN_SCHEMA = "device-font-shadow-plan-v1"
-ROLE_REVISION = 2
+ROLE_REVISION = 3
 PLAN_REVISION = 1
 COLOROS_POLICY_REVISION = 1
 COLOROS_DIGIT_NAME = re.compile(r"^OSans-[A-Za-z0-9_.-]*Digits[A-Za-z0-9_.-]*\.(?:ttf|otf)$", re.IGNORECASE)
+
+VENDOR_CLOCK = re.compile(r"^(?:RedMagicDigit|ZDigit)(?:VF)?(?:[-_.][A-Za-z0-9_.-]+)?\.(?:ttf|otf|ttc|otc)$", re.I)
 
 PROTECTED_ROLES = {"emoji", "symbol-icon", "serif", "monospace", "special-fallback"}
 CANDIDATE_ROLES = {"ui-sans", "cjk", "latin"}
@@ -421,6 +423,10 @@ def _classification(
         role = "numeric"
         confidence = 96
         reasons.append("coloros-osans-digit-family")
+    elif VENDOR_CLOCK.fullmatch(str(slot.get("slotName") or Path(path).name)):
+        role = "clock"
+        confidence = 100
+        reasons.append("redmagic-nubia-dedicated-clock")
     elif _contains_phrase(text, CLOCK_TOKENS):
         role = "clock"
         confidence = 95 if families else 85
@@ -508,6 +514,8 @@ def _classification(
     if osans_kind == "digits" and "osans_digits" not in enabled_groups:
         action = "preserve"
         reasons.append("coloros-osans-digit-group-disabled")
+    if "redmagic-nubia-dedicated-clock" in reasons:
+        action = "preserve"
     if (coloros and str(slot.get("source") or "") == "physical-scan"
             and not physical_stock_metadata_trusted):
         # Candidate discovery can retain a dangling/cyclic pathname for topology,
