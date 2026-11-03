@@ -58,7 +58,7 @@ class CaptureTest(unittest.TestCase):
             root = Path(temp)
             child = Mock(pid=333)
             def secure(path): path.mkdir(parents=True, exist_ok=True)
-            with patch.object(capture, 'ROOT', root), patch.dict(sys.modules, {'fcntl': Mock(), 'adb_storage': Mock(secure_directory=secure)}), \
+            with patch.object(capture, 'ROOT', root), patch.dict(sys.modules, {'fcntl': Mock(LOCK_EX=2, LOCK_NB=4), 'adb_storage': Mock(secure_directory=secure)}), \
                  patch.object(capture, 'state_for', return_value=(None,None)), patch.object(capture, 'identity', return_value=''), \
                  patch.object(capture.subprocess, 'Popen', return_value=child), patch.object(capture, 'stop_child') as stop:
                 with self.assertRaisesRegex(ValueError, '进程身份'):
