@@ -76,9 +76,12 @@ def bounded_command(argv, limit=131072, seconds=3):
     return bytes(content) + (b'\n[output/time bounded]\n' if len(content) >= limit or time.monotonic() >= end else b'')
 
 
-def read_bounded(path, maximum=65536):
+def read_bounded(path, maximum=65536, *, tail=False):
     try:
         with Path(path).open('rb') as stream:
+            if tail:
+                stream.seek(0, 2)
+                stream.seek(max(0, stream.tell()-maximum))
             content = stream.read(maximum+1)
         return content[:maximum] + (b'\n[truncated]\n' if len(content) > maximum else b'')
     except OSError as error:
@@ -90,14 +93,22 @@ def snapshot(module, directory, phase, sensitive):
     commands = [('system', ['getprop', 'ro.build.fingerprint']),
                 ('android', ['getprop', 'ro.build.version.release']),
                 ('root-manager', ['sh', '-c', '. "$1"; ziyu_root_manager_info', 'sh', str(module/'common/root_manager_detection.sh')]),
-                ('selinux', ['getenforce']), ('kernel-errors', ['dmesg'])]
+                ('selinux', ['getenforce']), ('kernel-errors', ['sh', '-c', 'dmesg | tail -c 131072'])]
     for label, command in commands:
         parts.append(f'\n[{label}]\n'.encode() + bounded_command(command))
     for relative in ('module.prop', 'config/mount-backend.conf', 'config/self-mount.conf',
                      'config/device-font-load-verification.conf', 'config/font-live.conf',
                      'config/boot-ota-guard.conf', 'config/font-apply-result.conf',
                      'config/device_font_roles.json', 'logs/fontswitch.log'):
-        parts.append(f'\n[{relative}]\n'.encode() + read_bounded(module / relative))
+        parts.append(f'\n[{relative}]\n'.encode() + read_bounded(module / relative, tail=relative.startswith('logs/')))
+    roles = module/'config/device_font_roles.json'
+    if roles.is_file() and roles.stat().st_size <= 4*1024*1024:
+        try:
+            data = json.loads(roles.read_text(encoding='utf-8'))
+            write(directory/f'{phase}-font-summary.json', {key: data.get(key) for key in
+                  ('schema', 'roleRevision', 'buildKey', 'romKind', 'summary', 'slotOverridesDigest')})
+        except (OSError, ValueError):
+            pass
     parts.append(b'\n[PID 1 mountinfo]\n' + read_bounded('/proc/1/mountinfo', 262144))
     if sensitive:
         parts.append(b'\n[optional DropBox]\n' + bounded_command(['dumpsys', 'dropbox', '--print'], limit=131072))
@@ -145,7 +156,7 @@ def package(directory, state):
               'ANR 记录', '字体引擎错误', '采集过程信息', '最终诊断结论']
     details = ['见 start.txt/end.txt 的 module.prop 与 system', '见 android 段', '见 system 构建指纹',
                '见 root-manager 段', '见 mount-backend.conf、self-mount.conf 与 PID 1 mountinfo',
-               '见 device_font_roles.json 的 summary；过长的原始记录会注明截断',
+               '见 start-font-summary.json / end-font-summary.json；过长原始记录会注明截断',
                '见 font-live.conf 与字体加载验证结果', '见 device_font_roles.json', '见 selinux 段',
                f"检出 {matches['avc']} 条关键字线索", f"检出 {matches['crash']} 条关键字线索",
                f"检出 {matches['anr']} 条关键字线索；原始 ANR 采集={'开启' if state.get('sensitive') else '关闭'}",
