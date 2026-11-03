@@ -61,6 +61,7 @@ internal fun NativeImportOverlay(
     val importViewModel = rememberNativeImportViewModel()
     val state = importViewModel.state
     var expanded by remember { mutableStateOf(false) }
+    var previewUris by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<ArrayList<String>?>(null) }
 
     LaunchedEffect(embedded, state.busy, state.paused) {
         expanded = embedded || state.busy || state.paused
@@ -73,7 +74,14 @@ internal fun NativeImportOverlay(
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
-        importViewModel.startImport(uris)
+        if (uris.isNotEmpty()) previewUris = ArrayList(uris.take(32).map { it.toString() })
+    }
+    previewUris?.let { selection ->
+        NativeImportFontPreview(selection.map { android.net.Uri.parse(it) }, enabled = !state.busy && !state.paused,
+            onCancel = { previewUris = null }, onImport = { chosen ->
+                previewUris = null
+                importViewModel.startImport(chosen)
+            })
     }
 
     val importEnabled = viewModel.snapshot.installed &&

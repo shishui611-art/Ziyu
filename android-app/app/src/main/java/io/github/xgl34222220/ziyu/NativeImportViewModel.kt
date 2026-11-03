@@ -16,6 +16,7 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -121,6 +122,13 @@ internal class NativeImportViewModel(application: Application) : AndroidViewMode
 
     init {
         restoreSavedTask()
+        viewModelScope.launch(Dispatchers.IO) {
+            val cache = getApplication<Application>().cacheDir
+            val oldest = System.currentTimeMillis() - 86_400_000L
+            cache.listFiles()?.filter { it.name.matches(Regex("native-import-preview-[a-f0-9-]{36}")) &&
+                it.lastModified() < oldest && it.canonicalFile.parentFile == cache.canonicalFile }
+                ?.forEach { it.deleteRecursively() }
+        }
     }
 
     fun startImport(uris: List<Uri>) {
@@ -429,7 +437,7 @@ private suspend fun importOne(context: android.content.Context, uri: Uri, displa
     }
 }
 
-private fun queryDisplayName(context: android.content.Context, uri: Uri): String? {
+internal fun queryDisplayName(context: android.content.Context, uri: Uri): String? {
     context.contentResolver.query(
         uri,
         arrayOf(OpenableColumns.DISPLAY_NAME),
@@ -445,16 +453,18 @@ private fun queryDisplayName(context: android.content.Context, uri: Uri): String
     return uri.lastPathSegment?.substringAfterLast('/')
 }
 
-private fun copyUriWithLimit(context: android.content.Context, uri: Uri, target: File) {
+internal suspend fun copyUriWithLimit(context: android.content.Context, uri: Uri, target: File, digest: java.security.MessageDigest? = null) {
     context.contentResolver.openInputStream(uri)?.use { input ->
         FileOutputStream(target).use { output ->
             val buffer = ByteArray(128 * 1024)
             var total = 0L
             while (true) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 val count = input.read(buffer)
                 if (count < 0) break
                 total += count
                 require(total <= MAX_IMPORT_BYTES) { "文件超过 256 MB 限制" }
+                digest?.update(buffer, 0, count)
                 output.write(buffer, 0, count)
             }
             require(total > 0L) { "文件为空" }

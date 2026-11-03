@@ -11,6 +11,10 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 export MODDIR
+if [ "${1:-}" = import_preview ]; then
+    [ "$#" -eq 2 ] || exit 2
+    exec sh "$MODDIR/common/import_preview.sh" "$2"
+fi
 if [ "${1:-}" = slot_rules ]; then
     if [ "${2:-}" = save ] && [ "${ZIYU_STORAGE_LOCKED:-0}" != 1 ]; then
         exec sh "$MODDIR/common/user_storage_dispatch.sh" "$MODDIR" "$@"

@@ -291,20 +291,48 @@ internal fun NativeFontPreview(
     val renderedColor = if (failed) errorColor else textColor
     val renderedSize = if (failed) minOf(textSizeSp, 12f) else textSizeSp
 
+    NativePreviewSurface(renderedText, renderedTypeface, modifier, gravity, maxLines, renderedColor, renderedSize)
+}
+
+@Composable
+private fun NativePreviewSurface(value: String, typeface: Typeface, modifier: Modifier,
+    gravity: Int, maxLines: Int, color: Int, size: Float) {
     AndroidView(
         modifier = modifier,
         factory = { viewContext -> PreviewTextView(viewContext) },
         update = { view ->
             view.render(
-                value = renderedText,
-                font = renderedTypeface,
+                value = value,
+                font = typeface,
                 gravityValue = gravity,
                 maxLinesValue = maxLines,
-                color = renderedColor,
-                sizeSp = renderedSize,
+                color = color,
+                sizeSp = size,
             )
         },
     )
+}
+
+/** App-private temporary fonts use the same TextView renderer as library fonts. */
+@Composable
+internal fun NativeLocalFontPreview(file: File, sha256: String, faceIndex: Int, text: String,
+    weight: Float?, modifier: Modifier = Modifier) {
+    val preview by produceState<PreviewTypefaceState>(PreviewTypefaceState(), sha256, faceIndex, weight) {
+        value = PreviewTypefaceState()
+        value = withContext(Dispatchers.IO) {
+            try {
+                val builder = Typeface.Builder(file).setTtcIndex(faceIndex)
+                if (weight != null) builder.setFontVariationSettings("'wght' $weight")
+                PreviewTypefaceState(typeface = builder.build(), file = file)
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (error: Exception) { PreviewTypefaceState(error = error.message ?: "系统无法预览此字体") }
+        }
+    }
+    val error = preview.error
+    NativePreviewSurface(if (error.isNotBlank()) "当前系统无法预览，可继续导入。\n$error" else if (preview.typeface == null) "正在加载预览…" else text,
+        preview.typeface ?: Typeface.DEFAULT, modifier, Gravity.START or Gravity.CENTER_VERTICAL, 6,
+        (if (error.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface).toArgb(),
+        if (error.isNotBlank()) 13f else 25f)
 }
 
 private fun normalizePreviewAxes(axes: Map<String, Float>): Map<String, Float> =
