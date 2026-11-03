@@ -47,6 +47,10 @@ _ufp_profile_path() {
 
 _ufp_build() {
     _ufb_family="$1"
+    if [ -f "$MODDIR/common/font_role_shadow.sh" ]; then
+        MODDIR="$MODDIR" sh "$MODDIR/common/font_role_shadow.sh" validate >/dev/null 2>&1 ||
+            MODDIR="$MODDIR" sh "$MODDIR/common/font_role_shadow.sh" refresh >/dev/null || return 1
+    fi
     [ -n "$_ufb_family" ] || { printf '{"status":"error","message":"未指定字体家族"}\n'; return 1; }
     [ -s "$TOPOLOGY" ] || { printf '{"status":"error","message":"设备字体拓扑尚未生成"}\n'; return 1; }
     [ -s "$ROLES" ] || { printf '{"status":"error","message":"字体角色映射尚未生成"}\n'; return 1; }

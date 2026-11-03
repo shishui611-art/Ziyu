@@ -166,6 +166,7 @@ internal enum class SettingsSection(
     APPEARANCE("外观与主题", "颜色、深色模式与界面效果", Icons.Rounded.Palette, 1.00f),
     NOTIFICATIONS("通知与实时活动", "授权状态、进度通知与预览", Icons.Rounded.Info, 1.00f),
     SAFETY("安全与维护", "字体加载检查、冲突与安全清理", Icons.Rounded.Security, .96f),
+    FONT_RULES("字体槽位规则", "缩小字体替换范围、排除文件或目录", Icons.Rounded.Build, .96f),
     BOOT_SAFETY("开机保护", "查看保护状态与解除保护", Icons.Rounded.Security, .96f),
     APP_COVERAGE("应用字体诊断", "按应用检查字体来源，扫描未覆盖项", Icons.Rounded.Search, .98f),
     GOOGLE("Google 字体兼容", "谷歌英数回退处理、状态与中文说明", Icons.Rounded.Build, .96f),
@@ -265,6 +266,7 @@ internal fun SettingsHubRoute(
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
                         SettingsSection.NOTIFICATIONS -> pageList { item { io.github.xgl34222220.ziyu.NotificationAccessCard() } }
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
+                        SettingsSection.FONT_RULES -> pageList { item { SettingCard("字体槽位规则") { FontSlotRulesCard() } } }
                         SettingsSection.BOOT_SAFETY -> BootSafetyPage()
                         SettingsSection.APP_COVERAGE -> UncoveredAppsPage()
                         SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()
@@ -332,6 +334,7 @@ internal fun SettingsHome(
                     section = SettingsSection.SAFETY,
                     onClick = { onOpenSection(SettingsSection.SAFETY) },
                 )
+                SettingsNavigationRow(section = SettingsSection.FONT_RULES, onClick = { onOpenSection(SettingsSection.FONT_RULES) })
                 SettingsDivider()
                 SettingsNavigationRow(
                     section = SettingsSection.BOOT_SAFETY,

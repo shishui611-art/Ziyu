@@ -1520,11 +1520,19 @@ def _valid_request(value):
 
 
 def _inventory_targets(module):
+    from font_slot_overrides import load as load_overrides, exclusion, VENDOR_CLOCK, restricted
+    rules = load_overrides(Path(module) / 'config/font-slot-overrides.json')
     path = Path(module) / 'config/device_font_inventory.json'
     data = stock_inventory.load_inventory(path)
     candidates = []
     for logical, entry in data['slots'].items():
         logical_path = PurePosixPath(logical)
+        if exclusion(logical, rules) or VENDOR_CLOCK.fullmatch(logical_path.name):
+            continue
+        if restricted(rules):
+            from font_role_shadow import _classification
+            if _classification(logical, entry)['action'] in ('preserve', 'review'):
+                continue
         if logical_path.suffix.lower() not in ('.ttc', '.otc'):
             continue
         if not (entry.get('uiEligible') is True or entry.get('source') == 'verified-scan'):

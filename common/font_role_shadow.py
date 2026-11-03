@@ -14,6 +14,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
+from font_slot_overrides import VENDOR_CLOCK, exclusion, load as load_overrides, digest as overrides_digest, validate as validate_overrides
 
 ROLE_SCHEMA = "device-font-roles-v1"
 PLAN_SCHEMA = "device-font-shadow-plan-v1"
@@ -21,8 +22,6 @@ ROLE_REVISION = 3
 PLAN_REVISION = 1
 COLOROS_POLICY_REVISION = 1
 COLOROS_DIGIT_NAME = re.compile(r"^OSans-[A-Za-z0-9_.-]*Digits[A-Za-z0-9_.-]*\.(?:ttf|otf)$", re.IGNORECASE)
-
-VENDOR_CLOCK = re.compile(r"^(?:RedMagicDigit|ZDigit)(?:VF)?(?:[-_.][A-Za-z0-9_.-]+)?\.(?:ttf|otf|ttc|otc)$", re.I)
 
 PROTECTED_ROLES = {"emoji", "symbol-icon", "serif", "monospace", "special-fallback"}
 CANDIDATE_ROLES = {"ui-sans", "cjk", "latin"}
@@ -581,6 +580,7 @@ def validate_plan(value: dict[str, Any], expected_build_key: str | None = None) 
 def build(
     topology: dict[str, Any],
     coloros_groups: frozenset[str] | None = None,
+    slot_overrides: dict | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if topology.get("schema") != "device-font-topology-v1" or topology.get("state") != "ready":
         raise RoleError("设备字体拓扑尚未就绪")
@@ -596,6 +596,7 @@ def build(
         "enabledGroups": sorted(groups),
     } if coloros else None)
 
+    rules = validate_overrides(slot_overrides if slot_overrides is not None else {"schema": "ziyu-font-slot-overrides-v1", "revision": 1})
     role_slots: dict[str, dict[str, Any]] = {}
     counts: dict[str, int] = {}
     action_counts: dict[str, int] = {}
@@ -606,6 +607,12 @@ def build(
         if not isinstance(slot, dict):
             continue
         classified = _classification(path, slot, coloros=coloros, enabled_groups=groups)
+        excluded = exclusion(path, rules)
+        if excluded and classified["action"] in {"replace", "conditional", "specialized"}:
+            classified["action"] = "preserve"
+            classified["reasons"].append(excluded)
+            if classified["currentReplaceable"] is True:
+                classified["comparison"] = "current-overreach"
         role_slots[path] = classified
         counts[classified["role"]] = counts.get(classified["role"], 0) + 1
         action_counts[classified["action"]] = action_counts.get(classified["action"], 0) + 1
@@ -616,6 +623,7 @@ def build(
     role_map = {
         "schema": ROLE_SCHEMA,
         "roleRevision": ROLE_REVISION,
+        "slotOverridesDigest": overrides_digest(rules),
         "state": "ready",
         "generatedAt": int(time.time()),
         "buildKey": build_key,
@@ -646,6 +654,7 @@ def build(
     shadow_plan = {
         "schema": PLAN_SCHEMA,
         "planRevision": PLAN_REVISION,
+        "slotOverridesDigest": overrides_digest(rules),
         "state": "shadow",
         "mutatesSystem": False,
         "generatedAt": int(time.time()),
@@ -690,11 +699,13 @@ def main() -> int:
     parser.add_argument("--roles-output", type=Path, required=True)
     parser.add_argument("--plan-output", type=Path, required=True)
     parser.add_argument("--slot-groups", type=Path)
+    parser.add_argument("--slot-overrides", type=Path)
     parser.add_argument("--validate", action="store_true")
     args = parser.parse_args()
 
     try:
         topology = _load(args.topology)
+        rules = load_overrides(args.slot_overrides or args.topology.parent / "font-slot-overrides.json")
         build_key = str(topology.get("buildKey") or "unknown")
         if args.validate:
             role_map = _load(args.roles_output)
@@ -708,8 +719,11 @@ def main() -> int:
                 }
             validate_role_map(role_map, build_key, current_coloros_policy)
             validate_plan(plan, build_key)
+            if (role_map.get("slotOverridesDigest") != overrides_digest(rules)
+                    or plan.get("slotOverridesDigest") != overrides_digest(rules)):
+                raise RoleError("字体槽位规则已变化，请重新生成角色计划")
         else:
-            role_map, plan = build(topology, _coloros_groups(args.slot_groups))
+            role_map, plan = build(topology, _coloros_groups(args.slot_groups), rules)
             _atomic_write(args.roles_output, role_map)
             _atomic_write(args.plan_output, plan)
     except (RoleError, OSError, ValueError) as error:

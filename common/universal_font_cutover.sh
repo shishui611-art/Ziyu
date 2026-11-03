@@ -178,6 +178,15 @@ _uc_paths() {
 _uc_switch() {
     _uc_font="$1"
     [ -n "$_uc_font" ] || { printf '{"status":"error","message":"未指定字体"}\n'; return 1; }
+    if [ "$_uc_font" != default ] && [ -e "$CONFIG_DIR/font-slot-overrides.json" ]; then
+        ZIYU_SLOT_RULES_DIGEST=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_slot_overrides.sh" identity)
+        _uc_rules_rc=$?
+        if [ "$_uc_rules_rc" -ne 0 ]; then printf '%s\n' "$ZIYU_SLOT_RULES_DIGEST"; return 1; fi
+        export ZIYU_SLOT_RULES_DIGEST
+    else
+        ZIYU_SLOT_RULES_DIGEST=86ffabcf8a7873705ed73ff058cabc0f4c5bac2e8d82ce0b6f33bc059d47d226
+        export ZIYU_SLOT_RULES_DIGEST
+    fi
     if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
         MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" \
             allow-apply "$MODDIR" "$_uc_font" >> "$LOG_FILE" 2>&1

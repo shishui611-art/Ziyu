@@ -11,6 +11,13 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 export MODDIR
+if [ "${1:-}" = slot_rules ]; then
+    if [ "${2:-}" = save ] && [ "${ZIYU_STORAGE_LOCKED:-0}" != 1 ]; then
+        exec sh "$MODDIR/common/user_storage_dispatch.sh" "$MODDIR" "$@"
+    fi
+    shift
+    exec sh "$MODDIR/common/font_slot_overrides.sh" "$@"
+fi
 if [ "${1:-}" = handshake ]; then
     shift
     exec sh "$MODDIR/common/app_handshake.sh" "$@"

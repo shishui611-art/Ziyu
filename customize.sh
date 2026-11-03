@@ -160,7 +160,7 @@ if [ "$_lc_real_old_mod" != "$MODPATH" ] && \
             cp -p "$_lc_clip_file" "$MODPATH/config/font-clipping-preferences/$_lc_clip_name" || abort '防裁切偏好迁移失败'
     done
 fi
-for _lc_display_config in display-config-storage.conf display-typography.conf display-typography-dirty; do
+for _lc_display_config in display-config-storage.conf display-typography.conf display-typography-dirty font-slot-overrides.json font-slot-overrides.previous.json; do
     if [ ! -e "$MODPATH/config/$_lc_display_config" ] && \
        [ -f "$_lc_real_old_mod/config/$_lc_display_config" ] && [ ! -L "$_lc_real_old_mod/config/$_lc_display_config" ]; then
         cp -f "$_lc_real_old_mod/config/$_lc_display_config" "$MODPATH/config/$_lc_display_config" 2>/dev/null || true

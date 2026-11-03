@@ -108,6 +108,7 @@ def _roles_digest(roles: dict[str, Any]) -> str:
         "buildKey": roles.get("buildKey"),
         "romKind": roles.get("romKind"),
         "colorosPolicy": roles.get("colorosPolicy"),
+        "slotOverridesDigest": roles.get("slotOverridesDigest"),
         "slots": roles.get("slots"),
     }
     return f"sha256:{_canonical_hash(material)}"

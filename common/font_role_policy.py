@@ -12,7 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
-VENDOR_CLOCK = re.compile(r"^(?:RedMagicDigit|ZDigit)(?:VF)?(?:[-_.][A-Za-z0-9_.-]+)?\.(?:ttf|otf|ttc|otc)$", re.I)
+from font_slot_overrides import VENDOR_CLOCK, load as load_overrides, restricted, exclusion
 
 
 def families(slot: dict | None) -> list[str]:
@@ -83,7 +83,7 @@ def record_preserved(stage: Path, logicals: list[str]) -> list[str]:
     # This file is consumed by boot repair with grep -Fx, not evaluated as shell.
     paths = sorted({p for p in [*existing, *logicals]
                     if p.startswith('/') and '\n' not in p and '\r' not in p
-                    and len(Path(p).parts) == 4 and Path(p).parts[2] == 'fonts'
+                    and len(Path(p).parts) >= 4 and Path(p).parts[2] == 'fonts'
                     and '..' not in Path(p).parts})
     temporary = sidecar.with_name(sidecar.name + f'.tmp.{os.getpid()}')
     try:
@@ -106,6 +106,19 @@ def cleanup(module: Path, stage: Path) -> dict:
     except (OSError, ValueError):
         data = {}
     aliases = protected_aliases(stage, data)
+    rules = load_overrides(module / 'config/font-slot-overrides.json')
+    if restricted(rules):
+        from font_role_shadow import _classification
+        for root in sorted(stage.glob('*/fonts')):
+            for path in sorted(root.rglob('*')):
+                if not path.is_file() or path.suffix.lower() not in ('.ttf', '.otf', '.ttc', '.otc'):
+                    continue
+                if any(part.startswith('.') for part in path.relative_to(root).parts):
+                    continue
+                logical = '/' + path.relative_to(stage).as_posix()
+                role = _classification(logical, slot_for(data, logical))
+                if (exclusion(logical, rules) or role['action'] in ('preserve', 'review')) and path not in aliases:
+                    aliases.append(path)
     logicals = ['/' + p.relative_to(stage).as_posix() for p in aliases]
     # Write boot-repair exclusions first; a removed face must not be recreated
     # by the old missing-slot mapper on the following boot.

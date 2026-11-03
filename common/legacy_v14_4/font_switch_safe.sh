@@ -157,6 +157,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_scan_profile.py" \
                          "$MODDIR/common/hyperos_physical_policy.py" \
                          "$MODDIR/common/font_role_policy.py" \
+                         "$MODDIR/common/font_slot_overrides.py" \
                          "$MODDIR/common/font_slot_weight.py" \
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
@@ -190,6 +191,15 @@ safe_mapper_identity() {
                 printf '%s|%s\n' "$_smi_file" "$(safe_source_identity "$_smi_file" 2>/dev/null)"
             fi
         done
+        _smi_rules="${ZIYU_SLOT_RULES_DIGEST:-}"
+        if [ -z "$_smi_rules" ]; then
+            if [ -e "$MODDIR/config/font-slot-overrides.json" ]; then
+                _smi_rules=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_slot_overrides.sh" identity) || return 1
+            else
+                _smi_rules=86ffabcf8a7873705ed73ff058cabc0f4c5bac2e8d82ce0b6f33bc059d47d226
+            fi
+        fi
+        printf 'font-slot-overrides-v1|%s\n' "$_smi_rules"
     } | safe_hash_stream
 }
 
@@ -277,7 +287,9 @@ manifest:${_sfi_manifest_identity}:${_sfi_manifest_hash}"
 
 safe_switch_sources_unchanged() {
     [ "$(safe_source_identity "$_source")" = "$_switch_source_identity" ] &&
-        [ "$(safe_family_identity "$_font")" = "$_switch_family_identity" ]
+        [ "$(safe_family_identity "$_font")" = "$_switch_family_identity" ] || return 1
+    [ -z "${_switch_rules_identity:-}" ] ||
+        [ "$(safe_source_identity "$CONFIG_DIR/font-slot-overrides.json" 2>/dev/null || printf missing)" = "$_switch_rules_identity" ]
 }
 
 safe_switch_cache_context() {
@@ -494,7 +506,16 @@ lock_acquire() {
     ziyu_font_lock_acquire "$SWITCH_LOCK" "$$"
     _rc=$?
     case "$_rc" in
-        0) LOCK_HELD=true; return 0 ;;
+        0)
+            LOCK_HELD=true
+            _switch_rules_identity=$(safe_source_identity "$CONFIG_DIR/font-slot-overrides.json" 2>/dev/null || printf missing)
+            if [ -e "$CONFIG_DIR/font-slot-overrides.json" ]; then
+                ZIYU_SLOT_RULES_DIGEST=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_slot_overrides.sh" identity) || return 1
+            else
+                ZIYU_SLOT_RULES_DIGEST=86ffabcf8a7873705ed73ff058cabc0f4c5bac2e8d82ce0b6f33bc059d47d226
+            fi
+            export ZIYU_SLOT_RULES_DIGEST
+            return 0 ;;
         2) safe_error '字体正在切换中，请稍后再试'; return 1 ;;
         *) safe_error '无法创建字体切换锁'; return 1 ;;
     esac
@@ -944,7 +965,7 @@ switch_font() {
         safe_switch_sources_unchanged || {
             safe_error '源字体或字重文件已变化，请重新切换'; return 1;
         }
-        stage_preserve_font_roles || { safe_error '等宽字体保护校验失败，当前启动字体未改动'; return 1; }
+        stage_preserve_font_roles || { safe_error '字体槽位保护校验失败，当前启动字体未改动'; return 1; }
         if [ "$_collection_mix" = true ]; then
             safe_switch_cache_context "$_source" "$_font" || {
                 safe_error '无法核对组合字体集合缓存身份'; return 1;

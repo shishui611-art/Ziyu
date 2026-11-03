@@ -217,6 +217,8 @@ boot-completed.sh
 magic
 common/font_role_policy.py
 common/font_role_shadow.py
+common/font_slot_overrides.py
+common/font_slot_overrides.sh
 common/font_role_shadow.sh
 common/font_slot_weight.py
 common/font_source_profile.py
