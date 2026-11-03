@@ -53,6 +53,9 @@ python3 -m py_compile \
   "$ROOT/common/composite_collection_contract.py" \
   "$ROOT/common/font_role_check.py" \
   "$ROOT/common/font_metadata.py" \
+  "$ROOT/common/font_slot_overrides.py" \
+  "$ROOT/common/import_preview.py" \
+  "$ROOT/common/diagnostic_capture.py" \
   "$ROOT/common/font_extract_faces.py" \
   "$ROOT/common/font_import_probe.py" \
   "$ROOT/common/font_source_profile.py" \
@@ -395,6 +398,10 @@ bash "$ROOT/scripts/service_mount_truth_test.sh"
 bash "$ROOT/scripts/mount_backend_preferences_test.sh"
 python3 "$ROOT/scripts/font_instance_gvar_recovery_test.py"
 python3 "$ROOT/scripts/diagnostic_export_test.py"
+python3 "$ROOT/scripts/vendor_clock_role_test.py"
+python3 "$ROOT/scripts/font_role_shadow_test.py"
+python3 "$ROOT/scripts/font_slot_overrides_test.py"
+python3 "$ROOT/scripts/diagnostic_capture_test.py"
 sh "$ROOT/scripts/background_mix_worker_test.sh"
 sh "$ROOT/scripts/mix_finalize_performance_test.sh"
 sh "$ROOT/scripts/font_switch_lock_test.sh"
