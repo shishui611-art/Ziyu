@@ -69,8 +69,12 @@ internal fun NativeImportFontPreview(uris: List<Uri>, enabled: Boolean, onCancel
     val weightAxis = (0 until (axes?.length() ?: 0)).mapNotNull { axes?.optJSONObject(it) }
         .firstOrNull { it.optString("tag") == "wght" }
     val range = weightAxis?.let { it.optDouble("min", 100.0).toFloat()..it.optDouble("max", 900.0).toFloat() }
+        ?.takeIf { it.start.isFinite() && it.endInclusive.isFinite() && it.start < it.endInclusive }
     LaunchedEffect(uri) { faceIndex = 0 }
-    LaunchedEffect(preview.sha256, faceIndex) { weight = weightAxis?.optDouble("default", 400.0)?.toFloat() ?: 400f }
+    LaunchedEffect(preview.sha256, faceIndex) {
+        val defaultWeight = weightAxis?.optDouble("default", 400.0)?.toFloat()?.takeIf { it.isFinite() } ?: 400f
+        weight = range?.let { defaultWeight.coerceIn(it) } ?: defaultWeight
+    }
     ZiyuAlertDialog(
         onDismissRequest = onCancel,
         title = { ZiyuText("导入前预览 · ${index + 1}/${selected.size}") },
