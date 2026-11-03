@@ -299,7 +299,9 @@ internal fun ZiyuAppShell(
             startMix = viewModel::startMix,
             applyDirect = { id ->
                 val target = viewModel.fonts.firstOrNull { it.id == id && it.valid }
-                if (target != null) pendingApply = target else viewModel.applyFont(id)
+                // A just-published combination can precede the library refresh.
+                // It still needs the same comparison/confirmation entry point.
+                pendingApply = target ?: FontItem(id, id, "TTF", "", "", false, true, "", listOf("regular"))
             },
             cancel = viewModel::cancelCurrentTask,
         )

@@ -90,6 +90,17 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
         val font = viewModel.fonts.firstOrNull { it.id == result.fontId } ?: FontItem(
             result.fontId, result.name, "TTF", "", "", false, true, "", listOf("regular"),
         )
+        var compareRestart by remember(result.taskId) { mutableStateOf<Boolean?>(null) }
+        val current = comparisonSource(viewModel.snapshot, viewModel.fonts, font)
+        if (compareRestart != null && current != null) {
+            io.github.xgl34222220.ziyu.ui.library.FontABCompareScreen(current, font,
+                onDismiss = { compareRestart = null },
+                onConfirm = {
+                    val restart = compareRestart ?: return@FontABCompareScreen
+                    compareRestart = null
+                    viewModel.applyPreparedCombination(restart)
+                })
+        } else {
         AlertDialog(
             onDismissRequest = viewModel::dismissPreparedCombination,
             title = { ZiyuText("「${result.name}」已生成") },
@@ -112,12 +123,12 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
                 ) {
                     ZiyuButton(
                         enabled = ready,
-                        onClick = { viewModel.applyPreparedCombination(true) },
+                        onClick = { if (current != null) compareRestart = true else viewModel.applyPreparedCombination(true) },
                         modifier = Modifier.fillMaxWidth(),
                     ) { ZiyuText("应用并重启") }
                     ZiyuOutlinedButton(
                         enabled = ready,
-                        onClick = { viewModel.applyPreparedCombination(false) },
+                        onClick = { if (current != null) compareRestart = false else viewModel.applyPreparedCombination(false) },
                         modifier = Modifier.fillMaxWidth(),
                     ) { ZiyuText("应用，稍后重启") }
                     ZiyuTextButton(
@@ -128,6 +139,7 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
             },
             dismissButton = null,
         )
+        }
     }
     if (viewModel.restartCountdown > 0) {
         AlertDialog(

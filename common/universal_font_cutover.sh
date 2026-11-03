@@ -178,7 +178,7 @@ _uc_paths() {
 _uc_switch() {
     _uc_font="$1"
     [ -n "$_uc_font" ] || { printf '{"status":"error","message":"未指定字体"}\n'; return 1; }
-    if [ "$_uc_font" != default ] && [ -e "$CONFIG_DIR/font-slot-overrides.json" ]; then
+    if [ "$_uc_font" != default ] && { [ -e "$CONFIG_DIR/font-slot-overrides.json" ] || [ -L "$CONFIG_DIR/font-slot-overrides.json" ]; }; then
         ZIYU_SLOT_RULES_DIGEST=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_slot_overrides.sh" identity)
         _uc_rules_rc=$?
         if [ "$_uc_rules_rc" -ne 0 ]; then printf '%s\n' "$ZIYU_SLOT_RULES_DIGEST"; return 1; fi

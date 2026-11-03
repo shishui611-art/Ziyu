@@ -55,6 +55,7 @@ python3 -m py_compile \
   "$ROOT/common/font_metadata.py" \
   "$ROOT/common/font_slot_overrides.py" \
   "$ROOT/common/import_preview.py" \
+  "$ROOT/common/current_font_preview.py" \
   "$ROOT/common/diagnostic_capture.py" \
   "$ROOT/common/font_extract_faces.py" \
   "$ROOT/common/font_import_probe.py" \
@@ -401,6 +402,8 @@ python3 "$ROOT/scripts/diagnostic_export_test.py"
 python3 "$ROOT/scripts/vendor_clock_role_test.py"
 python3 "$ROOT/scripts/font_role_shadow_test.py"
 python3 "$ROOT/scripts/font_slot_overrides_test.py"
+python3 "$ROOT/scripts/current_font_preview_test.py"
+python3 "$ROOT/scripts/stock_snapshot_recovery_test.py"
 python3 "$ROOT/scripts/diagnostic_capture_test.py"
 sh "$ROOT/scripts/background_mix_worker_test.sh"
 sh "$ROOT/scripts/mix_finalize_performance_test.sh"

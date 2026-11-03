@@ -19,4 +19,7 @@ class FontComparisonPolicyTest {
         assertNull(comparisonSource(ModuleSnapshot(effectiveFont=next.id, fontEffectState="live"), listOf(old,next), next))
         assertNull(comparisonSource(ModuleSnapshot(effectiveFont=old.id, fontEffectState="verified", rollbackPending=true), listOf(old,next), next))
     }
+    @Test fun deletedLibrarySourceDoesNotHideMountedComparison() {
+        assertEquals(old.id, comparisonSource(ModuleSnapshot(effectiveFont=old.id, fontEffectState="verified"), emptyList(), next)?.id)
+    }
 }

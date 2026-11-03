@@ -167,6 +167,7 @@ internal fun NativeFontPreview(
     gravity: Int = Gravity.START or Gravity.CENTER_VERTICAL,
     maxLines: Int = 2,
     onReady: (Boolean) -> Unit = {},
+    refreshKey: String = "",
 ) {
     val context = LocalContext.current.applicationContext
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
@@ -183,10 +184,10 @@ internal fun NativeFontPreview(
         } ?: 400f
         (cleanAxes["wght"] ?: fallback).roundToInt().coerceIn(1, 1000)
     }
-    val sourceRevision = remember(font, requestedWeight) {
+    val sourceRevision = remember(font, requestedWeight, refreshKey) {
         font?.let {
             val staticRevision = if (it.variable) "" else "|wght=$requestedWeight"
-            "${it.id}|${it.size}|${it.date}$staticRevision"
+            "${it.id}|${it.size}|${it.date}$staticRevision|$refreshKey"
         }
     }
     val extension = remember(font?.format) {
@@ -240,6 +241,20 @@ internal fun NativeFontPreview(
                                     }
                                     if (!target.isFile || target.length() == 0L) {
                                         error("预览字体文件为空")
+                                    }
+                                    val expected = root.getJSONObject("data").optString("sha256")
+                                    val digest = MessageDigest.getInstance("SHA-256")
+                                    target.inputStream().use { input ->
+                                        val buffer = ByteArray(1024 * 1024)
+                                        while (true) {
+                                            val count = input.read(buffer)
+                                            if (count < 0) break
+                                            digest.update(buffer, 0, count)
+                                        }
+                                    }
+                                    if (expected.length != 64 || digest.digest().joinToString("") { "%02x".format(it) } != expected) {
+                                        target.delete()
+                                        error("字体已变化，请重新打开预览")
                                     }
                                     exported = true
                                 }
@@ -316,7 +331,8 @@ private fun NativePreviewSurface(value: String, typeface: Typeface, modifier: Mo
 /** App-private temporary fonts use the same TextView renderer as library fonts. */
 @Composable
 internal fun NativeLocalFontPreview(file: File, sha256: String, faceIndex: Int, text: String,
-    weight: Float?, modifier: Modifier = Modifier) {
+    weight: Float?, modifier: Modifier = Modifier, textSizeSp: Float = 25f,
+    errorMessage: String = "当前系统无法预览，可继续导入。") {
     val preview by produceState<PreviewTypefaceState>(PreviewTypefaceState(), sha256, faceIndex, weight) {
         value = PreviewTypefaceState()
         value = withContext(Dispatchers.IO) {
@@ -329,10 +345,10 @@ internal fun NativeLocalFontPreview(file: File, sha256: String, faceIndex: Int, 
         }
     }
     val error = preview.error
-    NativePreviewSurface(if (error.isNotBlank()) "当前系统无法预览，可继续导入。\n$error" else if (preview.typeface == null) "正在加载预览…" else text,
+    NativePreviewSurface(if (error.isNotBlank()) "$errorMessage\n$error" else if (preview.typeface == null) "正在加载预览…" else text,
         preview.typeface ?: Typeface.DEFAULT, modifier, Gravity.START or Gravity.CENTER_VERTICAL, 6,
         (if (error.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface).toArgb(),
-        if (error.isNotBlank()) 13f else 25f)
+        if (error.isNotBlank()) 13f else textSizeSp)
 }
 
 private fun normalizePreviewAxes(axes: Map<String, Float>): Map<String, Float> =

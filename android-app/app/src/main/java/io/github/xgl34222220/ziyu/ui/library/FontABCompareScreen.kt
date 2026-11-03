@@ -7,12 +7,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.NativeFontPreview
+import io.github.xgl34222220.ziyu.NativeCurrentFontPreview
 import io.github.xgl34222220.ziyu.ui.design.*
 import kotlinx.coroutines.delay
 
 @Composable
 internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     val context = LocalContext.current
+    val revision = remember(current.id, target.id) { java.util.UUID.randomUUID().toString() }
+    var targetReady by remember(revision) { mutableStateOf(false) }
     var weight by remember { mutableFloatStateOf(400f) }
     var previewWeight by remember { mutableFloatStateOf(400f) }
     LaunchedEffect(weight) { delay(100); previewWeight = weight }
@@ -21,14 +24,17 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
     ZiyuAlertDialog(onDismissRequest = onDismiss, title = { ZiyuText("应用前对比") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZiyuText("左侧按当前已核验生效的字体来源预览。两侧使用相同文字、字号和预览字重；应用中的缓存、自带字体或固定行框效果仍需实际查看。")
+                ZiyuText("左侧读取手机当前已验证的中文字体样例。两侧使用相同文字、字号和预览字重；系统回退字体、应用缓存和固定行框效果仍以实际显示为准。")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     listOf("当前字体" to current, "目标字体" to target).forEach { (label, font) ->
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             ZiyuText(label)
                             ZiyuText(font.name, maxLines = 3)
-                            NativeFontPreview(font, text, axes = mapOf("wght" to previewWeight),
-                                modifier = Modifier.fillMaxWidth().height(170.dp), textSizeSp = 22f, maxLines = 6)
+                            if (label == "当前字体") NativeCurrentFontPreview(font.id, text, previewWeight,
+                                Modifier.fillMaxWidth().height(170.dp))
+                            else NativeFontPreview(font, text, axes = mapOf("wght" to previewWeight),
+                                modifier = Modifier.fillMaxWidth().height(170.dp), textSizeSp = 22f, maxLines = 6,
+                                refreshKey = revision, onReady = { targetReady = it })
                         }
                     }
                 }
@@ -40,5 +46,5 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
                 ZiyuText("此滑块仅用于预览，确认后沿用现有应用流程和系统字重设置。")
             }
         }, dismissButton = { ZiyuTextButton(onClick = onDismiss) { ZiyuText("取消") } },
-        confirmButton = { ZiyuButton(onClick = onConfirm) { ZiyuText("确认应用") } })
+        confirmButton = { ZiyuButton(enabled = targetReady, onClick = onConfirm) { ZiyuText("确认应用") } })
 }

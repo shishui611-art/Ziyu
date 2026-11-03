@@ -1,6 +1,6 @@
 # 第三方组件与许可证
 
-v1.4.85 的 `font_slot_overrides.{py,sh}`、`import_preview.{py,sh}`、`diagnostic_capture.{py,sh}` 以及对应 Android 界面为字域独立实现的 GPL-3.0-only 代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)，未增加第三方运行库。设计参考用户手册与 [Custom Font Switcher 的公开功能说明](https://github.com/ayss2188/custom-font-switcher/blob/main/README.md)（README blob `c7a72b4f6225d79f75824660732407d1f9e97479`）；未复制对方源码、资源、字体或二进制，不将公开可见视为代码授权。
+v1.4.85 的 `font_slot_overrides.{py,sh}`、`import_preview.{py,sh}`、`diagnostic_capture.{py,sh}`，v1.4.86 的 `current_font_preview.{py,sh}` 以及对应 Android 界面为字域独立实现的 GPL-3.0-only 代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)，未增加第三方运行库。设计参考用户手册与 [Custom Font Switcher 的公开功能说明](https://github.com/ayss2188/custom-font-switcher/blob/main/README.md)（README blob `c7a72b4f6225d79f75824660732407d1f9e97479`）；未复制对方源码、资源、字体或二进制，不将公开可见视为代码授权。
 
 `common/legacy_identity.{py,sh}` 与 `LegacyIdentityCompatibility.kt` 为字域原创 GPL-3.0-only 兼容代码，仅识别历史格式和路径，不修改已生成字体的字节或摘要契约。Python 启动器沿用 `scripts/prepare_composite_runtime.sh` 内的本项目启动代码，当前名称为 `common/python/bin/ziyu-python`；未新增第三方依赖。历史项目名称与原版权署名保留，本地许可证文件改名仅整理引用，不改变原文或授权。
 

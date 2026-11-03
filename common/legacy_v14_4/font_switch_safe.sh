@@ -193,7 +193,7 @@ safe_mapper_identity() {
         done
         _smi_rules="${ZIYU_SLOT_RULES_DIGEST:-}"
         if [ -z "$_smi_rules" ]; then
-            if [ -e "$MODDIR/config/font-slot-overrides.json" ]; then
+            if [ -e "$MODDIR/config/font-slot-overrides.json" ] || [ -L "$MODDIR/config/font-slot-overrides.json" ]; then
                 _smi_rules=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_slot_overrides.sh" identity) || return 1
             else
                 _smi_rules=86ffabcf8a7873705ed73ff058cabc0f4c5bac2e8d82ce0b6f33bc059d47d226
@@ -509,7 +509,7 @@ lock_acquire() {
         0)
             LOCK_HELD=true
             _switch_rules_identity=$(safe_source_identity "$CONFIG_DIR/font-slot-overrides.json" 2>/dev/null || printf missing)
-            if [ -e "$CONFIG_DIR/font-slot-overrides.json" ]; then
+            if [ "${1:-}" != default ] && { [ -e "$CONFIG_DIR/font-slot-overrides.json" ] || [ -L "$CONFIG_DIR/font-slot-overrides.json" ]; }; then
                 ZIYU_SLOT_RULES_DIGEST=$(MODDIR="$MODDIR" sh "$MODDIR/common/font_slot_overrides.sh" identity) || return 1
             else
                 ZIYU_SLOT_RULES_DIGEST=86ffabcf8a7873705ed73ff058cabc0f4c5bac2e8d82ce0b6f33bc059d47d226
@@ -897,7 +897,7 @@ switch_font() {
     fi
 
     progress 20 '正在获取字体切换锁'
-    lock_acquire || return 1
+    lock_acquire "$_font" || return 1
     type ziyu_next_transaction_recover >/dev/null 2>&1 || {
         safe_error '缺少连续切换事务组件'; return 1;
     }

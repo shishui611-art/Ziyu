@@ -48,9 +48,12 @@ def validate(value: object) -> dict:
 
 
 def load(path: Path) -> dict:
+    # exists() follows links: a dangling link must not silently remove exclusions.
+    if path.is_symlink():
+        raise ValueError("字体槽位规则文件无效，请在设置中重新保存")
     if not path.exists():
         return validate({"schema": SCHEMA, "revision": 1})
-    if path.is_symlink() or path.stat().st_size > 65536:
+    if not path.is_file() or path.stat().st_size > 65536:
         raise ValueError("字体槽位规则文件无效，请在设置中重新保存")
     return validate(json.loads(path.read_text(encoding="utf-8")))
 

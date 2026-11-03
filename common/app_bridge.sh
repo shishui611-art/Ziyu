@@ -11,6 +11,10 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 export MODDIR
+if [ "${1:-}" = current_font_preview ]; then
+    [ "$#" -eq 3 ] || exit 2
+    exec sh "$MODDIR/common/current_font_preview.sh" "$2" "$3"
+fi
 if [ "${1:-}" = diagnostic_capture ]; then
     shift
     exec sh "$MODDIR/common/diagnostic_capture.sh" "$@"

@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'common'))
 import font_slot_overrides as policy
 import font_role_shadow as roles
@@ -23,6 +24,13 @@ def topology():
 
 
 class SlotPolicyTest(unittest.TestCase):
+    def test_dangling_link_never_becomes_empty_rules(self):
+        path = Mock(spec=Path)
+        path.is_symlink.return_value = True
+        path.exists.return_value = False
+        with self.assertRaises(ValueError): policy.load(path)
+        path.exists.assert_not_called()
+
     def test_vendor_clocks_are_exact_and_protected(self):
         for name in ('RedMagicDigit.ttf', 'RedMagicDigit-Regular.ttf', 'ZDigit.ttf', 'ZDigitVF.ttf', 'ZDigitVF-Bold.otf'):
             info = roles._classification('/system/fonts/'+name, {'families': ['sans-serif']})
