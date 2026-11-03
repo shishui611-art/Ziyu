@@ -52,6 +52,7 @@ class SlotPolicyTest(unittest.TestCase):
         for path in ('../A.ttf', '/system/fonts/../A.ttf', '/etc/passwd', '/system/fonts/a\nb.ttf'):
             with self.assertRaises(ValueError): rules(includeOnly=[path])
         with self.assertRaises(ValueError): policy.validate({'schema': policy.SCHEMA, 'revision': 99})
+        with self.assertRaises(ValueError): policy.validate({'schema': policy.SCHEMA, 'revision': True})
 
     def test_effective_identity_ignores_order_and_duplicates(self):
         a, b = '/system/fonts/A.ttf', '/system/fonts/B.ttf'

@@ -33,7 +33,8 @@ def logical_path(value: str, *, prefix: bool = False) -> str:
 
 
 def validate(value: object) -> dict:
-    if not isinstance(value, dict) or value.get("schema") != SCHEMA or value.get("revision") != 1:
+    if (not isinstance(value, dict) or value.get("schema") != SCHEMA
+            or type(value.get("revision")) is not int or value.get("revision") != 1):
         raise ValueError("字体槽位规则格式或版本无效")
     if set(value) - {"schema", "revision", *KEYS}:
         raise ValueError("字体槽位规则包含未知字段")
