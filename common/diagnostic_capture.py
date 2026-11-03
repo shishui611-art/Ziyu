@@ -226,7 +226,11 @@ def command(module, action, session, sensitive):
             child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), str(module), 'worker', session],
                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                      start_new_session=True, close_fds=True)
-            state = {'session': session, 'state': 'running', 'pid': child.pid, 'startTime': identity(child.pid),
+            started = identity(child.pid)
+            if not started:
+                stop_child(child)
+                raise ValueError('无法核对采集进程身份，本次未开始记录')
+            state = {'session': session, 'state': 'running', 'pid': child.pid, 'startTime': started,
                      'bootId': boot_id(), 'startedAt': int(time.time()), 'seconds': 120, 'sensitive': sensitive}
             write(directory/'state.json', state)
             write(ROOT/'current.json', {'session': session})

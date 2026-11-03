@@ -53,5 +53,18 @@ class CaptureTest(unittest.TestCase):
     def test_session_traversal_rejected(self):
         with self.assertRaises(ValueError): capture.state_for('../other-process')
 
+    def test_start_without_process_identity_stops_only_new_child(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            child = Mock(pid=333)
+            def secure(path): path.mkdir(parents=True, exist_ok=True)
+            with patch.object(capture, 'ROOT', root), patch.dict(sys.modules, {'fcntl': Mock(), 'adb_storage': Mock(secure_directory=secure)}), \
+                 patch.object(capture, 'state_for', return_value=(None,None)), patch.object(capture, 'identity', return_value=''), \
+                 patch.object(capture.subprocess, 'Popen', return_value=child), patch.object(capture, 'stop_child') as stop:
+                with self.assertRaisesRegex(ValueError, '进程身份'):
+                    capture.command(root, 'start', '', False)
+            stop.assert_called_once_with(child)
+            self.assertFalse((root/'current.json').exists())
+
 
 if __name__ == '__main__': unittest.main()
