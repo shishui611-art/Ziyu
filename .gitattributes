@@ -1,0 +1,2 @@
+# Preserve the exact byte snapshot supplied by the user, including CRLF pairs.
+docs/font-test-baseline/coolapk-53620096-r1.txt -text -whitespace
