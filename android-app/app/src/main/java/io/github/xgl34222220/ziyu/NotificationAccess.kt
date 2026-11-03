@@ -147,7 +147,7 @@ internal fun NotificationAccessCard() {
     val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         requesting = false
         accessOverride = readNotificationAccess(context)
-        message = if (granted) "通知已允许，可以继续设置实时活动。" else "暂未允许通知，可随时在这里重新开启。"
+        message = if (granted) "通知已开启。" else "通知未开启。"
         FontTaskNotificationController.republish(context)
     }
     fun settings(promoted: Boolean = false, channel: Boolean = false) {
@@ -170,22 +170,22 @@ internal fun NotificationAccessCard() {
                 access.promoted == false -> "任务通知已就绪，可继续开启实时活动"
                 else -> "任务通知已就绪"
             }, style = MaterialTheme.typography.titleMedium)
-            ZiyuText("普通通知、通知类别和实时活动分别由系统管理，完成一项后再继续下一项。", style = MaterialTheme.typography.bodyMedium)
+            ZiyuText("在通知栏或锁屏查看字体任务进度。", style = MaterialTheme.typography.bodyMedium)
             if (message.isNotBlank()) ZiyuText(message, color = MaterialTheme.colorScheme.primary)
         }
-        SettingCard("1 · 任务通知") {
+        SettingCard("任务通知") {
             ZiyuText(if (access.notifications) "已允许" else "未开启", color = if (access.notifications) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            ZiyuText("应用、组合和删除字体时显示进度与结果。")
+            ZiyuText("显示字体任务的进度和结果。")
             ZiyuButton(onClick = { if (access.notifications) settings() else allowNotifications() }, enabled = !requesting) {
                 ZiyuText(if (requesting) "等待系统授权…" else if (access.notifications) "管理任务通知" else "允许通知")
             }
         }
-        SettingCard("2 · 字体处理进度类别") {
+        SettingCard("进度通知") {
             ZiyuText(when { !access.notifications -> "需先开启任务通知"; !access.channel -> "已被关闭"; !access.promotionChannel -> "当前通知级别较低"; else -> "已开启" })
-            ZiyuText("这个类别被关闭时，即使应用通知已允许，也看不到字体进度。")
+            ZiyuText("开启后显示处理进度。")
             ZiyuOutlinedButton(onClick = { settings(channel = true) }, enabled = access.notifications) { ZiyuText("管理通知类别") }
         }
-        SettingCard("3 · 实时活动") {
+        SettingCard("实时活动") {
             ZiyuText(when {
                 !access.progress -> "需先完成前两项"
                 !access.promotionChannel -> "需提高字体处理进度的通知级别"
@@ -193,13 +193,13 @@ internal fun NotificationAccessCard() {
                 access.promoted == false -> "未开启"
                 else -> "请在系统设置中确认"
             })
-            ZiyuText("支持时可在状态栏、桌面顶部或锁屏查看进度。显示位置和是否展示由系统决定。")
+            ZiyuText("在支持的系统中显示实时进度。")
             ZiyuButton(onClick = { if (access.promotionChannel) settings(promoted = true) else settings(channel = true) }, enabled = access.progress) {
                 ZiyuText(if (!access.promotionChannel) "调整通知级别" else if (access.promoted == true) "管理实时活动" else "设置实时活动")
             }
         }
         SettingCard("进度预览") {
-            ZiyuText("发送一条 10 秒后自动消失的示例通知，查看这台手机的实际显示效果。")
+            ZiyuText("发送示例通知，10 秒后自动消失。")
             ZiyuOutlinedButton(onClick = { message = FontTaskNotificationController.preview(context) }, enabled = access.progress) { ZiyuText("预览进度通知") }
         }
     }

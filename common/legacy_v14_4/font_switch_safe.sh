@@ -162,6 +162,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
                          "$MODDIR/common/font_clipping_compat.py" \
+                         "$MODDIR/common/font_clipping_stage.py" \
                          "$MODDIR/common/font_native_glyphs.py" \
                          "$MODDIR/common/font_native_cff.py" \
                          "$MODDIR/common/font_native_instance.py" \
@@ -640,7 +641,7 @@ stage_clone_live() {
 stage_clear_text_payload() {
     # These sidecars describe one payload/inventory, not permanent device policy.
     # A new build must not inherit exclusions from a previous font/OTA state.
-    rm -f "$STAGE_PAYLOAD/.ziyu-stock-preserved.paths"           "$STAGE_PAYLOAD/.ziyu-font-role-report.json"           "$STAGE_PAYLOAD/.ziyu-metrics-report.json" 2>/dev/null || return 1
+    rm -f "$STAGE_PAYLOAD/.ziyu-stock-preserved.paths"           "$STAGE_PAYLOAD/.ziyu-font-role-report.json"           "$STAGE_PAYLOAD/.ziyu-metrics-report.json" "$STAGE_PAYLOAD/.ziyu-clipping-report.json" 2>/dev/null || return 1
     rm -rf "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || true
     for _part in $(safe_partition_list); do
         rm -rf "$STAGE_PAYLOAD/$_part/fonts" 2>/dev/null || true
@@ -825,9 +826,6 @@ switch_font() {
         fi
         case "$ZIYU_FONT_CLIP_ENABLED" in 0|1) ;; *) safe_error '防裁切配置无效'; return 1 ;; esac
         export ZIYU_FONT_CLIP_ENABLED
-        if [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ] && [ "${IS_COLOROS:-false}" != true ]; then
-            safe_error '当前自动防裁切适配用于 ColorOS 字体槽，请关闭本字体的防裁切后重试'; return 1
-        fi
     else
         ZIYU_FONT_CLIP_ENABLED=0; export ZIYU_FONT_CLIP_ENABLED
     fi
@@ -966,6 +964,18 @@ switch_font() {
             safe_error '源字体或字重文件已变化，请重新切换'; return 1;
         }
         stage_preserve_font_roles || { safe_error '字体槽位保护校验失败，当前启动字体未改动'; return 1; }
+        if [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ] && [ "${IS_COLOROS:-false}" != true ] && [ "$_collection_cache_hit" != true ]; then
+            progress 87 '正在适配字体边界'
+            _clip_pyroot="$MODDIR/common/python"
+            _clip_collection_arg=''
+            [ "$_collection_mix" != true ] || _clip_collection_arg=--defer-collections
+            PYTHONHOME="$_clip_pyroot" \
+            PYTHONPATH="$MODDIR/common:$_clip_pyroot/lib/python3.14:$_clip_pyroot/lib/python3.14/site-packages" \
+            LD_LIBRARY_PATH="$_clip_pyroot/lib:$_clip_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+                "$_clip_pyroot/bin/ziyu-python" "$MODDIR/common/font_clipping_stage.py" "$MODDIR" "$STAGE_PAYLOAD" $_clip_collection_arg >> "$LOG_FILE" 2>&1 || {
+                    safe_error '防裁切适配失败，当前字体保持不变；请查看日志'; return 1;
+                }
+        fi
         if [ "$_collection_mix" = true ]; then
             safe_switch_cache_context "$_source" "$_font" || {
                 safe_error '无法核对组合字体集合缓存身份'; return 1;

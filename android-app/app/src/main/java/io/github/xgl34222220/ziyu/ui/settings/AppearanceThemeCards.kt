@@ -145,7 +145,7 @@ internal fun AppearanceCardTransparencyCard(settings: AppearanceSettings, action
     SettingCard("卡片透明度") {
         ZiyuListItem(
             headlineContent = { ZiyuText("卡片透明度") },
-            supportingContent = { ZiyuText("调整卡片底色，文字和按钮保持清晰") },
+            supportingContent = { ZiyuText("透出背景图片") },
             leadingContent = { ZiyuIcon(Icons.Rounded.Opacity, null) },
             trailingContent = { ZiyuText("${settings.cardTransparency}%", color = MaterialTheme.colorScheme.primary) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),

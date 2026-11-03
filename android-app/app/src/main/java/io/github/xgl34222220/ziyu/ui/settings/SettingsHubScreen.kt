@@ -42,6 +42,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -164,19 +165,20 @@ internal enum class SettingsSection(
 ) {
     OVERVIEW("字域状态", "版本、Root、挂载与当前字体", Icons.Rounded.Settings, .94f),
     APPEARANCE("外观与主题", "颜色、深色模式与界面效果", Icons.Rounded.Palette, 1.00f),
-    NOTIFICATIONS("通知与实时活动", "授权状态、进度通知与预览", Icons.Rounded.Info, 1.00f),
+    NOTIFICATIONS("通知与实时活动", "查看字体任务进度", Icons.Rounded.Info, 1.00f),
     SAFETY("安全与维护", "字体加载检查、冲突与安全清理", Icons.Rounded.Security, .96f),
-    FONT_RULES("字体槽位规则", "缩小字体替换范围、排除文件或目录", Icons.Rounded.Build, .96f),
+    FONT_RULES("字体应用范围", "选择需要替换的字体文件", Icons.Rounded.Build, .96f),
+    CLIPPING("字体防裁切", "改善文字顶部或底部被截断的问题", Icons.Rounded.Tune, 1.00f),
     BOOT_SAFETY("开机保护", "查看保护状态与解除保护", Icons.Rounded.Security, .96f),
     APP_COVERAGE("应用字体诊断", "按应用检查字体来源，扫描未覆盖项", Icons.Rounded.Search, .98f),
-    GOOGLE("Google 字体兼容", "谷歌英数回退处理、状态与中文说明", Icons.Rounded.Build, .96f),
-    STORAGE("文件与配置位置", "用户文件和显示参数配置的保存目录", Icons.Rounded.Backup, 1.08f),
+    GOOGLE("Google 字体兼容", "英文或数字恢复默认时使用", Icons.Rounded.Build, .96f),
+    STORAGE("文件与配置位置", "管理字体文件与 DPI 配置", Icons.Rounded.Backup, 1.08f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
     UPDATE("模块更新", "GitHub 正式版模块与更新说明", Icons.Rounded.SystemUpdate, 1.03f),
 }
 
 @Composable
-fun AppearanceSettingsRoute(
+internal fun AppearanceSettingsRoute(
     settings: AppearanceSettings,
     actions: AppearanceActions,
     onOpenTasks: () -> Unit = {},
@@ -184,8 +186,13 @@ fun AppearanceSettingsRoute(
     onTemporaryRootChanged: () -> Unit = {},
     active: Boolean = true,
     currentFontLabel: String = "",
+    fonts: List<io.github.xgl34222220.ziyu.FontItem> = emptyList(),
+    currentFontId: String = "default",
+    fontBusy: Boolean = false,
+    fontLoading: Boolean = false,
+    onLoadFonts: () -> Unit = {},
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active, currentFontLabel)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts)
 }
 
 @Composable
@@ -197,6 +204,11 @@ internal fun SettingsHubRoute(
     onTemporaryRootChanged: () -> Unit,
     active: Boolean,
     currentFontLabel: String,
+    fonts: List<io.github.xgl34222220.ziyu.FontItem>,
+    currentFontId: String,
+    fontBusy: Boolean,
+    fontLoading: Boolean,
+    onLoadFonts: () -> Unit,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -217,6 +229,7 @@ internal fun SettingsHubRoute(
         sectionName = item.name
         if (item == SettingsSection.SAFETY) model.refreshHealth()
         if (item == SettingsSection.UPDATE) model.checkUpdate()
+        if (item == SettingsSection.CLIPPING) onLoadFonts()
     }
 
     val transition = updateTransition(section, label = "settingsDetailTransition")
@@ -266,7 +279,8 @@ internal fun SettingsHubRoute(
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
                         SettingsSection.NOTIFICATIONS -> pageList { item { io.github.xgl34222220.ziyu.NotificationAccessCard() } }
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
-                        SettingsSection.FONT_RULES -> pageList { item { SettingCard("字体槽位规则") { FontSlotRulesCard() } } }
+                        SettingsSection.FONT_RULES -> pageList { item { SettingCard("字体应用范围") { FontSlotRulesCard() } } }
+                        SettingsSection.CLIPPING -> FontClippingPage(fonts, currentFontId, fontBusy, fontLoading)
                         SettingsSection.BOOT_SAFETY -> BootSafetyPage()
                         SettingsSection.APP_COVERAGE -> UncoveredAppsPage()
                         SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()
@@ -290,6 +304,9 @@ internal fun SettingsHome(
     onOpenSection: (SettingsSection) -> Unit,
     onOpenTasks: () -> Unit,
     currentFontLabel: String = "",
+    fonts: List<io.github.xgl34222220.ziyu.FontItem> = emptyList(),
+    currentFontId: String = "default",
+    fontBusy: Boolean = false,
 ) {
     val h = model.health
     val layout = LocalZiyuThemeTokens.current.layout
@@ -309,7 +326,7 @@ internal fun SettingsHome(
         item {
             SettingsOverviewCard(h, currentFontLabel) { onOpenSection(SettingsSection.OVERVIEW) }
         }
-        item { SettingsSectionLabel("你的字域", "界面外观与任务记录") }
+        item { SettingsSectionLabel("你的字域", "") }
         item {
             SettingsGroup {
                 SettingsNavigationRow(
@@ -327,13 +344,20 @@ internal fun SettingsHome(
             }
         }
         item { SettingsSectionLabel("管理与维护") }
-        item { SettingsGroup { SettingsNavigationRow(section = SettingsSection.NOTIFICATIONS, onClick = { onOpenSection(SettingsSection.NOTIFICATIONS) }) } }
         item {
             SettingsGroup {
+                SettingsNavigationRow(
+                    section = SettingsSection.NOTIFICATIONS,
+                    onClick = { onOpenSection(SettingsSection.NOTIFICATIONS) },
+                )
+                SettingsDivider()
                 SettingsNavigationRow(
                     section = SettingsSection.SAFETY,
                     onClick = { onOpenSection(SettingsSection.SAFETY) },
                 )
+                SettingsDivider()
+                SettingsNavigationRow(section = SettingsSection.CLIPPING, onClick = { onOpenSection(SettingsSection.CLIPPING) })
+                SettingsDivider()
                 SettingsNavigationRow(section = SettingsSection.FONT_RULES, onClick = { onOpenSection(SettingsSection.FONT_RULES) })
                 SettingsDivider()
                 SettingsNavigationRow(
@@ -570,7 +594,7 @@ private fun SettingsNavigationRow(
 }
 
 @Composable
-private fun pageList(content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun pageList(content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     val layout = LocalZiyuThemeTokens.current.layout
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -618,7 +642,7 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
                 Text("让文字更悦目", color = LocalZiyuPaletteTokens.current.textPrimary, style = MaterialTheme.typography.headlineSmall)
                 Text(when (settings.uiStyle) {
                     UiStyle.MATERIAL -> "Material 3 Expressive · 圆角与灵动色彩"
-                    UiStyle.MIUIX -> "Miuix · 原生控件与液态玻璃"
+                    UiStyle.MIUIX -> "Miuix"
                     UiStyle.COUI -> "COUI · 熟悉的 ColorOS 风格"
                 }, color = LocalZiyuPaletteTokens.current.textSecondary, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(12.dp))
@@ -630,15 +654,15 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
             SettingCard("视觉与显示") {
                 ToggleLine("Monet 动态取色", "跟随系统壁纸强调色", settings.monetEnabled, actions.setMonetEnabled)
                 SettingsContentDivider()
-                ToggleLine("悬浮底栏", "关闭后使用贴合屏幕底部的常规导航栏", settings.floatingDock, actions.setFloatingDock)
+                ToggleLine("悬浮底栏", "让底栏悬浮显示", settings.floatingDock, actions.setFloatingDock)
                 SettingsContentDivider()
-                ToggleLine("液态玻璃", "悬浮底栏使用半透明、折射与可拖动的选中指示器", settings.glassEnabled, actions.setGlassEnabled, settings.floatingDock)
+                ToggleLine("液态玻璃", "为底部导航栏添加玻璃效果", settings.glassEnabled, actions.setGlassEnabled, settings.floatingDock)
                 SettingsContentDivider()
-                ToggleLine("背景模糊", "关闭后保留玻璃的半透明与折射效果", settings.blurEnabled, actions.setBlurEnabled, settings.glassEnabled && settings.floatingDock)
+                ToggleLine("背景模糊", "模糊底栏后的内容", settings.blurEnabled, actions.setBlurEnabled, settings.glassEnabled && settings.floatingDock)
                 SettingsContentDivider()
                 ToggleLine("高刷新率", "优先同分辨率高刷新模式", settings.highRefreshRate, actions.setHighRefreshRate)
                 SettingsContentDivider()
-                ToggleLine("预测性返回", if (android.os.Build.VERSION.SDK_INT >= 34) "返回时预览上一页，取消手势即可留在当前页" else "当前系统使用普通返回", settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34, actions.setPredictiveBack, android.os.Build.VERSION.SDK_INT >= 34)
+                ToggleLine("预测性返回", if (android.os.Build.VERSION.SDK_INT >= 34) "返回时预览上一页" else "当前系统使用普通返回", settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34, actions.setPredictiveBack, android.os.Build.VERSION.SDK_INT >= 34)
             }
         }
         item { AppearancePaletteCard(settings, actions) }
@@ -667,15 +691,15 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
     pageList {
         item {
             SettingCard("LSPosed 网页字体") {
-                Text("在 LSPosed 中启用字域并手动勾选目标应用，然后重新打开应用。支持系统 WebView 中允许 JavaScript 的网页文字，使用当前系统无衬线字体；图标和代码区尽量保留原样。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Text("自带浏览器内核、画布文字、部分 iframe 或受网页策略限制的内容可能不生效。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Text("在 LSPosed 中启用字域、选择应用，再重新打开应用。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Text("部分网页或自带浏览器可能不支持。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
         }
         if (ksuAvailable) item {
             SettingCard("KernelSU 软重启") {
                 ToggleLine(
-                    title = "使用临时 Root 流程",
-                    description = "刷入模块时的音量键选择会同步到这里，也可手动修改。完整重启会掉 Root 时开启；字体准备后可确认软重启。late-load 会自动识别。",
+                    title = "临时 Root 模式",
+                    description = "完整重启后会失去 Root 时开启。应用字体后可选择 KernelSU 软重启。",
                     checked = temporaryRootEnabled,
                     enabled = !temporaryRootBusy,
                     onChange = { enabled ->
@@ -686,7 +710,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
                             val response = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
                             if (result.code == 0 && response?.optString("status") == "ok") {
                                 temporaryRootEnabled = response.optJSONObject("data")?.optBoolean("enabled") == true
-                                temporaryRootMessage = if (temporaryRootEnabled) "已切换为 KernelSU 软重启流程" else "已恢复常规重启流程"
+                                temporaryRootMessage = if (temporaryRootEnabled) "已开启临时 Root 模式" else "已关闭临时 Root 模式"
                                 onTemporaryRootChanged()
                             } else {
                                 temporaryRootMessage = response?.optString("message").orEmpty().ifBlank { result.stderr.ifBlank { "设置失败" } }
@@ -700,7 +724,7 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
         }
         item {
             StatusCard("字域安全体检", h.summary, h.level, h.loading) {
-                Text("检查字体文件、挂载状态、切换任务、模块冲突和近期错误。体检只读取状态；安全清理仅处理已确认失效的锁和任务记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Text("检查字体与模块状态。安全清理会移除失效的任务记录。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Spacer(Modifier.height(8.dp))
                 if (h.error.isNotBlank()) Text(h.error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 else {
@@ -727,9 +751,9 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporary
         }
         item {
             SettingCard("模块冲突检测") {
-                if (h.conflicts.isEmpty()) Text("未发现其它启用模块覆盖字域关注的字体目录或 fonts.xml。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                if (h.conflicts.isEmpty()) Text("未发现字体冲突。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 else {
-                    Text("发现 ${h.conflicts.size} 个覆盖目标，只报告不自动禁用。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("发现 ${h.conflicts.size} 处字体冲突，请检查相关模块。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     h.conflicts.forEach { ConflictLine(it) }
                 }
             }
@@ -780,7 +804,7 @@ private fun UpdatePage(model: SystemCenterViewModel) {
         }
         if (info.hasUpdate) item {
             SettingCard("更新模块") {
-                Text("来源：shishui611-art/Ziyu 的正式 Release。下载后校验 SHA-256 与模块身份，再调用当前 Root 管理器安装。", fontSize = 13.sp)
+                Text("下载并安装 GitHub 正式版。安装完成后请重启手机。", fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
                 Button(model::installModuleUpdate, Modifier.fillMaxWidth(), enabled = !task.busy && !model.maintenance.busy) { Text("下载并更新模块 ${info.version}") }
             }
@@ -878,6 +902,9 @@ private fun ToggleLine(title: String, description: String, checked: Boolean, onC
 internal fun SettingCard(title: String, content: @Composable () -> Unit) {
     val tokens = LocalZiyuPaletteTokens.current
     val layout = LocalZiyuThemeTokens.current.layout
+    // Cards stack text, fields and buttons; without an explicit arrangement they
+    // touch each other, which made the storage cards read as one wall of text.
+    val stackGap = 10.dp
     if (LocalUiStyle.current == UiStyle.MATERIAL) {
         Card(
             shape = MaterialTheme.shapes.large,
@@ -886,9 +913,11 @@ internal fun SettingCard(title: String, content: @Composable () -> Unit) {
                 contentColor = tokens.textPrimary,
             ),
         ) {
-            Column(Modifier.fillMaxWidth().padding(layout.cardPadding)) {
+            Column(
+                Modifier.fillMaxWidth().padding(layout.cardPadding),
+                verticalArrangement = Arrangement.spacedBy(stackGap),
+            ) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(10.dp))
                 content()
             }
         }
@@ -896,7 +925,10 @@ internal fun SettingCard(title: String, content: @Composable () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             SettingsSectionLabel(title)
             SettingsGroup {
-                Column(Modifier.fillMaxWidth().padding(layout.cardPadding)) {
+                Column(
+                    Modifier.fillMaxWidth().padding(layout.cardPadding),
+                    verticalArrangement = Arrangement.spacedBy(stackGap),
+                ) {
                     content()
                 }
             }

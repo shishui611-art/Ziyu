@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -26,13 +27,13 @@ internal fun HomeTypographyCard(state: HomeUiState, actions: HomeActions) {
     val values = data.values
     val palette = LocalZiyuPaletteTokens.current
     val layout = LocalZiyuThemeTokens.current.layout
-    var scale by rememberSaveable(state.currentFontId) { mutableIntStateOf(values?.scale ?: 100) }
     var density by rememberSaveable(state.currentFontId) { mutableIntStateOf(values?.density ?: 0) }
     LaunchedEffect(values) {
-        values?.let { scale = it.scale; density = it.density }
+        values?.let { density = it.density }
     }
     val enabled = values != null && !data.loading && !data.saving && !state.taskRunning && state.rootGranted
-    val dirty = values != null && (scale != values.scale || density != values.density)
+    val dirty = values != null && density != values.density
+    val context = LocalContext.current
     ZiyuCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = palette.cardBackground, contentColor = palette.textPrimary),
@@ -41,44 +42,43 @@ internal fun HomeTypographyCard(state: HomeUiState, actions: HomeActions) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZiyuGlyph(Icons.Rounded.Tune, null, ZiyuIconTokens.SectionGlyph, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
-                    ZiyuText("全局字体与显示", style = MaterialTheme.typography.titleMedium)
-                    ZiyuText("字体大小与屏幕密度", style = MaterialTheme.typography.bodySmall, color = palette.textSecondary)
+                    ZiyuText("屏幕 DPI", style = MaterialTheme.typography.titleMedium)
                 }
             }
             ZiyuText(
-                "字体粗细请在手机「设置」的字体设置中调整，由系统统一管理。此处调整字号、DPI 或恢复默认数值时，均保留系统当前粗细。",
+                "调整文字和界面的整体大小。",
                 style = MaterialTheme.typography.bodySmall, color = palette.textSecondary,
             )
-            if (data.loading) {
+            if (!state.moduleInstalled || !state.rootGranted) {
+                ZiyuText("连接模块并授予 Root 后可调整。", color = palette.textSecondary)
+            } else if (data.loading) {
                 ZiyuText("正在读取显示配置…", color = palette.textSecondary)
             } else if (values != null) {
-                TypographySlider("字体大小", "$scale%", scale, 50..200, enabled) { scale = it }
-                ZiyuHorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
                 TypographySlider("屏幕 DPI", "$density", density, values.densityMin..values.densityMax, enabled) { density = it }
                 ZiyuText(
-                    "当前 ${values.density} · 系统默认 ${values.baseDensity} DPI。DPI 会同时改变文字和界面大小。",
+                    "系统默认 ${values.baseDensity} DPI",
                     style = MaterialTheme.typography.bodySmall, color = palette.textSecondary,
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ZiyuOutlinedButton(
-                        onClick = { scale = 100; density = values.baseDensity },
+                        onClick = { density = values.baseDensity },
                         enabled = enabled, modifier = Modifier.weight(1f),
-                    ) { ZiyuText("默认数值") }
+                    ) { ZiyuText("默认 DPI") }
                     ZiyuButton(
-                        onClick = { actions.applyTypography(scale, density) },
-                        enabled = enabled && dirty && scale in 50..200, modifier = Modifier.weight(1f),
-                    ) { ZiyuText(if (data.saving) "应用中…" else "应用调整") }
+                        onClick = { actions.applyDensity(density) },
+                        enabled = enabled && dirty, modifier = Modifier.weight(1f),
+                    ) { ZiyuText(if (data.saving) "应用中…" else "应用") }
                 }
             }
             if (data.error.isNotBlank()) ZiyuText(data.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             if (data.message.isNotBlank()) ZiyuText(data.message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-            if (values != null) ZiyuText(
-                "优先使用本地配置；在系统设置中改动后，可点击下方同步。",
-                style = MaterialTheme.typography.bodySmall, color = palette.textSecondary,
-            )
-            if (!data.loading) ZiyuOutlinedButton(
+            if (!data.loading && state.moduleInstalled && state.rootGranted) ZiyuTextButton(
                 onClick = actions.refreshTypography, enabled = !data.saving, modifier = Modifier.fillMaxWidth(),
-            ) { ZiyuText("同步系统参数") }
+            ) { ZiyuText("刷新 DPI") }
+            ZiyuTextButton(onClick = {
+                val opened = runCatching { context.startActivity(android.content.Intent("android.settings.FONT_SIZE_SETTINGS")) }.isSuccess
+                if (!opened) runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS)) }
+            }, modifier = Modifier.fillMaxWidth()) { ZiyuText("字号与粗细 · 前往系统设置") }
         }
     }
 }

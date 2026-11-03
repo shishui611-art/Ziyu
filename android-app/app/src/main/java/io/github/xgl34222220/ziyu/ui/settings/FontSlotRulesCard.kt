@@ -51,10 +51,9 @@ internal fun FontSlotRulesCard() {
             .put("excludePathPrefixes", rows(prefixes)).toString().toByteArray(), Base64.NO_WRAP)
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ZiyuText("字体槽位规则")
-        ZiyuText("每行一个完整路径。白名单留空时沿用原范围；黑名单优先。规则只能缩小替换范围，不能解除表情、符号等系统保护。保存不改变当前字体，下一次确认应用时生效。")
-        listOf(Triple("只允许替换这些槽位（可留空）", includes, { s: String -> includes = s }),
-            Triple("不替换这些槽位", excludes, { s: String -> excludes = s }),
+        ZiyuText("每行填写一个路径。保存后重新应用字体生效。")
+        listOf(Triple("仅替换这些文件（可留空）", includes, { s: String -> includes = s }),
+            Triple("排除这些文件", excludes, { s: String -> excludes = s }),
             Triple("排除这些目录", prefixes, { s: String -> prefixes = s })).forEach { (label, value, change) ->
             ZiyuOutlinedTextField(value = value, onValueChange = change, enabled = loaded && !busy,
                 label = { ZiyuText(label) }, minLines = 2, maxLines = 5, modifier = Modifier.fillMaxWidth())
@@ -67,7 +66,7 @@ internal fun FontSlotRulesCard() {
                     val result = request("preview", payload)
                     token = result.getString("token"); checkedPayload = payload
                     val before = if (result.isNull("before")) "原配置无效" else result.getInt("before").toString()
-                    message = "候选槽位：$before → ${result.getInt("after")}。确认后保存规则；当前挂载保持原状。"
+                    message = "候选槽位：$before → ${result.getInt("after")}。保存后下次应用生效。"
                 } catch (cancelled: CancellationException) { throw cancelled
                 } catch (error: Exception) { message = error.message.orEmpty(); token = ""
                 } finally { busy = false }
@@ -76,7 +75,7 @@ internal fun FontSlotRulesCard() {
         ZiyuButton(enabled = !busy && token.isNotEmpty() && checkedPayload == payload, onClick = {
             busy = true
             scope.launch {
-                try { message = request("save", payload, token).getString("message"); token = ""
+                try { request("save", payload, token); message = "已保存，重新应用字体后生效。"; token = ""
                 } catch (cancelled: CancellationException) { throw cancelled
                 } catch (error: Exception) { message = error.message.orEmpty()
                 } finally { busy = false }

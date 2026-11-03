@@ -235,7 +235,9 @@ internal fun ZiyuAppShell(
     }
     LaunchedEffect(page) {
         when (page) {
-            AppPage.Home -> Unit
+            // Returning from the font library or studio should show the font
+            // that was just applied without waiting for a manual refresh.
+            AppPage.Home -> viewModel.refreshFontRuntime()
             AppPage.Library -> viewModel.ensureFonts()
             AppPage.Studio -> {
                 viewModel.ensureFonts()
@@ -271,7 +273,7 @@ internal fun ZiyuAppShell(
             cancelTask = viewModel::cancelCurrentTask,
             loadTypography = viewModel::loadDisplayTypography,
             refreshTypography = viewModel::refreshDisplayTypography,
-            applyTypography = viewModel::applyDisplayTypography,
+            applyDensity = viewModel::applyDisplayDensity,
         )
     }
     val libraryActions = remember(viewModel) {
@@ -467,8 +469,7 @@ internal fun ZiyuAppShell(
                                 taskRunning = viewModel.operationBusy || viewModel.mixState.busy ||
                                     viewModel.snapshot.taskState in setOf("queued", "running"),
                                 currentFontRevision = viewModel.fonts.firstOrNull { it.id == viewModel.snapshot.activeFont }?.sourceRevision.orEmpty(),
-                                typographyVisible = viewModel.snapshot.activeFont in setOf("", "default") ||
-                                    viewModel.fonts.any { it.id == viewModel.snapshot.activeFont && !it.combination },
+                                typographyVisible = true,
                                 typography = viewModel.displayTypography,
                                 romCheckMessage = viewModel.romCheckMessage,
                             ),
@@ -537,6 +538,11 @@ internal fun ZiyuAppShell(
                         AppearanceSettingsRoute(
                             settings = appearance,
                             currentFontLabel = viewModel.snapshot.effectiveLabel,
+                            fonts = viewModel.fonts,
+                            currentFontId = viewModel.snapshot.activeFont,
+                            fontBusy = viewModel.operationBusy || viewModel.mixState.busy,
+                            fontLoading = viewModel.fontLoading,
+                            onLoadFonts = { viewModel.ensureFonts() },
                             active = page == AppPage.Settings,
                             actions = appearanceActions,
                             onOpenTasks = {

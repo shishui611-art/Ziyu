@@ -35,9 +35,11 @@ def preference_path(module, family):
 
 def preference(module, family):
     path = preference_path(module, family)
+    if path.is_symlink():
+        raise ValueError('字体防裁切配置无效')
     if not path.exists():
         return False
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > 4096:
+    if not path.is_file() or path.stat().st_size > 4096:
         raise ValueError('字体防裁切配置无效')
     data = json.loads(path.read_text(encoding='utf-8'))
     if data.get('schema') != SCHEMA or data.get('font') != family or type(data.get('enabled')) is not bool:

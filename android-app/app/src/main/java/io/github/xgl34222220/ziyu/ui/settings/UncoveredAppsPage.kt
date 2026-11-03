@@ -189,13 +189,13 @@ internal fun UncoveredAppsPage() {
         item {
             CoverageCard("只读字体来源检查") {
                 Text(
-                    "按运行进程的字体映射与该进程自己的挂载命名空间核对字体来源。检查只读取状态，不修改挂载、字体或应用设置。",
+                    "检查应用当前使用的字体。",
                     color = tokens.textSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    "Android 共享内存字体、应用自绘文字和未打开的页面可能无法定位；检测到应用内置或下载字体时，字域不能替换这些文件。",
+                    "请先打开要检查的页面。应用内置或下载字体可能无法替换。",
                     color = tokens.textSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -276,7 +276,7 @@ internal fun UncoveredAppsPage() {
             item {
                 CoverageCard("扫描结果") {
                     if (report.verdict == "no-payload") {
-                        Text("没有找到已应用的字域字体负载。先应用字体并完成所需重启，再扫描。", color = tokens.textSecondary)
+                        Text("请先应用字体并按提示重启。", color = tokens.textSecondary)
                     } else {
                         Text("已检查 ${report.scanned} 个应用 · ${report.covered} 个映射到字域字体 · ${report.uncertain} 个无法判断", color = tokens.textSecondary)
                         if (report.truncated) {

@@ -154,8 +154,10 @@ rollback() {
         [ "$?" -eq 0 ] || dt_rollback_ok=false
     fi
     if [ "$scale_written" = true ]; then restore_setting system font_scale "$old_scale_raw" || dt_rollback_ok=false; fi
-    read_state && [ "$dt_user" = "$old_user" ] && [ "$dt_percent" = "$old_percent" ] && \
-        [ "$dt_override" = "$old_override" ] || dt_rollback_ok=false
+    read_state && [ "$dt_user" = "$old_user" ] && [ "$dt_override" = "$old_override" ] || dt_rollback_ok=false
+    if [ "${dt_density_only:-false}" != true ]; then
+        [ "$dt_percent" = "$old_percent" ] || dt_rollback_ok=false
+    fi
 }
 cleanup() {
     if [ "$committed" != true ]; then
@@ -193,6 +195,12 @@ case "${1:-status}" in
         [ "$1" != initialize ] || [ "$dt_saved" = true ] || exit 1
         exit 0
         ;;
+    density)
+        [ "$#" -eq 6 ] || fail 'DPI 参数无效'
+        dt_density_only=true
+        dt_context="$5"; dt_context_sdk="$6"
+        set -- apply "$2" 100 0 "$3" 100 keep "$4"
+        ;;
     apply)
         [ "$#" -eq 8 ] || [ "$#" -eq 10 ] || fail '显示参数无效'
         dt_context="${9:-}"; dt_context_sdk="${10:-}"
@@ -213,7 +221,8 @@ read_state || { ziyu_font_lock_release "$dt_lock" "$$"; fail '无法读取修改
 # Changes made outside this App become the next local read, without weakening
 # the compare-before-write guard for a stale draft or a different Android user.
 save_cache >/dev/null 2>&1 || rm -f "$CACHE"
-[ "$dt_user" = "$2" ] && [ "$dt_percent" = "$3" ] && [ "$dt_density" = "$5" ] || {
+[ "$dt_user" = "$2" ] && [ "$dt_density" = "$5" ] && \
+    { [ "${dt_density_only:-false}" = true ] || [ "$dt_percent" = "$3" ]; } || {
     ziyu_font_lock_release "$dt_lock" "$$"; fail '系统设置已在其他位置变化，请重新读取后应用';
 }
 [ "$8" -ge "$dt_min" ] && [ "$8" -le "$dt_max" ] || {
@@ -222,6 +231,9 @@ save_cache >/dev/null 2>&1 || rm -f "$CACHE"
 old_user="$dt_user"; old_percent="$dt_percent"
 old_density="$dt_density"; old_override="$dt_override"
 old_scale_raw="$dt_scale_raw"
+if [ "${dt_density_only:-false}" = true ]; then
+    set -- apply "$dt_user" "$dt_percent" "$dt_weight" "$dt_density" "$dt_percent" keep "$8"
+fi
 scale_written=false; density_written=false; committed=false
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
@@ -239,12 +251,15 @@ if [ "$dt_ok" = true ] && [ "$8" != "$old_density" ]; then
     [ "$?" -eq 0 ] || dt_ok=false
 fi
 if [ "$dt_ok" = true ]; then
-    read_state && [ "$dt_user" = "$old_user" ] && [ "$dt_percent" = "$6" ] && [ "$dt_density" = "$8" ] || dt_ok=false
+    read_state && [ "$dt_user" = "$old_user" ] && [ "$dt_density" = "$8" ] || dt_ok=false
+    if [ "${dt_density_only:-false}" != true ]; then [ "$dt_percent" = "$6" ] || dt_ok=false; fi
 fi
 if [ "$dt_ok" = true ]; then
     committed=true
     if save_cache; then
-        emit_state; printf 'cache=system\ncacheSaved=true\nmessage=已应用字号与 DPI；字体粗细请在手机系统设置中调整\n'
+        emit_state
+        if [ "${dt_density_only:-false}" = true ]; then printf 'cache=system\ncacheSaved=true\nmessage=DPI 已更新\n'
+        else printf 'cache=system\ncacheSaved=true\nmessage=显示设置已更新\n'; fi
     else
         emit_state; printf 'cache=system\ncacheSaved=false\nmessage=系统设置已应用，本地配置未保存，可点击同步重试\n'
     fi

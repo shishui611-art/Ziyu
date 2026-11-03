@@ -24,7 +24,7 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
     ZiyuAlertDialog(onDismissRequest = onDismiss, title = { ZiyuText("应用前对比") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZiyuText("左侧读取手机当前已验证的中文字体样例。两侧使用相同文字、字号和预览字重；系统回退字体、应用缓存和固定行框效果仍以实际显示为准。")
+                ZiyuText("比较当前字体与目标字体，确认后应用。实际显示可能因应用而异。")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     listOf("当前字体" to current, "目标字体" to target).forEach { (label, font) ->
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -43,7 +43,7 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
                 ZiyuText("预览字重 ${weight.toInt()}（静态字体按已有字重显示）")
                 ZiyuSlider(value = weight, onValueChange = { weight = it }, valueRange = 100f..900f)
                 if (!target.supportsCjk) ZiyuText("目标字体中文覆盖有限，应用后中文可能继续使用原厂回退字体。")
-                ZiyuText("此滑块仅用于预览，确认后沿用现有应用流程和系统字重设置。")
+                ZiyuText("预览字重不会更改系统设置。")
             }
         }, dismissButton = { ZiyuTextButton(onClick = onDismiss) { ZiyuText("取消") } },
         confirmButton = { ZiyuButton(enabled = targetReady, onClick = onConfirm) { ZiyuText("确认应用") } })

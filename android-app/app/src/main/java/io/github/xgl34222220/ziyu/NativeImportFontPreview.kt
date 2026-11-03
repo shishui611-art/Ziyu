@@ -85,7 +85,7 @@ internal fun NativeImportFontPreview(uris: List<Uri>, enabled: Boolean, onCancel
             Column(Modifier.fillMaxWidth().heightIn(max = 500.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZiyuText(preview.name.ifBlank { "正在读取文件…" })
-                ZiyuText("确认后才加入原有导入队列。取消会清理预览文件；预览失败也可以继续导入。一次最多 32 个文件，每个不超过 256 MB。")
+                ZiyuText("确认后导入。最多 32 个文件，每个不超过 256 MB。")
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ZiyuTextButton(enabled = index > 0, onClick = { index-- }) { ZiyuText("上一个") }
                     ZiyuTextButton(enabled = index + 1 < selected.size, onClick = { index++ }) { ZiyuText("下一个") }

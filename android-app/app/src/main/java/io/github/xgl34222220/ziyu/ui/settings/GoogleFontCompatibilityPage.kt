@@ -1,6 +1,5 @@
 package io.github.xgl34222220.ziyu.ui.settings
 
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuLayoutTokens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -11,7 +10,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -51,7 +48,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.withCardTransparency
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuLoadingSkeleton
@@ -73,13 +69,9 @@ internal fun GoogleFontCompatibilityPage() {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
     val idle = !state.loading && !state.busy
-    LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp,
-            bottom = maxOf(LocalDockContentPadding.current, 24.dp)),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    pageList {
         item {
-            GoogleCompatibilityCard("当前状态") {
+            SettingCard("当前状态") {
                 if (state.loading && !state.busy) {
                     ZiyuLoadingSkeleton(Modifier.fillMaxWidth(.52f).heightIn(min = 22.dp))
                     ZiyuLoadingSkeleton(Modifier.fillMaxWidth().heightIn(min = 14.dp))
@@ -93,8 +85,8 @@ internal fun GoogleFontCompatibilityPage() {
                         fontWeight = FontWeight.SemiBold,
                     )
                     GoogleCompatibilityText(state.message)
-                    state.user?.let { GoogleCompatibilityText("作用范围：当前 Android 用户 $it") }
-                    if (state.managed) GoogleCompatibilityText("已找到恢复记录 · 兼容之前的独立脚本")
+                    state.user?.let { GoogleCompatibilityText("当前用户：$it") }
+                    if (state.managed) GoogleCompatibilityText("已保存原设置，可随时恢复")
                     if (state.resultMessage.isNotBlank()) {
                         Text(state.resultMessage, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp, lineHeight = 22.sp)
                     }
@@ -112,12 +104,12 @@ internal fun GoogleFontCompatibilityPage() {
             }
         }
         item {
-            GoogleCompatibilityCard("怎么用") {
-                GoogleCompatibilityText("只在谷歌应用英文、数字反复恢复默认，而中文仍正常时使用。")
-                GoogleStepCard("1", "先应用字体", "在字域应用需要的中文、英文和数字字体，并按提示完成重启。")
-                GoogleStepCard("2", "开启兼容", "点击「开启 Google 字体兼容」并确认；显示已开启后完整重启一次。")
-                GoogleStepCard("3", "验证保持", "检查 Google Play 等应用，放到后台后再次打开，确认英文和数字没有恢复默认。")
-                GoogleCompatibilityText("之前用独立脚本开启过的，本页会直接识别原恢复记录，不需要重复执行。")
+            SettingCard("使用方法") {
+                GoogleCompatibilityText("Google 应用的英文或数字恢复默认时，可开启此功能。")
+                GoogleStepCard("1", "先应用字体", "应用字体，并按提示重启。")
+                GoogleStepCard("2", "开启兼容", "开启后完整重启。")
+                GoogleStepCard("3", "查看效果", "重新打开 Google 应用，查看英文与数字。")
+                GoogleCompatibilityText("已开启时无需重复操作。")
             }
         }
         item {
@@ -128,13 +120,13 @@ internal fun GoogleFontCompatibilityPage() {
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
-                        "默认卸载模块一定要关",
+                        "Root 管理器设置",
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                     )
                     Text(
-                        "保持 Root 管理器中的「默认卸载模块」关闭，避免字体恢复默认或出现异常。",
+                        "请关闭「默认卸载模块」，以免字体失效。",
                         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = .82f),
                         fontSize = 13.sp,
                         lineHeight = 20.sp,
@@ -143,7 +135,7 @@ internal fun GoogleFontCompatibilityPage() {
             }
         }
         item {
-            GoogleCompatibilityCard("影响与恢复") {
+            SettingCard("影响与恢复") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -152,9 +144,9 @@ internal fun GoogleFontCompatibilityPage() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("详细原理与影响范围", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("影响与恢复", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Text(
-                            if (detailsExpanded) "收起技术说明" else "需要时再展开，不影响正常操作",
+                            if (detailsExpanded) "收起说明" else "查看说明",
                             color = LocalZiyuPaletteTokens.current.textSecondary,
                             fontSize = 12.sp,
                         )
@@ -174,10 +166,10 @@ internal fun GoogleFontCompatibilityPage() {
                         shrinkVertically(tween(170, easing = FastOutSlowInEasing)),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        GoogleCompatibilityText("只停用当前用户的 Google 下载字体提供组件，不停用整个谷歌服务，不删除字体缓存、账户或应用数据。")
-                        GoogleCompatibilityText("会影响该用户所有依赖 GMS 下载字体的应用，可能涉及下载式表情字体；修改时相关 GMS 进程可能重启。")
-                        GoogleCompatibilityText("此设置跨重启保留。停用模块不会保证自动撤销；停用或卸载字域前，请先点击「恢复原设置」并完整重启；卸载脚本也会尝试恢复有记录的设置。")
-                        GoogleCompatibilityText("不保证替换应用内置字体、网页指定字体或已经打开的旧字体，也不会自动封禁联网或强停前台应用。")
+                        GoogleCompatibilityText("停用当前用户的 Google 下载字体组件。账户与应用数据会保留。")
+                        GoogleCompatibilityText("可能影响依赖 Google 下载字体或表情的应用，并重启相关服务。")
+                        GoogleCompatibilityText("设置会跨重启保留。停用或卸载字域前，请先恢复原设置并完整重启。")
+                        GoogleCompatibilityText("应用内置字体和网页字体可能不受影响。")
                     }
                 }
             }
@@ -192,10 +184,10 @@ internal fun GoogleFontCompatibilityPage() {
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(if (enabling)
-                        "将停用当前 Android 用户的 Google 字体提供组件，让依赖它的应用尝试使用备用字体。影响该用户全部依赖 GMS 下载字体的应用，可能影响下载式表情字体，并可能重启相关 GMS 进程。"
-                    else "将依据保存的恢复记录，还原开启前的组件状态；不会一律强制启用，也不会修改其他用户或其他组件。")
-                    Text("不会清除账户、应用数据或字体缓存。完成后请完整重启手机。")
-                    if (enabling) Text("停用或卸载字域前，先在此页恢复原设置。此功能不保证所有页面永不回退。")
+                        "将停用当前用户的 Google 下载字体组件。可能影响下载字体与表情，并重启相关服务。"
+                    else "恢复开启前的设置。")
+                    Text("账户与应用数据会保留。完成后请完整重启。")
+                    if (enabling) Text("停用或卸载字域前，请先恢复原设置。")
                 }
             },
             dismissButton = { TextButton(onClick = { confirmAction = null }) { Text("取消") } },
@@ -203,7 +195,7 @@ internal fun GoogleFontCompatibilityPage() {
                 TextButton(enabled = idle && (if (enabling) state.canEnable else state.canRestore), onClick = {
                     confirmAction = null
                     if (enabling) model.enable() else model.restore()
-                }) { Text(if (enabling) "了解影响，确认开启" else "确认恢复") }
+                }) { Text(if (enabling) "开启" else "确认恢复") }
             },
         )
     }
@@ -237,17 +229,6 @@ private fun GoogleStepCard(number: String, title: String, body: String) {
                 Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 GoogleCompatibilityText(body)
             }
-        }
-    }
-}
-
-@Composable
-private fun GoogleCompatibilityCard(title: String, content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
-        color = LocalZiyuPaletteTokens.current.cardBackground.withCardTransparency(), shadowElevation = ZiyuLayoutTokens.CardElevation) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
-            content()
         }
     }
 }

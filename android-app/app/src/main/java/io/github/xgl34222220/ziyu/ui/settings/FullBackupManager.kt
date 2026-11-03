@@ -112,7 +112,7 @@ internal fun FullBackupCard(
         Text("完整备份与恢复", fontSize = 17.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.size(5.dp))
         Text(
-            "导出 .ziyu.zip：用户字体文件、收藏/标签、字体方案、当前 Studio 组合、外观设置和可迁移字域配置。每个文件都会写入 SHA-256 清单。",
+            "备份字体、组合、收藏和 App 设置。",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
             lineHeight = 15.sp,
@@ -158,7 +158,7 @@ internal fun FullBackupCard(
             Row(Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
                 Icon(Icons.Rounded.Backup, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(7.dp))
-                Text("恢复不会复制旧设备的锁、运行中任务、缓存或系统字体 payload，也不会强制把旧机当前字体立即设为新机当前字体。", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("恢复后请重新选择并应用字体。", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
           }

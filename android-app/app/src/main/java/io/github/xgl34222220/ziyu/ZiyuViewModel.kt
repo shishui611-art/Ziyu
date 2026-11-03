@@ -261,19 +261,19 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun applyDisplayTypography(scale: Int, density: Int) {
+    fun applyDisplayDensity(density: Int) {
         val current = displayTypography
         val old = current.values ?: return
         val font = fonts.firstOrNull { it.id == snapshot.activeFont }
         if (current.fontId != snapshot.activeFont || current.sourceRevision != font?.sourceRevision.orEmpty() ||
             current.loading || current.saving || operationBusy || mixState.busy ||
-            snapshot.taskState in setOf("queued", "running") || snapshot.activeFont == "mix" || font?.combination == true) return
-        if (scale !in 50..200 || density !in old.densityMin..old.densityMax) return
+            snapshot.taskState in setOf("queued", "running")) return
+        if (density !in old.densityMin..old.densityMax) return
         displayTypography = current.copy(saving = true, error = "", message = "")
         typographyJob = viewModelScope.launch {
             try {
-                val command = "sh ${RootShell.quote(bridge)} display_typography apply " +
-                    "${old.user} ${old.scale} ${old.weight} ${old.density} $scale keep $density " +
+                val command = "sh ${RootShell.quote(bridge)} display_typography density " +
+                    "${old.user} ${old.density} $density " +
                     "${RootShell.quote(android.os.Build.FINGERPRINT)} ${android.os.Build.VERSION.SDK_INT}"
                 val (values, message) = parseDisplayTypography(RootShell.exec(command, timeoutMs = 25_000L))
                 displayTypography = current.copy(values = values, saving = false, message = message)
@@ -530,6 +530,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     private var cachedFingerprint: String = ""
     private var fontRequestJob: Job? = null
     private var refreshJob: Job? = null
+    // A module status read that started before a font switch committed must not
+    // overwrite the new selection when it lands afterwards; only the newest read
+    // is allowed to publish into `snapshot`.
+    private var moduleStateReadGeneration = 0
     private var logsJob: Job? = null
     private var mixConfigJob: Job? = null
     private var pendingForceRefresh = false
@@ -657,36 +661,56 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         refreshModuleState(includeExtras = true)
     }
 
-    internal suspend fun refreshFontRuntime() {
+    /**
+     * Read the module status without the expensive extras.
+     *
+     * [force] drops an in-flight read first. Callers that just committed a
+     * font selection need that: reusing a read that was issued before the
+     * commit would publish the previous font back into the home card.
+     */
+    internal suspend fun refreshFontRuntime(force: Boolean = false) {
+        if (force) invalidateModuleStateRead()
         refreshModuleState(includeExtras = false).join()
+    }
+
+    private fun invalidateModuleStateRead() {
+        ++moduleStateReadGeneration
+        refreshJob?.cancel()
+        refreshJob = null
     }
 
     private fun refreshModuleState(includeExtras: Boolean): Job {
         refreshJob?.takeIf { it.isActive }?.let { return it }
         if (includeExtras) snapshot = snapshot.copy(loading = true, error = "")
+        val readGeneration = ++moduleStateReadGeneration
         refreshJob = viewModelScope.launch {
+            // Once a newer read starts, this one must not publish anything: a
+            // read issued before a font switch would otherwise restore the old
+            // selection after the switch already committed the new one.
+            fun superseded(): Boolean = readGeneration != moduleStateReadGeneration
             if (!snapshot.rootGranted || !snapshot.installed) {
                 val hello = RootShell.exec(
                     "if [ -f /data/adb/modules/ziyu/common/app_handshake.sh ]; then " +
                         "sh ${RootShell.quote(bridge)} handshake; else printf '%s\\n' '{\"status\":\"legacy\"}'; fi",
                     timeoutMs = 12_000L,
                 )
+                if (superseded()) return@launch
                 if (hello.code != 0) {
-                    snapshot = ModuleSnapshot(loading = false, error = hello.stderr.ifBlank { "模块握手失败，请检查 Root 授权与模块安装" })
+                    if (!superseded()) snapshot = ModuleSnapshot(loading = false, error = hello.stderr.ifBlank { "模块握手失败，请检查 Root 授权与模块安装" })
                     return@launch
                 }
                 val helloJson = runCatching { firstJson(hello.stdout) }.getOrNull()
                 if (helloJson?.optString("schema") == "ziyu-app-handshake-v1") {
                     val data = helloJson.optJSONObject("data")
                     if (data == null || !data.optBoolean("root") || !data.optBoolean("installed")) {
-                        snapshot = ModuleSnapshot(loading = false, rootGranted = data?.optBoolean("root") == true,
+                        if (!superseded()) snapshot = ModuleSnapshot(loading = false, rootGranted = data?.optBoolean("root") == true,
                             error = "模块身份未通过握手核对，请检查模块安装")
                         return@launch
                     }
-                    if (data != null && data.optBoolean("installed")) {
+                    if (data.optBoolean("installed")) {
                         RootShell.rememberModule(data.optString("moduleDir"))
                         romCheckSupported = data.optBoolean("romCheck", false)
-                        snapshot = parseSnapshot(hello.stdout).copy(detailsPending = true)
+                        if (!superseded()) snapshot = parseSnapshot(hello.stdout).copy(detailsPending = true)
                     }
                 }
             }
@@ -696,22 +720,20 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 timeoutMs = 20_000L,
             )
             if (result.code != 0) {
-                snapshot = ModuleSnapshot(
+                if (!superseded()) snapshot = snapshot.copy(
                     loading = false,
-                    rootGranted = snapshot.rootGranted,
-                    installed = snapshot.installed,
-                    version = snapshot.version,
-                    versionCode = snapshot.versionCode,
                     error = result.stderr.ifBlank { "模块详细状态读取失败，请重新检测" },
                 )
                 return@launch
             }
             val parsed = parseSnapshot(result.stdout)
+            if (superseded()) return@launch
             snapshot = parsed
             rebootRequired = parsed.rebootRequired
             if (parsed.installed && includeExtras) {
                 refreshReadExtras()
             }
+            if (superseded()) return@launch
             resumePendingTask(parsed)
             if (parsed.installed && includeExtras) requestFontPrewarm()
         }
@@ -1422,11 +1444,24 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 else -> "字体已准备完成，重启后全局生效"
             }
             rebootRequired = nextRebootRequired
+            // Invalidate pre-commit reads before publishing or suspending again.
+            invalidateModuleStateRead()
+            val unchanged = reused && snapshot.activeFont == applied
             snapshot = snapshot.copy(
                 activeFont = applied,
                 activeFontName = resolvedFontName(applied),
+                loading = false,
+                error = "",
+                detailsPending = false,
+                fontEffectState = if (unchanged) snapshot.fontEffectState else if (nextRebootRequired) "pending-reboot" else "pending",
+                verificationState = if (unchanged) snapshot.verificationState else "pending",
+                verificationReason = if (unchanged) snapshot.verificationReason else "",
+                mountState = if (unchanged) snapshot.mountState else "pending",
+                mountFailure = if (unchanged) snapshot.mountFailure else "",
+                rollbackPending = if (unchanged) snapshot.rollbackPending else false,
                 taskType = "switch",
                 taskId = taskId,
+                taskFont = applied,
                 taskState = "success",
                 taskMessage = operationMessage,
                 taskProgress = 100,
@@ -1437,6 +1472,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             refreshActionStatus()
             // The task receipt describes preparation. Read the current mount
             // state separately, including a reboot completed during polling.
+            // Accept fresh verification and real rollback results unchanged.
             refreshFontRuntime()
             if (rebootRequired && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
         } catch (cancelled: CancellationException) {

@@ -30,7 +30,7 @@ internal fun BackgroundImageCard(settings: AppearanceSettings, onPath: (String) 
         }
     }
     SettingCard("背景图片") {
-        ZiyuText("支持 PNG、JPG/JPEG、WebP、GIF、BMP，以及本机支持解码的 HEIF/AVIF。动图使用静态画面；导入后自动适配当前主题。")
+        ZiyuText("选择一张图片作为背景。动图显示静态画面。")
         Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.Dp(8f))) {
             ZiyuButton(onClick = { picker.launch(arrayOf("image/*")) }, enabled = !busy) { ZiyuText(if (busy) "正在导入…" else "导入图片") }
             ZiyuOutlinedButton(onClick = { onPath("") }, enabled = !busy && settings.backgroundPath.isNotBlank()) { ZiyuText("恢复默认") }
@@ -57,17 +57,27 @@ internal fun UserStorageCard() {
             val data = json!!.getJSONObject("data")
             current = data.optString("activePath"); pending = data.optString("pendingPath")
             path = pending.ifBlank { current }; error = false
-            message = if (pending.isNotBlank()) "已保存，完整重启后迁移；迁移失败时原目录继续生效。" else ""
+            message = if (pending.isNotBlank()) "已保存，完整重启后迁移。" else ""
+        } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Throwable) { error = true; message = failure.message.orEmpty() }
         finally { busy = false }
     }
     LaunchedEffect(Unit) { command("status") }
-    SettingCard("用户文件存放位置") {
+    SettingCard("字体与文件") {
         ZiyuText("当前目录：${current.ifBlank { "读取中…" }}")
         if (pending.isNotBlank()) ZiyuText("下次启动：$pending", color = MaterialTheme.colorScheme.primary)
-        ZiyuText("字体、生成的组合字体、模块备份及报告使用此目录。请选择共享存储中的空子目录；原文件会保留，校验完成后才切换。手动导出的完整备份仍由文件选择器指定位置。")
-        ZiyuOutlinedTextField(value = path, onValueChange = { path = it }, label = { ZiyuText("例如 /sdcard/ziyu") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
-        ZiyuButton(onClick = { scope.launch { command("request ${RootShell.quote(path.trim())}") } }, enabled = !busy && path.isNotBlank()) { ZiyuText(if (busy) "处理中…" else "保存，重启生效") }
+        ZiyuText(
+            "保存字体、组合方案和备份。更改后完整重启，文件会自动迁移。",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ZiyuOutlinedTextField(
+            value = path, onValueChange = { path = it }, label = { ZiyuText("文件夹路径") },
+            singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+        )
+        ZiyuButton(
+            onClick = { scope.launch { command("request ${RootShell.quote(path.trim())}") } },
+            enabled = !busy && path.isNotBlank(), modifier = Modifier.fillMaxWidth(),
+        ) { ZiyuText(if (busy) "处理中…" else "保存位置") }
         if (message.isNotBlank()) ZiyuText(message, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
     }
 }
@@ -94,7 +104,7 @@ internal fun DisplayConfigStorageCard() {
             }
             val data = json!!.getJSONObject("data")
             current = data.optString("path"); defaultPath = data.optString("defaultPath")
-            path = current; message = data.optString("message"); error = false
+            path = current; message = if (action.startsWith("set ")) "保存位置已更新。" else ""; error = false
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
@@ -104,22 +114,25 @@ internal fun DisplayConfigStorageCard() {
         }
     }
     LaunchedEffect(Unit) { command("status") }
-    SettingCard("显示参数配置保存位置") {
+    SettingCard("DPI 配置") {
         ZiyuText("当前目录：${current.ifBlank { "读取中…" }}")
-        ZiyuText("保存字体大小、粗细和 DPI 的本地配置。可单独选择专用目录，保存后即切换；内部保留小型镜像。挂载与回滚记录继续由模块管理。")
+        ZiyuText(
+            "保存 DPI 设置，更改后立即生效。",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         ZiyuOutlinedTextField(
-            value = path, onValueChange = { path = it }, label = { ZiyuText("例如 /sdcard/ziyu-config") },
+            value = path, onValueChange = { path = it }, label = { ZiyuText("文件夹路径") },
             singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.Dp(8f))) {
             ZiyuButton(
                 onClick = { scope.launch { command("set ${RootShell.quote(path.trim())}") } },
                 enabled = !busy && path.isNotBlank(), modifier = Modifier.weight(1f),
-            ) { ZiyuText(if (busy) "保存中…" else "保存并切换") }
+            ) { ZiyuText(if (busy) "保存中…" else "保存位置") }
             ZiyuOutlinedButton(
                 onClick = { scope.launch { command("set ${RootShell.quote(defaultPath)}") } },
                 enabled = !busy && defaultPath.isNotBlank() && current != defaultPath, modifier = Modifier.weight(1f),
-            ) { ZiyuText("恢复默认位置") }
+            ) { ZiyuText("恢复默认") }
         }
         if (message.isNotBlank()) ZiyuText(message, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
     }

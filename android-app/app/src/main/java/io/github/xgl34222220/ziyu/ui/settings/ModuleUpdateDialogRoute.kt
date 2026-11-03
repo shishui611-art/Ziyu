@@ -27,7 +27,7 @@ internal fun ModuleUpdateDialogRoute(model: SystemCenterViewModel, fontsBusy: Bo
         model.updatePromptVisible && !fontsBusy && !model.maintenance.busy -> AlertDialog(
             onDismissRequest = model::skipUpdate,
             title = { Text("发现正式模块更新 ${model.updateInfo.version}") },
-            text = { Text("已安装模块：${model.updateInfo.currentVersion}\n将下载 GitHub 正式版模块 ZIP，校验后通过当前 Root 管理器安装。内置 App 随模块更新，完整重启后生效。") },
+            text = { Text("当前版本：${model.updateInfo.currentVersion}\n更新 App 与模块。完成后请完整重启。") },
             dismissButton = { TextButton(model::skipUpdate) { Text("暂时跳过") } },
             confirmButton = { TextButton(model::installModuleUpdate) { Text("更新模块") } },
         )

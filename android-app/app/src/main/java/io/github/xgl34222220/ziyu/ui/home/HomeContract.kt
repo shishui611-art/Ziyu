@@ -51,7 +51,7 @@ data class HomeActions(
     val cancelTask: () -> Unit = {},
     val loadTypography: () -> Unit = {},
     val refreshTypography: () -> Unit = {},
-    val applyTypography: (Int, Int) -> Unit = { _, _ -> },
+    val applyDensity: (Int) -> Unit = {},
 )
 
 internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
