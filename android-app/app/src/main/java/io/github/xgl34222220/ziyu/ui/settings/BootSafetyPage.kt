@@ -114,7 +114,7 @@ internal fun BootSafetyPage() {
         item {
             SettingCard("开机保护") {
                 Text(
-                    when { busy && state.isEmpty() -> "正在读取…"; state.isEmpty() -> "尚未读取保护状态"; safe -> "开机保护已启用"; otaPending && nextReady -> "字体已准备，请完整重启"; otaPending -> "需要扫描原厂字体"; else -> "字体加载正常" },
+                    when { busy && state.isEmpty() -> "正在读取…"; state.isEmpty() -> "尚未读取保护状态"; safe -> "开机保护已启用"; otaPending && nextReady -> "字体已准备，请完整重启"; otaPending -> "需要扫描原厂字体"; else -> "未触发保护" },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
