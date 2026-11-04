@@ -28,7 +28,7 @@ MAX_FONT_BYTES = 128 * 1024 * 1024
 class SlotCompat:
     """Finite-batch reuse by immutable donor and verified stock identities."""
 
-    def __init__(self, module: Path, workspace: Path):
+    def __init__(self, module: Path, workspace: Path, prepared_donors=None):
         self.module = module
         self.workspace = workspace
         self.digests = FontDigestCache()
@@ -37,7 +37,9 @@ class SlotCompat:
         self._donor_identity = None
         self._donor_path = None
         self._donor_instance = None
-        self._static_donors = {}
+        # Only immutable paths/identities are shared across fork, never TTFont
+        # objects or mutable outline caches. Every worker rechecks its inputs.
+        self._static_donors = dict(prepared_donors or {})
         self._recordings = {}
         self._outline_cache = {}
         self._donor_loads = 0

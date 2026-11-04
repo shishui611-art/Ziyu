@@ -18,9 +18,11 @@ import time
 from font_inventory import FONT_EXTENSIONS, LOGICAL_FONT_ROOTS, _heuristic_candidate
 from font_inventory_scan import _is_ui_family
 from font_metrics_io import FontMetricsIO
-from font_digest_cache import file_identity
+from font_digest_cache import file_identity, FontDigestCache
 from font_parallel import run_batches
 from font_slot_compat import SlotCompat
+from composite_collection_build import identity as donor_identity
+import font_clipping_compat
 import stock_font_snapshot
 from hyperos_metrics_batch import (bitmap_bottom_slot, contract_for_slot, link_copy,
                                   read_inventory, write_metrics)
@@ -145,6 +147,8 @@ def build(module: Path, stage: Path) -> dict:
     execution = {}
     groups = {}
     identities = {}
+    clipping_donors = {}
+    clipping_prepare_seconds = 0.0
     try:
         # Pin every source/contract result before replacing any hard-linked alias.
         # Reading a later source after an earlier replacement can change its
@@ -156,11 +160,32 @@ def build(module: Path, stage: Path) -> dict:
             key = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, contract, align_bottom)
             groups.setdefault(key, []).append((source, report))
 
+        if font_clipping_compat.enabled():
+            # A single variable source often supplies Hans, Hant and Latin
+            # aliases. Instance it once before fork instead of independently
+            # repeating the full-font work inside every metrics worker.
+            prepare_started = time.perf_counter()
+            donor_folder = outputs / 'clipping-donors'
+            donor_folder.mkdir()
+            digests = FontDigestCache()
+            for source, _contract, _report in jobs:
+                if source.is_symlink():
+                    continue  # The existing checked metrics fallback owns it.
+                source_key = donor_identity(source)
+                if source_key in clipping_donors:
+                    continue
+                actual, detail = font_clipping_compat.prepare_donor(source,
+                    donor_folder / f'donor-{len(clipping_donors)}.font', digests)
+                if donor_identity(source) != source_key:
+                    raise ValueError('防裁切来源在批次准备期间发生变化')
+                clipping_donors[source_key] = (actual, detail, donor_identity(actual), digests.sha256(actual))
+            clipping_prepare_seconds = round(time.perf_counter() - prepare_started, 3)
+
         def prepare_batch(indexed_groups, private, _isolated):
             metrics_io = FontMetricsIO()
             results = []
             metrics_cache = {}
-            with SlotCompat(module, private) as slot_compat:
+            with SlotCompat(module, private, prepared_donors=clipping_donors) as slot_compat:
                 for index, (key, aliases) in indexed_groups:
                     contract, align_bottom = key[-2:]
                     output = private / f'metrics-{index}.font'
@@ -273,6 +298,8 @@ def build(module: Path, stage: Path) -> dict:
             'stockOnlyCharactersRetained': sum(r.get('stockOnlyCharactersRetained', 0) for r in reports),
             'slotCompatibilityUnverified': sum(r.get('slotCompatibility') == 'unverified' for r in reports),
             'metricsBatchSeconds': round(time.perf_counter() - started, 3),
+            'clippingPreparedSources': sum(detail is not None for _path, detail, _identity, _digest in clipping_donors.values()),
+            'clippingSourcePreparationSeconds': clipping_prepare_seconds,
             'execution': execution, **metric_stats}
 
 
