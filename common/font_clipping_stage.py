@@ -31,6 +31,7 @@ def fit_stage(module: Path, stage: Path, defer_collections: bool = False):
     collection_bytes = collection_count = 0
     with tempfile.TemporaryDirectory(prefix='.ziyu-clipping-', dir=stage) as temporary:
         workspace = Path(temporary)
+        collection_donors = {}
         with SlotCompat(module, workspace) as compat:
             for logical in sorted(indexed):
                 parts = PurePosixPath(logical).parts
@@ -59,9 +60,19 @@ def fit_stage(module: Path, stage: Path, defer_collections: bool = False):
                     if collection_count > MAX_COLLECTION_FACE_TOTAL:
                         raise ValueError('本次字体集合字面过多，请关闭防裁切后重试')
                     output = workspace / f'collection-{len(prepared)}.ttc'
-                    report = build_collection(donor, stock, output, workspace,
+                    cached = collection_donors.get(before)
+                    if cached is None:
+                        actual, instance = font_clipping_compat.prepare_donor(donor,
+                            workspace / f'collection-donor-{len(collection_donors)}.font', compat.digests)
+                        cached = (actual, instance, identity(actual), compat.digests.sha256(actual))
+                        collection_donors[before] = cached
+                    actual, instance, pinned_donor, donor_hash = cached
+                    if identity(actual) != pinned_donor or compat.digests.sha256(actual) != donor_hash:
+                        raise ValueError('防裁切集合样本在生成期间发生变化')
+                    report = build_collection(actual, stock, output, workspace,
                         f'clipping-{os.getpid()}-{len(prepared)}', logical,
                         output_budget=MAX_COLLECTION_BYTES - collection_bytes)
+                    report['clippingSourceInstance'] = instance
                     collection_bytes += output.stat().st_size
                 else:
                     output, report = compat.prepare(donor, logical)

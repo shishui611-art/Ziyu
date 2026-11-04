@@ -12,9 +12,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,7 +47,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuGlyph
@@ -143,7 +145,6 @@ internal fun NativeImportOverlay(
 
     if (state.resultVisible) {
         ImportResultDialog(
-            style = style,
             state = state,
             onDismiss = importViewModel::dismissResult,
         )
@@ -279,7 +280,6 @@ private fun ImportActionButton(
 
 @Composable
 private fun ImportResultDialog(
-    style: UiStyle,
     state: NativeImportState,
     onDismiss: () -> Unit,
 ) {
@@ -296,66 +296,15 @@ private fun ImportResultDialog(
         else -> MaterialTheme.colorScheme.primary
     }
 
-    if (style == UiStyle.MATERIAL) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            icon = {
-                Icon(icon, contentDescription = null, tint = accent)
-            },
-            title = { Text(state.title, fontWeight = FontWeight.Black) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(state.summary)
-                    Text(
-                        "支持 TTF、OTF、TTC、WOFF、WOFF2 与字体模块 ZIP。网页字体会先转换为真实 SFNT；ZIP 不执行包内脚本。",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            },
-            confirmButton = { Button(onClick = onDismiss) { Text("完成") } },
-            shape = MaterialTheme.shapes.extraLarge,
-        )
-    } else {
-        val tokens = LocalZiyuPaletteTokens.current
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(38.dp),
-                color = tokens.elevatedCardBackground,
-                shadowElevation = 20.dp,
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(13.dp),
-                ) {
-                    Text(
-                        "IMPORT RESULT",
-                        color = accent,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                    )
-                    Text(
-                        state.title,
-                        color = tokens.textPrimary,
-                        fontSize = 25.sp,
-                        lineHeight = 30.sp,
-                        fontWeight = FontWeight.Black,
-                    )
-                    Text(state.summary, color = tokens.textPrimary, lineHeight = 20.sp)
-                    Text(
-                        "WOFF/WOFF2 会先安全转换为 SFNT；ZIP 仅提取字体，不执行包内脚本。",
-                        color = tokens.textSecondary,
-                        fontSize = 11.sp,
-                    )
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                        Button(onClick = onDismiss, shape = RoundedCornerShape(18.dp)) {
-                            Text("完成", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = if (failed || cancelled) ({ Icon(icon, contentDescription = null, tint = accent) }) else null,
+        title = { Text(state.title, style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                Text(state.summary, style = MaterialTheme.typography.bodyMedium)
             }
-        }
-    }
+        },
+        confirmButton = { Button(onClick = onDismiss) { Text("完成") } },
+    )
 }

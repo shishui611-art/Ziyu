@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.ui.design.*
@@ -21,8 +23,9 @@ internal fun FontClippingPage(fonts: List<FontItem>, currentFontId: String, busy
         ?: available.firstOrNull { it.id == currentFontId }
     pageList {
         item {
-            SettingCard("字体防裁切") {
-                ZiyuText(font?.name ?: if (loading) "正在读取字体…" else "请选择字体")
+            SettingCard("选择字体") {
+                ZiyuText(font?.name ?: if (loading) "正在读取字体…" else "请选择字体",
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 ZiyuOutlinedButton(onClick = { choose = true }, enabled = available.isNotEmpty() && !busy) {
                     ZiyuText("选择字体")
                 }

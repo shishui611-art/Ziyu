@@ -59,26 +59,25 @@ internal fun UserStorageCard() {
             path = pending.ifBlank { current }; error = false
             message = if (pending.isNotBlank()) "已保存，完整重启后迁移。" else ""
         } catch (cancelled: CancellationException) { throw cancelled
-        } catch (failure: Throwable) { error = true; message = failure.message.orEmpty() }
+        } catch (failure: Throwable) { error = true; message = failure.message ?: "无法读取用户目录" }
         finally { busy = false }
     }
     LaunchedEffect(Unit) { command("status") }
     SettingCard("字体与文件") {
-        ZiyuText("当前目录：${current.ifBlank { "读取中…" }}")
-        if (pending.isNotBlank()) ZiyuText("下次启动：$pending", color = MaterialTheme.colorScheme.primary)
-        ZiyuText(
-            "保存字体、组合方案和备份。更改后完整重启，文件会自动迁移。",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         ZiyuOutlinedTextField(
-            value = path, onValueChange = { path = it }, label = { ZiyuText("文件夹路径") },
+            value = path, onValueChange = { path = it; message = "" },
+            placeholder = { ZiyuText(if (busy) "读取中…" else "保存路径") },
+            textStyle = MaterialTheme.typography.bodyMedium,
             singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
         )
+        if (message.isBlank() || error) ZiyuText("更改后，完整重启迁移文件。", style = MaterialTheme.typography.bodySmall)
         ZiyuButton(
             onClick = { scope.launch { command("request ${RootShell.quote(path.trim())}") } },
-            enabled = !busy && path.isNotBlank(), modifier = Modifier.fillMaxWidth(),
-        ) { ZiyuText(if (busy) "处理中…" else "保存位置") }
-        if (message.isNotBlank()) ZiyuText(message, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            enabled = !busy && path.isNotBlank() && path.trim() != pending.ifBlank { current }, modifier = Modifier.fillMaxWidth(),
+        ) { ZiyuText(if (busy) "处理中…" else "保存") }
+        if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall,
+            color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        if (error) ZiyuTextButton(onClick = { scope.launch { command("status") } }, enabled = !busy) { ZiyuText("重新读取") }
     }
 }
 
@@ -104,36 +103,36 @@ internal fun DisplayConfigStorageCard() {
             }
             val data = json!!.getJSONObject("data")
             current = data.optString("path"); defaultPath = data.optString("defaultPath")
-            path = current; message = if (action.startsWith("set ")) "保存位置已更新。" else ""; error = false
+            path = current; message = if (action.startsWith("set ")) "已保存" else ""; error = false
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
-            message = failure.message.orEmpty(); error = true
+            message = failure.message ?: "无法读取配置保存位置"; error = true
         } finally {
             busy = false
         }
     }
     LaunchedEffect(Unit) { command("status") }
     SettingCard("DPI 配置") {
-        ZiyuText("当前目录：${current.ifBlank { "读取中…" }}")
-        ZiyuText(
-            "保存 DPI 设置，更改后立即生效。",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         ZiyuOutlinedTextField(
-            value = path, onValueChange = { path = it }, label = { ZiyuText("文件夹路径") },
+            value = path, onValueChange = { path = it; message = "" },
+            placeholder = { ZiyuText(if (busy) "读取中…" else "保存路径") },
+            textStyle = MaterialTheme.typography.bodyMedium,
             singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
         )
+        if (message.isBlank() || error) ZiyuText("保存后使用新目录。", style = MaterialTheme.typography.bodySmall)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.Dp(8f))) {
             ZiyuButton(
                 onClick = { scope.launch { command("set ${RootShell.quote(path.trim())}") } },
-                enabled = !busy && path.isNotBlank(), modifier = Modifier.weight(1f),
-            ) { ZiyuText(if (busy) "保存中…" else "保存位置") }
+                enabled = !busy && path.isNotBlank() && path.trim() != current, modifier = Modifier.weight(1f),
+            ) { ZiyuText(if (busy) "保存中…" else "保存") }
             ZiyuOutlinedButton(
                 onClick = { scope.launch { command("set ${RootShell.quote(defaultPath)}") } },
                 enabled = !busy && defaultPath.isNotBlank() && current != defaultPath, modifier = Modifier.weight(1f),
             ) { ZiyuText("恢复默认") }
         }
-        if (message.isNotBlank()) ZiyuText(message, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall,
+            color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        if (error) ZiyuTextButton(onClick = { scope.launch { command("status") } }, enabled = !busy) { ZiyuText("重新读取") }
     }
 }

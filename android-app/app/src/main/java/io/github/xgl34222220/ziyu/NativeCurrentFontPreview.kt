@@ -15,7 +15,8 @@ import org.json.JSONObject
 private data class CurrentPreview(val file: File? = null, val data: JSONObject? = null, val error: String = "")
 
 @Composable
-internal fun NativeCurrentFontPreview(fontId: String, text: String, weight: Float, modifier: Modifier) {
+internal fun NativeCurrentFontPreview(fontId: String, text: String, weight: Float, modifier: Modifier,
+    textSizeSp: Float = 22f) {
     val context = LocalContext.current.applicationContext
     val preview by produceState(CurrentPreview(), fontId) {
         val file = File(context.cacheDir, "current-font-${UUID.randomUUID()}.ttf")
@@ -50,11 +51,12 @@ internal fun NativeCurrentFontPreview(fontId: String, text: String, weight: Floa
     }
     Column(modifier) {
         val file = preview.file
-        if (file == null) ZiyuText(preview.error.ifBlank { "正在读取当前系统字体…" }) else {
+        if (file == null) ZiyuText(preview.error.ifBlank { "正在读取当前字体…" },
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall) else {
             val axis = preview.data?.optJSONObject("weightAxis")
             val range = axis?.let { it.getDouble("min").toFloat()..it.getDouble("max").toFloat() }
             NativeLocalFontPreview(file, preview.data!!.getString("sha256"), preview.data!!.optInt("faceIndex"), text,
-                range?.let { weight.coerceIn(it) }, Modifier.fillMaxWidth().weight(1f), textSizeSp = 22f,
+                range?.let { weight.coerceIn(it) }, Modifier.fillMaxWidth().weight(1f), textSizeSp = textSizeSp,
                 errorMessage = "当前字体样例无法预览。")
         }
     }

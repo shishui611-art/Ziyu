@@ -35,6 +35,9 @@ class SlotCompat:
         self.outputs = {}
         self._donor = None
         self._donor_identity = None
+        self._donor_path = None
+        self._donor_instance = None
+        self._static_donors = {}
         self._recordings = {}
         self._outline_cache = {}
         self._donor_loads = 0
@@ -55,6 +58,8 @@ class SlotCompat:
             self._donor.close()
             self._donor = None
             self._donor_identity = None
+            self._donor_path = None
+            self._donor_instance = None
             self._template_hits += self._outline_cache.get('templateHits', 0)
             self._template_peak = max(self._template_peak, self._outline_cache.get('templateBytes', 0))
             self._native_batches += self._outline_cache.get('nativeGlyphBatches', 0)
@@ -71,7 +76,22 @@ class SlotCompat:
     def _source(self, path, expected):
         if self._donor_identity != expected:
             self.close()
-            self._donor = TTFont(path, lazy=True, recalcBBoxes=False, recalcTimestamp=False)
+            actual, detail = path, None
+            if font_clipping_compat.enabled():
+                cached = self._static_donors.get(expected)
+                if cached is not None:
+                    actual, detail, pinned, digest = cached
+                    if identity(actual) != pinned or self.digests.sha256(actual) != digest:
+                        raise ValueError('防裁切临时样本在本批次中发生变化')
+                else:
+                    actual, detail = font_clipping_compat.prepare_donor(path,
+                        self.workspace / f'clipping-donor-{len(self._static_donors)}.font', self.digests)
+                    self._static_donors[expected] = (actual, detail, identity(actual), self.digests.sha256(actual))
+                if identity(path) != expected:
+                    raise ValueError('防裁切来源在静态处理期间发生变化')
+            self._donor = TTFont(actual, lazy=True, recalcBBoxes=False, recalcTimestamp=False)
+            self._donor_path = actual
+            self._donor_instance = detail
             self._donor_identity = expected
             self._donor_loads += 1
         else:
@@ -182,7 +202,7 @@ class SlotCompat:
                     return output, report
                 details = replace_face(base, source, self._recordings, require_cjk=False,
                                        preserve_dependencies=True, preserve_unsafe=True,
-                                       outline_cache=self._outline_cache, native_source=donor,
+                                       outline_cache=self._outline_cache, native_source=self._donor_path,
                                        expand_bounds=True)
                 if protected(base, stock_order, bounds_reference=original) != original:
                     raise ValueError('原厂字符映射或字体槽契约在生成时发生变化')
@@ -235,6 +255,7 @@ class SlotCompat:
                       'outputUpem': output_upem, 'outputHead': output_head,
                       'fontFrameExpansion': frame_expansion,
                       'clippingFit': details.get('clippingFit'),
+                      'clippingSourceInstance': self._donor_instance,
                       'metricExtremaExpansion': details.get('metricExtremaExpansion'),
                       'layoutBoundsSource': 'stock', 'bitmapBaselineCorrection': 0,
                       'bitmapBaselineReason': 'stock-preserved',

@@ -23,6 +23,60 @@ def enabled():
     return os.environ.get('ZIYU_FONT_CLIP_ENABLED') == '1'
 
 
+def prepare_donor(source, output, digests=None):
+    """Pin variable donors at their own defaults in a private task workspace.
+
+    The user source and the OEM target are never rewritten. Reuse the existing
+    checked native instancer/FontTools fallback without role subsetting.
+    """
+    from fontTools.ttLib import TTFont
+    from font_digest_cache import FontDigestCache, file_identity
+    from font_instance import materialize, pick_face, is_collection
+    from font_native_instance import _cmap
+
+    source, output = Path(source), Path(output)
+    if not enabled():
+        return source, None
+    if source.is_symlink() or output.is_symlink() or source.resolve() == output.resolve():
+        raise ValueError('防裁切样本不能覆盖来源字体')
+    before = file_identity(source.stat())
+    if not 12 <= before[2] <= 128 * 1024 * 1024:
+        raise ValueError('防裁切来源字体大小无效')
+    face = pick_face(source, 'cjk', 400) if is_collection(source) else -1
+    kwargs = {'fontNumber': face} if face >= 0 else {}
+    with TTFont(source, lazy=True, recalcBBoxes=False, recalcTimestamp=False, **kwargs) as font:
+        if any(tag in font for tag in ('COLR', 'CBDT', 'sbix', 'SVG ')):
+            raise ValueError('彩色字体暂不支持防裁切，请关闭后应用')
+        if 'fvar' not in font:
+            return source, None
+        location = {axis.axisTag: float(axis.defaultValue) for axis in font['fvar'].axes}
+        if not all(math.isfinite(value) for value in location.values()):
+            raise ValueError('字体默认字重或轴值无效')
+        original_cmap = _cmap(font)
+        weight = round(location.get('wght', font['OS/2'].usWeightClass))
+    digests = digests if digests is not None else FontDigestCache()
+    source_hash = digests.sha256(source)
+    try:
+        report = materialize(source, output, 'cjk', weight, location, preserve_metrics=True)
+        if report['face'] != face or file_identity(source.stat()) != before or digests.sha256(source) != source_hash:
+            raise ValueError('防裁切处理期间来源字体或字面已变化')
+        if not 12 <= output.stat().st_size <= 128 * 1024 * 1024:
+            raise ValueError('防裁切样本大小无效')
+        with TTFont(output, lazy=True, recalcTimestamp=False) as check:
+            actual_cmap = _cmap(check)
+            if ('fvar' in check or not any(tag in check for tag in ('glyf', 'CFF ', 'CFF2'))
+                    or not original_cmap[0].issubset(actual_cmap[0])
+                    or not original_cmap[1].issubset(actual_cmap[1])):
+                raise ValueError('防裁切样本的字符映射校验失败')
+        return output, {'mode': 'variable-default-instance', 'axes': location,
+                        'sourceSha256': source_hash, 'outputSha256': digests.sha256(output),
+                        'instancing': report['instancing'],
+                        'variationFallbacks': report.get('variationFallbacks', [])}
+    except Exception:
+        output.unlink(missing_ok=True)
+        raise
+
+
 def preference_path(module, family):
     if (not family or len(family) > 240 or family in ('.', '..', 'default')
             or any(char in family for char in ('/', '\\', '\n', '\r', '\0'))):

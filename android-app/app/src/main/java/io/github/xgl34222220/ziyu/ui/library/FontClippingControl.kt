@@ -62,7 +62,7 @@ internal fun FontClippingControl(font: FontItem, busy: Boolean) {
     }
     Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ZiyuText("自动防裁切", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            ZiyuText("启用", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
             ZiyuSwitch(
                 checked = enabled, enabled = loaded && !busy && !saving && font.valid,
                 onCheckedChange = { requested ->
@@ -85,11 +85,11 @@ internal fun FontClippingControl(font: FontItem, busy: Boolean) {
             )
         }
         ZiyuText(
-            "改善文字顶部或底部被截断的问题。开启后重新应用这款字体，文字可能略小。",
+            "重新应用后生效，文字可能略小。",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        ZiyuText(
-            "支持普通静态字体和已保存的静态组合。可变字体请先在组合页保存字重。",
+        if (font.variable) ZiyuText(
+            "可变字体按默认字重适配。",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
