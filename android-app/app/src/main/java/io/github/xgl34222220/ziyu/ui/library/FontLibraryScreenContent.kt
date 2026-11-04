@@ -397,7 +397,6 @@ private fun LibraryFontCard(
                     NativeFontPreview(
                         font = font,
                         text = previewText.ifBlank { if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123" },
-                        axes = if (font.variable) mapOf("wght" to 400f) else emptyMap(),
                         modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 14.dp),
                         textSizeSp = 23f, gravity = Gravity.CENTER_VERTICAL, maxLines = 1,
                     )
@@ -435,6 +434,14 @@ private fun LibraryFontCard(
                     onClick = onApply,
                     enabled = font.valid && !busy,
                     modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 0.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp,
+                        disabledElevation = 0.dp,
+                    ),
                 ) {
                     Text(if (active) "重新应用" else "应用字体", fontSize = 13.sp)
                 }

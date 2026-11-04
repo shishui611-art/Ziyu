@@ -6,7 +6,7 @@
 # attempt bind without depending on its OverlayFS or metamodule integration.
 ziyu_mount_auto_self_backend() {
     case "${1:-unknown}" in
-        Magisk|KernelSU|SukiSU\ Ultra|APatch) printf 'self_mount\n' ;;
+        Magisk|KernelSU|SukiSU\ Ultra|FinaSU|APatch) printf 'self_mount\n' ;;
         *) printf 'magic\n' ;;
     esac
 }

@@ -1,7 +1,12 @@
 package io.github.xgl34222220.ziyu.ui.settings
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -31,16 +35,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.xgl34222220.ziyu.RootReplyJson
 import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
 import io.github.xgl34222220.ziyu.ui.design.ZiyuCircularProgressIndicator as CircularProgressIndicator
 import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon as Icon
 import io.github.xgl34222220.ziyu.ui.design.ZiyuModalBottomSheet as ModalBottomSheet
 import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton as OutlinedButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedTextField as OutlinedTextField
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
 import io.github.xgl34222220.ziyu.ui.design.ZiyuSurface as Surface
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
 import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
@@ -51,14 +59,35 @@ import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuThemeTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuShapeTokens
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.Collator
 
 private const val APP_COVERAGE_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
 private val APP_PACKAGE_PATTERN = Regex("^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$")
+private data class AppChoice(val packageName: String, val label: String)
 
-private data class RunningAppChoice(val packageName: String, val processCount: Int)
+// Discover selectable launcher apps independently of Root and running processes.
+private suspend fun loadAppChoices(manager: PackageManager): List<AppChoice> = withContext(Dispatchers.IO) {
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    val rows = if (Build.VERSION.SDK_INT >= 33) manager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+        else @Suppress("DEPRECATION") manager.queryIntentActivities(intent, 0)
+    val collator = Collator.getInstance()
+    rows.mapNotNull { row ->
+        val info = row.activityInfo ?: return@mapNotNull null
+        val name = info.packageName
+        if (!APP_PACKAGE_PATTERN.matches(name)) return@mapNotNull null
+        val label = runCatching { manager.getApplicationLabel(info.applicationInfo).toString().trim() }
+            .getOrDefault(name).ifBlank { name }.take(120)
+        AppChoice(name, label)
+    }.distinctBy { it.packageName }.sortedWith { a, b ->
+        collator.compare(a.label, b.label).takeIf { it != 0 } ?: a.packageName.compareTo(b.packageName)
+    }
+}
 
 private data class CoverageFinding(
     val category: String,
@@ -91,10 +120,11 @@ private data class CoverageScanResult(
 
 @Composable
 internal fun UncoveredAppsPage() {
+    val context = LocalContext.current
     val layout = LocalZiyuThemeTokens.current.layout
     val tokens = LocalZiyuPaletteTokens.current
     val scope = rememberCoroutineScope()
-    var apps by remember { mutableStateOf(emptyList<RunningAppChoice>()) }
+    var apps by remember { mutableStateOf(emptyList<AppChoice>()) }
     var selectedPackage by rememberSaveable { mutableStateOf("") }
     var result by remember { mutableStateOf<AppCoverageResult?>(null) }
     var scanResult by remember { mutableStateOf<CoverageScanResult?>(null) }
@@ -103,246 +133,190 @@ internal fun UncoveredAppsPage() {
     var locating by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
+    var showBatch by rememberSaveable { mutableStateOf(false) }
+    val busy = locating || scanning
+    fun appName(name: String): String = apps.firstOrNull { it.packageName == name }?.label ?: name
 
     suspend fun request(action: String, packageName: String = ""): JSONObject {
         val args = if (action == "locate") " ${RootShell.quote(packageName)}" else ""
-        val shell = "sh ${RootShell.quote(APP_COVERAGE_BRIDGE)} app_coverage $action$args"
-        val shellResult = RootShell.exec(shell, if (action == "scan") 25_000L else 10_000L)
-        val response = runCatching { JSONObject(shellResult.stdout.trim()) }.getOrNull()
-        if (shellResult.code != 0 || response?.optString("status") != "ok") {
-            val message = response?.optString("message").orEmpty()
-                .ifBlank { shellResult.stderr.ifBlank { "Root 诊断命令失败" } }
-            throw IllegalStateException(message.take(180))
+        val reply = RootShell.exec("sh ${RootShell.quote(APP_COVERAGE_BRIDGE)} app_coverage $action$args", 25_000L)
+        val response = runCatching { RootReplyJson.firstObject(reply.stdout) }.getOrNull()
+        if (reply.code != 0 || response?.optString("status") != "ok") {
+            throw IllegalStateException(response?.optString("message").orEmpty().ifBlank {
+                reply.stderr.trim().ifBlank { "应用检查未返回结果（退出码 ${reply.code}）" }
+            }.take(1200))
         }
-        return response.optJSONObject("data") ?: throw IllegalStateException("诊断结果格式无效")
+        return response.optJSONObject("data") ?: kotlin.error("应用检查结果不完整")
     }
 
     fun refreshApps() {
-        if (loadingApps || locating || scanning) return
+        if (loadingApps || busy) return
         scope.launch {
             loadingApps = true
             error = ""
             try {
-                val data = request("running")
-                apps = data.arrayObjects("packages").mapNotNull { row ->
-                    val packageName = row.optString("package")
-                    if (!APP_PACKAGE_PATTERN.matches(packageName)) null
-                    else RunningAppChoice(packageName, row.optInt("processCount").coerceAtLeast(1))
-                }
-                if (selectedPackage !in apps.map { it.packageName }) selectedPackage = ""
-                if (apps.isEmpty()) error = "当前没有发现可选择的运行中应用。先打开目标应用，再刷新列表。"
-                if (data.optBoolean("truncated")) error = "运行进程较多，列表已限制为前 96 个应用；可重新打开目标应用后刷新。"
-            } catch (failure: Throwable) {
-                error = failure.message.orEmpty().ifBlank { "读取运行应用失败" }
-            } finally {
-                loadingApps = false
-            }
+                apps = loadAppChoices(context.packageManager)
+                // Closing an app must not remove the user's selection.
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = failure.message.orEmpty().ifBlank { "读取应用列表失败" }
+            } finally { loadingApps = false }
         }
     }
 
     fun locateSelected() {
-        if (locating || scanning || !APP_PACKAGE_PATTERN.matches(selectedPackage)) return
+        if (busy || !APP_PACKAGE_PATTERN.matches(selectedPackage)) return
+        val target = selectedPackage
         scope.launch {
-            locating = true
-            error = ""
-            scanResult = null
-            result = null
-            try {
-                result = parseCoverageResult(request("locate", selectedPackage))
-            } catch (failure: Throwable) {
-                error = failure.message.orEmpty().ifBlank { "应用字体检测失败" }
-            } finally {
-                locating = false
-            }
+            locating = true; error = ""; scanResult = null; result = null
+            try { result = parseCoverageResult(request("locate", target)) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = failure.message.orEmpty().ifBlank { "检查失败，请重试" } }
+            finally { locating = false }
         }
     }
 
     fun scanRunningApps() {
-        if (locating || scanning) return
+        if (busy) return
         scope.launch {
-            scanning = true
-            error = ""
-            result = null
-            scanResult = null
-            try {
-                scanResult = parseCoverageScan(request("scan"))
-            } catch (failure: Throwable) {
-                error = failure.message.orEmpty().ifBlank { "应用扫描失败" }
-            } finally {
-                scanning = false
-            }
+            scanning = true; error = ""; result = null; scanResult = null
+            try { scanResult = parseCoverageScan(request("scan")) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = failure.message.orEmpty().ifBlank { "批量检查失败" } }
+            finally { scanning = false }
         }
     }
 
     LaunchedEffect(Unit) { refreshApps() }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = layout.pageHorizontal,
-            top = layout.pageTop,
-            end = layout.pageHorizontal,
-            bottom = maxOf(layout.dockSafeBottom, 24.dp),
-        ),
+        contentPadding = PaddingValues(start = layout.pageHorizontal, top = layout.pageTop,
+            end = layout.pageHorizontal, bottom = maxOf(layout.dockSafeBottom, 24.dp)),
         verticalArrangement = Arrangement.spacedBy(layout.cardGap),
     ) {
         item {
-            CoverageCard("只读字体来源检查") {
-                Text(
-                    "检查应用当前使用的字体。",
-                    color = tokens.textSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    "请先打开要检查的页面。应用内置或下载字体可能无法替换。",
-                    color = tokens.textSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-        item {
-            CoverageCard("选择应用") {
-                Text(
-                    if (selectedPackage.isBlank()) "先打开要检查的应用，再从运行列表选择。也可以直接扫描当前运行应用。"
-                    else "已选择：$selectedPackage",
-                    color = tokens.textSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(10.dp))
-                OutlinedButton(
-                    onClick = { showPicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = apps.isNotEmpty() && !loadingApps && !locating && !scanning,
-                ) {
-                    Text(if (selectedPackage.isBlank()) "选择运行中的应用" else "更换应用")
+            CoverageCard("字体没有变化？") {
+                Text("查看应用使用了什么字体，帮助查找原因。", color = tokens.textSecondary,
+                    style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth(), enabled = !busy) {
+                    Text(if (selectedPackage.isBlank()) "选择应用" else appName(selectedPackage),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = ::refreshApps,
-                        modifier = Modifier.weight(1f),
-                        enabled = !loadingApps && !locating && !scanning,
-                    ) {
-                        if (loadingApps) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Rounded.Refresh, null, Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("刷新列表")
+                Text("打开文字异常的页面，再回到这里检查。", color = tokens.textSecondary,
+                    style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        try {
+                            val intent = context.packageManager.getLaunchIntentForPackage(selectedPackage)
+                                ?: kotlin.error("这个应用没有启动入口，请手动打开后检查")
+                            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            error = ""
+                        } catch (failure: Exception) {
+                            error = failure.message.orEmpty().ifBlank { "无法打开应用，请手动打开后检查" }
+                        }
+                    }, enabled = selectedPackage.isNotBlank() && !busy) { Text("打开应用") }
+                    Button(onClick = ::locateSelected, enabled = APP_PACKAGE_PATTERN.matches(selectedPackage) && !busy) {
+                        if (locating) { CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp); Spacer(Modifier.width(7.dp)) }
+                        Text(if (locating) "检查中…" else "检查字体")
                     }
-                    Button(
-                        onClick = ::locateSelected,
-                        modifier = Modifier.weight(1f),
-                        enabled = APP_PACKAGE_PATTERN.matches(selectedPackage) && !locating && !scanning,
-                    ) {
-                        if (locating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Rounded.Search, null, Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("检测此应用")
-                    }
-                }
-            }
-        }
-        item {
-            CoverageCard("一键扫描") {
-                Text(
-                    "扫描最多 24 个运行中的应用，最多运行 16 秒。超出范围时会标记部分结果。",
-                    color = tokens.textSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Spacer(Modifier.height(9.dp))
-                Button(
-                    onClick = ::scanRunningApps,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !locating && !scanning,
-                ) {
-                    if (scanning) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Rounded.Search, null, Modifier.size(17.dp))
-                    Spacer(Modifier.width(7.dp))
-                    Text(if (scanning) "正在扫描…" else "扫描未覆盖应用")
                 }
             }
         }
         if (error.isNotBlank()) item {
-            CoverageCard("状态") {
-                Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
+            CoverageCard("检查未完成") { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
-        result?.let { report ->
-            item { CoverageResultCard(report) }
-        }
+        result?.let { report -> item { CoverageResultCard(report, appName(report.packageName)) } }
         scanResult?.let { report ->
             item {
-                CoverageCard("扫描结果") {
-                    if (report.verdict == "no-payload") {
-                        Text("请先应用字体并按提示重启。", color = tokens.textSecondary)
-                    } else {
-                        Text("已检查 ${report.scanned} 个应用 · ${report.covered} 个映射到字域字体 · ${report.uncertain} 个无法判断", color = tokens.textSecondary)
-                        if (report.truncated) {
-                            Spacer(Modifier.height(5.dp))
-                            Text("已到达进程或时间上限，以下是部分结果。", color = MaterialTheme.colorScheme.tertiary, fontSize = 12.sp)
-                        }
-                        if (report.items.isEmpty() && report.scanned == 0) {
-                            Spacer(Modifier.height(6.dp))
-                            Text("没有发现运行中的应用。先打开需要检查的应用，再扫描。", color = tokens.textSecondary)
-                        }
-                    }
+                CoverageCard("批量检查结果") {
+                    Text(if (report.verdict == "no-payload") "先应用字体并按提示重启，再回来检查。"
+                        else "检查 ${report.scanned} 个 · ${report.covered} 个读到字域字体 · ${report.uncertain} 个无法判断",
+                        color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+                    if (report.truncated) Text("本次只检查了部分应用。", color = MaterialTheme.colorScheme.tertiary, fontSize = 12.sp)
+                    if (report.scanned == 0 && report.verdict != "no-payload") Text("先打开要检查的应用。", color = tokens.textSecondary)
                 }
             }
-            items(report.items, key = { "${it.packageName}:${it.verdict}" }) { item ->
-                CoverageResultCard(item)
+            items(report.items, key = { it.packageName }) { row -> CoverageResultCard(row, appName(row.packageName)) }
+        }
+        if (result != null || scanResult != null) item {
+            Text("结果仅反映已读到的字体，不能代表应用里的所有文字。", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+        item {
+            TextButton(onClick = { showBatch = !showBatch }, enabled = !busy) { Text(if (showBatch) "收起批量检查" else "批量检查") }
+            if (showBatch) CoverageCard("运行中的应用") {
+                Text("一次检查多个已打开的应用。", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = ::scanRunningApps, enabled = !busy) {
+                    if (scanning) { CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp); Spacer(Modifier.width(7.dp)) }
+                    Text(if (scanning) "检查中…" else "开始检查")
+                }
             }
+            TextButton(onClick = {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/shishui611-art/Ziyu"))) }
+                    .onFailure { error = "无法打开浏览器，请前往 GitHub 字域仓库查看说明" }
+            }) { Text("使用说明") }
         }
     }
+    if (showPicker) AppChoiceSheet(apps, selectedPackage, loadingApps,
+        onRefresh = ::refreshApps, onDismiss = { showPicker = false },
+        onChoose = { selectedPackage = it; result = null; scanResult = null; error = ""; showPicker = false })
+}
 
-    if (showPicker) {
-        ModalBottomSheet(
-            onDismissRequest = { showPicker = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
-        ) {
-            Column(
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp).padding(bottom = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("选择运行中的应用", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text("列表只显示当前运行中的包名；要检查的应用需要保持打开。", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-                if (apps.isEmpty()) {
-                    Text("没有可选应用。关闭此页后打开目标应用，再刷新列表。", color = tokens.textSecondary)
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        items(apps, key = { it.packageName }) { app ->
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = ZiyuShapeTokens.Medium,
-                                color = if (app.packageName == selectedPackage) MaterialTheme.colorScheme.primaryContainer else tokens.cardBackground,
-                                border = io.github.xgl34222220.ziyu.ui.theme.ZiyuCardDefaults.border(),
-                                onClick = {
-                                    selectedPackage = app.packageName
-                                    showPicker = false
-                                },
-                            ) {
-                                Row(
-                                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(app.packageName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                        Text("${app.processCount} 个运行进程", color = tokens.textSecondary, fontSize = 11.sp)
-                                    }
-                                }
-                            }
-                        }
+@Composable
+private fun AppChoiceSheet(apps: List<AppChoice>, selected: String, loading: Boolean,
+    onRefresh: () -> Unit, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
+    val tokens = LocalZiyuPaletteTokens.current
+    var query by rememberSaveable { mutableStateOf("") }
+    var manual by rememberSaveable { mutableStateOf(false) }
+    var packageName by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(apps, query) {
+        val text = query.trim()
+        apps.filter { text.isBlank() || it.label.contains(text, true) || it.packageName.contains(text, true) }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) {
+        // The entire sheet scrolls, including manual input/actions at large font scales.
+        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).navigationBarsPadding(),
+            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Text("选择应用", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(value = query, onValueChange = { query = it.take(120) }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, placeholder = { Text("搜索应用") },
+                    leadingIcon = { ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, null) } })
+            }
+            if (loading) item { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) }
+            if (!loading && filtered.isEmpty()) item {
+                Text(if (query.isBlank()) "没有读到应用，可刷新或按包名选择。" else "没有找到应用", color = tokens.textSecondary)
+            }
+            items(filtered, key = { it.packageName }) { app ->
+                Surface(modifier = Modifier.fillMaxWidth(), shape = ZiyuShapeTokens.Medium,
+                    color = if (app.packageName == selected) MaterialTheme.colorScheme.primaryContainer else tokens.cardBackground,
+                    border = io.github.xgl34222220.ziyu.ui.theme.ZiyuCardDefaults.border(),
+                    onClick = { onChoose(app.packageName) }) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                        Text(app.label, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(app.packageName, color = tokens.textSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                TextButton(onClick = { showPicker = false; refreshApps() }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Rounded.Refresh, null, Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("刷新应用列表")
+            }
+            item {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onRefresh, enabled = !loading) { Text("刷新列表") }
+                    TextButton(onClick = { manual = !manual }) { Text(if (manual) "收起包名" else "按包名选择") }
+                }
+                if (manual) {
+                    OutlinedTextField(value = packageName, onValueChange = { packageName = it.trim().take(256) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("应用包名") },
+                        placeholder = { Text("如 com.tencent.mm") })
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { onChoose(packageName) }, enabled = APP_PACKAGE_PATTERN.matches(packageName)) { Text("选择") }
                 }
             }
         }
@@ -350,41 +324,29 @@ internal fun UncoveredAppsPage() {
 }
 
 @Composable
-private fun CoverageResultCard(result: AppCoverageResult) {
+private fun CoverageResultCard(result: AppCoverageResult, label: String) {
     val tokens = LocalZiyuPaletteTokens.current
-    CoverageCard(result.packageName) {
-        Text("检查到 ${result.audited}/${result.processCount} 个进程", color = tokens.textSecondary, fontSize = 12.sp)
-        if (result.memfdCount > 0) {
-            Text("共享内存字体映射段：${result.memfdCount}", color = tokens.textSecondary, fontSize = 12.sp)
-        }
+    var expanded by rememberSaveable(result.packageName, result.verdict) { mutableStateOf(false) }
+    CoverageCard(label) {
         result.findings.forEach { finding ->
-            Spacer(Modifier.height(7.dp))
             Text(finding.title, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             Text(finding.action, color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-            finding.files.takeIf { it.isNotEmpty() }?.let { files ->
-                Text("相关字体：${files.joinToString("、")}", color = tokens.textSecondary, fontSize = 11.sp)
-            }
+            Spacer(Modifier.height(6.dp))
         }
-        result.files.takeIf { it.isNotEmpty() }?.let { files ->
-            Spacer(Modifier.height(7.dp))
-            files.forEach { file ->
+        if (result.truncated) Text("本次检查不完整，可稍后重试。", color = MaterialTheme.colorScheme.tertiary, fontSize = 12.sp)
+        TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起结果" else "查看结果详情") }
+        if (expanded) {
+            Text(result.packageName, color = tokens.textSecondary, fontSize = 11.sp)
+            Text("已检查 ${result.audited}/${result.processCount} 个进程", color = tokens.textSecondary, fontSize = 12.sp)
+            if (result.memfdCount > 0) Text("共享内存字体映射段：${result.memfdCount}", color = tokens.textSecondary, fontSize = 12.sp)
+            result.files.forEach { file ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(file.name, Modifier.weight(1f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(file.name, Modifier.weight(1f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.width(8.dp))
                     Text(fontKindLabel(file.kind), color = tokens.textSecondary, fontSize = 11.sp)
                 }
             }
         }
-        if (result.truncated) {
-            Spacer(Modifier.height(5.dp))
-            Text("映射列表达到读取上限，结果可能不完整。", color = MaterialTheme.colorScheme.tertiary, fontSize = 11.sp)
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "这是进程映射来源的诊断，不保证当前屏幕文字都由所列字体绘制。",
-            color = tokens.textSecondary,
-            fontSize = 11.sp,
-        )
     }
 }
 
@@ -410,7 +372,7 @@ private fun CoverageCard(title: String, content: @Composable () -> Unit) {
 }
 
 private fun fontKindLabel(kind: String): String = when (kind) {
-    "payload" -> "字域负载"
+    "payload" -> "字域字体"
     "stock" -> "系统字体"
     "theme" -> "主题/字体服务"
     "updatable" -> "系统字体服务"

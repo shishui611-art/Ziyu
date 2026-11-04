@@ -44,6 +44,8 @@ ziyu_mount_backend_details() {
             meta-overlayfs) MOUNT_PROVIDER_NAME='Meta OverlayFS 元模块' ;;
             magisk-magic-mount) MOUNT_PROVIDER_NAME='Magisk 内置 Magic Mount'; MOUNT_PROVIDER_VERSION='' ;;
             apatch-native-module-mount) MOUNT_PROVIDER_NAME='APatch 内置模块挂载'; MOUNT_PROVIDER_VERSION='' ;;
+            finasu-folk-mount) MOUNT_PROVIDER_NAME='FinaSU Folk Mount'; MOUNT_PROVIDER_VERSION=$ZIYU_BACKEND_ROOT_VERSION ;;
+            finasu-nomount) MOUNT_PROVIDER_NAME='FinaSU 内置 NoMount'; MOUNT_PROVIDER_VERSION=$ZIYU_BACKEND_ROOT_VERSION ;;
             none) MOUNT_PROVIDER_NAME='无外部提供者' ;;
             *) MOUNT_PROVIDER_NAME="${_mbd_provider:-尚未确认}" ;;
         esac
@@ -66,7 +68,7 @@ ziyu_mount_backend_details() {
     fi
     # VFS redirection has no mountinfo entry. Use the selected provider's boot record.
     case "$_mbd_selected:$_mbd_provider" in
-        external:nomount|meta:nomount)
+        external:nomount|meta:nomount|external:finasu-nomount)
             MOUNT_METHOD='NoMount VFS 路径重定向'; MOUNT_METHOD_EVIDENCE='本次启动提供者记录'; return 0 ;;
         external:hybrid-mount|meta:hybrid-mount)
             if [ "$ZIYU_BACKEND_META_HYBRID_MODE" = vfs ]; then

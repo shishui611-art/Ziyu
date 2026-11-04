@@ -259,6 +259,7 @@ cp "$ROOT/common/mount_self_backend.sh" "$STAGE_MODULE/common/mount_self_backend
 cp "$ROOT/common/mount_backend_runtime.sh" "$STAGE_MODULE/common/mount_backend_runtime.sh"
 cp "$ROOT/common/mount_backend_state.sh" "$STAGE_MODULE/common/mount_backend_state.sh"
 cp "$ROOT/common/private_payload.sh" "$STAGE_MODULE/common/private_payload.sh"
+cp "$ROOT/common/private_payload.lib" "$STAGE_MODULE/common/private_payload.lib"
 cp "$ROOT/common/font_live_switch.sh" "$STAGE_MODULE/common/font_live_switch.sh"
 cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$STAGE_MODULE/common/"
 cp "$ROOT/common/font_switch_lock.sh" "$STAGE_MODULE/common/font_switch_lock.sh"

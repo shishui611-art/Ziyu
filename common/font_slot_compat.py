@@ -18,6 +18,7 @@ from fontTools.ttLib import TTFont, TTLibError
 from composite_collection_build import (identity, protected, replace_face, verify_dependency_copies,
                                        raw_table_hashes, contract_matches)
 from font_digest_cache import FontDigestCache
+from font_metrics_io import FontMetricsIO
 import font_source_profile
 import stock_font_snapshot
 import font_clipping_compat
@@ -34,6 +35,7 @@ class SlotCompat:
         self.digests = FontDigestCache()
         self.outputs = {}
         self._variable_outputs = {}
+        self._variable_metrics_io = FontMetricsIO()
         self._donor = None
         self._donor_identity = None
         self._donor_path = None
@@ -41,6 +43,7 @@ class SlotCompat:
         # Only immutable paths/identities are shared across fork, never TTFont
         # objects or mutable outline caches. Every worker rechecks its inputs.
         self._prepared_donors = dict(prepared_donors or {})
+        self._clipping_facts = {}
         self._recordings = {}
         self._outline_cache = {}
         self._donor_loads = 0
@@ -98,11 +101,43 @@ class SlotCompat:
             if identity(actual) != pinned or self.digests.sha256(actual) != digest:
                 raise ValueError('防裁切测量来源在本批次中发生变化')
         else:
-            actual, detail = font_clipping_compat.prepare_donor(path, self.digests)
+            digest = self.digests.sha256(path)
+            if digest in self._clipping_facts:
+                actual, detail = path, self._clipping_facts[digest]
+            else:
+                actual, detail = font_clipping_compat.prepare_donor(path, self.digests)
+                self._clipping_facts[digest] = detail
             self._prepared_donors[expected] = (actual, detail, identity(actual), self.digests.sha256(actual))
         if identity(path) != expected:
             raise ValueError('防裁切来源在测量期间发生变化')
         return actual, detail
+
+    def prepare_clipping_batch(self, jobs):
+        """Bind one scale to all checked targets of each variable source."""
+        if not font_clipping_compat.enabled():
+            return {}
+        from font_clipping_variable import prepare_templates
+        from font_digest_cache import file_identity
+        groups = {}
+        for donor, stock in jobs:
+            donor, stock = Path(donor), Path(stock)
+            actual, detail = self._preparation(donor, identity(donor))
+            if detail is None:
+                continue
+            digest = self.digests.sha256(actual)
+            group = groups.setdefault(digest, {'source': actual, 'detail': detail, 'stocks': set()})
+            group['stocks'].add(stock)
+        for digest, group in groups.items():
+            templates = prepare_templates(group['source'], group['stocks'], self.workspace,
+                                          group['detail']['facts'], self.digests)
+            for key, (actual, detail, pin, source_hash) in list(self._prepared_donors.items()):
+                if source_hash != digest or detail is None:
+                    continue
+                if identity(actual) != pin or self.digests.sha256(actual) != digest:
+                    raise ValueError('防裁切来源在共用比例准备期间发生变化')
+                bound = dict(templates, sourceIdentity=file_identity(actual.stat()))
+                self._prepared_donors[key] = (actual, dict(detail, templates=bound), pin, digest)
+        return dict(self._prepared_donors)
 
     def stats(self):
         return {'compatDonorLoads': self._donor_loads,
@@ -113,7 +148,8 @@ class SlotCompat:
                 'nativeGlyphHits': self._native_hits + self._outline_cache.get('nativeGlyphHits', 0),
                 'nativeCffHits': self._native_cff_hits + self._outline_cache.get('nativeCffHits', 0),
                 'nativeCffBytes': max(self._native_cff_bytes, self._outline_cache.get('nativeCffBytes', 0)),
-                'nativeGlyphBytes': max(self._native_bytes, self._outline_cache.get('nativeGlyphBytes', 0))}
+                'nativeGlyphBytes': max(self._native_bytes, self._outline_cache.get('nativeGlyphBytes', 0)),
+                'variableTemplateHeaderWrites': self._variable_metrics_io.direct_writes}
 
     def prepare(self, donor: Path, logical: str) -> tuple[Path, dict]:
         if donor.is_symlink():
@@ -153,7 +189,8 @@ class SlotCompat:
                     previous = self._variable_outputs.get(geometry_key)
                     if previous is None:
                         self.close()
-                        report = fit_container(actual, stock, output, detail['facts'], self.digests)
+                        report = fit_container(actual, stock, output, detail['facts'], self.digests,
+                            templates=detail.get('templates'), metrics_io=self._variable_metrics_io)
                         self._variable_outputs[geometry_key] = (output, report, identity(output), self.digests.sha256(output))
                     else:
                         output, report, pinned, digest = previous
@@ -172,8 +209,8 @@ class SlotCompat:
             source = self._source(donor, before)
             with TTFont(stock, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as base:
                 if 'fvar' in source and font_clipping_compat.enabled():
-                    from font_clipping_variable import fit_container, line_contract
-                    geometry_key = (before, line_contract(base))
+                    from font_clipping_variable import fit_container, fitting_contract
+                    geometry_key = (before, fitting_contract(base))
                     previous = self._variable_outputs.get(geometry_key)
                     if previous is not None:
                         result, report, pinned, digest = previous
@@ -184,7 +221,8 @@ class SlotCompat:
                         facts = (self._donor_preparation or {}).get('facts')
                         if facts is None:
                             raise ValueError('缺少完整可变轮廓测量结果')
-                        report = fit_container(self._donor_path, stock, output, facts, self.digests)
+                        report = fit_container(self._donor_path, stock, output, facts, self.digests,
+                            templates=(self._donor_preparation or {}).get('templates'), metrics_io=self._variable_metrics_io)
                         result = output
                         self._variable_outputs[geometry_key] = (result, report, identity(result), self.digests.sha256(result))
                     if identity(donor) != before or identity(stock) != stock_before:

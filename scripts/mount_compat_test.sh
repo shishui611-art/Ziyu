@@ -17,6 +17,7 @@ new_module() {
     cp "$ROOT/common/mount_compat.sh" "$MODULE/common/mount_compat.sh"
     cp "$ROOT/common/mount_compat_base.sh" "$MODULE/common/mount_compat_base.sh"
     cp "$ROOT/common/mount_self_fallback.sh" "$MODULE/common/mount_self_fallback.sh"
+    cp "$ROOT/common/mount_self_fallback.lib" "$MODULE/common/mount_self_fallback.lib"
     cp "$ROOT/common/mount_compat_policy.sh" "$MODULE/common/mount_compat_policy.sh"
     printf 'id=Ziyu\nversion=v2.2.7\nversionCode=20207\n' > "$MODULE/module.prop"
     printf 'font-a' > "$MODULE/system/fonts/Roboto-Regular.ttf"

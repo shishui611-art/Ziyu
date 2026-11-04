@@ -212,7 +212,7 @@ internal class ModuleReleaseUpdater(private val context: Context) {
         installer=
         case "${'$'}ROOT_MANAGER" in
             Magisk) candidates="/data/adb/magisk/magisk ${'$'}(command -v magisk 2>/dev/null || true)"; kind=magisk ;;
-            KernelSU|'SukiSU Ultra') candidates="/data/adb/ksud /data/adb/ksu/bin/ksud /data/adb/ksu/ksud ${'$'}(command -v ksud 2>/dev/null || true)"; kind=ksu ;;
+            KernelSU|'SukiSU Ultra'|FinaSU) candidates="/data/adb/ksud /data/adb/ksu/bin/ksud /data/adb/ksu/ksud ${'$'}(command -v ksud 2>/dev/null || true)"; kind=ksu ;;
             APatch) candidates="/data/adb/ap/bin/apd /data/adb/apd ${'$'}(command -v apd 2>/dev/null || true)"; kind=apatch ;;
             *) echo '无法确认当前 Root 管理器，未安装模块' >&2; exit 1 ;;
         esac

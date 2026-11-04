@@ -31,7 +31,7 @@ def fit_stage(module: Path, stage: Path, defer_collections: bool = False):
     collection_bytes = collection_count = 0
     with tempfile.TemporaryDirectory(prefix='.ziyu-clipping-', dir=stage) as temporary:
         workspace = Path(temporary)
-        collection_donors = {}
+        jobs = []
         with SlotCompat(module, workspace) as compat:
             for logical in sorted(indexed):
                 parts = PurePosixPath(logical).parts
@@ -50,27 +50,27 @@ def fit_stage(module: Path, stage: Path, defer_collections: bool = False):
                     raise ValueError(f'原厂字体未核验，请重新扫描：{Path(logical).name}')
                 before = identity(target)
                 pinned.append((target, before))
+                pinned.append((stock, identity(stock)))
                 with stock.open('rb') as stream:
                     is_collection = stream.read(4) == b'ttcf'
                 if is_collection and defer_collections:
                     continue  # The existing composite builder fits and proves every face below.
                 if is_collection:
-                    count = collection_faces(stock)
-                    collection_count += count
+                    collection_count += collection_faces(stock)
                     if collection_count > MAX_COLLECTION_FACE_TOTAL:
                         raise ValueError('本次字体集合字面过多，请关闭防裁切后重试')
+                jobs.append((logical, target, donor, stock, before, is_collection))
+            donors = compat.prepare_clipping_batch((donor, stock) for _, _, donor, stock, _, _ in jobs)
+            for logical, target, donor, stock, before, is_collection in jobs:
+                if is_collection:
                     output = workspace / f'collection-{len(prepared)}.ttc'
-                    cached = collection_donors.get(before)
-                    if cached is None:
-                        actual, instance = font_clipping_compat.prepare_donor(donor, compat.digests)
-                        cached = (actual, instance, identity(actual), compat.digests.sha256(actual))
-                        collection_donors[before] = cached
-                    actual, instance, pinned_donor, donor_hash = cached
+                    actual, instance, pinned_donor, donor_hash = donors[before]
                     if identity(actual) != pinned_donor or compat.digests.sha256(actual) != donor_hash:
                         raise ValueError('防裁切集合样本在生成期间发生变化')
                     if instance is not None:
                         from font_clipping_variable import fit_container
-                        report = fit_container(actual, stock, output, instance['facts'], compat.digests)
+                        report = fit_container(actual, stock, output, instance['facts'], compat.digests,
+                            templates=instance.get('templates'), metrics_io=compat._variable_metrics_io)
                         if output.stat().st_size > MAX_COLLECTION_BYTES - collection_bytes:
                             raise ValueError('可变防裁切集合超出本次容量预算')
                     else:

@@ -15,7 +15,7 @@ import org.json.JSONObject
 private data class CurrentPreview(val file: File? = null, val data: JSONObject? = null, val error: String = "")
 
 @Composable
-internal fun NativeCurrentFontPreview(fontId: String, text: String, weight: Float, modifier: Modifier,
+internal fun NativeCurrentFontPreview(fontId: String, text: String, weight: Float?, modifier: Modifier,
     textSizeSp: Float = 22f) {
     val context = LocalContext.current.applicationContext
     val preview by produceState(CurrentPreview(), fontId) {
@@ -56,7 +56,7 @@ internal fun NativeCurrentFontPreview(fontId: String, text: String, weight: Floa
             val axis = preview.data?.optJSONObject("weightAxis")
             val range = axis?.let { it.getDouble("min").toFloat()..it.getDouble("max").toFloat() }
             NativeLocalFontPreview(file, preview.data!!.getString("sha256"), preview.data!!.optInt("faceIndex"), text,
-                range?.let { weight.coerceIn(it) }, Modifier.fillMaxWidth().weight(1f), textSizeSp = textSizeSp,
+                weight?.let { value -> range?.let { value.coerceIn(it) } }, Modifier.fillMaxWidth().weight(1f), textSizeSp = textSizeSp,
                 errorMessage = "当前字体样例无法预览。")
         }
     }

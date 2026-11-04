@@ -90,6 +90,25 @@ def write(path: Path, value: dict) -> None:
         temp.unlink(missing_ok=True)
 
 
+def selectable_fonts(module: Path, rules: dict) -> dict:
+    """Use cached topology and the existing policy; do not read font binaries."""
+    from font_role_shadow import build, _coloros_groups
+    config = module / "config"
+    topology = json.loads((config / "device_font_topology.json").read_text(encoding="utf-8"))
+    groups = _coloros_groups(config / "coloros_slot_groups.conf")
+    _, baseline = build(topology, groups)
+    options: dict[str, dict] = {}
+    for raw_path, slot in baseline["slots"].items():
+        if slot["action"] not in {"replace", "conditional", "specialized"}:
+            continue
+        try:
+            path = logical_path(raw_path)
+        except ValueError:
+            continue
+        options[path] = {"path": path, "name": posixpath.basename(path), "role": slot["role"]}
+    return {"status": "ok", "rules": rules, "fonts": sorted(options.values(), key=lambda item: (item["role"], item["name"].lower(), item["path"]))}
+
+
 def command(module: Path, action: str, encoded: str = "", expected: str = "") -> dict:
     config = module / "config"
     path = config / "font-slot-overrides.json"
@@ -102,6 +121,8 @@ def command(module: Path, action: str, encoded: str = "", expected: str = "") ->
             return {"status": "ok", "rules": load(path)}
         except (OSError, ValueError) as error:
             return {"status": "error", "message": str(error), "rules": validate({"schema": SCHEMA, "revision": 1})}
+    if action == "list":
+        return selectable_fonts(module, load(path))
     if len(encoded) > 90000:
         raise ValueError("规则内容过长")
     rules = validate(json.loads(base64.b64decode(encoded, validate=True)))
@@ -115,7 +136,8 @@ def command(module: Path, action: str, encoded: str = "", expected: str = "") ->
     except (OSError, ValueError):
         current = None
     previous_count = build(topology, groups, current)[1]["summary"]["candidateCount"] if current is not None else None
-    token = hashlib.sha256((digest(rules) + json.dumps(topology, sort_keys=True)).encode()).hexdigest()
+    current_digest = digest(current) if current is not None else "invalid-current-rules"
+    token = hashlib.sha256((digest(rules) + current_digest + json.dumps(topology, sort_keys=True) + json.dumps(sorted(groups))).encode()).hexdigest()
     if action == "save":
         if expected != token:
             raise ValueError("系统字体信息或规则已变化，请重新预览后保存")
@@ -136,15 +158,24 @@ def command(module: Path, action: str, encoded: str = "", expected: str = "") ->
         write(config / "device_font_shadow_plan.json", plan)
     elif action != "preview":
         raise ValueError("未知槽位规则操作")
+    retained = set()
+    for raw_path, slot in roles["slots"].items():
+        if not {"user-slot-excluded", "outside-user-slot-allowlist"}.intersection(slot["reasons"]):
+            continue
+        try:
+            retained.add(logical_path(raw_path))
+        except ValueError:
+            continue
     return {"status": "ok", "rules": rules, "token": token,
             "before": previous_count, "after": plan["summary"]["candidateCount"],
+            "retained": len(retained),
             "message": "规则已保存。当前字体保持原状，下次确认应用字体时使用新规则。" if action == "save" else "仅预览规则，不改变当前字体"}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("module", type=Path)
-    parser.add_argument("action", choices=("get", "validate", "identity", "preview", "save"))
+    parser.add_argument("action", choices=("get", "list", "validate", "identity", "preview", "save"))
     parser.add_argument("encoded", nargs="?", default="")
     parser.add_argument("expected", nargs="?", default="")
     args = parser.parse_args()

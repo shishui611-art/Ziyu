@@ -93,6 +93,7 @@ ziyu_install_choose_root_mode() {
         ui_print '✓ 已选择：临时 Root（已同步到字域 App）'
         case "${ROOT_MANAGER:-unknown}" in
             KernelSU|SukiSU\ Ultra) ui_print '• 软重启仍需管理器实际支持，由 App 检查并确认后执行' ;;
+            FinaSU) ui_print '• FinaSU 临时 Root 的软重启适配尚未完成，请勿完整重启' ;;
             *) ui_print '• 当前未确认 KernelSU 系列管理器，App 内软重启不可用，请按管理器支持的方式加载模块' ;;
         esac
     else
@@ -123,6 +124,9 @@ ziyu_install_choose_mount_backend() {
             ui_print '• 自动策略：Root 管理器未识别，重启时尝试 Magic Mount（bind）'
         else
             case "${ROOT_MANAGER:-unknown}" in
+                FinaSU)
+                    ui_print '• 自动策略：使用 FinaSU 当前选择的挂载引擎'
+                    ;;
                 Magisk|APatch)
                     ui_print '• 自动策略：优先可用元模块或管理器内置挂载，不可用则尝试字域自挂载'
                     ;;
@@ -164,6 +168,10 @@ ziyu_install_choose_mount_backend() {
     ZIYU_INSTALL_MOUNT_STATE=pending
     if [ "$ZIYU_INSTALL_BACKEND_PREFERENCE" != auto ]; then
         ui_print "• 挂载：待重启验证（使用已保存的 $_lui_mode）"
+        return 0
+    fi
+    if [ "${ROOT_MANAGER:-unknown}" = FinaSU ]; then
+        ui_print '• 挂载：待重启验证；关闭挂载时不会改用字域自挂载'
         return 0
     fi
     if [ "$_lui_auto_self_mode" = magic ]; then

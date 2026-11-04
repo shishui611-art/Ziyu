@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Warning
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import io.github.xgl34222220.ziyu.ui.design.ZiyuHorizontalDivider as HorizontalDivider
 import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon as Icon
@@ -45,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -60,7 +60,6 @@ import io.github.xgl34222220.ziyu.NativeFontPreview
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import io.github.xgl34222220.ziyu.ui.font.fontCapabilityLabel
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuLayoutTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuLoadingSkeleton
 
 private enum class FontPreviewMode(val label: String) {
@@ -177,7 +176,6 @@ internal fun FontDetailsDialogRoute(
                 NativeFontPreview(
                     font = font,
                     text = previewText,
-                    axes = if (font.variable) mapOf("wght" to 400f) else emptyMap(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(158.dp)
@@ -250,23 +248,11 @@ internal fun FontDetailsDialogRoute(
             }
 
             Spacer(Modifier.height(16.dp))
-            val technicalSurface = if (scheme.background.luminance() < .5f) {
-                elevated
-            } else {
-                ZiyuLayoutTokens.TechnicalSurface
-            }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
-                color = technicalSurface,
-                border = BorderStroke(
-                    0.5.dp,
-                    if (scheme.background.luminance() < .5f) {
-                        Color.Transparent
-                    } else {
-                        ZiyuLayoutTokens.LightCardOutline
-                    },
-                ),
+                color = elevated,
+                border = BorderStroke(0.5.dp, scheme.outlineVariant.copy(alpha = .42f)),
             ) {
                 Column {
                     Row(
@@ -327,34 +313,20 @@ internal fun FontDetailsDialogRoute(
             }
 
             Spacer(Modifier.height(18.dp))
-            if (active) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = tokens.success.copy(alpha = .11f),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = tokens.success)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (pending) "已准备，等待重启" else "当前正在使用", color = tokens.success, fontWeight = FontWeight.SemiBold)
-                    }
-                    Button(onClick = onApply, enabled = font.valid && !busy, modifier = Modifier.fillMaxWidth()) {
-                        Text("重新应用此字体")
-                    }
-                }
-            } else {
-                Button(
-                    onClick = onApply,
-                    enabled = font.valid && !busy,
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(17.dp),
-                ) {
-                    Text("应用此字体", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                }
+            Button(
+                onClick = onApply,
+                enabled = font.valid && !busy,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(17.dp),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 0.dp,
+                    pressedElevation = 0.dp,
+                    focusedElevation = 0.dp,
+                    hoveredElevation = 0.dp,
+                    disabledElevation = 0.dp,
+                ),
+            ) {
+                Text(if (active) "重新应用" else "应用字体", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

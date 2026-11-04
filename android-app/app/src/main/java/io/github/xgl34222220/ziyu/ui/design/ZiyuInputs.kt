@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox as MaterialCheckbox
 import androidx.compose.material3.CheckboxColors
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.TriStateCheckbox as MaterialTriStateCheckbox
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField as MaterialOutlinedTextField
@@ -93,9 +94,19 @@ fun ZiyuCheckbox(
     enabled: Boolean = true,
     colors: CheckboxColors? = null,
     interactionSource: MutableInteractionSource? = null,
+    indeterminate: Boolean = false,
 ) {
+    val state = if (indeterminate) ToggleableState.Indeterminate
+        else if (checked) ToggleableState.On else ToggleableState.Off
     when (LocalUiStyle.current) {
-        UiStyle.MATERIAL -> MaterialCheckbox(
+        UiStyle.MATERIAL -> if (indeterminate) MaterialTriStateCheckbox(
+            state = state,
+            onClick = onCheckedChange?.let { callback -> { callback(true) } },
+            modifier = modifier,
+            enabled = enabled,
+            colors = colors ?: CheckboxDefaults.colors(),
+            interactionSource = interactionSource,
+        ) else MaterialCheckbox(
             checked = checked,
             onCheckedChange = onCheckedChange,
             modifier = modifier,
@@ -104,7 +115,7 @@ fun ZiyuCheckbox(
             interactionSource = interactionSource,
         )
         UiStyle.MIUIX -> MiuixCheckbox(
-            state = if (checked) ToggleableState.On else ToggleableState.Off,
+            state = state,
             onClick = onCheckedChange?.let { callback -> { callback(!checked) } },
             modifier = modifier.ziyuMirrorPressInteractions(interactionSource, enabled),
             enabled = enabled,
@@ -122,7 +133,7 @@ fun ZiyuCheckbox(
             } ?: MiuixCheckboxDefaults.checkboxColors(),
         )
         UiStyle.COUI -> CouiCheckbox(
-            state = if (checked) ToggleableState.On else ToggleableState.Off,
+            state = state,
             onClick = onCheckedChange?.let { callback -> { callback(!checked) } },
             modifier = modifier.ziyuMirrorPressInteractions(interactionSource, enabled),
             enabled = enabled,

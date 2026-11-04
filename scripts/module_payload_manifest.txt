@@ -2,6 +2,8 @@
 # Standard partition payloads are migrated into .ziyu-payload during installation.
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .ziyu-runtime.
 common/app_bridge.sh
+common/app_status.sh
+common/module_connection_diagnostic.sh
 common/ziyu_health.sh
 common/adb_storage.sh
 common/adb_storage.py
@@ -38,6 +40,7 @@ common/composite_tune.sh
 common/device_font_boot_verify.sh
 common/device_font_cache.sh
 common/device_font_dynamic_guard.sh
+common/device_font_dynamic_guard.lib
 common/device_font_load_verify.py
 common/device_font_load_verify.sh
 common/device_font_payload_bridge.sh
@@ -46,6 +49,7 @@ common/device_font_payload_build_base.py
 common/device_font_payload_overlay.py
 common/device_font_payload_policy.sh
 common/device_font_payload_runtime.sh
+common/device_font_payload_runtime.lib
 common/device_font_payload_verify.py
 common/device_font_runtime_report.sh
 common/device_font_transaction_guard.sh
@@ -154,6 +158,7 @@ common/module_update_state.sh
 common/next_boot_payload.sh
 common/physical_payload_manifest.sh
 common/private_payload.sh
+common/private_payload.lib
 common/private_mount_policy.sh
 common/mount_compat.sh
 common/mount_compat_base.sh
@@ -162,6 +167,7 @@ common/mount_backend_runtime.sh
 common/mount_backend_state.sh
 common/mount_backend_policy.sh
 common/mount_provider_detection.sh
+common/finasu_mount.sh
 common/mount_provider_payload.sh
 common/mount_nomount_backend.sh
 common/skip_mount_ownership.sh
@@ -170,6 +176,7 @@ common/mount_fast_sync.sh
 common/mount_self_atomic.sh
 common/mount_self_backend.sh
 common/mount_self_fallback.sh
+common/mount_self_fallback.lib
 common/multiweight_mix_task.sh
 common/native_import.sh
 common/origin_flyme_global.sh
@@ -188,6 +195,7 @@ common/universal_font_deployment.py
 common/universal_font_deployment.sh
 common/universal_next_boot.sh
 common/universal_mount_runtime.sh
+common/universal_mount_runtime.lib
 common/universal_font_runtime_verify.py
 common/universal_font_runtime_verify.sh
 common/universal_font_cutover_gate.py

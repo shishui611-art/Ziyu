@@ -35,6 +35,7 @@ chmod +x "$TEST_BIN/cat"
 
 cp "$ROOT/uninstall.sh" "$MODDIR/uninstall.sh"
 cp "$ROOT/common/private_payload.sh" "$MODDIR/common/private_payload.sh"
+cp "$ROOT/common/private_payload.lib" "$MODDIR/common/private_payload.lib"
 cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/font_live_switch.sh"
 cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODDIR/common/"
 cp "$ROOT/common/font_switch_lock.sh" "$MODDIR/common/font_switch_lock.sh"

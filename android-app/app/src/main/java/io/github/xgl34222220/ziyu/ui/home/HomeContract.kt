@@ -58,17 +58,18 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
     val running = taskState == "running" || taskState == "queued"
     return HomeUiState(
         loading = loading,
-        version = version,
+        version = if (!installed && error.isNotBlank()) "未连接" else version,
         currentFont = effectiveLabel,
         currentFontId = activeFont,
         rootGranted = rootGranted,
         rootManager = rootManager,
         moduleInstalled = installed,
         mountEngine = mountEngine.replace("洛书", "字域"),
-        mountHealthy = rootGranted && installed && !effectFailed && mountState != "failed" &&
+        mountHealthy = rootGranted && installed && error.isBlank() && !detailsPending && !effectFailed && mountState != "failed" &&
             (mountState in setOf("mounted", "partial") || (activeFont in setOf("", "default") && mountState in setOf("idle", "not-applicable"))),
         taskRunning = running,
         taskTitle = when {
+            error.isNotBlank() -> if (installed && rootGranted) "模块状态未更新" else "模块未连接"
             detailsPending -> "模块已连接，正在读取详细状态"
             running -> "字体任务执行中"
             fontEffectState == "live" -> "字体热挂载成功"

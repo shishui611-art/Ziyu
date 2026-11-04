@@ -2,6 +2,10 @@
 # Read-only connection handshake. No font engine, mount discovery or Python.
 set +e
 MODDIR="${MODDIR:-${MODULE_DIR:-${0%/*}/..}}"
+MODDIR="$(CDPATH= cd -- "$MODDIR" 2>/dev/null && pwd)" || {
+    printf '模块目录无法读取\n' >&2
+    exit 1
+}
 _ah_cr=$(printf '\r')
 _ah_uid=$(id -u 2>/dev/null)
 _ah_id=''; _ah_version=''; _ah_code=0; _ah_active=default
@@ -35,14 +39,21 @@ if [ -n "$_ah_boot" ] && [ "$(_ah_prop "$MODDIR/config/mount-backend.conf" boot_
     case "$(_ah_prop "$MODDIR/config/mount-backend.conf" schema)" in
         ziyu-mount-backend-v1|ziyu-mount-backend-v2|ziyu-mount-backend-v3)
             case "$(_ah_prop "$MODDIR/config/mount-backend.conf" root_manager)" in
-                Magisk|KernelSU|APatch|'SukiSU Ultra') _ah_root=$(_ah_prop "$MODDIR/config/mount-backend.conf" root_manager) ;;
+                Magisk|KernelSU|FinaSU|APatch|'SukiSU Ultra') _ah_root=$(_ah_prop "$MODDIR/config/mount-backend.conf" root_manager) ;;
             esac ;;
     esac
 fi
 if [ -r "$MODDIR/config/active_font.conf" ]; then IFS= read -r _ah_active < "$MODDIR/config/active_font.conf"; fi
 _ah_active=${_ah_active%"$_ah_cr"}
 [ -n "$_ah_active" ] || _ah_active=default
-if [ "${1:-}" = probe ]; then
+if [ "${1:-}" = probe-v2 ]; then
+    # Typed key/value handshake avoids JSON escaping and the full status loader.
+    # RootShell frames this complete request; old probe/JSON clients stay valid.
+    _ah_bridge=false
+    [ ! -r "$MODDIR/common/app_bridge.sh" ] || _ah_bridge=true
+    printf 'schema=ziyu-app-handshake-v2\nuid=0\nmodule_id=%s\nmodule_dir=%s\nroot_manager=%s\nmodule_installed=%s\nmodule_pending_update=%s\nmodule_disabled=%s\nmodule_remove_pending=%s\nmodule_version=%s\nmodule_version_code=%s\nactive_font=%s\nbridge_responding=%s\n' \
+        "$_ah_id" "$MODDIR" "$_ah_root" "$_ah_installed" "$_ah_pending" "$_ah_disabled" "$_ah_remove" "$_ah_version" "$_ah_code" "$_ah_active" "$_ah_bridge"
+elif [ "${1:-}" = probe ]; then
     printf 'uid=0\nroot_manager=%s\nmodule_installed=%s\nmodule_pending_update=%s\nmodule_disabled=%s\nmodule_remove_pending=%s\nmodule_id_matches=%s\nmodule_version=%s\nbridge_responding=%s\n' \
         "$_ah_root" "$_ah_installed" "$_ah_pending" "$_ah_disabled" "$_ah_remove" "$_ah_installed" "$_ah_version" "$_ah_installed"
 else

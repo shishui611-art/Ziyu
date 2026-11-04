@@ -83,7 +83,9 @@ internal data class ModuleSnapshot(
 
     val effectiveLabel: String
         get() = when {
-            detailsPending -> "模块已连接，正在读取字体生效状态…"
+            !rootGranted || !installed -> if (activeFont !in setOf("", "default")) "${activeLabel}（上次记录）" else "尚未读取"
+            error.isNotBlank() -> "${activeLabel}（状态未更新）"
+            detailsPending -> "${activeLabel}（待核对）"
             verificationReason == "ota-generation-prepared" -> "${activeLabel}（新系统负载已准备，待完整重启）"
             verificationReason in setOf("safe-mode", "boot-safety-safe-mode") -> "${activeLabel}（开机保护暂停加载）"
             verificationReason in setOf("ota-fingerprint", "ota-fingerprint-change") -> "${activeLabel}（系统更新后需重新应用）"
@@ -689,47 +691,56 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             // selection after the switch already committed the new one.
             fun superseded(): Boolean = readGeneration != moduleStateReadGeneration
             if (!snapshot.rootGranted || !snapshot.installed) {
-                val hello = RootShell.exec(
-                    "if [ -f /data/adb/modules/ziyu/common/app_handshake.sh ]; then " +
-                        "sh ${RootShell.quote(bridge)} handshake; else printf '%s\\n' '{\"status\":\"legacy\"}'; fi",
-                    timeoutMs = 12_000L,
-                )
+                val hello = ModuleHandshake.read()
                 if (superseded()) return@launch
                 if (hello.code != 0) {
-                    if (!superseded()) snapshot = ModuleSnapshot(loading = false, error = hello.stderr.ifBlank { "模块握手失败，请检查 Root 授权与模块安装" })
+                    if (!superseded()) snapshot = snapshot.copy(loading = false,
+                        error = ModuleHandshake.failure(hello, "模块连接失败，请检查 Root 授权与模块安装"))
                     return@launch
                 }
-                val helloJson = runCatching { firstJson(hello.stdout) }.getOrNull()
-                if (helloJson?.optString("schema") == "ziyu-app-handshake-v1") {
+                val helloJson = try { ModuleHandshake.parse(hello.stdout) } catch (error: Exception) {
+                    if (!superseded()) snapshot = snapshot.copy(loading = false,
+                        error = error.message ?: ModuleHandshake.failure(hello, "模块回复不完整"))
+                    return@launch
+                }
+                if (helloJson.optString("schema") == "ziyu-app-handshake-v1") {
                     val data = helloJson.optJSONObject("data")
                     if (data == null || !data.optBoolean("root") || !data.optBoolean("installed")) {
-                        if (!superseded()) snapshot = ModuleSnapshot(loading = false, rootGranted = data?.optBoolean("root") == true,
+                        if (!superseded()) snapshot = snapshot.copy(loading = false, rootGranted = data?.optBoolean("root") == true,
                             error = "模块身份未通过握手核对，请检查模块安装")
                         return@launch
                     }
                     if (data.optBoolean("installed")) {
                         RootShell.rememberModule(data.optString("moduleDir"))
                         romCheckSupported = data.optBoolean("romCheck", false)
-                        if (!superseded()) snapshot = parseSnapshot(hello.stdout).copy(detailsPending = true)
+                        if (!superseded()) snapshot = parseSnapshot(helloJson.toString()).copy(detailsPending = true)
                     }
+                } else if (helloJson.optString("status") != "legacy") {
+                    if (!superseded()) snapshot = snapshot.copy(loading = false,
+                        error = helloJson.optString("message").ifBlank { "模块握手未通过核对" })
+                    return@launch
                 }
             }
-            val result = RootShell.exec(
-                "if [ -f ${RootShell.quote(bridge)} ]; then sh ${RootShell.quote(bridge)} status; " +
-                    "else printf '%s\\n' '{\"status\":\"error\",\"message\":\"请先刷入匹配的字域模块\"}'; fi",
-                timeoutMs = 20_000L,
-            )
+            val result = ModuleStatus.read()
             if (result.code != 0) {
                 if (!superseded()) snapshot = snapshot.copy(
                     loading = false,
-                    error = result.stderr.ifBlank { "模块详细状态读取失败，请重新检测" },
+                    error = ModuleHandshake.failure(result, "模块详细状态读取失败，请重新检测"),
                 )
                 return@launch
             }
-            val parsed = parseSnapshot(result.stdout)
+            val parsed = try {
+                parseSnapshot(ModuleStatus.parse(result.stdout).toString())
+            } catch (error: Exception) {
+                snapshot.copy(loading = false, detailsPending = snapshot.installed,
+                    error = error.message ?: "模块状态未读取完整")
+            }
             if (superseded()) return@launch
             snapshot = parsed
             rebootRequired = parsed.rebootRequired
+            // An incomplete state reply must not fan out into more Root reads
+            // and font prewarming while the connection still needs recovery.
+            if (parsed.error.isNotBlank()) return@launch
             if (parsed.installed && includeExtras) {
                 refreshReadExtras()
             }
@@ -1655,9 +1666,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         return try {
             val root = firstJson(raw)
             if (root.optString("status") != "ok") {
-                return ModuleSnapshot(
+                return snapshot.copy(
                     loading = false,
-                    rootGranted = true,
                     error = root.optString("message", "模块状态读取失败"),
                 )
             }
@@ -1696,10 +1706,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 rootManager = data.optString("rootManager", "Root"),
                 mountEngine = data.optString("mountEngine", "原生模块挂载"),
             )
-        } catch (error: Throwable) {
-            ModuleSnapshot(
+        } catch (error: Exception) {
+            snapshot.copy(
                 loading = false,
-                rootGranted = true,
+                detailsPending = snapshot.installed,
                 error = error.message ?: "模块状态解析失败",
             )
         }
@@ -1775,8 +1785,6 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun firstJson(raw: String): JSONObject {
-        val line = raw.lineSequence().firstOrNull { it.trimStart().startsWith("{") }
-            ?: error("未收到 JSON 数据")
-        return JSONObject(line.trim())
+        return RootReplyJson.firstObject(raw)
     }
 }

@@ -68,7 +68,7 @@ def _stop_children(children):
             pass
 
 
-def run_batches(items, workspace, source_bytes, run_batch, *, item_costs=None, progress_poll=None):
+def run_batches(items, workspace, source_bytes, run_batch, *, item_costs=None, progress_poll=None, max_workers=None):
     """Return ordered child batches and the chosen resource budget.
 
     run_batch receives indexed items, a private directory, and whether it is in
@@ -76,6 +76,10 @@ def run_batches(items, workspace, source_bytes, run_batch, *, item_costs=None, p
     The caller removes workspace after validating and publishing the results.
     """
     budget = worker_budget(len(items), source_bytes)
+    if max_workers is not None:
+        if type(max_workers) is not int or max_workers < 1:
+            raise ValueError('字体任务并发上限无效')
+        budget['workers'] = min(budget['workers'], max_workers)
     workspace = Path(workspace)
     workspace.mkdir(parents=True, exist_ok=True)
     if not items:
@@ -162,7 +166,9 @@ def run_batches(items, workspace, source_bytes, run_batch, *, item_costs=None, p
                 index, result_file = pending.pop(pid)
                 progressed = True
                 if not result_file.is_file() or result_file.stat().st_size > 32 * MIB:
-                    raise RuntimeError(f'字体处理进程未返回完整结果：worker {index}')
+                    reason = (f'signal {os.WTERMSIG(status)}' if os.WIFSIGNALED(status)
+                              else f'exit {os.WEXITSTATUS(status)}' if os.WIFEXITED(status) else f'status {status}')
+                    raise RuntimeError(f'字体处理进程未返回完整结果：worker {index} ({reason})')
                 value = json.loads(result_file.read_text(encoding='utf-8'))
                 result_file.unlink()
                 if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0 or value.get('ok') is not True:

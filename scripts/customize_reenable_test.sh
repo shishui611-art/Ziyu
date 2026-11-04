@@ -10,6 +10,7 @@ NEW="$TMP/update/ziyu"
 mkdir -p "$OLD/config" "$NEW/config" "$NEW/common" "$NEW/common/python/bin" "$NEW/.ziyu-runtime/compat/v227"
 cp "$ROOT/common/install_ui.sh" "$ROOT/common/mount_backend_preferences.sh" \
     "$ROOT/common/private_payload.sh" \
+    "$ROOT/common/private_payload.lib" \
     "$ROOT/common/apatch_boot_prepare.sh" "$ROOT/common/root_manager_detection.sh" \
     "$ROOT/common/font_preload_helper.sh" "$ROOT/common/adb_storage.sh" \
     "$NEW/common/"

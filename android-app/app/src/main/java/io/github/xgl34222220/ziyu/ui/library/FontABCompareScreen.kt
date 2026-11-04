@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.NativeFontPreview
 import io.github.xgl34222220.ziyu.NativeCurrentFontPreview
+import io.github.xgl34222220.ziyu.rememberWeightAxisInfo
 import io.github.xgl34222220.ziyu.ui.design.*
 import kotlinx.coroutines.delay
 
@@ -21,8 +22,9 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
     val context = LocalContext.current
     val revision = remember(current.id, target.id) { java.util.UUID.randomUUID().toString() }
     var targetReady by remember(revision) { mutableStateOf(false) }
-    var weight by remember { mutableFloatStateOf(400f) }
-    var previewWeight by remember { mutableFloatStateOf(400f) }
+    // No override means each font renders with its own declared axis defaults.
+    var weight by remember(revision) { mutableStateOf<Float?>(null) }
+    var previewWeight by remember(revision) { mutableStateOf<Float?>(null) }
     var editing by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(false) }
     val fontScale = LocalDensity.current.fontScale
@@ -38,7 +40,7 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             val previewModifier = Modifier.fillMaxWidth().height((100f * fontScale.coerceAtLeast(1f)).dp)
             if (isCurrent) NativeCurrentFontPreview(font.id, text, previewWeight, previewModifier, textSizeSp = 22f)
-            else NativeFontPreview(font, text, axes = mapOf("wght" to previewWeight),
+            else NativeFontPreview(font, text, axes = previewWeight?.let { mapOf("wght" to it) }.orEmpty(),
                 modifier = previewModifier, textSizeSp = 22f, maxLines = 6,
                 refreshKey = revision, onReady = { targetReady = it })
         }
@@ -75,9 +77,26 @@ internal fun FontABCompareScreen(current: FontItem, target: FontItem, onDismiss:
                     ZiyuOutlinedTextField(value = text,
                         onValueChange = { if (it.codePointCount(0, it.length) <= 200) text = it },
                         label = { ZiyuText("预览文字") }, maxLines = 3, modifier = Modifier.fillMaxWidth())
-                    ZiyuText("预览字重 ${weight.toInt()}", style = MaterialTheme.typography.bodySmall)
-                    ZiyuSlider(value = weight, onValueChange = { weight = it }, valueRange = 100f..900f)
-                    ZiyuText("仅影响预览", style = MaterialTheme.typography.bodySmall)
+                    // Load the cached capability only when controls are opened;
+                    // normal previews and Apply do not add an axis Root request.
+                    val info = rememberWeightAxisInfo(target)
+                    val axis = info.axes.firstOrNull { it.tag == "wght" && it.min < it.max }
+                    when {
+                        info.loading -> ZiyuText("正在读取字重…", style = MaterialTheme.typography.bodySmall)
+                        info.error.isNotBlank() -> ZiyuText(info.error, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error)
+                        axis != null -> {
+                            val shown = (weight ?: axis.default).coerceIn(axis.min, axis.max)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                ZiyuText("新字体字重 ${shown.toInt()}", style = MaterialTheme.typography.bodySmall)
+                                ZiyuTextButton(enabled = weight != null, onClick = { weight = null; previewWeight = null }) {
+                                    ZiyuText("默认")
+                                }
+                            }
+                            ZiyuSlider(value = shown, onValueChange = { weight = it }, valueRange = axis.min..axis.max)
+                            ZiyuText("仅影响预览", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
                 if (details) {
                     ZiyuText("当前：${current.name}\n新字体：${target.name}", style = MaterialTheme.typography.bodySmall)

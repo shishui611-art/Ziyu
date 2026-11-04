@@ -23,7 +23,7 @@ def enabled():
     return os.environ.get('ZIYU_FONT_CLIP_ENABLED') == '1'
 
 
-def prepare_donor(source, digests=None):
+def prepare_donor(source, digests=None, progress=None):
     """Measure variable geometry once; never instantiate or discard its axes."""
     from fontTools.ttLib import TTFont, TTCollection
     from font_digest_cache import FontDigestCache, file_identity
@@ -55,7 +55,7 @@ def prepare_donor(source, digests=None):
     digests = digests if digests is not None else FontDigestCache()
     source_hash = digests.sha256(source)
     from font_clipping_variable import inspect_source
-    facts = inspect_source(source)
+    facts = inspect_source(source, progress=progress)
     if file_identity(source.stat()) != before or digests.sha256(source) != source_hash:
         raise ValueError('防裁切测量期间来源字体已变化')
     facts['sourceSha256'] = source_hash

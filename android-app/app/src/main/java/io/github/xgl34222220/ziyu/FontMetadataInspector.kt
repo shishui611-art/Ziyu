@@ -275,7 +275,7 @@ private suspend fun loadDetailedFontMetadata(font: FontItem): DetailedFontMetada
                 }
                 append("  稳定 ID：").append(face.optString("uid")).append('\n')
                 append("  格式：").append(face.optString("format"))
-                    .append(" · 字重 ").append(face.optInt("weight", 400))
+                    .append(" · ").append(fontMetadataWeightLabel(face))
                     .append(if (face.optBoolean("italic")) " · 斜体" else " · 正体")
                     .append('\n')
                 append("  字形：").append(face.optInt("glyphs"))

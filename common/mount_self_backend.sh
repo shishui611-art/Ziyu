@@ -12,7 +12,7 @@ unset _lsmb_layer
 
 ziyu_self_mount_stage_for_manager() {
     case "${1:-unknown}" in
-        APatch|KernelSU|KernelSU*|SukiSU|SukiSU*)
+        APatch|KernelSU|KernelSU*|SukiSU|SukiSU*|FinaSU)
             printf 'post-mount\n'
             ;;
         *)

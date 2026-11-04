@@ -431,6 +431,18 @@ def verify(
                 or backend_state.get("provider_state") != "available"):
             failures.append("external-backend-record-invalid")
         vfs_provider = backend_state.get("provider_id") == "nomount"
+        if backend_state.get("provider_id") == "finasu-nomount":
+            # Do not infer VFS from a saved next-boot mode or old module record.
+            # A fresh FinaSU receipt plus the byte/route checks below is required.
+            folk_runtime = _read_conf(Path("/data/adb/ksu/mount_runtime"))
+            vfs_provider = (
+                backend_state.get("root_manager") == "FinaSU"
+                and folk_runtime.get("boot_id") == boot_id
+                and folk_runtime.get("provider") == "nomount"
+                and folk_runtime.get("result") in {"mounted", "noop"}
+            )
+            if not vfs_provider:
+                failures.append("finasu-vfs-runtime-unconfirmed")
     elif mount_state:
         if mount_state.get("state") != "mounted":
             failures.append("mount-transaction-not-mounted")

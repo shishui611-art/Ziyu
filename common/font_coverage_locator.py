@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import select
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -17,6 +19,7 @@ from device_font_process_audit import PayloadIndex, inspect_process  # noqa: E40
 PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+(?::[A-Za-z0-9_.$-]+)?$")
 SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._+-]")
 MAX_PID_ENTRIES = 1024
+MAX_PID_DIRECTORY_ENTRIES = 16384
 MAX_RUNNING_APPS = 96
 MAX_SELECTED_PROCESSES = 3
 MAX_SCAN_APPS = 24
@@ -27,21 +30,25 @@ SCAN_BUDGET_SECONDS = 16.0
 COMMAND_BUDGET_SECONDS = 22
 
 GUIDES = {
-    "not-running": ("应用当前未运行", "先打开目标应用并停留在要检查的界面，再返回字域检测。"),
-    "no-payload": ("没有找到已应用的字域字体负载", "先在字体库应用字体并完成所需重启，再检测应用。"),
-    "unreadable": ("无法读取应用的字体映射", "请检查字域的 Root 授权和目标进程状态后重试。"),
-    "stale-process": ("进程仍缓存旧字体", "目标进程映射的是旧 inode，而该 PID 的命名空间当前路径已指向字域字体。强行停止并重新打开应用后复查；系统界面可在重启后再查。"),
-    "route-not-visible": ("目标进程命名空间没有看到字域字体文件", "该 PID 当前映射的 inode 与它自己命名空间中的字体路径一致，但该路径没有解析到字域 payload。先重新应用字体并检查挂载验证，再重新打开应用检测。"),
-    "theme-source": ("应用读取了系统主题或字体服务目录中的字体", "此结果只说明进程打开了该路径；请检查 ColorOS 当前主题/字体设置。字域不会在此处修改主题设置。"),
-    "app-source": ("应用还读取了非字域字体文件", "应用内置字体、下载字体或网页引擎字体可能不受系统字体覆盖控制；字域不能替换这些文件。"),
-    "mixed": ("应用同时读取字域和其他系统字体", "系统可能按字重、语种或字体回退选择不同文件；请查看列出的字体名，并在重开应用后复查。"),
-    "system-font": ("当前映射的系统字体不属于字域负载", "请先确认字域字体已经应用并完成所需重启，然后重新打开目标应用检测。"),
-    "covered": ("已观察到的字体文件来自字域负载", "这只代表当前可见的文件映射；应用自绘文字、内置字体或共享内存字体仍可能不受此结果覆盖。"),
-    "inconclusive": ("当前映射不足以判断字体来源", "Android 可能通过共享内存提供字体，或目标界面尚未打开；保持目标页面可见后再试。"),
+    "not-running": ("没有找到运行进程", "先打开有问题的页面，再回字域检查。"),
+    "no-payload": ("没有找到可检查的字域字体", "先确认字体已应用，再回来检查。"),
+    "unreadable": ("暂时无法检查", "请检查 Root 授权，并保持目标应用运行。"),
+    "stale-process": ("还在使用旧字体", "完全退出这个应用，再重新打开检查。"),
+    "route-not-visible": ("应用没有读到字域字体", "先查看字域的挂载结果，再重新打开这个应用。"),
+    "theme-source": ("可能受系统主题影响", "在系统设置中检查主题和字体。"),
+    "app-source": ("发现其他字体来源", "应用自带或下载的字体可能不会随系统更换。"),
+    "mixed": ("同时读到了多种字体", "不同文字可能使用不同字体，请确认异常是否仍在。"),
+    "system-font": ("仍在读取其他系统字体", "确认字域字体已生效，再重新打开这个应用。"),
+    "covered": ("已读到字域字体", "若部分文字仍未变化，应用可能还在使用其他字体。"),
+    "inconclusive": ("暂时无法判断", "打开文字异常的页面后，再回字域检查。"),
 }
 
 
 class BudgetExpired(Exception):
+    pass
+
+
+class ProcessDiscoveryError(Exception):
     pass
 
 
@@ -62,17 +69,22 @@ def running_processes(proc_root: Path = Path("/proc"), limit: int = MAX_RUNNING_
             for entry in entries:
                 if entry.name.isdigit():
                     pids.append(int(entry.name))
-                    if len(pids) >= MAX_PID_ENTRIES:
+                    if len(pids) >= MAX_PID_DIRECTORY_ENTRIES:
                         truncated = True
                         break
-    except OSError:
-        return {}, False
+    except OSError as error:
+        raise ProcessDiscoveryError("无法读取应用进程，请检查 Root 授权") from error
 
     apps: dict[str, list[dict[str, str]]] = {}
-    for pid_number in sorted(pids):
+    truncated = truncated or len(pids) > MAX_PID_ENTRIES
+    readable = 0
+    # /proc enumeration is usually PID-ordered. Prefer recent processes rather
+    # than consuming the whole budget on old system daemons.
+    for pid_number in sorted(pids, reverse=True)[:MAX_PID_ENTRIES]:
         try:
             with (proc_root / str(pid_number) / "cmdline").open("rb") as stream:
                 raw = stream.read(257)
+            readable += 1
         except OSError:
             continue
         process_bytes = raw.split(b"\0", 1)[0]
@@ -92,9 +104,95 @@ def running_processes(proc_root: Path = Path("/proc"), limit: int = MAX_RUNNING_
             continue
         rows.append({"pid": str(pid_number), "process": process})
 
+    if pids and not readable:
+        raise ProcessDiscoveryError("无法读取应用进程，请检查 Root 授权")
     for rows in apps.values():
         rows.sort(key=lambda row: (row["process"].partition(":")[0] != row["process"], int(row["pid"])))
     return apps, truncated
+
+
+def _bounded_process_output(arguments: list[str], seconds: float, cap: int) -> tuple[bytes, int | None, bool]:
+    """Capture owned pidof/ps children with a pipe cap and a local deadline."""
+    child = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    assert child.stdout is not None
+    output = bytearray()
+    deadline = time.monotonic() + seconds
+    try:
+        descriptor = child.stdout.fileno()
+        os.set_blocking(descriptor, False)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return bytes(output), None, True
+            if not select.select([descriptor], [], [], remaining)[0]:
+                return bytes(output), None, True
+            try:
+                block = os.read(descriptor, min(65536, cap + 1 - len(output)))
+            except BlockingIOError:
+                continue
+            if not block:
+                try:
+                    code = child.wait(timeout=max(0.001, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    return bytes(output), None, True
+                return bytes(output), code, False
+            output.extend(block)
+            if len(output) > cap:
+                return bytes(output[:cap]), None, True
+    finally:
+        if child.poll() is None:
+            child.kill()
+        try:
+            child.wait(timeout=0.25)
+        except subprocess.TimeoutExpired:
+            pass
+        child.stdout.close()
+
+
+def selected_processes(package: str, proc_root: Path = Path("/proc")) -> tuple[list[dict[str, str]], bool]:
+    """Resolve the requested package before any global process-list cap."""
+    candidates: dict[int, str] = {}
+    ps_ok = False
+    truncated = False
+    if proc_root == Path("/proc"):
+        try:
+            output, _code, limited = _bounded_process_output(["/system/bin/pidof", package], 1.0, 4096)
+            truncated = limited
+            for token in output.split()[:MAX_SELECTED_PROCESSES]:
+                if token.isdigit():
+                    candidates[int(token)] = package
+        except OSError:
+            pass
+        try:
+            output, code, limited = _bounded_process_output(["/system/bin/ps", "-A", "-o", "PID,ARGS"], 2.0, 1024 * 1024)
+            ps_ok = code == 0
+            truncated = truncated or limited
+            for line in output.decode("utf-8", "replace").splitlines():
+                fields = line.split(None, 2)
+                if len(fields) < 2 or not fields[0].isdigit():
+                    continue
+                process = fields[1]
+                if PACKAGE_RE.fullmatch(process) and process.split(":", 1)[0] == package:
+                    candidates[int(fields[0])] = process
+        except OSError:
+            pass
+    if not candidates and not ps_ok:
+        apps, fallback_truncated = running_processes(proc_root, MAX_PID_ENTRIES)
+        return apps.get(package, []), truncated or fallback_truncated
+    rows: list[dict[str, str]] = []
+    for pid, observed in candidates.items():
+        try:
+            with (proc_root / str(pid) / "cmdline").open("rb") as stream:
+                process = stream.read(257).split(b"\0", 1)[0].decode("utf-8", "replace")
+            if not PACKAGE_RE.fullmatch(process) or process.split(":", 1)[0] != package:
+                continue
+        except OSError:
+            # Keep the selected app visible as unreadable rather than pretend
+            # it is closed. Identity and maps are still required by inspection.
+            process = observed
+        rows.append({"pid": str(pid), "process": process})
+    rows.sort(key=lambda row: (row["process"] != package, int(row["pid"])))
+    return rows, truncated
 
 
 def _finding(category: str, files: list[str] | None = None, detail: str = "") -> dict[str, Any]:
@@ -222,8 +320,11 @@ def _run(command: str, package_arg: str = "", proc_root: Path = Path("/proc")) -
         signal.signal(signal.SIGALRM, _alarm)
         signal.alarm(COMMAND_BUDGET_SECONDS)
     try:
-        process_limit = MAX_PID_ENTRIES if command == "locate" else MAX_RUNNING_APPS
-        apps, process_truncated = running_processes(proc_root=proc_root, limit=process_limit)
+        if command == "locate":
+            selected, process_truncated = selected_processes(package_arg.split(":", 1)[0], proc_root)
+            apps = {package_arg.split(":", 1)[0]: selected}
+        else:
+            apps, process_truncated = running_processes(proc_root=proc_root)
         if command == "running":
             rows = [{"package": package, "processCount": len(processes)}
                     for package, processes in list(apps.items())[:MAX_RUNNING_APPS]]
@@ -265,12 +366,17 @@ def _run(command: str, package_arg: str = "", proc_root: Path = Path("/proc")) -
             scanned += 1
             if item["verdict"] == "covered":
                 covered += 1
-            elif item["verdict"] == "inconclusive":
+            elif item["verdict"] in {"inconclusive", "unreadable", "not-running"}:
                 uncertain += 1
                 if len(items) < MAX_SCAN_RESULTS:
                     items.append(item)
-            elif len(items) < MAX_SCAN_RESULTS:
-                items.append(item)
+                else:
+                    truncated = True
+            else:
+                if len(items) < MAX_SCAN_RESULTS:
+                    items.append(item)
+                else:
+                    truncated = True
         data = {
             "verdict": "ok",
             "scanned": scanned,
@@ -297,6 +403,8 @@ def main(argv: list[str] | None = None) -> int:
             result = _run(command, package)
         except BudgetExpired:
             result = {"status": "error", "message": "扫描超过安全时限，请缩小范围后重试"}
+        except ProcessDiscoveryError as error:
+            result = {"status": "error", "message": str(error)}
         except Exception as error:
             result = {"status": "error", "message": f"诊断失败：{error.__class__.__name__}"}
 

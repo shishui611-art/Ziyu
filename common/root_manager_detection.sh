@@ -31,6 +31,28 @@ _ziyu_root_value() {
     printf '%s\n' "$_lrd_value"
 }
 
+# FinaSU intentionally reports :KernelSU from su -v. Its daemon advertises
+# Folk Mount explicitly; neither a package name nor stale ksu directories prove it.
+_ziyu_root_folk_identity() {
+    _lrd_fina_timeout=$(command -v timeout 2>/dev/null) || return 1
+    _lrd_fina_seen=''
+    for _lrd_fina_daemon in "$(_ziyu_root_path /data/adb/ksud)" "$(_ziyu_root_path /data/adb/ksu/bin/ksud)"; do
+        [ -x "$_lrd_fina_daemon" ] || continue
+        _lrd_fina_real=$(readlink -f "$_lrd_fina_daemon" 2>/dev/null)
+        [ -n "$_lrd_fina_real" ] || _lrd_fina_real=$_lrd_fina_daemon
+        [ "$_lrd_fina_real" != "$_lrd_fina_seen" ] || continue
+        _lrd_fina_seen=$_lrd_fina_real
+        _lrd_fina_help=$("$_lrd_fina_timeout" 2 "$_lrd_fina_daemon" --help 2>/dev/null) || continue
+        # A responding canonical daemon is authoritative; do not probe a
+        # second installed family or repeat the same daemon through its link.
+        printf '%s\n' "$_lrd_fina_help" | grep -Fq 'built-in module mounting (Folk Mount)' || return 1
+        ROOT_MANAGER=FinaSU
+        ROOT_DETECTION_SOURCE=folk-mount-capability
+        return 0
+    done
+    return 1
+}
+
 # Query the su actually selected by this shell. Old manager directories may
 # coexist, but a labelled response from the current su is stronger evidence.
 # This is a bounded version query, never a manager control operation.
@@ -44,7 +66,8 @@ _ziyu_root_su_identity() {
     case "$_lrd_su_label" in
         *sukisu*) ROOT_MANAGER='SukiSU Ultra' ;;
         *apatch*) ROOT_MANAGER=APatch ;;
-        *kernelsu*) ROOT_MANAGER=KernelSU ;;
+        *finasu*) ROOT_MANAGER=FinaSU ;;
+        *kernelsu*) ROOT_MANAGER=KernelSU; _ziyu_root_folk_identity || : ;;
         *magisk*) ROOT_MANAGER=Magisk ;;
         *) return 1 ;;
     esac
@@ -52,7 +75,7 @@ _ziyu_root_su_identity() {
     ROOT_VERSION=$(_ziyu_root_value "$_lrd_su_version")
     _lrd_su_code=$("$_lrd_timeout" 2 "$_lrd_su" -V 2>/dev/null)
     case "$_lrd_su_code" in ''|*[!0-9]*) ROOT_VERSION_CODE=0 ;; *) ROOT_VERSION_CODE=$_lrd_su_code ;; esac
-    ROOT_DETECTION_SOURCE=su-version
+    [ "$ROOT_MANAGER" = FinaSU ] && [ "$ROOT_DETECTION_SOURCE" = folk-mount-capability ] || ROOT_DETECTION_SOURCE=su-version
     return 0
 }
 
@@ -73,9 +96,9 @@ ziyu_current_boot_backend_state() {
 
 _ziyu_root_boot_identity() {
     _lrd_state=$(ziyu_current_boot_backend_state) || return 1
-    case "$(sed -n 's/^root_detection_source=//p' "$_lrd_state" | head -n1)" in env|current-boot-hook|su-version) ;; *) return 1 ;; esac
+    case "$(sed -n 's/^root_detection_source=//p' "$_lrd_state" | head -n1)" in env|current-boot-hook|su-version|folk-mount-capability) ;; *) return 1 ;; esac
     _lrd_manager=$(sed -n 's/^root_manager=//p' "$_lrd_state" | head -n1)
-    case "$_lrd_manager" in Magisk|KernelSU|SukiSU\ Ultra|APatch) ;; *) return 1 ;; esac
+    case "$_lrd_manager" in Magisk|KernelSU|SukiSU\ Ultra|FinaSU|APatch) ;; *) return 1 ;; esac
     ROOT_MANAGER=$_lrd_manager
     ROOT_VERSION=$(_ziyu_root_value "$(sed -n 's/^root_version=//p' "$_lrd_state" | head -n1)")
     ROOT_VERSION_CODE=$(_ziyu_root_value "$(sed -n 's/^root_version_code=//p' "$_lrd_state" | head -n1)")
@@ -107,6 +130,7 @@ ziyu_root_manager_detect() {
         ROOT_VERSION=$(_ziyu_root_value "${KSU_VER:-unknown}")
         ROOT_VERSION_CODE=$(_ziyu_root_value "${KSU_VER_CODE:-${KSU_KERNEL_VER_CODE:-0}}")
         ROOT_DETECTION_SOURCE=env
+        _ziyu_root_folk_identity || :
     elif [ -n "${MAGISK_VER_CODE:-}${MAGISK_VER:-}" ]; then
         ROOT_MANAGER=Magisk
         ROOT_VERSION=$(_ziyu_root_value "${MAGISK_VER:-unknown}")
@@ -148,7 +172,7 @@ ziyu_root_manager_detect() {
     fi
 
     case "$ROOT_MANAGER" in
-        Magisk|KernelSU|SukiSU\ Ultra|APatch) ;;
+        Magisk|KernelSU|SukiSU\ Ultra|FinaSU|APatch) ;;
         *) ROOT_VERSION=unknown; ROOT_VERSION_CODE=0 ;;
     esac
 

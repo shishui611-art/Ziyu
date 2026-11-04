@@ -1,186 +1,22 @@
 #!/system/bin/sh
-# Canonical payload lives under .ziyu-payload. The early boot publisher creates
-# ordinary partition files for an external provider; imports never mount a view.
-set +e
-
-_ziyu_private_module() {
-    printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
-}
-
-_ziyu_private_root() {
-    _lpp_module="${1:-$(_ziyu_private_module)}"
-    printf '%s/.ziyu-payload\n' "${_lpp_module%/}"
-}
-
-_ziyu_private_state_root() {
-    printf '%s\n' "${ZIYU_PRIVATE_STATE_ROOT:-/data/adb/ziyu/private-payload}"
-}
-
-_lpp_skip_helper="$(_ziyu_private_module)/common/skip_mount_ownership.sh"
-[ ! -f "$_lpp_skip_helper" ] || . "$_lpp_skip_helper"
-
-_ziyu_private_base_partitions() {
-    printf '%s\n' 'system system_ext product vendor odm oem my_product my_engineering my_company my_preload my_region my_stock oplus_product oplus_engineering oplus_version oplus_region mi_ext cust hw_product'
-}
-
-_ziyu_private_partition_safe() {
-    case "$1" in
-        ''|*[!A-Za-z0-9_]*|[0-9]*|_* ) return 1 ;;
-        data|proc|sys|dev|mnt|storage|sdcard|apex|metadata|cache|tmp|config|acct|linkerconfig|debug_ramdisk|vendor_dlkm|odm_dlkm|system_dlkm) return 1 ;;
-    esac
-    return 0
-}
-
-ziyu_private_partitions() {
-    _lpp_base=$(_ziyu_private_base_partitions)
-    printf '%s\n' "$_lpp_base"
-    _lpp_manifest="$(_ziyu_private_module)/config/device_font_partitions.conf"
-    [ -f "$_lpp_manifest" ] || return 0
-    _lpp_seen=" $_lpp_base "
-    while IFS= read -r _lpp_part; do
-        _ziyu_private_partition_safe "$_lpp_part" || continue
-        case "$_lpp_seen" in *" $_lpp_part "*) continue ;; esac
-        printf '%s\n' "$_lpp_part"
-        _lpp_seen="$_lpp_seen$_lpp_part "
-    done < "$_lpp_manifest"
-}
-
-_ziyu_private_mount_cmd() {
-    if [ -n "${ZIYU_PRIVATE_MOUNT_COMMAND:-}" ]; then "$ZIYU_PRIVATE_MOUNT_COMMAND" "$@"
-    elif command -v mount >/dev/null 2>&1; then mount "$@"
-    elif command -v toybox >/dev/null 2>&1; then toybox mount "$@"
-    elif [ -x /data/adb/magisk/busybox ]; then /data/adb/magisk/busybox mount "$@"
-    elif command -v busybox >/dev/null 2>&1; then busybox mount "$@"
-    else return 127
-    fi
-}
-
-_ziyu_private_umount_cmd() {
-    if [ -n "${ZIYU_PRIVATE_UMOUNT_COMMAND:-}" ]; then "$ZIYU_PRIVATE_UMOUNT_COMMAND" "$@"
-    elif command -v umount >/dev/null 2>&1; then umount "$@"
-    elif command -v toybox >/dev/null 2>&1; then toybox umount "$@"
-    elif [ -x /data/adb/magisk/busybox ]; then /data/adb/magisk/busybox umount "$@"
-    elif command -v busybox >/dev/null 2>&1; then busybox umount "$@"
-    else return 127
-    fi
-}
-
-_ziyu_private_is_mountpoint() {
-    _lpp_path="$1"
-    if command -v mountpoint >/dev/null 2>&1; then
-        mountpoint -q "$_lpp_path" 2>/dev/null && return 0
-    fi
-    awk -v path="$_lpp_path" '$2 == path { found=1 } END { exit !found }' "${ZIYU_PRIVATE_MOUNTINFO:-/proc/mounts}" 2>/dev/null
-}
-
-ziyu_private_install_migrate() {
-    _lpp_module="${1:-$(_ziyu_private_module)}"
-    _lpp_root=$(_ziyu_private_root "$_lpp_module")
-    mkdir -p "$_lpp_root" "$_lpp_module/config" 2>/dev/null || return 1
-
-    for _lpp_part in $(ziyu_private_partitions); do
-        _lpp_source="$_lpp_module/$_lpp_part"
-        _lpp_dest="$_lpp_root/$_lpp_part"
-        if [ -d "$_lpp_source" ]; then
-            mkdir -p "$_lpp_dest" 2>/dev/null || return 1
-            cp -af "$_lpp_source/." "$_lpp_dest/" 2>/dev/null || \
-                cp -rfp "$_lpp_source/." "$_lpp_dest/" 2>/dev/null || return 1
-            rm -rf "$_lpp_source" 2>/dev/null || return 1
-        fi
-        mkdir -p "$_lpp_source" 2>/dev/null || return 1
-    done
-
-    if type ziyu_skip_marker_claim >/dev/null 2>&1; then
-        ziyu_skip_marker_claim "$_lpp_module" skip_mount
-        _lpp_skip_rc=$?
-        [ "$_lpp_skip_rc" -eq 0 ] || [ "$_lpp_skip_rc" -eq 2 ] || return 1
-        ziyu_skip_marker_claim "$_lpp_module" skip_mountify
-        _lpp_skip_rc=$?
-        [ "$_lpp_skip_rc" -eq 0 ] || [ "$_lpp_skip_rc" -eq 2 ] || return 1
-    fi
-    find "$_lpp_root" -type d -exec chmod 0755 {} \; 2>/dev/null || true
-    find "$_lpp_root" -type f -exec chmod 0644 {} \; 2>/dev/null || true
-    chmod 0755 "$_lpp_root/system/bin/ziyu" "$_lpp_root/system/bin/ziyud" 2>/dev/null || true
-    return 0
-}
-
-# Legacy view cleanup is retained only for uninstalling/upgrading old releases.
-ziyu_private_unmount_module_view() {
-    _lpp_module="${1:-$(_ziyu_private_module)}"
-    _lpp_state=$(_ziyu_private_state_root)
-    _lpp_list="$_lpp_state/module-view.mounts"
-    _lpp_symlinks="$_lpp_state/module-view.symlinks"
-    [ -d "$_lpp_state" ] || return 0
-    _lpp_failed=0
-
-    if [ -s "$_lpp_list" ]; then
-        _lpp_reverse="$_lpp_list.reverse.$$"
-        _lpp_remaining_reverse="$_lpp_list.remaining-reverse.$$"
-        _lpp_remaining="$_lpp_list.remaining.$$"
-        awk '{ item[NR]=$0 } END { for (i=NR; i>=1; i--) print item[i] }' \
-            "$_lpp_list" > "$_lpp_reverse" 2>/dev/null || return 1
-        : > "$_lpp_remaining_reverse" 2>/dev/null || { rm -f "$_lpp_reverse"; return 1; }
-        while IFS= read -r _lpp_target; do
-            [ -n "$_lpp_target" ] || continue
-            case "$_lpp_target" in
-                "${_lpp_module%/}"/*) ;;
-                *) printf '%s\n' "$_lpp_target" >> "$_lpp_remaining_reverse" || _lpp_failed=1; continue ;;
-            esac
-            if _ziyu_private_is_mountpoint "$_lpp_target"; then
-                _ziyu_private_umount_cmd "$_lpp_target" >/dev/null 2>&1 || true
-                if _ziyu_private_is_mountpoint "$_lpp_target"; then
-                    printf '%s\n' "$_lpp_target" >> "$_lpp_remaining_reverse" || _lpp_failed=1
-                    _lpp_failed=1
-                fi
-            fi
-        done < "$_lpp_reverse"
-        awk '{ item[NR]=$0 } END { for (i=NR; i>=1; i--) print item[i] }' \
-            "$_lpp_remaining_reverse" > "$_lpp_remaining" 2>/dev/null || _lpp_failed=1
-        if [ "$_lpp_failed" -eq 0 ]; then
-            mv -f "$_lpp_remaining" "$_lpp_list" 2>/dev/null || _lpp_failed=1
-        else
-            cp -f "$_lpp_remaining" "$_lpp_list" 2>/dev/null || true
-        fi
-        rm -f "$_lpp_reverse" "$_lpp_remaining_reverse" "$_lpp_remaining" 2>/dev/null || true
-    fi
-
-    if [ -s "$_lpp_symlinks" ]; then
-        _lpp_remaining="$_lpp_symlinks.remaining.$$"
-        : > "$_lpp_remaining" 2>/dev/null || return 1
-        while IFS='|' read -r _lpp_target _lpp_source; do
-            [ -n "$_lpp_target" ] || continue
-            case "$_lpp_target" in
-                "${_lpp_module%/}"/*) ;;
-                *) printf '%s|%s\n' "$_lpp_target" "$_lpp_source" >> "$_lpp_remaining" || _lpp_failed=1; continue ;;
-            esac
-            if [ -L "$_lpp_target" ]; then
-                _lpp_link=$(readlink "$_lpp_target" 2>/dev/null)
-                if [ "$_lpp_link" = "$_lpp_source" ]; then
-                    rm -f "$_lpp_target" 2>/dev/null || true
-                    [ ! -L "$_lpp_target" ] || {
-                        printf '%s|%s\n' "$_lpp_target" "$_lpp_source" >> "$_lpp_remaining" || true
-                        _lpp_failed=1
-                    }
-                else
-                    printf '%s|%s\n' "$_lpp_target" "$_lpp_source" >> "$_lpp_remaining" || true
-                    _lpp_failed=1
-                fi
-            elif [ -e "$_lpp_target" ]; then
-                : # The target already exists; preserve it and retire only our stale record.
-            else
-                mkdir -p "$_lpp_target" 2>/dev/null || {
-                    printf '%s|%s\n' "$_lpp_target" "$_lpp_source" >> "$_lpp_remaining" || true
-                    _lpp_failed=1
-                }
-            fi
-        done < "$_lpp_symlinks"
-        if [ "$_lpp_failed" -eq 0 ]; then
-            mv -f "$_lpp_remaining" "$_lpp_symlinks" 2>/dev/null || _lpp_failed=1
-        else
-            cp -f "$_lpp_remaining" "$_lpp_symlinks" 2>/dev/null || true
-        fi
-        rm -f "$_lpp_remaining" 2>/dev/null || true
-    fi
-    [ "$_lpp_failed" -eq 0 ] || return 1
-    return 0
-}
+# Compatibility entry; implementation is an internal shell library.
+_ziyu_library_file=''
+for _ziyu_library_candidate in \
+    "${MODPATH:-}/common/private_payload.lib" \
+    "${MODULE_DIR:-}/common/private_payload.lib" \
+    "${MODDIR:-}/common/private_payload.lib" \
+    "${0%/*}/private_payload.lib" \
+    "${0%/*}/common/private_payload.lib" \
+    "${0%/*}/../common/private_payload.lib" \
+    "${ROOT:-}/common/private_payload.lib" \
+    "${PWD:-.}/common/private_payload.lib" \
+    "/data/adb/modules/ziyu/common/private_payload.lib"; do
+    [ -f "$_ziyu_library_candidate" ] && [ -r "$_ziyu_library_candidate" ] || continue
+    _ziyu_library_file=$_ziyu_library_candidate
+    break
+done
+if [ -z "$_ziyu_library_file" ]; then
+    printf '%s\n' '字域运行库缺失：private_payload.lib，请刷入完整模块并重启。' >&2
+    return 1 2>/dev/null || exit 1
+fi
+. "$_ziyu_library_file"

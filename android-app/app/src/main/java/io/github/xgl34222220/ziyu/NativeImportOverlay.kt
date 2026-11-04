@@ -51,7 +51,6 @@ import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuGlyph
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuIconTokens
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuLayoutTokens
 
 @Composable
 internal fun NativeImportOverlay(
@@ -186,15 +185,20 @@ private fun ImportActionButton(
         animationSpec = spring(dampingRatio = .82f, stiffness = 470f),
         label = "nativeImportGlassHeight",
     )
+    val inactive = !enabled && !state.busy
     val glassColor = when {
-        embedded && !dark -> ZiyuLayoutTokens.SecondaryBlueSurface
-        embedded -> scheme.surfaceContainerLow
+        inactive -> scheme.onSurface.copy(alpha = .12f)
+        embedded -> scheme.primaryContainer
         style == UiStyle.MIUIX -> tokens.elevatedCardBackground.copy(alpha = if (dark) .76f else .72f)
         dark -> scheme.surfaceContainerHigh.copy(alpha = .72f)
         else -> Color.White.copy(alpha = .70f)
     }
     val borderColor = if (dark) Color.White.copy(alpha = .14f) else Color.White.copy(alpha = .82f)
-    val textColor = if (style == UiStyle.MIUIX) tokens.textPrimary else scheme.onSurface
+    val textColor = when {
+        inactive -> scheme.onSurface.copy(alpha = .38f)
+        embedded -> scheme.onPrimaryContainer
+        else -> scheme.primary
+    }
 
     val buttonModifier = if (embedded) {
         modifier.fillMaxWidth().height(height)
@@ -207,7 +211,7 @@ private fun ImportActionButton(
         modifier = buttonModifier,
         shape = if (embedded) RoundedCornerShape(20.dp) else CircleShape,
         color = glassColor,
-        contentColor = scheme.primary,
+        contentColor = textColor,
         shadowElevation = if (embedded) 0.dp else if (style == UiStyle.MIUIX) 10.dp else 8.dp,
         border = BorderStroke(
             if (embedded) 0.5.dp else 1.dp,
@@ -236,7 +240,7 @@ private fun ImportActionButton(
                         state.busy -> CircularProgressIndicator(
                             modifier = Modifier.size(ZiyuIconTokens.CompactProgress),
                             strokeWidth = 2.dp,
-                            color = scheme.primary,
+                            color = textColor,
                         )
                         state.paused -> ZiyuGlyph(
                             imageVector = Icons.Rounded.PlayArrow,
@@ -269,8 +273,8 @@ private fun ImportActionButton(
                     LinearProgressIndicator(
                         progress = { state.progress / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        color = scheme.primary,
-                        trackColor = scheme.primary.copy(alpha = .18f),
+                        color = textColor,
+                        trackColor = textColor.copy(alpha = .18f),
                     )
                 }
             }

@@ -11,6 +11,7 @@ MODULE="$TMP/module"
 mkdir -p "$MODULE/common" "$MODULE/config" "$MODULE/system/fonts" "$MODULE/system/etc"
 cp "$ROOT/common/font_safety.sh" "$MODULE/common/font_safety.sh"
 cp "$ROOT/common/device_font_payload_runtime.sh" "$MODULE/common/device_font_payload_runtime.sh"
+cp "$ROOT/common/device_font_payload_runtime.lib" "$MODULE/common/device_font_payload_runtime.lib"
 cp "$ROOT/common/device_font_transaction_guard.sh" "$MODULE/common/device_font_transaction_guard.sh"
 
 printf 'old-slot\n' > "$MODULE/system/fonts/ZiyuSlot-old-400.ttf"

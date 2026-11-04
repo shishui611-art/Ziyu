@@ -151,6 +151,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/coloros_stage_complete.sh" \
                          "$MODDIR/common/hyperos_metrics_batch.py" \
                          "$MODDIR/common/font_metrics_io.py" \
+                         "$MODDIR/common/font_parallel.py" \
                          "$MODDIR/common/font_metrics_normalize.py" \
                          "$MODDIR/common/coloros_metrics_batch.py" \
                          "$MODDIR/common/originos_stage_complete.py" \

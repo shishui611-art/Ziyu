@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.ziyu.RootShell
+import io.github.xgl34222220.ziyu.ModuleConnectionDiagnostics
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuHeaderAction
 import java.io.File
@@ -48,6 +49,7 @@ internal data class DiagnosticExportState(
 }
 
 internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExportState {
+    val connectionReport = RootShell.quote(ModuleConnectionDiagnostics.report())
     val command = """
         MOD=/data/adb/modules/ziyu
         CFG="${'$'}MOD/config"
@@ -261,6 +263,7 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
         else
             printf '\nlayoutDiagnostic=module-helper-missing\n' >> "${'$'}OUT"
         fi
+        printf '\n%s\n' $connectionReport >> "${'$'}OUT" || exit 21
         chmod 0644 "${'$'}OUT" 2>/dev/null || true
         printf '%s\n' "${'$'}OUT"
     """.trimIndent()

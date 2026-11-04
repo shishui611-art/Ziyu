@@ -74,6 +74,32 @@ def write_report(stage: Path, slots: list[dict]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+class _BatchProgress:
+    """Publish real phase/counter updates to the existing switch task guard."""
+    def __init__(self):
+        value = os.environ.get('ZIYU_SWITCH_PROGRESS_FILE')
+        self.path = Path(value) if value else None
+        self.percent, self.last_write = 76, 0.0
+
+    def update(self, percent, message, force=False):
+        self.percent = max(self.percent, min(85, int(percent)))
+        if self.path is None or (not force and time.monotonic() - self.last_write < .5):
+            return
+        temporary = self.path.with_name(self.path.name + f'.metrics-{os.getpid()}.tmp')
+        try:
+            temporary.write_text(f'percent={self.percent}\nmessage={message}\n', encoding='utf-8')
+            temporary.chmod(0o644)
+            temporary.replace(self.path)
+            self.last_write = time.monotonic()
+        except OSError:
+            pass  # Reporting never changes a font result or commit decision.
+        finally:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def build(module: Path, stage: Path) -> dict:
     started = time.perf_counter()
     live = (module / '.ziyu-payload').resolve()
@@ -162,6 +188,10 @@ def build(module: Path, stage: Path) -> dict:
     identities = {}
     clipping_donors = {}
     clipping_prepare_seconds = 0.0
+    clipping_template_seconds = 0.0
+    clipping_template_bytes = clipping_template_faces = 0
+    header_only = False
+    progress = _BatchProgress()
     try:
         # Pin every source/contract result before replacing any hard-linked alias.
         # Reading a later source after an earlier replacement can change its
@@ -178,22 +208,84 @@ def build(module: Path, stage: Path) -> dict:
             # original variable source, sharing only immutable geometry facts.
             prepare_started = time.perf_counter()
             digests = FontDigestCache()
+            source_facts = {}
+            try:
+                os.nice(5)
+            except (AttributeError, OSError):
+                pass
             for source, _contract, _report in jobs:
                 if source.is_symlink():
                     continue  # The existing checked metrics fallback owns it.
                 source_key = donor_identity(source)
                 if source_key in clipping_donors:
                     continue
-                actual, detail = font_clipping_compat.prepare_donor(source, digests)
+                source_hash = digests.sha256(source)
+                if source_hash in source_facts:
+                    actual, detail = source, source_facts[source_hash]
+                else:
+                    actual, detail = font_clipping_compat.prepare_donor(source, digests,
+                        progress=lambda message, fraction: progress.update(76 + 2 * fraction, message))
+                    source_facts[source_hash] = detail
                 if donor_identity(source) != source_key:
                     raise ValueError('防裁切来源在批次准备期间发生变化')
                 clipping_donors[source_key] = (actual, detail, donor_identity(actual), digests.sha256(actual))
             clipping_prepare_seconds = round(time.perf_counter() - prepare_started, 3)
 
+            # Collect verified OEM ink before header fitting. Identical source
+            # bytes share continuous geometry; target em changes never scale it.
+            template_sources = {}
+            for source, _contract, report in jobs:
+                prepared_donor = clipping_donors.get(donor_identity(source))
+                if prepared_donor is None or prepared_donor[1] is None:
+                    continue
+                actual, detail, _pin, source_hash = prepared_donor
+                stock = stock_font_snapshot.resolve(report['slot'], module, digests)
+                if stock is None:
+                    raise ValueError('缺少可信原厂行框，当前字体保持不变')
+                item = template_sources.setdefault(source_hash, {'source': actual, 'detail': detail, 'stocks': set()})
+                item['stocks'].add(stock)
+            template_started = time.perf_counter()
+            if template_sources:
+                from font_clipping_variable import prepare_templates, MAX_TEMPLATE_BYTES
+                for index, (source_hash, item) in enumerate(template_sources.items()):
+                    progress.update(78 + 4 * index / len(template_sources),
+                                    f'正在适配字体 {index + 1}/{len(template_sources)}', force=True)
+                    templates = prepare_templates(item['source'], item['stocks'], outputs / f'shared-{index}',
+                        item['detail']['facts'], digests,
+                        progress=lambda message, fraction: progress.update(78 + 4 * (index + fraction) / len(template_sources), message))
+                    clipping_template_bytes += templates['templateBytes']
+                    clipping_template_faces += len(templates['faces'])
+                    if clipping_template_bytes > MAX_TEMPLATE_BYTES:
+                        raise ValueError('本次共享可变字体超出暂存容量限制，当前字体未改动')
+                    for key, (actual, detail, pin, digest) in list(clipping_donors.items()):
+                        if digest != source_hash or detail is None:
+                            continue
+                        if donor_identity(actual) != pin or digests.sha256(actual) != digest:
+                            raise ValueError('共享可变字体来源在准备期间发生变化')
+                        bound = dict(templates, sourceIdentity=file_identity(actual.stat()))
+                        clipping_donors[key] = (actual, dict(detail, templates=bound), pin, digest)
+            clipping_template_seconds = round(time.perf_counter() - template_started, 3)
+            # Fully variable batches share one source scale for normal text,
+            # writing only headers and retaining immutable variation bytes.
+            header_only = bool(template_sources) and all(
+                clipping_donors.get(donor_identity(source), (None, None))[1] is not None for source, _, _ in jobs)
+
+        def poll_progress():
+            completed = 0
+            for path in outputs.glob('worker-*/progress.json'):
+                try:
+                    completed += max(0, int(json.loads(path.read_text(encoding='utf-8'))['completed']))
+                except (OSError, ValueError, KeyError, TypeError):
+                    continue
+            start = 82 if clipping_template_faces else 76
+            progress.update(start + (85 - start) * min(completed, len(jobs)) / max(len(jobs), 1),
+                            f'正在生成系统字体 {min(completed, len(jobs))}/{len(jobs)}')
+
         def prepare_batch(indexed_groups, private, _isolated):
             metrics_io = FontMetricsIO()
             results = []
             metrics_cache = {}
+            completed = 0
             with SlotCompat(module, private, prepared_donors=clipping_donors) as slot_compat:
                 for index, (key, aliases) in indexed_groups:
                     contract, align_bottom = key[-2:]
@@ -245,6 +337,15 @@ def build(module: Path, stage: Path) -> dict:
                                 abs(old / report['sourceUpem'] - new / report['outputUpem']) > 1e-6
                                 for old, new in zip(report['sourceHead'], report['outputHead']))
                         results.append({'source': str(source), 'output': str(compatible), 'report': report})
+                        completed += 1
+                        temporary = private / 'progress.tmp'
+                        try:
+                            temporary.write_text(json.dumps({'completed': completed}), encoding='utf-8')
+                            temporary.replace(private / 'progress.json')
+                        except OSError:
+                            pass
+                        if not _isolated:
+                            poll_progress()
                 stats = {**metrics_io.stats(), **slot_compat.stats()}
             return {'results': results, 'metrics': stats}
 
@@ -274,7 +375,8 @@ def build(module: Path, stage: Path) -> dict:
                 costs.append(max(1, min(size, 128 * 1024 * 1024)) if type(size) is int else 1)
         batches, execution = run_batches(slot_jobs, outputs,
                                          max((s.stat().st_size for s, _, _ in jobs), default=0),
-                                         prepare_batch, item_costs=costs)
+                                         prepare_batch, item_costs=costs, progress_poll=poll_progress,
+                                         max_workers=1 if header_only else None)
         by_slot = {report['slot']: report for report in reports}
         for batch in batches:
             for key, value in batch['metrics'].items():
@@ -298,6 +400,7 @@ def build(module: Path, stage: Path) -> dict:
             link_copy(canonical, alias)
             report.update(metricsSource='stock-alias', aliasOf=str(canonical.relative_to(stage)))
         write_report(stage, reports)
+        progress.update(85, f'系统字体已生成 {len(jobs)}/{len(jobs)}', force=True)
     finally:
         shutil.rmtree(outputs, ignore_errors=True)
     return {'mapped': len(jobs), 'generated': len(groups),
@@ -310,6 +413,11 @@ def build(module: Path, stage: Path) -> dict:
             'metricsBatchSeconds': round(time.perf_counter() - started, 3),
             'clippingPreparedSources': sum(detail is not None for _path, detail, _identity, _digest in clipping_donors.values()),
             'clippingSourcePreparationSeconds': clipping_prepare_seconds,
+            'clippingTemplateSeconds': clipping_template_seconds,
+            'clippingTemplateFaces': clipping_template_faces,
+            'clippingTemplateBytes': clipping_template_bytes,
+            'clippingHeaderSerial': header_only,
+            'clippingFitMethod': 'shared-reference-em-fit' if clipping_template_faces else 'existing-static-path',
             'execution': execution, **metric_stats}
 
 

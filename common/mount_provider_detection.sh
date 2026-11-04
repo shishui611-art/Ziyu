@@ -20,6 +20,15 @@ ziyu_mount_provider_detect() {
         case "$PROVIDER_STATE" in available|absent|unknown|excluded) return 0 ;; *) PROVIDER_STATE=unknown; PROVIDER_REASON=invalid-test-state; return 0 ;; esac
     fi
 
+    # Native Folk Mount can deliberately ignore an installed metamodule.
+    # Resolve the manager's choice before the generic selector precedence.
+    if [ "${ROOT_MANAGER:-}" = FinaSU ]; then
+        if ! type ziyu_finasu_provider_detect >/dev/null 2>&1; then
+            . "$_zpd_module/common/finasu_mount.sh" || return 1
+        fi
+        ziyu_finasu_provider_detect "$_zpd_module" && return 0
+    fi
+
     # A declared selector with unreadable/unknown metadata is not an absence.
     _zpd_selector="${ZIYU_META_DETECT_ROOT:-/data/adb}/metamodule"
     if [ -z "${META_ACTIVE_DIR:-}" ] && \
@@ -108,6 +117,10 @@ ziyu_mount_provider_detect() {
             PROVIDER_ID=apatch-native-module-mount
             PROVIDER_LAYOUT=nested-system
             PROVIDER_REASON=apatch-native-module-mount
+            ;;
+        FinaSU)
+            # Explicit/delegated metamodule mode must not masquerade as absence.
+            PROVIDER_REASON=finasu-metamodule-unavailable
             ;;
         KernelSU|SukiSU\ Ultra)
             if [ "${META_INSTALLED:-0}" = 1 ] && [ "${META_ENABLED:-0}" = 1 ]; then

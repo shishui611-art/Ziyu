@@ -62,3 +62,21 @@ internal fun parseWeightAxisInfo(root: JSONObject): WeightAxisInfo {
 /** Size/date labels are rounded; the font ID plus both labels bind metadata to one library source. */
 internal val FontItem.sourceRevision: String
     get() = "$id|$size|$date"
+
+/** A variable default comes from fvar, not the separate OS/2 weight class. */
+internal fun fontMetadataWeightLabel(face: JSONObject): String {
+    val axes = face.optJSONArray("axes")
+    for (index in 0 until (axes?.length() ?: 0)) {
+        val axis = axes?.optJSONObject(index) ?: continue
+        if (axis.optString("tag") != "wght") continue
+        val value = axis.optDouble("default", Double.NaN)
+        val min = axis.optDouble("min", Double.NaN)
+        val max = axis.optDouble("max", Double.NaN)
+        if (value.isFinite() && min.isFinite() && max.isFinite() && min <= value && value <= max) {
+            val label = if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
+            return "默认字重 $label"
+        }
+    }
+    val weight = face.optInt("weight", -1)
+    return if (weight in 1..1000) "字重 $weight" else "字重未读取"
+}

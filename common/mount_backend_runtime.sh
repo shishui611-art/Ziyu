@@ -219,7 +219,7 @@ _lbr_write_state() {
 _lbr_stage_for_root() {
     case "$1" in
         Magisk) printf 'post-fs-data\n' ;;
-        KernelSU|SukiSU\ Ultra|APatch) printf 'post-mount\n' ;;
+        KernelSU|SukiSU\ Ultra|FinaSU|APatch) printf 'post-mount\n' ;;
         # Unknown root identities still get a best-effort early self-mount.
         # Service verification can retry if another provider covers it later.
         *) printf 'post-fs-data\n' ;;
@@ -251,7 +251,7 @@ _lbr_verify_font_route() {
     _lbr_verify_mode=auto
     if [ "$_lbr_backend" = self ] && [ "${_lbr_self_backend_active:-legacy}" = nomount ]; then
         _lbr_verify_mode=nomount
-    elif [ "$_lbr_backend" = external ] && [ "${PROVIDER_ID:-}" = nomount ]; then
+    elif [ "$_lbr_backend" = external ] && { [ "${PROVIDER_ID:-}" = nomount ] || [ "${PROVIDER_ID:-}" = finasu-nomount ]; }; then
         _lbr_verify_mode=nomount
     fi
     if [ -n "${ZIYU_PYTHON:-}" ]; then
@@ -540,6 +540,9 @@ _lbr_run_self() {
 _lbr_try_auto_self_fallback() {
     _lbr_fallback_cause="${1:-external-provider-failed}"
     [ "$_lbr_preference" = auto ] || return 2
+    # FinaSU owns its mode, boot protection and native NoMount fallback. Do not
+    # override off/failed/partial or replace an executing native provider.
+    [ "${ROOT_MANAGER:-}" != FinaSU ] || return 2
     case "$_lbr_selected" in external|unresolved) ;; *) return 2 ;; esac
     [ "$_lbr_fallback" != 1 ] || return 2
 
@@ -673,6 +676,11 @@ ziyu_mount_backend_hook() {
                 # Publish files first; clear only owned exclusions after success.
                 if ! ziyu_provider_payload_publish "$MODDIR" "$PROVIDER_CONTENT_ROOT" "$PROVIDER_LAYOUT"; then
                     _lbr_route_error=provider-publish-failed
+                    if [ "${ROOT_MANAGER:-}" = FinaSU ]; then
+                        # A rejected publication must not leave last boot's
+                        # public tree eligible for a new native engine scan.
+                        _lbr_set_self_skip || _lbr_route_error=provider-exclusion-failed
+                    fi
                     _lbr_try_auto_self_fallback "$_lbr_route_error"
                     _lbr_fallback_rc=$?
                     [ "$_lbr_fallback_rc" -eq 2 ] || return "$_lbr_fallback_rc"
@@ -722,11 +730,16 @@ ziyu_mount_backend_hook() {
                 ;;
             unresolved)
                 _lbr_route_error="provider-unavailable:$PROVIDER_REASON"
+                if [ "${ROOT_MANAGER:-}" = FinaSU ]; then
+                    # Only an early boot mutation: hide this module's stale
+                    # publication, never unload or rerun the manager provider.
+                    _lbr_set_self_skip || _lbr_route_error=provider-exclusion-failed
+                fi
                 _lbr_try_auto_self_fallback "$_lbr_route_error"
                 _lbr_fallback_rc=$?
                 [ "$_lbr_fallback_rc" -eq 2 ] || return "$_lbr_fallback_rc"
-                _lbr_write_state external none 0 unavailable not-run "$_lbr_stage" failed "provider-unavailable:$PROVIDER_REASON"
-                _lbr_log_mount_summary failed "$_lbr_stage" "provider-unavailable:$PROVIDER_REASON"
+                _lbr_write_state external none 0 unavailable not-run "$_lbr_stage" failed "$_lbr_route_error"
+                _lbr_log_mount_summary failed "$_lbr_stage" "$_lbr_route_error"
                 return 1
                 ;;
             none)
@@ -750,6 +763,21 @@ ziyu_mount_backend_hook() {
     case "$_lbr_selected" in
         external)
             [ "$_lbr_stage" != post-fs-data ] || return 0
+            if [ "${ROOT_MANAGER:-}" = FinaSU ]; then
+                # Refresh actual provider after the manager scan: native VFS
+                # may have fallen back to Folk Mount or yielded to a metamodule.
+                # This reads records only; no provider rerun, reload or unload.
+                _lbr_detect || return 1
+                if [ "$PROVIDER_STATE" != available ]; then
+                    _lbr_write_state external none 0 unavailable not-run "$_lbr_stage" failed "provider-unavailable:$PROVIDER_REASON"
+                    _lbr_log_mount_summary failed "$_lbr_stage" "provider-unavailable:$PROVIDER_REASON"
+                    return 1
+                fi
+                # The Universal verifier consumes this receipt too. Commit the
+                # manager's actual backend before it checks VFS vs mountinfo;
+                # this is still pending, never a success before route proof.
+                _lbr_write_state external none 0 prepared not-run "$_lbr_stage" pending provider-runtime-verifying || return 1
+            fi
             if [ "$PROVIDER_ID" = nomount ]; then
                 _lbr_nomount_runtime_ready
                 _lbr_nm_ready_rc=$?

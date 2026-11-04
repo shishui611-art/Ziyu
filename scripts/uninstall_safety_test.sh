@@ -17,6 +17,7 @@ mkdir -p "$MODULE/common" "$MODULE/.ziyu-runtime/compat/v227" \
 cp "$ROOT/uninstall.sh" "$MODULE/uninstall.sh"
 cp "$ROOT/.ziyu-runtime/compat/v227/uninstall.sh" "$MODULE/.ziyu-runtime/compat/v227/uninstall.sh"
 cp "$ROOT/common/private_payload.sh" "$MODULE/common/private_payload.sh"
+cp "$ROOT/common/private_payload.lib" "$MODULE/common/private_payload.lib"
 cp "$ROOT/common/font_live_switch.sh" "$MODULE/common/font_live_switch.sh"
 cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODULE/common/"
 cp "$ROOT/common/font_switch_lock.sh" "$MODULE/common/font_switch_lock.sh"

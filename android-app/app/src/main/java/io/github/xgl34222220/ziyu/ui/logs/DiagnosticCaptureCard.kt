@@ -1,6 +1,8 @@
 package io.github.xgl34222220.ziyu.ui.logs
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -8,6 +10,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.design.*
+import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
+import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuThemeTokens
+import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -15,6 +20,8 @@ import org.json.JSONObject
 
 @Composable
 internal fun DiagnosticCaptureCard() {
+    val tokens = LocalZiyuPaletteTokens.current
+    val layout = LocalZiyuThemeTokens.current.layout
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     var state by remember { mutableStateOf(JSONObject().put("state", "idle")) }
@@ -55,24 +62,29 @@ internal fun DiagnosticCaptureCard() {
             } catch (error: Exception) { message = error.message.orEmpty(); break }
         }
     }
-    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ZiyuText("故障复现记录")
-        ZiyuText(when (phase) {
-            "running" -> "正在记录，请复现问题后点击停止。最多采集 120 秒，日志总量受限，离开此页面仍会自动结束。"
-            "finalizing" -> "实时日志采集已结束，正在整理快照和压缩包…"
-            "completed" -> "采集已结束，记录已在字域私有目录打包。可导出后检查、分享。"
-            "failed", "interrupted" -> "采集被中断或部分失败，原始日志已保留，可导出已有记录。"
-            else -> "主动记录短时间的系统、崩溃和字体相关日志，用于排查偶发问题。不会自动上传。"
-        })
-        if (state.optString("error").isNotBlank()) ZiyuText(state.optString("error"))
-        if (message.isNotBlank()) ZiyuText(message)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ZiyuButton(enabled = !busy && phase != "finalizing", onClick = { if (phase == "running") act("stop") else confirm = true }) {
-                ZiyuText(if (phase == "running") "停止采集并打包" else if (phase == "finalizing") "正在打包…" else "开始采集")
+    ZiyuCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = tokens.cardBackground, contentColor = tokens.textPrimary),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(layout.cardPadding), verticalArrangement = Arrangement.spacedBy(layout.itemGap)) {
+            ZiyuText("故障复现记录", style = MaterialTheme.typography.titleMedium)
+            ZiyuText(when (phase) {
+                "running" -> "请复现问题后停止采集，120 秒后自动结束。"
+                "finalizing" -> "正在整理日志…"
+                "completed" -> "记录已保存，可导出查看。"
+                "failed", "interrupted" -> "采集未完成，可导出已有记录。"
+                else -> "记录系统与字体日志，帮助排查问题，不会自动上传。"
+            }, style = MaterialTheme.typography.bodyMedium, color = tokens.textSecondary)
+            if (state.optString("error").isNotBlank()) ZiyuText(state.optString("error"), color = MaterialTheme.colorScheme.error)
+            if (message.isNotBlank()) ZiyuText(message, color = MaterialTheme.colorScheme.error)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZiyuButton(enabled = !busy && phase != "finalizing", onClick = { if (phase == "running") act("stop") else confirm = true }) {
+                    ZiyuText(if (phase == "running") "停止采集" else if (phase == "finalizing") "正在打包…" else "开始采集")
+                }
+                ZiyuOutlinedButton(enabled = !busy && phase !in setOf("idle", "running", "finalizing"), onClick = { act("export") }) { ZiyuText("导出记录") }
             }
-            ZiyuOutlinedButton(enabled = !busy && phase !in setOf("idle", "running", "finalizing"), onClick = { act("export") }) { ZiyuText("导出采集记录") }
+            ZiyuTextButton(enabled = !busy, onClick = { act("status") }) { ZiyuText("刷新状态") }
         }
-        ZiyuTextButton(enabled = !busy, onClick = { act("status") }) { ZiyuText("刷新记录状态") }
     }
     if (confirm) ZiyuAlertDialog(onDismissRequest = { confirm = false }, title = { ZiyuText("开始故障记录？") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

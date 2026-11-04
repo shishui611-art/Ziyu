@@ -26,7 +26,7 @@ fi
 # Check repository shell sources only; dist/, Gradle caches and staged copies
 # are generated outputs, not additional source inputs. The manifest/package
 # gates below still validate the actual payload separately.
-git -C "$ROOT" ls-files -- '*.sh' | while IFS= read -r relative; do
+git -C "$ROOT" ls-files -- '*.sh' '*.lib' | while IFS= read -r relative; do
   file="$ROOT/$relative"
   _syntax_shebang=$(sed -n '1p' "$file" | tr -d '\r')
   case "$_syntax_shebang" in
@@ -78,7 +78,7 @@ for file in \
   module.prop customize.sh post-fs-data.sh post-mount.sh boot-completed.sh service.sh uninstall.sh action.sh \
   README.md LICENSE NOTICE.md THIRD_PARTY_NOTICES.md 更新日志/CHANGELOG.md SECURITY.md CONTRIBUTING.md \
   common/composite_font.py common/font_instance.py common/font_metrics_normalize.py common/font_coverage.py common/font_axis_info.py \
-  common/font_role_check.py common/font_metadata.py common/font_extract_faces.py common/font_import_probe.py common/font_source_profile.py common/font_source_profile.sh common/font_web_convert.py common/universal_font_plan.py common/universal_font_plan.sh common/minimal_xml_router.py common/minimal_xml_router.sh common/universal_font_compiler.py common/universal_font_compiler.sh common/universal_font_deployment.py common/universal_font_deployment.sh common/universal_next_boot.sh common/universal_mount_runtime.sh common/font_inventory.py \
+  common/font_role_check.py common/font_metadata.py common/font_extract_faces.py common/font_import_probe.py common/font_source_profile.py common/font_source_profile.sh common/font_web_convert.py common/universal_font_plan.py common/universal_font_plan.sh common/minimal_xml_router.py common/minimal_xml_router.sh common/universal_font_compiler.py common/universal_font_compiler.sh common/universal_font_deployment.py common/universal_font_deployment.sh common/universal_next_boot.sh common/universal_mount_runtime.sh common/universal_mount_runtime.lib common/font_inventory.py \
   common/font_role_check.sh common/native_import.sh common/font_details.sh common/ziyu_cli.sh \
   common/ziyu_composite.sh common/font_mix.sh common/font_mix_controller.sh common/weighted_mix_task.sh \
   common/multiweight_mix_task.sh common/mix_weight_mode.sh \

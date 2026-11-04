@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.UUID
 
 internal data class ShellResult(
     val code: Int,
@@ -36,7 +37,9 @@ internal object RootShell {
 
     suspend fun exec(command: String, timeoutMs: Long = 600_000L): ShellResult = withContext(Dispatchers.IO) {
         try {
-            executeProcess(listOf("su", "-c", LegacyIdentityCompatibility.commandFallbacks(command) + resolveCommand(command)), timeoutMs)
+            val frame = RootReplyFrame()
+            val body = LegacyIdentityCompatibility.commandFallbacks(command) + resolveCommand(command)
+            executeProcess(listOf("su", "-c", frame.wrap(body)), timeoutMs, frame)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (interrupted: InterruptedException) {
@@ -66,6 +69,9 @@ internal object RootShell {
 
 /** Owns only the request process. Module workers are detached by app_bridge.sh. */
 internal suspend fun executeProcess(command: List<String>, timeoutMs: Long): ShellResult =
+    executeProcess(command, timeoutMs, null)
+
+private suspend fun executeProcess(command: List<String>, timeoutMs: Long, frame: RootReplyFrame?): ShellResult =
     withContext(Dispatchers.IO) {
         currentCoroutineContext().ensureActive()
         val process = ProcessBuilder(command).redirectErrorStream(false).start()
@@ -73,27 +79,46 @@ internal suspend fun executeProcess(command: List<String>, timeoutMs: Long): She
         val stderr = ByteArrayOutputStream()
         val buffer = ByteArray(8_192)
         val startedAt = System.nanoTime()
+        var exitedAt: Long? = null
         try {
             // No command accepts interactive input. Closing stdin also lets commands waiting
-            // for EOF finish normally. Never wait for pipe EOF: descendants may inherit it.
+            // for EOF finish normally. Descendants can inherit pipes, so a framed
+            // request completes on both footer records rather than waiting for EOF.
             process.outputStream.close()
             while (true) {
                 currentCoroutineContext().ensureActive()
-                val outputBytes = drainAvailable(process.inputStream, stdout, buffer) +
-                    drainAvailable(process.errorStream, stderr, buffer)
+                val outputBytes = drainAvailable(process.inputStream, stdout, buffer, frame, 0) +
+                    drainAvailable(process.errorStream, stderr, buffer, frame, 1)
+                if (frame?.complete == true) {
+                    return@withContext ShellResult(frame.exitCode, frame.clean(stdout), frame.clean(stderr))
+                }
                 if (!process.isAlive) {
-                    // Drain the final bytes after process exit, including output over one pipe buffer.
-                    drainAvailable(process.inputStream, stdout, buffer, process.inputStream.available())
-                    drainAvailable(process.errorStream, stderr, buffer, process.errorStream.available())
-                    return@withContext ShellResult(process.exitValue(), stdout.toString("UTF-8"), stderr.toString("UTF-8"))
+                    if (frame == null) {
+                        drainAvailable(process.inputStream, stdout, buffer)
+                        drainAvailable(process.errorStream, stderr, buffer)
+                        return@withContext ShellResult(process.exitValue(), stdout.toString("UTF-8"), stderr.toString("UTF-8"))
+                    }
+                    // available()==0 is not proof that the reply is complete.
+                    // Keep draining across process exit until the footer arrives,
+                    // bounded by a short grace period and the request deadline.
+                    if (exitedAt == null || outputBytes > 0) exitedAt = System.nanoTime()
+                    if ((System.nanoTime() - exitedAt) / 1_000_000L >= 300L) {
+                        val code = process.exitValue().takeIf { it != 0 } ?: 74
+                        return@withContext ShellResult(code, frame.clean(stdout),
+                            listOf("Root 回复不完整（退出码 ${process.exitValue()}）", frame.clean(stderr)).filter { it.isNotBlank() }.joinToString("\n"))
+                    }
                 }
                 val remaining = timeoutMs - (System.nanoTime() - startedAt) / 1_000_000L
                 if (remaining <= 0L) {
-                    return@withContext ShellResult(124, stdout.toString("UTF-8"), "命令执行超时\n${stderr.toString("UTF-8")}".trim())
+                    return@withContext ShellResult(124, frame?.clean(stdout) ?: stdout.toString("UTF-8"), "命令执行超时\n${frame?.clean(stderr) ?: stderr.toString("UTF-8")}".trim())
                 }
                 // Suspending checks avoid uninterruptible waitFor/readText workers. Both pipes
                 // are drained together so a full stderr pipe cannot stall a stdout reader.
-                delay(minOf(if (outputBytes > 0) 1L else 50L, remaining))
+                delay(minOf(when {
+                    outputBytes > 0 -> 1L
+                    exitedAt != null -> 10L
+                    else -> 50L
+                }, remaining))
             }
             @Suppress("UNREACHABLE_CODE")
             error("Process loop ended unexpectedly")
@@ -105,7 +130,8 @@ internal suspend fun executeProcess(command: List<String>, timeoutMs: Long): She
         }
     }
 
-private fun drainAvailable(stream: InputStream, target: ByteArrayOutputStream, buffer: ByteArray, maxBytes: Int = 65_536): Int {
+private fun drainAvailable(stream: InputStream, target: ByteArrayOutputStream, buffer: ByteArray,
+                           frame: RootReplyFrame? = null, channel: Int = 0, maxBytes: Int = 65_536): Int {
     // A bounded pass prevents an endlessly verbose process from starving cancellation/the deadline.
     var readBytes = 0
     while (readBytes < maxBytes) {
@@ -113,8 +139,69 @@ private fun drainAvailable(stream: InputStream, target: ByteArrayOutputStream, b
         if (available <= 0) break
         val count = stream.read(buffer, 0, minOf(available, buffer.size, maxBytes - readBytes))
         if (count <= 0) break
+        if (target.size().toLong() + count > 32L * 1024 * 1024) throw IOException("Root 回复过大，已停止读取")
         target.write(buffer, 0, count)
+        frame?.accept(channel, buffer, count)
         readBytes += count
     }
     return readBytes
+}
+
+/** Nonce-scoped framing also tolerates su implementations that merge the pipes. */
+private class RootReplyFrame {
+    private val token = "__ZIYU_REPLY_${UUID.randomUUID().toString().replace("-", "")}__"
+    private val tails = arrayOf("", "")
+    private val beginnings = booleanArrayOf(false, false)
+    private val codes = arrayOfNulls<Int>(2)
+    val complete: Boolean get() = beginnings.all { it } && codes[0] != null && codes[0] == codes[1]
+    val exitCode: Int get() = checkNotNull(codes[0])
+
+    fun wrap(command: String): String = "set +e\n" +
+        "printf '\\n$token:begin:out\\n'\n" +
+        "printf '\\n$token:begin:err\\n' >&2\n(\n$command\n)\n" +
+        "_ziyu_reply_code=\$?\n" +
+        "printf '\\n$token:out=%s\\n' \"\$_ziyu_reply_code\"\n" +
+        "printf '\\n$token:err=%s\\n' \"\$_ziyu_reply_code\" >&2\n" +
+        "exit \"\$_ziyu_reply_code\""
+
+    fun accept(channel: Int, bytes: ByteArray, count: Int) {
+        // Latin-1 is a byte-preserving view for matching the ASCII footer; UTF-8
+        // content is decoded only once, after the complete reply is collected.
+        val recent = tails[channel] + String(bytes, 0, count, Charsets.ISO_8859_1)
+        for ((index, name) in listOf("out", "err").withIndex()) {
+            if (!beginnings[index] && (recent.contains("\n$token:begin:$name\n") ||
+                        recent.contains("\n$token:begin:$name\r\n"))) beginnings[index] = true
+            if (codes[index] != null) continue
+            val prefix = "\n$token:$name="
+            val start = recent.indexOf(prefix)
+            if (start < 0) continue
+            val end = recent.indexOf('\n', start + prefix.length)
+            if (end < 0) continue
+            val code = recent.substring(start + prefix.length, end).trimEnd('\r').toIntOrNull()
+            if (code != null && code in 0..255) codes[index] = code
+        }
+        tails[channel] = recent.takeLast(token.length + 24)
+    }
+
+    fun clean(bytes: ByteArrayOutputStream): String {
+        var text = bytes.toString("UTF-8")
+        val start = listOf("out", "err").flatMap { name -> listOf("\n$token:begin:$name\n", "\n$token:begin:$name\r\n") }
+            .mapNotNull { marker -> text.indexOf(marker).takeIf { it >= 0 }?.let { it to marker.length } }
+            .minByOrNull { it.first }
+        if (start != null) text = text.substring(start.first + start.second)
+        // When su merges pipes, preserve both bodies through the last logical
+        // footer. Drop unrelated descendant output beyond the reply boundary.
+        val end = listOf("out", "err").flatMapIndexed { index, name ->
+            codes[index]?.let { code -> listOf("\n$token:$name=$code\n", "\n$token:$name=$code\r\n") }.orEmpty()
+        }.mapNotNull { marker -> text.indexOf(marker).takeIf { it >= 0 } }.maxOrNull()
+        if (end != null) text = text.substring(0, end)
+        for ((index, name) in listOf("out", "err").withIndex()) {
+            text = text.replace("\n$token:begin:$name\n", "")
+                .replace("\n$token:begin:$name\r\n", "")
+            codes[index]?.let { code ->
+                text = text.replace("\n$token:$name=$code\n", "").replace("\n$token:$name=$code\r\n", "")
+            }
+        }
+        return text
+    }
 }

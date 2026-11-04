@@ -167,10 +167,10 @@ internal enum class SettingsSection(
     APPEARANCE("外观与主题", "颜色、深色模式与界面效果", Icons.Rounded.Palette, 1.00f),
     NOTIFICATIONS("通知与实时活动", "查看字体任务进度", Icons.Rounded.Info, 1.00f),
     SAFETY("安全与维护", "字体加载检查、冲突与安全清理", Icons.Rounded.Security, .96f),
-    FONT_RULES("字体替换设置", "保留指定的系统字体", Icons.Rounded.Build, .96f),
+    FONT_RULES("保留原厂字体", "选择不替换的字体", Icons.Rounded.Build, .96f),
     CLIPPING("字体防裁切", "改善文字顶部或底部被截断的问题", Icons.Rounded.Tune, 1.00f),
     BOOT_SAFETY("开机保护", "查看保护状态与解除保护", Icons.Rounded.Security, .96f),
-    APP_COVERAGE("应用字体诊断", "按应用检查字体来源，扫描未覆盖项", Icons.Rounded.Search, .98f),
+    APP_COVERAGE("检查应用字体", "字体没变化时，查找原因", Icons.Rounded.Search, .98f),
     GOOGLE("Google 字体兼容", "英文或数字恢复默认时使用", Icons.Rounded.Build, .96f),
     STORAGE("文件与配置位置", "管理字体文件与 DPI 配置", Icons.Rounded.Backup, 1.08f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
@@ -279,7 +279,7 @@ internal fun SettingsHubRoute(
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
                         SettingsSection.NOTIFICATIONS -> pageList { item { io.github.xgl34222220.ziyu.NotificationAccessCard() } }
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
-                        SettingsSection.FONT_RULES -> pageList { item { SettingCard("保留系统字体") { FontSlotRulesCard() } } }
+                        SettingsSection.FONT_RULES -> pageList { item { SettingCard("选择字体") { FontSlotRulesCard() } } }
                         SettingsSection.CLIPPING -> FontClippingPage(fonts, currentFontId, fontBusy, fontLoading)
                         SettingsSection.BOOT_SAFETY -> BootSafetyPage()
                         SettingsSection.APP_COVERAGE -> UncoveredAppsPage()
