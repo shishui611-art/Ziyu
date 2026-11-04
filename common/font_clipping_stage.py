@@ -62,17 +62,22 @@ def fit_stage(module: Path, stage: Path, defer_collections: bool = False):
                     output = workspace / f'collection-{len(prepared)}.ttc'
                     cached = collection_donors.get(before)
                     if cached is None:
-                        actual, instance = font_clipping_compat.prepare_donor(donor,
-                            workspace / f'collection-donor-{len(collection_donors)}.font', compat.digests)
+                        actual, instance = font_clipping_compat.prepare_donor(donor, compat.digests)
                         cached = (actual, instance, identity(actual), compat.digests.sha256(actual))
                         collection_donors[before] = cached
                     actual, instance, pinned_donor, donor_hash = cached
                     if identity(actual) != pinned_donor or compat.digests.sha256(actual) != donor_hash:
                         raise ValueError('防裁切集合样本在生成期间发生变化')
-                    report = build_collection(actual, stock, output, workspace,
-                        f'clipping-{os.getpid()}-{len(prepared)}', logical,
-                        output_budget=MAX_COLLECTION_BYTES - collection_bytes)
-                    report['clippingSourceInstance'] = instance
+                    if instance is not None:
+                        from font_clipping_variable import fit_container
+                        report = fit_container(actual, stock, output, instance['facts'], compat.digests)
+                        if output.stat().st_size > MAX_COLLECTION_BYTES - collection_bytes:
+                            raise ValueError('可变防裁切集合超出本次容量预算')
+                    else:
+                        report = build_collection(actual, stock, output, workspace,
+                            f'clipping-{os.getpid()}-{len(prepared)}', logical,
+                            output_budget=MAX_COLLECTION_BYTES - collection_bytes)
+                    report['clippingSourcePreparation'] = instance
                     collection_bytes += output.stat().st_size
                 else:
                     output, report = compat.prepare(donor, logical)

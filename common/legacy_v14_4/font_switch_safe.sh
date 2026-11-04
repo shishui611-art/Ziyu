@@ -162,6 +162,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
                          "$MODDIR/common/font_clipping_compat.py" \
+                         "$MODDIR/common/font_clipping_variable.py" \
                          "$MODDIR/common/font_clipping_stage.py" \
                          "$MODDIR/common/font_native_glyphs.py" \
                          "$MODDIR/common/font_native_cff.py" \

@@ -2,6 +2,8 @@
 
 v1.4.85 的 `font_slot_overrides.{py,sh}`、`import_preview.{py,sh}`、`diagnostic_capture.{py,sh}`，v1.4.86 的 `current_font_preview.{py,sh}`，v1.4.87 的 `font_clipping_stage.py` 以及对应 Android 界面为字域独立实现的 GPL-3.0-only 代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)，未增加第三方运行库。设计参考用户手册与 [Custom Font Switcher 的公开功能说明](https://github.com/ayss2188/custom-font-switcher/blob/main/README.md)（README blob `c7a72b4f6225d79f75824660732407d1f9e97479`）；未复制对方源码、资源、字体或二进制，不将公开可见视为代码授权。
 
+v1.4.89 的 `common/font_clipping_variable.py` 为字域原创 GPL-3.0-only 运行代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)。调用现有 FontTools 的 IUP 与 ScalerVisitor API，依照 [OpenType gvar 规范](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar) 实现全变化空间的保守边界和来源/输出验证；没有复制外部实现源码、新增依赖或附带字体。FontTools 的既有 MIT 许可及第三方声明保持不变，运行文件已进入模块清单。
+
 `common/legacy_identity.{py,sh}` 与 `LegacyIdentityCompatibility.kt` 为字域原创 GPL-3.0-only 兼容代码，仅识别历史格式和路径，不修改已生成字体的字节或摘要契约。Python 启动器沿用 `scripts/prepare_composite_runtime.sh` 内的本项目启动代码，当前名称为 `common/python/bin/ziyu-python`；未新增第三方依赖。历史项目名称与原版权署名保留，本地许可证文件改名仅整理引用，不改变原文或授权。
 
 原有 C 工具现在以 `system/bin/ziyud` 交付。`scripts/rebrand_cli.py` 固定原二进制 SHA-256 `eec2861c7b014afd880aebac2038ba12fef01c1444e7a3137ce4fd8b31632d46`，仅将 6 处旧品牌帮助文案替换成等长 UTF-8 字域文案；输出 SHA-256 为 `44ce5305bea6a743a278bd6c955bccd5e2a752a22a38a2cee2084ab5c249e27c`。该脚本提供可复现的修改源码，构建时检查输出摘要；原工具版权、GPL 来源和许可继续保留，未宣称重新实现或升级其字体引擎。

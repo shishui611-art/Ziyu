@@ -23,58 +23,43 @@ def enabled():
     return os.environ.get('ZIYU_FONT_CLIP_ENABLED') == '1'
 
 
-def prepare_donor(source, output, digests=None):
-    """Pin variable donors at their own defaults in a private task workspace.
-
-    The user source and the OEM target are never rewritten. Reuse the existing
-    checked native instancer/FontTools fallback without role subsetting.
-    """
-    from fontTools.ttLib import TTFont
+def prepare_donor(source, digests=None):
+    """Measure variable geometry once; never instantiate or discard its axes."""
+    from fontTools.ttLib import TTFont, TTCollection
     from font_digest_cache import FontDigestCache, file_identity
-    from font_instance import materialize, pick_face, is_collection
-    from font_native_instance import _cmap
 
-    source, output = Path(source), Path(output)
+    source = Path(source)
     if not enabled():
         return source, None
-    if source.is_symlink() or output.is_symlink() or source.resolve() == output.resolve():
-        raise ValueError('防裁切样本不能覆盖来源字体')
+    if source.is_symlink():
+        raise ValueError('防裁切来源不能是符号链接')
     before = file_identity(source.stat())
     if not 12 <= before[2] <= 128 * 1024 * 1024:
         raise ValueError('防裁切来源字体大小无效')
-    face = pick_face(source, 'cjk', 400) if is_collection(source) else -1
-    kwargs = {'fontNumber': face} if face >= 0 else {}
-    with TTFont(source, lazy=True, recalcBBoxes=False, recalcTimestamp=False, **kwargs) as font:
-        if any(tag in font for tag in ('COLR', 'CBDT', 'sbix', 'SVG ')):
-            raise ValueError('彩色字体暂不支持防裁切，请关闭后应用')
-        if 'fvar' not in font:
-            return source, None
-        location = {axis.axisTag: float(axis.defaultValue) for axis in font['fvar'].axes}
-        if not all(math.isfinite(value) for value in location.values()):
-            raise ValueError('字体默认字重或轴值无效')
-        original_cmap = _cmap(font)
-        weight = round(location.get('wght', font['OS/2'].usWeightClass))
+    with source.open('rb') as stream:
+        if stream.read(4) == b'ttcf':
+            collection = TTCollection(source, lazy=True)
+            try:
+                if not 1 <= len(collection.fonts) <= 64:
+                    raise ValueError('防裁切集合字面数量超出限制')
+                variable = any('fvar' in font for font in collection.fonts)
+            finally:
+                collection.close()
+        else:
+            with TTFont(source, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as font:
+                if any(tag in font for tag in ('COLR', 'CBDT', 'sbix', 'SVG ')):
+                    raise ValueError('彩色字体暂不支持防裁切，请关闭后应用')
+                variable = 'fvar' in font
+    if not variable:
+        return source, None
     digests = digests if digests is not None else FontDigestCache()
     source_hash = digests.sha256(source)
-    try:
-        report = materialize(source, output, 'cjk', weight, location, preserve_metrics=True)
-        if report['face'] != face or file_identity(source.stat()) != before or digests.sha256(source) != source_hash:
-            raise ValueError('防裁切处理期间来源字体或字面已变化')
-        if not 12 <= output.stat().st_size <= 128 * 1024 * 1024:
-            raise ValueError('防裁切样本大小无效')
-        with TTFont(output, lazy=True, recalcTimestamp=False) as check:
-            actual_cmap = _cmap(check)
-            if ('fvar' in check or not any(tag in check for tag in ('glyf', 'CFF ', 'CFF2'))
-                    or not original_cmap[0].issubset(actual_cmap[0])
-                    or not original_cmap[1].issubset(actual_cmap[1])):
-                raise ValueError('防裁切样本的字符映射校验失败')
-        return output, {'mode': 'variable-default-instance', 'axes': location,
-                        'sourceSha256': source_hash, 'outputSha256': digests.sha256(output),
-                        'instancing': report['instancing'],
-                        'variationFallbacks': report.get('variationFallbacks', [])}
-    except Exception:
-        output.unlink(missing_ok=True)
-        raise
+    from font_clipping_variable import inspect_source
+    facts = inspect_source(source)
+    if file_identity(source.stat()) != before or digests.sha256(source) != source_hash:
+        raise ValueError('防裁切测量期间来源字体已变化')
+    facts['sourceSha256'] = source_hash
+    return source, {'mode': 'variable-continuous', 'facts': facts, 'sourceSha256': source_hash}
 
 
 def preference_path(module, family):
@@ -129,8 +114,10 @@ def plan(target, donor, cache=None, recordings=None):
               'transformed': False, 'state': 'disabled'}
     if not result['enabled']:
         return result
-    if 'fvar' in donor or any(tag in donor for tag in ('COLR', 'CBDT', 'sbix', 'SVG ')):
-        raise ValueError('自动防裁切需要普通或已选定字重的静态字体；请先在工作室保存选轴结果，或关闭该字体的防裁切')
+    if 'fvar' in donor:
+        raise ValueError('此路径无法保留可变字重，本次未提交字体')
+    if any(tag in donor for tag in ('COLR', 'CBDT', 'sbix', 'SVG ')):
+        raise ValueError('彩色字体暂不支持防裁切')
     top = int(target['hhea'].ascent)
     bottom = int(target['hhea'].descent)
     os2 = target['OS/2'] if 'OS/2' in target else None

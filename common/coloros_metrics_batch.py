@@ -17,6 +17,7 @@ import time
 
 from font_inventory import FONT_EXTENSIONS, LOGICAL_FONT_ROOTS, _heuristic_candidate
 from font_inventory_scan import _is_ui_family
+from fontTools.ttLib import TTCollection
 from font_metrics_io import FontMetricsIO
 from font_digest_cache import file_identity, FontDigestCache
 from font_parallel import run_batches
@@ -89,6 +90,18 @@ def build(module: Path, stage: Path) -> dict:
     jobs = []
     reports = []
     compatibility_aliases = []
+    collection_kinds = {}
+
+    def variable_collection(path):
+        key = file_identity(path.stat())
+        if key not in collection_kinds:
+            fonts = TTCollection(path, lazy=True)
+            try:
+                collection_kinds[key] = any('fvar' in font for font in fonts.fonts)
+            finally:
+                fonts.close()
+        return collection_kinds[key]
+
     for partition, logical_root in LOGICAL_FONT_ROOTS:
         root = stage / partition / 'fonts'
         if not root.is_dir():
@@ -120,7 +133,7 @@ def build(module: Path, stage: Path) -> dict:
                     # canonical output that must not exist for collections.
                     with canonical.open('rb') as stream:
                         is_collection = stream.read(4) == b'ttcf'
-                    if is_collection:
+                    if is_collection and (not font_clipping_compat.enabled() or not variable_collection(canonical)):
                         report['reason'] = 'collection-alias-preserved-with-canonical'
                         continue
                     compatibility_aliases.append((source, canonical, report, file_identity(source.stat())))
@@ -134,7 +147,7 @@ def build(module: Path, stage: Path) -> dict:
                 continue
             with source.open('rb') as stream:
                 signature = stream.read(4)
-            if signature == b'ttcf':
+            if signature == b'ttcf' and (not font_clipping_compat.enabled() or not variable_collection(source)):
                 # A collection may be addressed at a nonzero face index by ROM
                 # XML. The single-face writer must not silently discard faces.
                 report['reason'] = 'collection-metrics-preserved'
@@ -161,12 +174,9 @@ def build(module: Path, stage: Path) -> dict:
             groups.setdefault(key, []).append((source, report))
 
         if font_clipping_compat.enabled():
-            # A single variable source often supplies Hans, Hant and Latin
-            # aliases. Instance it once before fork instead of independently
-            # repeating the full-font work inside every metrics worker.
+            # Measure all variation deltas once before fork. Workers retain the
+            # original variable source, sharing only immutable geometry facts.
             prepare_started = time.perf_counter()
-            donor_folder = outputs / 'clipping-donors'
-            donor_folder.mkdir()
             digests = FontDigestCache()
             for source, _contract, _report in jobs:
                 if source.is_symlink():
@@ -174,8 +184,7 @@ def build(module: Path, stage: Path) -> dict:
                 source_key = donor_identity(source)
                 if source_key in clipping_donors:
                     continue
-                actual, detail = font_clipping_compat.prepare_donor(source,
-                    donor_folder / f'donor-{len(clipping_donors)}.font', digests)
+                actual, detail = font_clipping_compat.prepare_donor(source, digests)
                 if donor_identity(source) != source_key:
                     raise ValueError('防裁切来源在批次准备期间发生变化')
                 clipping_donors[source_key] = (actual, detail, donor_identity(actual), digests.sha256(actual))
@@ -203,7 +212,7 @@ def build(module: Path, stage: Path) -> dict:
                         if not source.is_symlink():
                             candidate, candidate_report = slot_compat.prepare(source, report['slot'])
                             if candidate_report.get('slotCompatibility') in (
-                                    'stock-contract-preserved', 'stock-preserved'):
+                                    'stock-contract-preserved', 'stock-preserved', 'variable-source-preserved'):
                                 compatible, compatibility_report = candidate, candidate_report
                         if compatible is None:
                             # Keep the established metrics-only path for missing
@@ -295,6 +304,7 @@ def build(module: Path, stage: Path) -> dict:
             'preservedSlots': len(reports) - len(jobs) - len(compatibility_aliases),
             'compatibilityAliasSlots': len(compatibility_aliases),
             'stockContractSlots': sum(r.get('slotCompatibility') == 'stock-contract-preserved' for r in reports),
+            'continuousVariableSlots': sum(r.get('slotCompatibility') == 'variable-source-preserved' for r in reports),
             'stockOnlyCharactersRetained': sum(r.get('stockOnlyCharactersRetained', 0) for r in reports),
             'slotCompatibilityUnverified': sum(r.get('slotCompatibility') == 'unverified' for r in reports),
             'metricsBatchSeconds': round(time.perf_counter() - started, 3),

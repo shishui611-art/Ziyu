@@ -89,7 +89,7 @@ internal fun FontClippingControl(font: FontItem, busy: Boolean) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (font.variable) ZiyuText(
-            "可变字体按默认字重适配。",
+            "保留连续字重调整。",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)

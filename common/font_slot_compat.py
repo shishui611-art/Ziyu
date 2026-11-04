@@ -33,13 +33,14 @@ class SlotCompat:
         self.workspace = workspace
         self.digests = FontDigestCache()
         self.outputs = {}
+        self._variable_outputs = {}
         self._donor = None
         self._donor_identity = None
         self._donor_path = None
-        self._donor_instance = None
+        self._donor_preparation = None
         # Only immutable paths/identities are shared across fork, never TTFont
         # objects or mutable outline caches. Every worker rechecks its inputs.
-        self._static_donors = dict(prepared_donors or {})
+        self._prepared_donors = dict(prepared_donors or {})
         self._recordings = {}
         self._outline_cache = {}
         self._donor_loads = 0
@@ -61,7 +62,7 @@ class SlotCompat:
             self._donor = None
             self._donor_identity = None
             self._donor_path = None
-            self._donor_instance = None
+            self._donor_preparation = None
             self._template_hits += self._outline_cache.get('templateHits', 0)
             self._template_peak = max(self._template_peak, self._outline_cache.get('templateBytes', 0))
             self._native_batches += self._outline_cache.get('nativeGlyphBatches', 0)
@@ -80,25 +81,28 @@ class SlotCompat:
             self.close()
             actual, detail = path, None
             if font_clipping_compat.enabled():
-                cached = self._static_donors.get(expected)
-                if cached is not None:
-                    actual, detail, pinned, digest = cached
-                    if identity(actual) != pinned or self.digests.sha256(actual) != digest:
-                        raise ValueError('防裁切临时样本在本批次中发生变化')
-                else:
-                    actual, detail = font_clipping_compat.prepare_donor(path,
-                        self.workspace / f'clipping-donor-{len(self._static_donors)}.font', self.digests)
-                    self._static_donors[expected] = (actual, detail, identity(actual), self.digests.sha256(actual))
-                if identity(path) != expected:
-                    raise ValueError('防裁切来源在静态处理期间发生变化')
+                actual, detail = self._preparation(path, expected)
             self._donor = TTFont(actual, lazy=True, recalcBBoxes=False, recalcTimestamp=False)
             self._donor_path = actual
-            self._donor_instance = detail
+            self._donor_preparation = detail
             self._donor_identity = expected
             self._donor_loads += 1
         else:
             self._donor_reuses += 1
         return self._donor
+
+    def _preparation(self, path, expected):
+        cached = self._prepared_donors.get(expected)
+        if cached is not None:
+            actual, detail, pinned, digest = cached
+            if identity(actual) != pinned or self.digests.sha256(actual) != digest:
+                raise ValueError('防裁切测量来源在本批次中发生变化')
+        else:
+            actual, detail = font_clipping_compat.prepare_donor(path, self.digests)
+            self._prepared_donors[expected] = (actual, detail, identity(actual), self.digests.sha256(actual))
+        if identity(path) != expected:
+            raise ValueError('防裁切来源在测量期间发生变化')
+        return actual, detail
 
     def stats(self):
         return {'compatDonorLoads': self._donor_loads,
@@ -141,18 +145,57 @@ class SlotCompat:
             donor_magic = stream.read(4)
         if stock_magic == b'ttcf' or donor_magic == b'ttcf':
             if font_clipping_compat.enabled():
-                raise ValueError('此字体槽仍需集合逐面处理，不能跳过防裁切校验；请先保存静态组合后重试')
+                actual, detail = self._preparation(donor, before)
+                if detail is not None:
+                    from font_clipping_variable import fit_container, container_contract
+                    output = self.workspace / f'variable-slot-{len(self.outputs)}.font'
+                    geometry_key = (before, 'container', container_contract(stock))
+                    previous = self._variable_outputs.get(geometry_key)
+                    if previous is None:
+                        self.close()
+                        report = fit_container(actual, stock, output, detail['facts'], self.digests)
+                        self._variable_outputs[geometry_key] = (output, report, identity(output), self.digests.sha256(output))
+                    else:
+                        output, report, pinned, digest = previous
+                        if identity(output) != pinned or self.digests.sha256(output) != digest:
+                            raise ValueError('可变防裁切集合缓存发生变化')
+                        report = dict(report, stockSha256=stock_hash, slotCompatibilityReused=True)
+                    if identity(donor) != before or identity(stock) != stock_before:
+                        raise ValueError('可变防裁切集合来源或原厂快照已变化')
+                    self.outputs[key] = (output, report, identity(output), self.digests.sha256(output))
+                    return output, report
+                raise ValueError('此字体集合暂不支持当前防裁切处理，未改变字重')
             return donor, {'slotCompatibility': 'unverified',
                            'compatibilityReason': 'collection-requires-per-face-pipeline'}
         output = self.workspace / f'stock-slot-{len(self.outputs)}.font'
         try:
             source = self._source(donor, before)
             with TTFont(stock, lazy=True, recalcBBoxes=False, recalcTimestamp=False) as base:
+                if 'fvar' in source and font_clipping_compat.enabled():
+                    from font_clipping_variable import fit_container, line_contract
+                    geometry_key = (before, line_contract(base))
+                    previous = self._variable_outputs.get(geometry_key)
+                    if previous is not None:
+                        result, report, pinned, digest = previous
+                        if identity(result) != pinned or self.digests.sha256(result) != digest:
+                            raise ValueError('可变防裁切输出在本批次中发生变化')
+                        report = dict(report, stockSha256=stock_hash, slotCompatibilityReused=True)
+                    else:
+                        facts = (self._donor_preparation or {}).get('facts')
+                        if facts is None:
+                            raise ValueError('缺少完整可变轮廓测量结果')
+                        report = fit_container(self._donor_path, stock, output, facts, self.digests)
+                        result = output
+                        self._variable_outputs[geometry_key] = (result, report, identity(result), self.digests.sha256(result))
+                    if identity(donor) != before or identity(stock) != stock_before:
+                        raise ValueError('可变防裁切来源或原厂快照已变化')
+                    self.outputs[key] = (result, report, identity(result), self.digests.sha256(result))
+                    return result, report
                 # Keep variable/color sources on their established path. Freezing
                 # them here would lose the user's axis/bitmap/color behaviour.
                 if 'fvar' in source or any(tag in source for tag in font_source_profile.COLOR_TABLES):
                     if font_clipping_compat.enabled():
-                        raise ValueError('防裁切需要普通或已选定字重的静态字体；请先保存静态组合，或关闭防裁切')
+                        raise ValueError('此字体暂不支持保留原字重的防裁切，未固定字重')
                     return donor, {'slotCompatibility': 'unverified',
                                    'compatibilityReason': 'variable-or-color-source-preserved'}
                 if 'glyf' not in base and not font_clipping_compat.enabled():
@@ -257,7 +300,7 @@ class SlotCompat:
                       'outputUpem': output_upem, 'outputHead': output_head,
                       'fontFrameExpansion': frame_expansion,
                       'clippingFit': details.get('clippingFit'),
-                      'clippingSourceInstance': self._donor_instance,
+                      'clippingSourcePreparation': self._donor_preparation,
                       'metricExtremaExpansion': details.get('metricExtremaExpansion'),
                       'layoutBoundsSource': 'stock', 'bitmapBaselineCorrection': 0,
                       'bitmapBaselineReason': 'stock-preserved',
