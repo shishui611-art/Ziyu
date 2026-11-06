@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import io.github.xgl34222220.ziyu.ui.appearance.themeText
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar as MiuixSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixLargeTopAppBar
 
@@ -35,8 +36,8 @@ internal fun ZiyuTopBar(
     val style = LocalUiStyle.current
     if (style == UiStyle.MIUIX) {
         MiuixLargeTopAppBar(
-            title = title,
-            largeTitle = title,
+            title = themeText(title),
+            largeTitle = themeText(title),
             modifier = modifier.fillMaxWidth(),
             color = Color.Transparent,
             titleColor = LocalZiyuPaletteTokens.current.textPrimary,
@@ -49,7 +50,7 @@ internal fun ZiyuTopBar(
     }
     if (style == UiStyle.COUI) {
         io.github.suqi8.coui.kmp.basic.SmallTopAppBar(
-            title = title,
+            title = themeText(title),
             modifier = modifier.fillMaxWidth(),
             color = Color.Transparent,
             titleColor = LocalZiyuPaletteTokens.current.textPrimary,
@@ -64,7 +65,7 @@ internal fun ZiyuTopBar(
     MaterialTopAppBar(
         title = {
             Text(
-                text = title,
+                text = themeText(title),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = titleFontSize,
                 lineHeight = titleFontSize * 1.27f,
@@ -90,7 +91,7 @@ internal fun ZiyuDetailBar(
     val style = LocalUiStyle.current
     if (style == UiStyle.MIUIX) {
         MiuixSmallTopAppBar(
-            title = title,
+            title = themeText(title),
             modifier = modifier.fillMaxWidth(),
             color = Color.Transparent,
             titleColor = LocalZiyuPaletteTokens.current.textPrimary,
@@ -101,7 +102,7 @@ internal fun ZiyuDetailBar(
     }
     if (style == UiStyle.COUI) {
         io.github.suqi8.coui.kmp.basic.SmallTopAppBar(
-            title = title,
+            title = themeText(title),
             modifier = modifier.fillMaxWidth(),
             color = Color.Transparent,
             titleColor = LocalZiyuPaletteTokens.current.textPrimary,
@@ -119,7 +120,7 @@ internal fun ZiyuDetailBar(
     MaterialTopAppBar(
         title = {
             Text(
-                text = title,
+                text = themeText(title),
                 fontSize = titleFontSize,
                 lineHeight = titleFontSize * 1.27f,
                 fontWeight = FontWeight.SemiBold,

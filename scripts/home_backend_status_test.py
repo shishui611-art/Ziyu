@@ -18,9 +18,9 @@ class HomeBackendStatusTest(unittest.TestCase):
         self.module = self.base / 'module'
         (self.module / 'common').mkdir(parents=True)
         (self.module / 'config').mkdir()
-        for name in ('app_bridge.sh', 'root_manager_detection.sh', 'mount_backend_details.sh', 'mount_backend_state.sh', 'ziyu_health.sh'):
+        for name in ('app_bridge.sh', 'ziyu_health.sh', 'app_status.sh', 'root_manager_detection.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'temporary_root_mode.sh', 'legacy_identity.sh', 'font_boot_state.sh', 'font_live_state.sh'):
             shutil.copy2(ROOT / 'common' / name, self.module / 'common' / name)
-        (self.module / 'module.prop').write_text('id=Ziyu\nversion=test\nversionCode=1\n')
+        (self.module / 'module.prop').write_text('id=ziyu\nversion=test\nversionCode=1\n')
         for directory in ('ksu', 'magisk'):
             (self.base / 'data' / 'adb' / directory).mkdir(parents=True)
         self.shell = shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
@@ -36,6 +36,9 @@ class HomeBackendStatusTest(unittest.TestCase):
         cat = tools / 'cat'
         cat.write_text('#!/bin/sh\nif [ "$1" = /proc/sys/kernel/random/boot_id ]; then printf "status-test-boot\\n"; else exec /usr/bin/cat "$@"; fi\n')
         cat.chmod(0o755)
+        root_id = tools / 'id'
+        root_id.write_text('#!/bin/sh\nprintf "0\\n"\n', encoding='utf-8', newline='\n')
+        root_id.chmod(0o755)
         self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
         self.boot = self.run_shell('cat /proc/sys/kernel/random/boot_id').strip()
 

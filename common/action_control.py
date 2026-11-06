@@ -383,7 +383,23 @@ def log_severity(line: str) -> str:
     start = line.find('{')
     if start >= 0 and line.rstrip().endswith('}'):
         try:
-            status = str(json.loads(line[start:]).get('status', '')).lower()
+            record = json.loads(line[start:])
+            # The cutover controller retains the capability receipt and clean
+            # task exit as INFO, then emits one warning with the actual impact.
+            # Do not count words inside those recognized receipts a second time.
+            if line.startswith('[INFO] [UNIVERSAL-COMPATIBILITY] '):
+                expected_capability = (
+                    record.get('status') == 'compatibility-required' and
+                    record.get('reason') in ('static-weight-compatibility', 'source-style-compatibility')
+                )
+                clean_exit = (
+                    record.get('schema') == 'ziyu-task-cleanup-v1' and
+                    record.get('result') == 3 and record.get('deadlineExceeded') is False and
+                    record.get('terminationSignal') == 0 and record.get('leftoverPids') == []
+                )
+                if expected_capability or clean_exit:
+                    return 'info'
+            status = str(record.get('status', '')).lower()
             if status in ('ok', 'success'):
                 return 'info'
             if status in ('error', 'failed'):

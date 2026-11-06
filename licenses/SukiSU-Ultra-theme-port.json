@@ -1,0 +1,129 @@
+{
+  "project": "SukiSU-Ultra/SukiSU-Ultra",
+  "commit": "075ac81f1dfe58b3f59c665a1b07fda8b975015f",
+  "license": "GPL-3.0-or-later; Ziyu adaptation GPL-3.0-only",
+  "licenseFile": "SukiSU-Ultra-GPL-3.0.txt",
+  "files": [
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/util/AppearanceOverlay.kt",
+      "blob": "8873708ec16d18484a3325108e99ebdc4e01faf8",
+      "usage": "adapted model/effects"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/util/ThemePackageCrypto.kt",
+      "blob": "9735b4fe5c423c501335084fff49347ac9b7aafb",
+      "usage": "adapted source"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/util/ThemePackageStorage.kt",
+      "blob": "d01231f9ae95c74bf76bc915b695fda69c03ead2",
+      "usage": "format and protocol reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/theme/AppearanceImageEffects.kt",
+      "blob": "7025d6faea721fc9d5e3135fc04ed3e1a8caf2e1",
+      "usage": "adapted model/effects"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/theme/AppearanceOverlayColors.kt",
+      "blob": "4b02be430c3d878e1771e6ef42ea44a8e2c150b8",
+      "usage": "adapted source"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreDefaults.kt",
+      "blob": "da9fc9a90d0e5e62bbe79f3897e75b493da5ceed",
+      "usage": "public service defaults"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreRepository.kt",
+      "blob": "906374ab2e6193aa73191db435eb4f8187d0ca4c",
+      "usage": "format and protocol reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/util/CustomTextConfig.kt",
+      "blob": "6a92e8fd18600d744a9653a9082d0820145cf0f9",
+      "usage": "cosmetic key names and grouping reference; Ziyu-specific allowlist"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/util/HomeCardStickerTransform.kt",
+      "blob": "9989cffdaecaf2ac0f3fdbb3e5b72cebaddb44cc",
+      "usage": "adapted sticker defaults, coordinate units and bounds"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMaterial.kt",
+      "blob": "950660901a8cac87a99478a879f6983bb5b14977",
+      "usage": "home card, ring decoration and statistics layout reference; Ziyu implementation uses one scaled face for preview and live UI"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMiuix.kt",
+      "blob": "48ae4794bb145d90142f6a00dcb22b4d5946db3f",
+      "usage": "home card padding, minimum height and statistic grouping reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/component/bottombar/BottomBarMaterial.kt",
+      "blob": "e2962d5db59fc4b260f7c1efa5f6c5a967ed719c",
+      "usage": "expanding Material floating navigation reference; Ziyu uses animated layout weights and retains glass background plus drag selection"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/screen/themestore/ThemeStoreScreen.kt",
+      "blob": "7b8f81adf5d2cdbb66bcde50c7ddee8145b89bc7",
+      "usage": "banner store layout, gradient, badges and direct download reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/screen/themestore/ThemeStoreBrowse.kt",
+      "blob": "34029864417ddcdc3d963f45d0a4967d8688ad6d",
+      "usage": "adaptive tag aliases, popular tags and any-selected-tag filtering reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/data/model/ThemeStoreModels.kt",
+      "blob": "f7f5cd2458b81b7b5bda7c535ac0a286e2b7c25a",
+      "usage": "catalog heat field protocol reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/theme/Theme.kt",
+      "blob": "216069444791ba63c5ed72ce61f6cdcb677579fa",
+      "usage": "native Monet mode and explicit key-color interpretation reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/theme/MiuixTheme.kt",
+      "blob": "a6a1e82b53222b4caf86c5d8ee4b1ca5dbf7b700",
+      "usage": "native palette mode, color snapshots and key-color priority reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/theme/MaterialTheme.kt",
+      "blob": "3e638778b0360b3b2cbb361a4845a80b5574f3aa",
+      "usage": "Material seed and semantic palette reference"
+    },
+    {
+      "path": "manager/app/src/main/java/com/sukisu/ultra/ui/MainActivity.kt",
+      "blob": "0eae55f69cfbbead171a34837651a93d727f72ea",
+      "usage": "signed background scrim: negative black, positive white reference"
+    }
+  ],
+  "excluded": [
+    "account",
+    "comments",
+    "follow",
+    "submission",
+    "upload",
+    "root-management",
+    "upstream artwork"
+  ],
+  "localDoc": "docs/THEME_COMPAT_v1.4.103.md",
+  "deviceAccessProtocol": {
+    "commit": "8ed5bd556fba073d52f4a4d98500b782db6437e6",
+    "license": "GPL-3.0-or-later; Ziyu adaptation GPL-3.0-only",
+    "files": [
+      {
+        "path": "manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreAccessRepository.kt",
+        "blob": "042ea780774f372840e7b1fdc68a6c4275b49cce"
+      },
+      {
+        "path": "manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreDefaults.kt",
+        "blob": "ae3e2897b740e001b51bdb26b6da55d17c5e9066"
+      }
+    ],
+    "localSource": "ui/appearance/ThemeStoreAccessRepository.kt",
+    "scope": "Independent read-only device credential; acquisition and refresh only; no account, upload or submission"
+  }
+}

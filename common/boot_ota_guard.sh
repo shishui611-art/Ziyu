@@ -388,36 +388,6 @@ _zbg_stock_inventory_fingerprint() {
     return 1
 }
 
-_zbg_rom_key() {
-    local _zbg_digest
-    _zbg_digest=$({
-        _zbg_fingerprint
-        if [ -n "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" ]; then
-            printf '%s\n' test-incremental test-device test-sdk
-        else
-            getprop ro.build.version.incremental 2>/dev/null
-            getprop ro.product.device 2>/dev/null
-            getprop ro.build.version.sdk 2>/dev/null
-        fi
-    } | sha256sum 2>/dev/null | awk '{print $1}')
-    if [ -n "$_zbg_digest" ]; then printf '%s\n' "$_zbg_digest"
-    elif command -v busybox >/dev/null 2>&1; then
-        {
-            _zbg_fingerprint
-            getprop ro.build.version.incremental 2>/dev/null
-            getprop ro.product.device 2>/dev/null
-            getprop ro.build.version.sdk 2>/dev/null
-        } | busybox sha256sum 2>/dev/null | awk '{print $1}'
-    else
-        {
-            _zbg_fingerprint
-            getprop ro.build.version.incremental 2>/dev/null
-            getprop ro.product.device 2>/dev/null
-            getprop ro.build.version.sdk 2>/dev/null
-        } | cksum 2>/dev/null | awk '{print $1 ":" $2}'
-    fi
-}
-
 _zbg_log() {
     local _zbg_log_mod
     _zbg_log_mod="$1"; shift

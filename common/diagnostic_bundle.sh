@@ -12,7 +12,6 @@ MODULE_DIR="$MODDIR"
 ziyu_user_storage_environment "$MODDIR"
 _REASON="${1:-manual}"
 
-_diag_stamp() { date '+%Y%m%d-%H%M%S' 2>/dev/null || echo unknown; }
 _diag_boot() { printf '%s\n' "${ZIYU_DIAG_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"; }
 _diag_public_root() { printf '%s\n' "${ZIYU_DIAG_PUBLIC_DIR:-$ZIYU_PUBLIC_DIR/reports}"; }
 _diag_public_ready() {

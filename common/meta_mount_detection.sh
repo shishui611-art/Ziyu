@@ -10,13 +10,6 @@ _ziyu_meta_prop() {
     sed -n "s/^$2=//p" "$1/module.prop" 2>/dev/null | head -n1 | tr -d '\r\n'
 }
 
-_ziyu_meta_truthy() {
-    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
-        1|true|yes|on|enabled) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
 _ziyu_meta_enabled() {
     [ -f "$1/module.prop" ] && [ ! -e "$1/disable" ] && [ ! -e "$1/remove" ]
 }

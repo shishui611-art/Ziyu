@@ -1,11 +1,9 @@
 package io.github.xgl34222220.ziyu
 
-import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -13,14 +11,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.xgl34222220.ziyu.ui.appearance.AppearanceViewModel
@@ -48,20 +42,9 @@ internal fun ZiyuHost() {
     ZiyuTheme(appearance) {
         if (setupRequired == false) NotificationPermissionOnboarding()
         val pageBackground = LocalZiyuPaletteTokens.current.pageBackground
-        val useDarkSystemBars = pageBackground.luminance() < .5f
-        val context = LocalContext.current
-        val view = LocalView.current
         val contentInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
         )
-
-        SideEffect {
-            val window = (context as? Activity)?.window ?: return@SideEffect
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !useDarkSystemBars
-                isAppearanceLightNavigationBars = !useDarkSystemBars
-            }
-        }
 
         Box(
             modifier = Modifier
@@ -71,8 +54,7 @@ internal fun ZiyuHost() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(contentInsets)
-                    .consumeWindowInsets(contentInsets),
+                    .then(if (setupRequired == false) Modifier else Modifier.windowInsetsPadding(contentInsets)),
             ) {
                 when (setupRequired) {
                     null -> InitializationLoadingScreen()

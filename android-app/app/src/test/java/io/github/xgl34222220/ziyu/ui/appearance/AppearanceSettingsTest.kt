@@ -41,10 +41,10 @@ class AppearanceSettingsTest {
     }
 
     @Test
-    fun invalidAccentFallsBackToZiyuBlue() {
+    fun customAccentKeepsItsRgbWithOpaqueSeed() {
         val normalized = AppearanceSettings(seedArgb = 0x12345678).normalized()
-        assertEquals(AccentOptions.first().argb, normalized.seedArgb)
-        assertEquals("ziyu", normalized.accent.id)
+        assertEquals(0xFF345678.toInt(), normalized.seedArgb)
+        assertEquals("custom", normalized.accent.id)
         assertFalse(normalized.highRefreshRate)
     }
 

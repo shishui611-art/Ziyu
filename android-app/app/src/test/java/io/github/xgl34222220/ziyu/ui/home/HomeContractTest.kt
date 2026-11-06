@@ -81,6 +81,8 @@ class HomeContractTest {
     fun pendingRebootDoesNotPretendTheFontIsAlreadyEffective() {
         val state = ModuleSnapshot(
             loading = false,
+            rootGranted = true,
+            installed = true,
             activeFont = "DemoFont",
             effectiveFont = "unknown",
             fontEffectState = "pending-reboot",

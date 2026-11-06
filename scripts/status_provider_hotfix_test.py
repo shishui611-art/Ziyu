@@ -20,7 +20,7 @@ class HotfixTest(unittest.TestCase):
         self.common = self.module / 'common'
         self.common.mkdir(parents=True)
         (self.module / 'config').mkdir()
-        (self.module / 'module.prop').write_text('id=Ziyu\nversion=test\nversionCode=1\n')
+        (self.module / 'module.prop').write_text('id=ziyu\nversion=test\nversionCode=1\n')
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         self.env = {**os.environ, 'MODDIR': str(self.module), 'MODULE_DIR': str(self.module),
@@ -66,6 +66,9 @@ class HotfixTest(unittest.TestCase):
     def test_status_does_not_start_deep_verifier_or_root_manager_daemon(self):
         self.copy('font_boot_state.sh')
         self.copy('app_bridge.sh')
+        for name in ('app_status.sh', 'root_manager_detection.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'temporary_root_mode.sh', 'legacy_identity.sh', 'font_boot_state.sh', 'font_live_state.sh'):
+            self.copy(name)
+        self.command('id', 'printf "0\\n"\n')
         config = self.module / 'config'
         (config / 'active_font.conf').write_text('fixture\n')
         (config / 'text_reboot_required.conf').write_text('bootId=previous-boot\n')

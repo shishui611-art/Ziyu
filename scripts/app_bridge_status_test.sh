@@ -6,8 +6,16 @@ TMP=$(mktemp -d 2>/dev/null || mktemp -d -t ziyu-app-status)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MODULE="$TMP/module"
 CONFIG="$MODULE/config"
-mkdir -p "$CONFIG"
-printf 'id=Ziyu\nversion=test\nversionCode=1\n' >"$MODULE/module.prop"
+mkdir -p "$CONFIG" "$MODULE/common" "$TMP/bin"
+# Status is a dedicated helper with a Root boundary; simulate that boundary here.
+for helper in app_status.sh root_manager_detection.sh mount_backend_state.sh mount_backend_details.sh temporary_root_mode.sh legacy_identity.sh font_boot_state.sh font_live_state.sh; do
+    cp "$ROOT/common/$helper" "$MODULE/common/"
+done
+printf '#!/bin/sh\nprintf "0\\n"\n' > "$TMP/bin/id"
+chmod 0755 "$TMP/bin/id"
+PATH="$TMP/bin:$PATH"
+export PATH
+printf 'id=ziyu\nversion=test\nversionCode=1\n' >"$MODULE/module.prop"
 
 assert_status() {
     _expected_effective="$1"
@@ -115,4 +123,4 @@ printf 'grade=FAIL\nstate=fail\nmode=universal-runtime\nreason=required-axis-mis
     >"$CONFIG/universal-font-runtime-verification.conf"
 assert_status unknown failed required-axis-missing
 
-printf 'LuoShu App bridge distinguishes configured, effective and rollback fonts.\n'
+printf 'Ziyu App bridge distinguishes configured, effective and rollback fonts.\n'

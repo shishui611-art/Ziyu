@@ -2,8 +2,8 @@ package io.github.xgl34222220.ziyu.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -22,8 +22,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import io.github.xgl34222220.ziyu.BuildConfig
+import io.github.xgl34222220.ziyu.ui.appearance.HomeHeroFace
+import io.github.xgl34222220.ziyu.ui.appearance.homeHeroColors
+import io.github.xgl34222220.ziyu.ui.appearance.ThemeMode
+import io.github.xgl34222220.ziyu.ui.appearance.ThemeTextKey
+import io.github.xgl34222220.ziyu.ui.appearance.resolveThemeText
 import androidx.compose.ui.unit.dp
-import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import io.github.xgl34222220.ziyu.ui.appearance.LocalAppearanceSettings
+import io.github.xgl34222220.ziyu.ui.appearance.themeText
 import io.github.xgl34222220.ziyu.ui.design.*
 import io.github.xgl34222220.ziyu.ui.theme.*
 
@@ -33,103 +42,60 @@ internal val HomeUiState.hasTaskNotice: Boolean
 
 @Composable
 internal fun HomePageHeader(loading: Boolean, actions: HomeActions) {
-    ZiyuTopBar("字域") {
-        ZiyuHeaderAction(Icons.Rounded.Description, "任务中心", actions.openLogs, Color.Transparent)
-        ZiyuHeaderAction(Icons.Rounded.Refresh, "刷新", actions.refresh, Color.Transparent, loading = loading)
+    val palette=LocalZiyuPaletteTokens.current
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(bottom=4.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min=48.dp),horizontalArrangement=Arrangement.End,verticalAlignment=Alignment.CenterVertically) {
+            ZiyuHeaderAction(Icons.Rounded.Description, "任务中心", actions.openLogs, Color.Transparent, contentColor=palette.textPrimary)
+            ZiyuHeaderAction(Icons.Rounded.Refresh, "刷新", actions.refresh, Color.Transparent, loading=loading, contentColor=palette.textPrimary)
+        }
+        ZiyuText(themeText("字域"),Modifier.padding(top=16.dp,bottom=12.dp),color=palette.textPrimary,fontSize=40.sp,lineHeight=48.sp,
+            fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-internal fun HomeConnectionRow(moduleInstalled: Boolean, rootGranted: Boolean, version: String) {
-    val palette = LocalZiyuPaletteTokens.current
-    val ready = moduleInstalled && rootGranted
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        ZiyuSurface(
-            modifier = Modifier.size(7.dp),
-            shape = CircleShape,
-            color = if (ready) palette.success else MaterialTheme.colorScheme.error,
-        ) {}
-        Spacer(Modifier.width(8.dp))
-        ZiyuText(
-            if (ready) "模块已连接" else if (moduleInstalled) "等待 Root 授权" else "等待模块连接",
-            style = MaterialTheme.typography.bodySmall,
-            color = palette.textSecondary,
-        )
-        Spacer(Modifier.weight(1f))
-        ZiyuText(version, style = MaterialTheme.typography.bodySmall, color = palette.textSecondary)
+internal fun HomeCurrentFont(state: HomeUiState, actions: HomeActions) {
+    val scheme=MaterialTheme.colorScheme
+    val settings=LocalAppearanceSettings.current
+    val dark=when(settings.themeMode) { ThemeMode.SYSTEM->isSystemInDarkTheme();ThemeMode.LIGHT->false;ThemeMode.DARK->true }
+    val hero=homeHeroColors(settings,scheme,dark)
+    val status=when {
+        state.loading -> "检测中…"
+        !state.moduleInstalled -> "未连接模块"
+        !state.rootGranted -> "等待 Root 授权"
+        state.taskRunning -> "正在应用"
+        state.rebootRequired -> "重启后生效"
+        state.error.isNotBlank() -> "状态待更新"
+        !state.mountHealthy -> "待验证"
+        else -> "模块已连接"
+    }
+    ZiyuCard(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),
+        colors=CardDefaults.cardColors(containerColor=hero.background,contentColor=hero.text),
+        onClick=if(!state.moduleInstalled || !state.rootGranted) actions.refresh else actions.openLogs) {
+        HomeHeroFace(settings,hero,status,state.version)
     }
 }
 
 @Composable
-internal fun HomeCurrentFont(
-    style: UiStyle,
-    fontName: String,
-    moduleInstalled: Boolean,
-    rootGranted: Boolean,
-    version: String,
-    next: HomeNextStep,
-) {
-    val palette = LocalZiyuPaletteTokens.current
-    val scheme = MaterialTheme.colorScheme
-    val layout = LocalZiyuThemeTokens.current.layout
-    ZiyuCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = palette.cardBackground, contentColor = palette.textPrimary),
-    ) {
-        Column(
-            Modifier.padding(layout.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(layout.itemGap),
-        ) {
-            if (style == UiStyle.MATERIAL) HomeConnectionRow(moduleInstalled, rootGranted, version)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                ZiyuText("当前字体", style = MaterialTheme.typography.labelLarge, color = palette.textSecondary)
-                ZiyuText(
-                    fontName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            when (style) {
-                UiStyle.MIUIX -> {
-                    ZiyuHorizontalDivider(color = scheme.outlineVariant.copy(alpha = .45f))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ZiyuText("天地有大美，字里见山河", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Normal)
-                        ZiyuText("Aa Bb  0123456789", style = MaterialTheme.typography.titleMedium, color = palette.textSecondary)
-                    }
-                }
-                UiStyle.COUI -> Row(
-                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    ZiyuText("Aa", style = MaterialTheme.typography.displaySmall, color = scheme.primary, fontWeight = FontWeight.Normal)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        ZiyuText("字里见山河", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal)
-                        ZiyuText("0123456789", style = MaterialTheme.typography.bodyLarge, color = palette.textSecondary)
-                    }
-                }
-                UiStyle.MATERIAL -> ZiyuSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = scheme.primaryContainer.copy(alpha = .55f),
-                    contentColor = scheme.onPrimaryContainer,
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ZiyuText("字里见山河", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Normal)
-                        ZiyuText("Aa Bb  0123456789", style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-            ZiyuButton(
-                onClick = next.onClick,
-                enabled = next.enabled,
-                modifier = if (style == UiStyle.MATERIAL) Modifier.align(Alignment.End) else Modifier.fillMaxWidth(),
-            ) {
-                ZiyuGlyph(next.icon, null, ZiyuIconTokens.ToolGlyph)
-                Spacer(Modifier.width(8.dp))
-                ZiyuText(next.actionLabel)
-            }
+internal fun HomeStatsRow(state: HomeUiState, actions: HomeActions) {
+    val texts=LocalAppearanceSettings.current.customTexts
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        HomeStatTile(resolveThemeText(texts,ThemeTextKey.STAT_FONT),state.currentFont,false,actions.viewCurrentFont,Modifier.weight(1f).fillMaxHeight())
+        val count=state.libraryCount?.toString() ?: if(state.libraryCountLoading)"读取中…" else "未读取"
+        val label=resolveThemeText(texts,ThemeTextKey.STAT_LIBRARY)+if(state.libraryCount!=null && state.libraryCountStale)" · 上次记录" else ""
+        HomeStatTile(label,count,true,actions.openFontLibrary,Modifier.weight(1f).fillMaxHeight())
+    }
+}
+
+@Composable
+private fun HomeStatTile(title: String,value: String,number: Boolean,onClick: ()->Unit,modifier: Modifier) {
+    val palette=LocalZiyuPaletteTokens.current
+    ZiyuCard(modifier=modifier,shape=RoundedCornerShape(24.dp),onClick=onClick,
+        colors=CardDefaults.cardColors(containerColor=palette.cardBackground,contentColor=palette.textPrimary)) {
+        Column(Modifier.fillMaxWidth().heightIn(min=100.dp).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp,Alignment.Bottom)) {
+            ZiyuText(value,Modifier.weight(1f,fill=false),fontSize=if(number && value.all {it.isDigit()})28.sp else 18.sp,
+                lineHeight=if(number && value.all {it.isDigit()})34.sp else 24.sp,fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
+            ZiyuText(title,color=palette.textSecondary,style=MaterialTheme.typography.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
         }
     }
 }
@@ -172,94 +138,44 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                 progress = { state.taskProgress.coerceIn(0, 100) / 100f },
                 modifier = Modifier.fillMaxWidth(),
             )
-        }
-    }
-}
-
-@Composable
-internal fun HomeNavigation(style: UiStyle, actions: HomeActions) {
-    val palette = LocalZiyuPaletteTokens.current
-    if (style == UiStyle.MATERIAL) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeActionTile("字体库", "导入与预览", Icons.Rounded.FontDownload, actions.openFontLibrary, Modifier.weight(1f))
-            HomeActionTile("字体组合", "中文、英文与数字", Icons.Rounded.Layers, actions.openFontStudio, Modifier.weight(1f))
-        }
-    } else {
-        ZiyuSurface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            color = palette.cardBackground.withCardTransparency(),
-            border = ZiyuCardDefaults.border(),
-            shadowElevation = LocalZiyuThemeTokens.current.layout.cardElevation,
-        ) {
-            Column {
-                HomeNavigationRow("字体库", "导入、预览并应用字体", Icons.Rounded.FontDownload, actions.openFontLibrary)
-                ZiyuHorizontalDivider(modifier = Modifier.padding(start = 54.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
-                HomeNavigationRow("字体组合", "选择中文、英文与数字字体", Icons.Rounded.Layers, actions.openFontStudio)
+            if(state.taskRunning || state.rebootRequired || failed) {
+                val next=nextStepFor(state,actions)
+                ZiyuOutlinedButton(onClick=next.onClick,enabled=next.enabled,modifier=Modifier.fillMaxWidth()) { ZiyuText(next.actionLabel) }
             }
         }
     }
-}
-
-@Composable
-private fun HomeActionTile(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    ZiyuCard(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = scheme.secondaryContainer, contentColor = scheme.onSecondaryContainer)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ZiyuGlyph(icon, null, ZiyuIconTokens.SectionGlyph)
-            ZiyuText(title, style = MaterialTheme.typography.titleMedium)
-            ZiyuText(subtitle, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-private fun HomeNavigationRow(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
-    ZiyuListItem(
-        onClick = onClick,
-        onClickLabel = title,
-        headlineContent = { ZiyuText(title, style = MaterialTheme.typography.titleMedium) },
-        supportingContent = { ZiyuText(subtitle, style = MaterialTheme.typography.bodySmall) },
-        leadingContent = { ZiyuGlyph(icon, null, ZiyuIconTokens.SectionGlyph, tint = MaterialTheme.colorScheme.primary) },
-        trailingContent = { ZiyuGlyph(Icons.Rounded.ChevronRight, null, ZiyuIconTokens.TrailingGlyph) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-    )
 }
 
 @Composable
 internal fun HomeDevicePanel(state: HomeUiState, trustContent: @Composable () -> Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val palette = LocalZiyuPaletteTokens.current
-    ZiyuSurface(
-        modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-        color = palette.cardBackground.withCardTransparency(), border = ZiyuCardDefaults.border(),
-        shadowElevation = LocalZiyuThemeTokens.current.layout.cardElevation,
-    ) {
-        Column {
-            ZiyuListItem(
-                modifier = Modifier.semantics { stateDescription = if (expanded) "已展开" else "已收起" },
-                onClick = { expanded = !expanded },
-                onClickLabel = "设备与生效状态",
-                headlineContent = { ZiyuText("设备与生效状态", style = MaterialTheme.typography.titleMedium) },
-                supportingContent = {
-                    ZiyuText(
-                        if (state.rootGranted && state.mountHealthy) "${state.rootManager} · 挂载正常" else "查看权限、挂载与字体检查",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                },
-                leadingContent = { ZiyuGlyph(Icons.Rounded.Security, null, ZiyuIconTokens.SectionGlyph, tint = MaterialTheme.colorScheme.primary) },
-                trailingContent = { ZiyuGlyph(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, ZiyuIconTokens.TrailingGlyph) },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            )
-            AnimatedVisibility(expanded) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ZiyuText("Root：${if (state.rootGranted) state.rootManager else "未授权"}", style = MaterialTheme.typography.bodyMedium)
-                    ZiyuText("挂载：${state.mountEngine}", style = MaterialTheme.typography.bodyMedium)
-                    trustContent()
-                }
-            }
+    val palette=LocalZiyuPaletteTokens.current
+    ZiyuCard(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),
+        colors=CardDefaults.cardColors(containerColor=palette.cardBackground,contentColor=palette.textPrimary)) {
+        Column(Modifier.padding(horizontal=16.dp,vertical=4.dp)) {
+            HomeInfoRow("App 版本",BuildConfig.VERSION_NAME)
+            HomeInfoRow("模块版本",state.version)
+            HomeInfoRow("Root 管理器",if(state.rootGranted)state.rootManager else "未授权")
+            HomeInfoRow("挂载方式",state.mountEngine)
+            HomeInfoRow("设备",android.os.Build.MODEL)
+            HomeInfoRow("Android",android.os.Build.VERSION.RELEASE)
+            ZiyuListItem(onClick={expanded=!expanded},onClickLabel="生效检查",
+                headlineContent={ZiyuText("生效检查",style=MaterialTheme.typography.bodyMedium)},
+                trailingContent={ZiyuGlyph(if(expanded)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null,ZiyuIconTokens.TrailingGlyph)},
+                colors=ListItemDefaults.colors(containerColor=Color.Transparent))
+            AnimatedVisibility(expanded) {Column(Modifier.padding(vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {trustContent()}}
         }
     }
+}
+
+@Composable
+private fun HomeInfoRow(label: String,value: String) {
+    val palette=LocalZiyuPaletteTokens.current
+    Row(Modifier.fillMaxWidth().padding(vertical=15.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalAlignment=Alignment.CenterVertically) {
+        ZiyuText(label,Modifier.weight(.42f),color=palette.textSecondary,style=MaterialTheme.typography.bodyMedium)
+        ZiyuText(value,Modifier.weight(.58f),textAlign=TextAlign.End,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
+    }
+    ZiyuHorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.32f))
 }
 
 @Composable

@@ -90,7 +90,7 @@ val AccentOptions = listOf(
 )
 
 fun accentOptionFor(argb: Int): AccentOption =
-    AccentOptions.firstOrNull { it.argb == argb } ?: AccentOptions.first()
+    AccentOptions.firstOrNull { it.argb == argb } ?: AccentOption("custom", "自定义", argb or 0xFF000000.toInt())
 
 @Immutable
 data class AppearanceSettings(
@@ -100,6 +100,8 @@ data class AppearanceSettings(
     val kolorStyle: KolorStyle = KolorStyle.VIBRANT,
     val colorStandard: ColorStandard = ColorStandard.SPEC_2025,
     val monetEnabled: Boolean = true,
+    /** Native default vs generated palette; independent of following the wallpaper seed. */
+    val nativeMonetEnabled: Boolean = true,
     val amoledBlack: Boolean = false,
     val blurEnabled: Boolean = true,
     val glassEnabled: Boolean = true,
@@ -108,13 +110,25 @@ data class AppearanceSettings(
     val predictiveBack: Boolean = true,
     val backgroundPath: String = "",
     val cardTransparency: Int = 0,
+    val backgroundBlur: Int = 0,
+    val backgroundScrim: Int = 64,
+    val backgroundScrimIsSigned: Boolean = false,
+    val overrides: AppearanceOverrides = AppearanceOverrides(),
+    val adaptive: AdaptiveAppearance? = null,
+    val customTexts: Map<String, String> = emptyMap(),
+    val homeCard: HomeCardDecoration = HomeCardDecoration(),
+    val themeName: String = "",
+    val themeAuthor: String = "",
+    val themeLicense: String = "",
 ) {
     val accent: AccentOption
         get() = accentOptionFor(seedArgb)
 
     /** Repairs stale or manually edited preferences before they reach Compose. */
     fun normalized(): AppearanceSettings = copy(
-        seedArgb = accentOptionFor(seedArgb).argb,
+        seedArgb = seedArgb or 0xFF000000.toInt(),
         cardTransparency = cardTransparency.coerceIn(0, 100),
+        backgroundBlur = backgroundBlur.coerceIn(0, 100),
+        backgroundScrim = backgroundScrim.coerceIn(if (backgroundScrimIsSigned) -100 else 0, 100),
     )
 }

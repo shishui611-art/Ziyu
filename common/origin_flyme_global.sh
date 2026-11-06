@@ -64,16 +64,6 @@ _ziyu_detect_flyme() {
     [ "$IS_FLYME" = true ]
 }
 
-_ziyu_oem_detect_rom() {
-    if _ziyu_detect_originos; then
-        printf 'originos\n'
-    elif _ziyu_detect_flyme; then
-        printf 'flyme\n'
-    else
-        printf 'generic\n'
-    fi
-}
-
 # real font directory | matching module overlay directory
 _ziyu_originos_root_pairs() {
     _lor_module="$(_ziyu_oem_module_dir)"

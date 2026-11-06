@@ -1,5 +1,11 @@
 # 第三方组件与许可证
 
+## v1.4.100 SukiSU-Ultra 主题选择性移植
+
+固定上游 [`075ac81f1dfe58b3f59c665a1b07fda8b975015f`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/075ac81f1dfe58b3f59c665a1b07fda8b975015f)，来源文件和 blob 记录于 [`licenses/SukiSU-Ultra-theme-port.json`](licenses/SukiSU-Ultra-theme-port.json)。`ThemePackageCrypto.kt`、`AppearanceOverlayColors.kt`、语义颜色/浅深合并和背景矩阵/锐化设计按上游 GPL-3.0-or-later 适配；字域修改包名、JSON 边界、三种原生主题桥、像素采样、缓存与不支持设备回退。完整 GPL 文本继续保存在 [`licenses/SukiSU-Ultra-GPL-3.0.txt`](licenses/SukiSU-Ultra-GPL-3.0.txt)，字域改动按 GPL-3.0-only 提供。
+
+主题包解析、字域扩展、事务保存、主题库界面、来源配置与有界 HTTPS/范围下载为字域实现，格式/协议参考同次上游源码；`ThemeStoreDefaults.kt` 使用上游明确作为公共来源随 App 分发的服务默认值与共享访问门槛，不是私人账号凭据。来源接入前提示用户，访问码不导出、不跨源发送。没有引入账号、评论、投稿服务实现、内核代码、额外网络/图片依赖或任何商店作者图片。主题作者的内容许可保持原样；详细范围与待验收项见 [`docs/THEME_PORT_v1.4.100.md`](docs/THEME_PORT_v1.4.100.md)。
+
 v1.4.85 的 `font_slot_overrides.{py,sh}`、`import_preview.{py,sh}`、`diagnostic_capture.{py,sh}`，v1.4.86 的 `current_font_preview.{py,sh}`，v1.4.87 的 `font_clipping_stage.py` 以及对应 Android 界面为字域独立实现的 GPL-3.0-only 代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)，未增加第三方运行库。设计参考用户手册与 [Custom Font Switcher 的公开功能说明](https://github.com/ayss2188/custom-font-switcher/blob/main/README.md)（README blob `c7a72b4f6225d79f75824660732407d1f9e97479`）；未复制对方源码、资源、字体或二进制，不将公开可见视为代码授权。
 
 v1.4.89 的 `common/font_clipping_variable.py` 为字域原创 GPL-3.0-only 运行代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)。调用现有 FontTools 的 IUP 与 ScalerVisitor API，依照 [OpenType gvar 规范](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar) 实现全变化空间的保守边界和来源/输出验证；没有复制外部实现源码、新增依赖或附带字体。FontTools 的既有 MIT 许可及第三方声明保持不变，运行文件已进入模块清单。
@@ -158,3 +164,13 @@ v1.4.53 的 `common/font_native_cff.py`、原生 Type 2 写入器、边界计算
 - `common/adb_storage.py`、`common/adb_storage.sh` 为本项目新增的 GPL-3.0-only 自有目录迁移代码；仅迁移明确列出的字域历史路径。NoMount Suite 命令适配依据 [Bouteillepleine/NoMount-Suite](https://github.com/Bouteillepleine/NoMount-Suite) 的公开 CLI 行为独立实现，未复制其源码。v1.4.71 不再将原生字体预加载配套模块打入交付 ZIP。
 
 - v1.4.75 的 `common/ziyu_health.sh` 由仓库既有体检命令迁移而来，保留原报告、失效任务清理与恢复行为，沿用 GPL-3.0-only（`licenses/Ziyu-GPL-3.0.txt`）。稳定入口与 App 旧路径解析为本项目修改，没有新增第三方依赖或二进制；原项目来源与许可声明继续保留，新增运行文件已进入模块清单。
+
+- v1.4.101 also adapts the SukiSU-Ultra `CustomTextConfig.kt` key/group convention and `HomeCardStickerTransform.kt` geometry from commit `075ac81f1dfe58b3f59c665a1b07fda8b975015f`; see `licenses/SukiSU-Ultra-theme-port.json`. The unused encryption writer was removed; the authenticated package reader remains. User/theme artwork is not bundled or relicensed.
+
+- v1.4.102 home layout and geometric ring decoration reference `HomeMaterial.kt` and `HomeMiuix.kt` at the same SukiSU-Ultra commit. Ziyu uses font-specific live data and a shared preview/live face; no upstream artwork is bundled. Source blobs are recorded in the theme provenance manifest.
+
+- v1.4.102 Material floating navigation also references `ui/component/bottombar/BottomBarMaterial.kt` from the pinned SukiSU-Ultra commit. Animated layout weights, glass backdrop and hit regions are integrated with the existing Ziyu navigation.
+
+- v1.4.103 references the same pinned commit's `ThemeStoreScreen.kt`, `ThemeStoreBrowse.kt`, `ThemeStoreModels.kt`, `Theme.kt`, `MiuixTheme.kt`, `MaterialTheme.kt` and `ui/MainActivity.kt` for banner store layout, tags/stats, native palette modes, explicit seed priority and signed scrim semantics. Ziyu retains its data-only import/download and font-management logic. Source blobs are recorded in `licenses/SukiSU-Ultra-theme-port.json`; the inspected user theme and its artwork are not bundled or relicensed.
+
+- v1.4.108 adapts device-access acquisition and refresh protocol from SukiSU-Ultra `8ed5bd556fba073d52f4a4d98500b782db6437e6`, `ThemeStoreAccessRepository.kt` and `ThemeStoreDefaults.kt`. Ziyu implements private AtomicFile storage, serialized rotation, source isolation and bounded retry using existing Android APIs; no account/upload implementation or new dependency is included. See the protocol reference records in `licenses/SukiSU-Ultra-theme-port.json`.

@@ -187,6 +187,7 @@ private suspend fun prepareFullBackupStage(context: Context, stage: File, settin
         require(image.isFile && image.length() <= 32L * 1024 * 1024) { "背景图片丢失或过大" }
         image.copyTo(File(stage, "app/background.png"))
     }
+    io.github.xgl34222220.ziyu.ui.appearance.ThemePackages.export(context, settings, Uri.fromFile(File(stage, "app/appearance.ziyu-theme")))
     writeManifest(stage)
 }
 
@@ -205,9 +206,13 @@ private fun writeFullBackup(context: Context, uri: Uri, stage: File): String {
 
 private suspend fun restoreFullBackup(context: Context, uri: Uri, actions: AppearanceActions): String {
     val stage = File(context.cacheDir, "full_backup/restore-${UUID.randomUUID()}")
+    var preparedAppearance: io.github.xgl34222220.ziyu.ui.appearance.PreparedTheme? = null
     return try {
         withContext(Dispatchers.IO) { extractBackupSecurely(context, uri, stage); validateManifest(stage) }
         val appState = withContext(Dispatchers.IO) { JSONObject(File(stage, "app/state.json").readText(Charsets.UTF_8)) }
+        val themeArchive = File(stage, "app/appearance.ziyu-theme")
+        if (themeArchive.isFile) preparedAppearance = io.github.xgl34222220.ziyu.ui.appearance.ThemePackages.prepare(
+            context, Uri.fromFile(themeArchive), UiStyle.fromStorage(appState.optJSONObject("appearance")?.optString("uiStyle")))
         val root = RootShell.exec(
             "sh ${RootShell.quote(FULL_BACKUP_ROOT_TOOL)} restore-root ${RootShell.quote(stage.absolutePath)}",
             timeoutMs = 180_000L,
@@ -217,12 +222,21 @@ private suspend fun restoreFullBackup(context: Context, uri: Uri, actions: Appea
         appState.optJSONObject("collections")?.let { FontLibraryCollectionStore(context).save(decodeCollections(it)) }
         appState.optJSONObject("presets")?.let { StudioPresetStore(context).replaceAll(decodePresets(it.toString())) }
         appState.optJSONObject("studioProfile")?.let { StudioProfileBridgeStore(context).saveCurrent(it.toString()) }
-        appState.optJSONObject("appearance")?.let { restoreAppearance(it, actions) }
-        val image = File(stage, "app/background.png")
-        if (image.isFile) actions.setBackgroundPath(io.github.xgl34222220.ziyu.ui.appearance.importBackground(context, Uri.fromFile(image)))
-        else actions.setBackgroundPath("")
+        if (preparedAppearance != null) {
+            io.github.xgl34222220.ziyu.ui.appearance.AppearanceRepository(context).applyTheme(preparedAppearance.settings)
+            appState.optJSONObject("appearance")?.let {
+                actions.setHighRefreshRate(it.optBoolean("highRefreshRate", false))
+                actions.setPredictiveBack(it.optBoolean("predictiveBack", true))
+            }
+        } else {
+            appState.optJSONObject("appearance")?.let { restoreAppearance(it, actions) }
+            val image = File(stage, "app/background.png")
+            if (image.isFile) actions.setBackgroundPath(io.github.xgl34222220.ziyu.ui.appearance.importBackground(context, Uri.fromFile(image)))
+            else actions.setBackgroundPath("")
+        }
         "备份已恢复；请重新进入字体库检查字体，并按需重新应用方案"
     } finally {
+        preparedAppearance?.discard()
         withContext(Dispatchers.IO) { stage.deleteRecursively() }
     }
 }

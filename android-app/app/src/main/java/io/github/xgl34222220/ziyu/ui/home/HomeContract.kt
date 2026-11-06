@@ -30,6 +30,9 @@ data class HomeUiState(
     val undoAvailable: Boolean = false,
     val currentFontId: String = "default",
     val currentFontRevision: String = "",
+    val libraryCount: Int? = null,
+    val libraryCountStale: Boolean = false,
+    val libraryCountLoading: Boolean = false,
     val typographyVisible: Boolean = false,
     val typography: DisplayTypographyState = DisplayTypographyState(),
 )
@@ -39,6 +42,7 @@ data class HomeActions(
     val refresh: () -> Unit,
     val openFontLibrary: () -> Unit,
     val openFontStudio: () -> Unit,
+    val viewCurrentFont: () -> Unit = {},
     val openLogs: () -> Unit,
     val openSettings: () -> Unit = {},
     val restoreDefault: () -> Unit,

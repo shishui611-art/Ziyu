@@ -103,10 +103,10 @@ _uc_legacy() {
         *)
             case "$_ucl_reason" in
                 source-style-compatibility)
-                    _ucl_warning='这款字体的部分字重或斜体不适合通用引擎，本次已切换到兼容引擎处理。超范围字重使用字体支持的边界粗细，部分斜体效果可能不同。'
+                    _ucl_warning='已兼容处理：超出范围的粗细使用字体支持的边界值，部分斜体效果可能不同。'
                     ;;
                 static-weight-compatibility)
-                    _ucl_warning='这款字体没有提供全部精确字重，本次已切换到兼容引擎处理。部分粗细可能相同，请以最终应用结果为准。'
+                    _ucl_warning='已兼容处理：这款字体缺少部分粗细，应用后部分字重可能相同。'
                     ;;
                 *) _ucl_warning='通用引擎本次未通过准备检查，已切换到兼容引擎处理。请以最终任务结果为准。' ;;
             esac
@@ -265,6 +265,23 @@ _uc_switch() {
         sh "$DEPLOYMENT" prepare "$_uc_font" 2>&1)
     _uc_prepare_rc=$?
     _uc_log "universal prepare finished font=$_uc_font rc=$_uc_prepare_rc budget=${_uc_prepare_budget}s"
+    _uc_compatibility_reason=''
+    if [ "$_uc_prepare_rc" -eq 3 ] && printf '%s\n' "$_uc_prepare_output" | grep -Fq '"status":"compatibility-required"'; then
+        for _uc_expected_reason in static-weight-compatibility source-style-compatibility; do
+            if printf '%s\n' "$_uc_prepare_output" | grep -Fq "\"reason\":\"$_uc_expected_reason\""; then
+                _uc_compatibility_reason="$_uc_expected_reason"
+                break
+            fi
+        done
+    fi
+    if [ -n "$_uc_compatibility_reason" ]; then
+        # rc=3 is a clean, expected capability fallback. Keep its raw receipt and
+        # task cleanup as detail; _uc_legacy records the one user-facing warning.
+        # Timeouts, unknown failures and unconfirmed cleanup retain their handling.
+        printf '%s\n' "$_uc_prepare_output" | tail -c 12000 | sed 's/^/[INFO] [UNIVERSAL-COMPATIBILITY] /' >> "$LOG_FILE" 2>/dev/null || true
+        _uc_legacy "$_uc_font" "$_uc_compatibility_reason"
+        return $?
+    fi
     case "$_uc_prepare_rc" in
         0|125|129|130|143)
             printf '%s\n' "$_uc_prepare_output" | tail -c 12000 >> "$LOG_FILE" 2>/dev/null || true
@@ -276,16 +293,6 @@ _uc_switch() {
             ;;
     esac
     case "$_uc_prepare_rc" in
-        3)
-            if printf '%s\n' "$_uc_prepare_output" | grep -Fq '"status":"compatibility-required"'; then
-                for _uc_expected_reason in static-weight-compatibility source-style-compatibility; do
-                    if printf '%s\n' "$_uc_prepare_output" | grep -Fq "\"reason\":\"$_uc_expected_reason\""; then
-                        _uc_legacy "$_uc_font" "$_uc_expected_reason"
-                        return $?
-                    fi
-                done
-            fi
-            ;;
         125|129|130|143)
             _uc_write_state failed "$_uc_font" universal "prepare-not-clean-rc-$_uc_prepare_rc"
             printf '{"status":"error","message":"通用字体任务取消或清理未确认，当前字体及待应用选择保持原样"}\n'

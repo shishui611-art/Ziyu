@@ -40,6 +40,9 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
     fun setHighRefreshRate(enabled: Boolean) = launch { repository.setHighRefreshRate(enabled) }
 
     fun setBackgroundPath(path: String) = launch { repository.setBackgroundPath(path) }
+    fun setAppearanceOverrides(value: AppearanceOverrides) = launch { repository.setOverrides(value) }
+    fun setBackgroundEffects(value: BackgroundEffects, blur: Int, scrim: Int) = launch { repository.setBackgroundEffects(value, blur, scrim) }
+    suspend fun resetTheme() = repository.resetTheme()
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

@@ -665,6 +665,7 @@ def verify_physical_routes(
 
 def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: bool = True, payload_root: Path | None = None) -> dict[str, Any]:
     hashes = FontDigestCache()
+    visible_hashes = FontDigestCache(path_scoped=True)
     config = module / "config"
     physical = physical_safe_contract(config)
     payload = payload_root or module / ".ziyu-payload"
@@ -736,7 +737,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
                 continue
             if rel in font_paths and not is_world_readable(visible):
                 failures.append(f"pid1-font-not-world-readable:{rel}")
-            actual_hash = hashes.sha256(visible)
+            actual_hash = visible_hashes.sha256(visible)
             if source_hash != actual_hash:
                 failures.append(f"pid1-visible-hash-mismatch:{rel}")
                 continue
@@ -848,6 +849,7 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
 
 def verify_universal(module: Path, root: Path, mountinfo: Path, require_mounts: bool = True) -> dict[str, Any]:
     hashes = FontDigestCache()
+    visible_hashes = FontDigestCache(path_scoped=True)
     partitions = device_partitions(module)
     deployment_path = owned_path(module / ".ziyu-payload/.ziyu-runtime/deployment/deployment.json")
     plan_path = owned_path(module / ".ziyu-payload/.ziyu-runtime/deployment/font-plan.json")
@@ -889,7 +891,7 @@ def verify_universal(module: Path, root: Path, mountinfo: Path, require_mounts: 
         if kind := str(item.get("kind") or ""):
             if kind in {"xml-font", "physical-font"} and not is_world_readable(visible):
                 failures.append(f"pid1-font-not-world-readable:{logical}")
-        visible_hash = hashes.sha256(visible)
+        visible_hash = visible_hashes.sha256(visible)
         if visible_hash != source_hash:
             failures.append(f"pid1-visible-hash-mismatch:{logical}")
             continue

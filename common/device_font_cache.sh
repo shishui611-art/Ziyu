@@ -142,14 +142,6 @@ _dfcache_copy_tree() {
         cp -rfp "$1/." "$2/" 2>/dev/null
 }
 
-_dfcache_root_for() {
-    _dfc_font="$1"
-    _dfc_template_key="$2"
-    _dfc_source_key="$3"
-    _dfc_id=$(_dfcache_id "$_dfc_font" "$_dfc_template_key" "$_dfc_source_key") || return 1
-    printf '%s/config/device-font-cache/%s\n' "$(_dfcache_module)" "$_dfc_id"
-}
-
 _dfcache_ready_matches() {
     _dfcrm_root="$1"
     _dfcrm_font="$2"

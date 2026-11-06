@@ -284,4 +284,5 @@ common/identity_migration.sh
 common/font_verity.py
 common/font_verity.sh
 licenses/SukiSU-Ultra-GPL-3.0.txt
+licenses/SukiSU-Ultra-theme-port.json
 common/stock_readonly_view.py

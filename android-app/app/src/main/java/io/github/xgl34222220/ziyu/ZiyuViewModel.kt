@@ -561,6 +561,12 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     var fontRefreshing by mutableStateOf(false)
         private set
 
+    var fontIndexKnown by mutableStateOf(false)
+        private set
+
+    var fontIndexCurrent by mutableStateOf(false)
+        private set
+
     var fontCacheReady by mutableStateOf(false)
         private set
 
@@ -636,6 +642,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             cachedFingerprint = cached.fingerprint
             normalizeMixSelections()
         }
+        fontIndexKnown = cached != null
         fontCacheReady = true
         if (snapshot.installed) requestFontPrewarm()
     }
@@ -840,6 +847,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             cacheLoadJob.join()
             if (!snapshot.installed && snapshot.versionCode == 0) return@launch
             val hadFonts = fonts.isNotEmpty()
+            fontIndexCurrent = false
             fontLoading = !hadFonts
             fontRefreshing = hadFonts
             if (showErrors) fontError = ""
@@ -872,6 +880,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
         if (fingerprint.value.isNotBlank() && fingerprint.value == cachedFingerprint) {
             persistFontIndex(currentFont = fingerprint.currentFont)
+            fontIndexCurrent = true
             return
         }
         rebuildFontIndex(
@@ -912,6 +921,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 return
             }
             fonts = parsedFonts
+            fontIndexKnown = true
+            fontIndexCurrent = true
             snapshot = snapshot.copy(activeFont = current, activeFontName = resolvedFontName(current))
             cachedFingerprint = fingerprint?.value.orEmpty()
             normalizeMixSelections()

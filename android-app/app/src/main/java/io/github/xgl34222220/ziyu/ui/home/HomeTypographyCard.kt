@@ -59,23 +59,33 @@ internal fun HomeTypographyCard(state: HomeUiState, actions: HomeActions) {
                     "系统默认 ${values.baseDensity} DPI",
                     style = MaterialTheme.typography.bodySmall, color = palette.textSecondary,
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ZiyuOutlinedButton(
-                        onClick = { density = values.baseDensity },
-                        enabled = enabled, modifier = Modifier.weight(1f),
-                    ) { ZiyuText("默认 DPI") }
-                    ZiyuButton(
-                        onClick = { actions.applyDensity(density) },
-                        enabled = enabled && dirty, modifier = Modifier.weight(1f),
-                    ) { ZiyuText(if (data.saving) "应用中…" else "应用") }
-                }
+                ZiyuButton(
+                    onClick = { actions.applyDensity(density) },
+                    enabled = enabled && dirty, modifier = Modifier.fillMaxWidth(),
+                ) { ZiyuText(if (data.saving) "应用中…" else "应用 DPI") }
             }
             if (data.error.isNotBlank()) ZiyuText(data.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             if (data.message.isNotBlank()) ZiyuText(data.message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-            if (!data.loading && state.moduleInstalled && state.rootGranted) ZiyuTextButton(
-                onClick = actions.refreshTypography, enabled = !data.saving, modifier = Modifier.fillMaxWidth(),
-            ) { ZiyuText("刷新 DPI") }
-            ZiyuTextButton(onClick = {
+            if (!data.loading && state.moduleInstalled && state.rootGranted) {
+                if (values != null) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ZiyuOutlinedButton(
+                            onClick = { density = values.baseDensity },
+                            enabled = enabled, modifier = Modifier.weight(1f),
+                        ) { ZiyuText("恢复默认") }
+                        ZiyuOutlinedButton(
+                            onClick = actions.refreshTypography,
+                            enabled = !data.saving, modifier = Modifier.weight(1f),
+                        ) { ZiyuText("刷新 DPI") }
+                    }
+                } else {
+                    ZiyuOutlinedButton(
+                        onClick = actions.refreshTypography,
+                        enabled = !data.saving, modifier = Modifier.fillMaxWidth(),
+                    ) { ZiyuText("刷新 DPI") }
+                }
+            }
+            ZiyuOutlinedButton(onClick = {
                 val opened = runCatching { context.startActivity(android.content.Intent("android.settings.FONT_SIZE_SETTINGS")) }.isSuccess
                 if (!opened) runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS)) }
             }, modifier = Modifier.fillMaxWidth()) { ZiyuText("字号与粗细 · 前往系统设置") }

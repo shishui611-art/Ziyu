@@ -18,7 +18,7 @@ class AppControlsBridgeTest(unittest.TestCase):
             common.mkdir()
             config = module / 'config'
             config.mkdir()
-            (module / 'module.prop').write_text('id=Ziyu\nversion=v1.4.2\nversionCode=14002\n', encoding='utf-8')
+            (module / 'module.prop').write_text('id=ziyu\nversion=v1.4.2\nversionCode=14002\n', encoding='utf-8')
             (config / 'active_font.conf').write_text('Demo\n', encoding='utf-8')
             (config / 'device-font-load-verification.conf').write_text(
                 'state=verified\nmode=mount-verified\nactiveFont=Demo\n', encoding='utf-8')
@@ -27,12 +27,20 @@ class AppControlsBridgeTest(unittest.TestCase):
             (config / 'boot-safety-current-boot.conf').write_text(
                 f'schema=ziyu-boot-safety-current-v1\nstate=blocked\nboot_id={boot_id}\n', encoding='utf-8')
             shutil.copy2(ROOT / 'common/app_bridge.sh', common / 'app_bridge.sh')
+            for name in ('app_status.sh', 'root_manager_detection.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'temporary_root_mode.sh', 'legacy_identity.sh', 'font_boot_state.sh', 'font_live_state.sh'):
+                shutil.copy2(ROOT / 'common' / name, common / name)
             (common / 'boot_ota_guard.sh').write_text(
                 '#!/bin/sh\nprintf "status=ok\\nsafe_mode=1\\ncurrent_boot_blocked=1\\nreason=boot-safety-safe-mode\\n"\n',
                 encoding='utf-8', newline='\n')
             shell = shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
             env = dict(os.environ, MODDIR=module.as_posix())
             env['PATH'] = str(Path(shell).parent) + os.pathsep + env.get('PATH', '')
+            tools = module / 'tools'
+            tools.mkdir()
+            root_id = tools / 'id'
+            root_id.write_text('#!/bin/sh\nprintf "0\\n"\n', encoding='utf-8', newline='\n')
+            root_id.chmod(0o755)
+            env['PATH'] = str(tools) + os.pathsep + env['PATH']
             result = subprocess.run([shell, (common / 'app_bridge.sh').as_posix(), 'status'],
                                     env=env, capture_output=True, text=True, encoding='utf-8', timeout=15)
             self.assertEqual(0, result.returncode, result.stderr)
@@ -105,7 +113,7 @@ class AppControlsBridgeTest(unittest.TestCase):
             (module/'config').mkdir()
             for name in ('app_bridge.sh', 'mount_backend_preferences.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'root_manager_detection.sh', 'meta_mount_detection.sh', 'action_control.sh', 'action_control.py', 'log_review.sh'):
                 shutil.copy2(ROOT/'common'/name, module/'common'/name)
-            (module/'module.prop').write_text('id=Ziyu\n')
+            (module/'module.prop').write_text('id=ziyu\n')
             env = dict(os.environ, MODDIR=str(module), ZIYU_PYTHON=sys.executable)
             shell = shutil.which('sh') or r'C:\Program Files\Git\usr\bin\sh.exe'
             env['PATH'] = str(Path(shell).parent) + os.pathsep + env.get('PATH', '')
@@ -129,7 +137,7 @@ class AppControlsBridgeTest(unittest.TestCase):
             common = module / 'common'
             python_bin = common / 'python' / 'bin'
             python_bin.mkdir(parents=True)
-            (module / 'module.prop').write_text('id=Ziyu\n', encoding='utf-8')
+            (module / 'module.prop').write_text('id=ziyu\n', encoding='utf-8')
             shutil.copy2(ROOT / 'common' / 'app_bridge.sh', common / 'app_bridge.sh')
             (common / 'font_coverage_locator.py').write_text('# fixture\n', encoding='utf-8')
             stub = python_bin / 'ziyu-python'

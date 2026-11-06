@@ -40,7 +40,7 @@ private fun scanFailure(values: Map<String, String>): String =
     }
 
 @Composable
-internal fun BootSafetyPage() {
+internal fun BootSafetyPage(fontBusy: Boolean, onOpenFontLibrary: () -> Unit) {
     val scope = rememberCoroutineScope()
     val palette = LocalZiyuPaletteTokens.current
     var busy by remember { mutableStateOf(false) }
@@ -89,9 +89,7 @@ internal fun BootSafetyPage() {
                         polls++
                     }
                     check(state["scan_state"] == "complete" && state["scan_complete"] == "1") { scanFailure(state) }
-                    resultMessage = if (state["ota_pending"] == "1") {
-                        "原厂字体核验完成，可以回到字体库重新应用字体。"
-                    } else "扫描完成，可以重新应用字体。"
+                    resultMessage = if (state["ota_pending"] == "1") "" else "扫描完成，可以重新应用字体。"
                 } else state = response
                 check(state["safe_mode"] in setOf("0", "1")) { "保护状态格式无效，请确认模块与 App 版本一致。" }
                 if (state["scan_state"] == "error") errorMessage = scanFailure(state)
@@ -110,34 +108,47 @@ internal fun BootSafetyPage() {
     val safe = state["safe_mode"] == "1"
     val otaPending = state["ota_pending"] == "1"
     val nextReady = state["next_generation_ready"] == "1"
+    val scanRunning = state["scan_state"] in setOf("queued", "running")
+    // scan_complete is supplied only after the module verifies the current ROM.
+    val scanComplete = state["scan_state"] == "complete" && state["scan_complete"] == "1" &&
+        state["stock_scan_pending"] != "1"
     pageList {
         item {
             SettingCard("开机保护") {
                 Text(
-                    when { busy && state.isEmpty() -> "正在读取…"; state.isEmpty() -> "尚未读取保护状态"; safe -> "开机保护已启用"; otaPending && nextReady -> "字体已准备，请完整重启"; otaPending -> "需要扫描原厂字体"; else -> "未触发保护" },
+                    when {
+                        busy && state.isEmpty() -> "正在读取…"
+                        state.isEmpty() -> "尚未读取保护状态"
+                        safe -> "开机保护已启用"
+                        otaPending && nextReady -> "字体已准备，请完整重启"
+                        scanRunning -> "正在扫描原厂字体"
+                        otaPending && scanComplete -> "请重新应用字体"
+                        otaPending -> "需要扫描原厂字体"
+                        else -> "未触发保护"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     if (safe) "字体加载已暂停。建议先恢复默认字体，再解除保护。"
-                    else if (otaPending && nextReady) "新系统字体已准备，请完整重启。"
+                    else if (otaPending && nextReady) "重启后自动检查。"
+                    else if (scanRunning) "扫描完成后可重新应用字体。"
+                    else if (otaPending && scanComplete) "原厂字体已核验，重新应用后完整重启。"
                     else if (otaPending) "请扫描原厂字体，再重新应用字体。"
                     else "连续两次开机未完成时，自动暂停字体加载。",
                     color = palette.textSecondary,
                 )
                 state["unfinished_boots"]?.toIntOrNull()?.let { Text("未完成开机记录：$it 次", color = palette.textSecondary) }
-                if (otaPending || state["stock_scan_pending"] == "1" || state["scan_state"] in setOf("queued", "running")) Text(
-                    if (nextReady) "重启后自动检查。"
-                    else if (state["scan_state"] in setOf("queued", "running")) "原厂字体正在后台扫描核验。"
-                    else if (state["scan_complete"] == "1") "扫描完成，请重新应用字体。"
-                    else "原厂字体尚未扫描。",
-                    color = palette.textSecondary,
-                )
                 if (errorMessage.isNotBlank()) Text(errorMessage, color = MaterialTheme.colorScheme.error)
                 if (resultMessage.isNotBlank()) Text(resultMessage, color = MaterialTheme.colorScheme.primary)
+                if (otaPending && scanComplete && !nextReady && !safe) Button(
+                    onClick = onOpenFontLibrary,
+                    enabled = !busy && !fontBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("打开字体库") }
                 OutlinedButton(onClick = { perform("status") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("重新检测") }
-                if (!nextReady) OutlinedButton(onClick = { perform("rescan") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("重新扫描原厂字体") }
-                Button(onClick = { confirmRecovery = true }, enabled = !busy && safe, modifier = Modifier.fillMaxWidth()) { Text("解除开机保护") }
+                if (!nextReady) OutlinedButton(onClick = { perform("rescan") }, enabled = !busy && !fontBusy && !scanRunning, modifier = Modifier.fillMaxWidth()) { Text("重新扫描原厂字体") }
+                Button(onClick = { confirmRecovery = true }, enabled = !busy && !fontBusy && safe, modifier = Modifier.fillMaxWidth()) { Text("解除开机保护") }
             }
         }
     }

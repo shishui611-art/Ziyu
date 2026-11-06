@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuThemeTokens
 
@@ -13,17 +13,16 @@ internal fun HomeScreenCoui(state: HomeUiState, actions: HomeActions, trustConte
     val layout = LocalZiyuThemeTokens.current.layout
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = layout.pageHorizontal, end = layout.pageHorizontal, bottom = maxOf(LocalDockContentPadding.current, layout.dockSafeBottom)),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = maxOf(LocalDockContentPadding.current, layout.dockSafeBottom)),
         verticalArrangement = Arrangement.spacedBy(layout.itemGap),
     ) {
         item(key = "header") { HomePageHeader(state.loading, actions) }
-        item(key = "connection") { HomeConnectionRow(state.moduleInstalled, state.rootGranted, state.version) }
-        item(key = "font") { HomeCurrentFont(UiStyle.COUI, state.currentFont, state.moduleInstalled, state.rootGranted, state.version, nextStepFor(state, actions)) }
-        if (state.typographyVisible) item(key = "typography") { HomeTypographyCard(state, actions) }
-        item(key = "mount") { HomeMountButton(state, actions) }
+        item(key = "font") { HomeCurrentFont(state, actions) }
+        item(key = "stats") { HomeStatsRow(state, actions) }
         if (state.hasTaskNotice) item(key = "task") { HomeTaskNotice(state, actions) }
         item(key = "device") { HomeDevicePanel(state, trustContent) }
-        item(key = "navigation") { HomeNavigation(UiStyle.COUI, actions) }
+        if (state.typographyVisible) item(key = "typography") { HomeTypographyCard(state, actions) }
+        item(key = "mount") { HomeMountButton(state, actions) }
         item(key = "restore") { HomeRecovery(state.moduleInstalled && state.rootGranted && !state.taskRunning, actions.restoreDefault) }
         item(key = "community") { HomeCommunityLinks() }
     }

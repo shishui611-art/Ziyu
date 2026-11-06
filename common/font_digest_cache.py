@@ -12,8 +12,9 @@ def file_identity(info):
 
 
 class FontDigestCache:
-    def __init__(self):
+    def __init__(self, *, path_scoped=False):
         self._hashes = {}
+        self._path_scoped = path_scoped
 
     def sha256(self, path):
         # Open every alias even on a hit: readability and the current pathname
@@ -23,10 +24,14 @@ class FontDigestCache:
             if not stat.S_ISREG(info.st_mode):
                 raise OSError(errno.EINVAL, 'font artifact is not a regular file', str(path))
             identity = file_identity(info)
-            value = self._hashes.get(identity)
+            # Redirecting providers can expose identical stat identities for
+            # different logical files. Namespace views must not share digests
+            # across paths; managed source hardlinks retain the existing reuse.
+            key = (os.fspath(path), identity) if self._path_scoped else identity
+            value = self._hashes.get(key)
             if value is None:
                 value = hashlib.file_digest(stream, 'sha256').hexdigest()
             if file_identity(os.fstat(stream.fileno())) != identity:
                 raise OSError(errno.ESTALE, 'font artifact changed while verifying', str(path))
-            self._hashes[identity] = value
+            self._hashes[key] = value
             return value

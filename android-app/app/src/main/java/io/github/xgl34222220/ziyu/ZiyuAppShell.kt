@@ -23,6 +23,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.pager.HorizontalPager
@@ -48,6 +56,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -89,6 +98,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -108,6 +119,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.xgl34222220.ziyu.ui.appearance.themeText
 import io.github.xgl34222220.ziyu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.ziyu.ui.appearance.AppearanceViewModel
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
@@ -326,8 +338,16 @@ internal fun ZiyuAppShell(
             setThemeDisplay = appearanceViewModel::setThemeDisplay,
             setPredictiveBack = appearanceViewModel::setPredictiveBack,
             setCardTransparency = appearanceViewModel::setCardTransparency,
+            setAppearanceOverrides = appearanceViewModel::setAppearanceOverrides,
+            setBackgroundEffects = appearanceViewModel::setBackgroundEffects,
+            resetTheme = appearanceViewModel::resetTheme,
         )
     }
+    val homeLibraryCount by remember(viewModel) { derivedStateOf {
+        if(viewModel.fontIndexKnown) viewModel.fonts.asSequence()
+            .filter {it.id.isNotBlank() && it.id != "default" && it.id !in viewModel.pendingFontDeletionIds}
+            .distinctBy {it.id}.count() else null
+    } }
     val validFonts = remember(viewModel.fonts) { viewModel.fonts.filter { it.valid } }
 
     ZiyuTheme(appearance) {
@@ -355,22 +375,28 @@ internal fun ZiyuAppShell(
                 val target = dockPages.indexOf(destination)
                 if (target >= 0) {
                     programmaticPageTarget = target
-                    try { pagerState.scrollToPage(target) } finally { programmaticPageTarget = null }
+                    // Apply with the next layout, rather than forcing a full
+                    // pager remeasure inside the predictive commit callback.
+                    pagerState.requestScrollToPage(target)
                 }
             }
             returnToPreviousPage()
         }
         LaunchedEffect(page, pagerState, rootBack.active) {
             val target = dockPages.indexOf(page)
-            if (!rootBack.active && target >= 0 && (pagerState.settledPage != target ||
-                    pagerState.currentPage != target || kotlin.math.abs(pagerState.currentPageOffsetFraction) > .001f)) {
-                programmaticPageTarget = target
-                try {
-                    pagerState.animateScrollToPage(
-                        target,
-                        animationSpec = tween(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing),
-                    )
-                } finally {
+            if (!rootBack.active && target >= 0) {
+                if (pagerState.settledPage != target || pagerState.currentPage != target ||
+                    kotlin.math.abs(pagerState.currentPageOffsetFraction) > .001f) {
+                    programmaticPageTarget = target
+                    try {
+                        pagerState.animateScrollToPage(
+                            target,
+                            animationSpec = tween(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing),
+                        )
+                    } finally {
+                        programmaticPageTarget = null
+                    }
+                } else if (programmaticPageTarget == target) {
                     programmaticPageTarget = null
                 }
             }
@@ -469,6 +495,9 @@ internal fun ZiyuAppShell(
                                 taskRunning = viewModel.operationBusy || viewModel.mixState.busy ||
                                     viewModel.snapshot.taskState in setOf("queued", "running"),
                                 currentFontRevision = viewModel.fonts.firstOrNull { it.id == viewModel.snapshot.activeFont }?.sourceRevision.orEmpty(),
+                                libraryCount = homeLibraryCount,
+                                libraryCountStale = !viewModel.fontIndexCurrent || !viewModel.snapshot.rootGranted || !viewModel.snapshot.installed,
+                                libraryCountLoading = !viewModel.fontCacheReady || viewModel.fontLoading || viewModel.fontRefreshing,
                                 typographyVisible = true,
                                 typography = viewModel.displayTypography,
                                 romCheckMessage = viewModel.romCheckMessage,
@@ -551,6 +580,7 @@ internal fun ZiyuAppShell(
                             },
                             onDetailChanged = { settingsDetailVisible = it },
                             onTemporaryRootChanged = viewModel::refresh,
+                            onOpenFontLibrary = { navigate(AppPage.Library) },
                         )
                     }
                 }
@@ -579,25 +609,72 @@ internal fun ZiyuAppShell(
                             dockPages.getOrNull(index)?.let { add(it) }
                         }
                     }
-                    if (prepareRootPreview) add(previewDestination)
+                    if (prepareRootPreview) {
+                        add(previewDestination)
+                        // Prepare the destination's bounded pager window before
+                        // the gesture, so commit does not introduce new scenes.
+                        val destinationIndex = dockPages.indexOf(previewDestination)
+                        if (destinationIndex >= 0) {
+                            for (index in (destinationIndex - 1)..(destinationIndex + 1)) {
+                                dockPages.getOrNull(index)?.let { add(it) }
+                            }
+                        }
+                    }
                 }
             }
         }
 
+        val contentViewConfiguration = LocalViewConfiguration.current
+        val pagerGestureEnabled = page != AppPage.Logs && !settingsDetailVisible && !rootBack.active
+        val verticalGestureYieldsPager = remember(pagerState) { mutableStateOf(false) }
+        val pagerViewConfiguration = remember(contentViewConfiguration) {
+            object : ViewConfiguration by contentViewConfiguration {
+                override val touchSlop = contentViewConfiguration.touchSlop * 2f
+            }
+        }
         Box(Modifier.fillMaxSize()) {
             // Stable coordinates and an opaque base keep glass sampling valid while
             // either page moves. The dock is outside its own backdrop recording.
+            // Only the parent horizontal pager needs a more deliberate drag.
+            // Child lists/sliders keep the system threshold and get first claim
+            // on vertical or control gestures, preserving fling and RTL behavior.
+            CompositionLocalProvider(LocalViewConfiguration provides pagerViewConfiguration) {
             Box(contentModifier
                 .then(if (liquidGlassSupported) Modifier.layerBackdrop(liquidBackdrop) else Modifier)
                 .background(LocalZiyuPaletteTokens.current.pageBackground)
                 .clipToBounds()
+                .pointerInput(pagerGestureEnabled, contentViewConfiguration.touchSlop) {
+                    if (!pagerGestureEnabled) return@pointerInput
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                val delta = change.position - down.position
+                                val dx = kotlin.math.abs(delta.x)
+                                val dy = kotlin.math.abs(delta.y)
+                                // Once a gesture has moved vertically, require a clear horizontal
+                                // lead before the parent pager is allowed to claim it. This leaves
+                                // the event unconsumed so the page's own vertical list can scroll.
+                                if (dy >= contentViewConfiguration.touchSlop && dy >= dx * .75f) {
+                                    verticalGestureYieldsPager.value = true
+                                }
+                            }
+                        } finally {
+                            verticalGestureYieldsPager.value = false
+                        }
+                    }
+                }
                 .scrollable(
                     state = pagerState,
                     orientation = Orientation.Horizontal,
-                    enabled = page != AppPage.Logs && !settingsDetailVisible && !rootBack.active,
+                    enabled = pagerGestureEnabled && !verticalGestureYieldsPager.value,
                     reverseDirection = layoutDirection == LayoutDirection.Ltr,
                     flingBehavior = pagerFling,
                 )) {
+                CompositionLocalProvider(LocalViewConfiguration provides contentViewConfiguration) {
                 // Pager supplies measurement, scroll position and the existing snap
                 // physics only. Stateful pages are composed once, in fixed keyed slots
                 // below, outside its asynchronously retained lazy subcompositions.
@@ -614,6 +691,9 @@ internal fun ZiyuAppShell(
                         val index = dockPages.indexOf(destination)
                         val motion = if (preview) Modifier.predictiveBackPreviewMotion(rootBack) else {
                             Modifier.predictiveBackMotion(rootBack).graphicsLayer {
+                                // Adjacent pager scenes are warm, but must not
+                                // slide over the actual history destination.
+                                alpha = if (rootBack.active && destination != page) 0f else 1f
                                 if (destination != AppPage.Logs) {
                                     val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
                                     val direction = if (layoutDirection == LayoutDirection.Ltr) 1f else -1f
@@ -625,13 +705,19 @@ internal fun ZiyuAppShell(
                             .zIndex(if (preview) 0f else 1f)
                             .then(motion)
                             .background(LocalZiyuPaletteTokens.current.pageBackground)
-                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                             .then(if (preview) Modifier.backDestinationPreview() else Modifier)) {
-                            AppBackdrop(appearance.backgroundPath)
-                            pageStateHolder.SaveableStateProvider(destination) { pageContent(destination) }
+                            // Paint the full window first; only controls consume safe insets.
+                            AppBackdrop()
+                            Box(Modifier.fillMaxSize().windowInsetsPadding(
+                                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                            )) {
+                                pageStateHolder.SaveableStateProvider(destination) { pageContent(destination) }
+                            }
                         }
                     }
                 }
+                }
+            }
             }
 
             // The settled route is committed after the swipe. targetPage changes while the
@@ -755,8 +841,8 @@ internal fun ZiyuAppShell(
 }
 
 @Composable
-private fun AppBackdrop(path: String) {
-    io.github.xgl34222220.ziyu.ui.appearance.BackgroundBackdrop(path)
+private fun AppBackdrop() {
+    io.github.xgl34222220.ziyu.ui.appearance.BackgroundBackdrop()
 }
 @Composable
 private fun MaterialAppDock(
@@ -766,12 +852,6 @@ private fun MaterialAppDock(
     backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
 ) {
-    // SukiSU's Material liquid variant shares the lens and drag indicator with
-    // Miuix. The shared ziyu bar already reads the active Material color bridge.
-    if (appearance.floatingDock && appearance.glassEnabled) {
-        MiuixAppDock(current, onSelect, appearance, backdrop, modifier)
-        return
-    }
     val navigationItems: @Composable RowScope.() -> Unit = {
         dockPages.forEach { destination ->
             val selected = current == destination
@@ -779,42 +859,19 @@ private fun MaterialAppDock(
                 selected = selected,
                 onClick = { if (!selected) onSelect(destination) },
                 icon = { Icon(destination.icon, contentDescription = null) },
-                label = { Text(destination.label, maxLines = 1) },
+                label = { Text(themeText(destination.label), maxLines = 1) },
             )
         }
     }
     if (appearance.floatingDock) {
         val layout = LocalZiyuThemeTokens.current.layout
         val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            shadowElevation = 6.dp,
-            modifier = modifier.padding(start = layout.dockHorizontal, end = layout.dockHorizontal, bottom = bottomInset + layout.dockBottomGap),
+        ZiyuGlassDockSurface(
+            appearance=appearance, backdrop=backdrop, shape=RoundedCornerShape(50),
+            color=MaterialTheme.colorScheme.surfaceContainerHighest,
+            modifier=modifier.padding(start=layout.dockHorizontal,end=layout.dockHorizontal,bottom=bottomInset+layout.dockBottomGap),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp, vertical = 8.dp).selectableGroup(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                dockPages.forEach { destination ->
-                    val selected = current == destination
-                    val container by animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent, label = "expressiveDockContainer")
-                    val foreground by animateColorAsState(if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, label = "expressiveDockContent")
-                    Row(
-                        Modifier.weight(if (selected) 1.85f else 1f).clip(RoundedCornerShape(50)).background(container)
-                            .selectable(selected, role = Role.Tab, onClick = { if (!selected) onSelect(destination) })
-                            .animateContentSize().padding(horizontal = if (selected) 14.dp else 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        Icon(destination.icon, contentDescription = if (selected) null else destination.label, tint = foreground)
-                        AnimatedVisibility(selected, modifier = Modifier.weight(1f), enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
-                            Text(destination.label, color = foreground, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
+            MaterialExpandingTabs(current,onSelect)
         }
     } else {
         MaterialNavigationBar(
@@ -826,6 +883,56 @@ private fun MaterialAppDock(
             ),
             content = navigationItems,
         )
+    }
+}
+
+/** Material owns its expanding selection even when the backdrop is glass. */
+@Composable
+private fun MaterialExpandingTabs(current: AppPage,onSelect: (AppPage)->Unit) {
+    val targets=remember {mutableMapOf<AppPage,LayoutCoordinates>()}
+    val coordinates=remember {arrayOfNulls<LayoutCoordinates>(1)}
+    val latestSelect by rememberUpdatedState(onSelect)
+    val latestCurrent by rememberUpdatedState(current)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min=64.dp).padding(horizontal=8.dp,vertical=8.dp)
+            .onGloballyPositioned {coordinates[0]=it}.selectableGroup().pointerInput(Unit) {
+                detectHorizontalDragGestures { change,_ ->
+                    change.consume()
+                    val parent=coordinates[0]
+                    if(parent?.isAttached==true) targets.entries.firstOrNull { (_,child) ->
+                        if(!child.isAttached) false else {
+                            val bounds=parent.localBoundingBoxOf(child,clipBounds=false)
+                            change.position.x >= bounds.left && change.position.x <= bounds.right
+                        }
+                    }?.key?.takeIf {it!=latestCurrent}?.let(latestSelect)
+                }
+            },
+        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween,
+    ) {
+        dockPages.forEach {destination ->
+            val selected=current==destination
+            val widthWeight by animateFloatAsState(if(selected)1.9f else 1f,tween(260,easing=FastOutSlowInEasing),label="materialTabWidth")
+            val padding by animateDpAsState(if(selected)14.dp else 10.dp,tween(260,easing=FastOutSlowInEasing),label="materialTabPadding")
+            val container by animateColorAsState(if(selected)MaterialTheme.colorScheme.primary else Color.Transparent,tween(220),label="materialTabContainer")
+            val foreground by animateColorAsState(if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,tween(220),label="materialTabContent")
+            val label=themeText(destination.label)
+            Row(
+                Modifier.weight(widthWeight).heightIn(min=48.dp).onGloballyPositioned {child ->
+                    targets[destination]=child
+                }.clip(RoundedCornerShape(50)).background(container)
+                    .selectable(selected,role=Role.Tab,onClick={if(!selected)onSelect(destination)})
+                    .padding(horizontal=padding,vertical=10.dp),
+                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center,
+            ) {
+                Icon(destination.icon,contentDescription=if(selected)null else label,tint=foreground)
+                AnimatedVisibility(selected,modifier=Modifier.weight(1f,fill=false),
+                    enter=fadeIn(tween(180))+expandHorizontally(tween(260,easing=FastOutSlowInEasing),expandFrom=Alignment.Start),
+                    exit=fadeOut(tween(100))+shrinkHorizontally(tween(260,easing=FastOutSlowInEasing),shrinkTowards=Alignment.Start)) {
+                    Text(label,Modifier.padding(start=7.dp),color=foreground,maxLines=1,softWrap=false,overflow=TextOverflow.Ellipsis,
+                        fontSize=14.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            }
+        }
     }
 }
 
@@ -859,7 +966,7 @@ private fun MiuixAppDock(
                 ) {
                     Icon(destination.icon, contentDescription = null)
                     Text(
-                        text = destination.label,
+                        text = themeText(destination.label),
                         fontSize = 11.sp,
                         lineHeight = 14.sp,
                         maxLines = 1,
@@ -880,7 +987,7 @@ private fun MiuixAppDock(
                     selected = selected,
                     onClick = { if (!selected) onSelect(destination) },
                     icon = destination.icon,
-                    label = destination.label,
+                    label = themeText(destination.label),
                 )
             }
         }
@@ -917,7 +1024,7 @@ private fun CouiAppDock(
                         selected = selected,
                         onClick = { if (!selected) onSelect(destination) },
                         icon = destination.icon,
-                        label = destination.label,
+                        label = themeText(destination.label),
                     )
                 }
             }
@@ -934,7 +1041,7 @@ private fun CouiAppDock(
                     selected = selected,
                     onClick = { if (!selected) onSelect(destination) },
                     icon = destination.icon,
-                    label = destination.label,
+                    label = themeText(destination.label),
                 )
             }
         }

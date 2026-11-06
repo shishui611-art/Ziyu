@@ -16,6 +16,8 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +55,10 @@ import io.github.xgl34222220.ziyu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.ziyu.ui.appearance.KolorStyle
 import io.github.xgl34222220.ziyu.ui.appearance.ColorStandard
 import io.github.xgl34222220.ziyu.ui.appearance.LocalAppearanceSettings
+import io.github.xgl34222220.ziyu.ui.appearance.LocalBackgroundFrame
+import io.github.xgl34222220.ziyu.ui.appearance.rememberBackgroundFrame
 import io.github.xgl34222220.ziyu.ui.appearance.ThemeMode
+import io.github.xgl34222220.ziyu.ui.appearance.forDark
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode as MiuixColorSchemeMode
 import top.yukonga.miuix.kmp.theme.Colors as MiuixColors
@@ -201,35 +207,51 @@ internal val LocalZiyuPaletteTokens = LocalMiuixTokens
 val LocalUiStyle = staticCompositionLocalOf { UiStyle.MIUIX }
 
 @Composable
-fun ZiyuTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
+fun ZiyuTheme(storedSettings: AppearanceSettings, content: @Composable () -> Unit) {
+    val settings = storedSettings.forDark(resolveDark(storedSettings.themeMode))
+    val backgroundFrame = rememberBackgroundFrame(settings.backgroundPath)
     // Moving between native theme providers must retain the current route,
     // scroll positions and editing state. Keep the slot stable across branches.
     val latestContent = rememberUpdatedState(content)
-    val retainedContent = remember { movableContentOf { latestContent.value() } }
-    val dark = resolveDark(settings.themeMode)
-    val view = LocalView.current
-    SideEffect {
-        view.context.findWindow()?.let { window ->
-            window.statusBarColor = android.graphics.Color.TRANSPARENT
-            window.navigationBarColor = android.graphics.Color.TRANSPARENT
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !dark
-                isAppearanceLightNavigationBars = !dark
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                window.isStatusBarContrastEnforced = false
-                window.isNavigationBarContrastEnforced = false
-            }
-        }
-    }
+    val retainedContent = remember { movableContentOf {
+        ZiyuSystemBars()
+        latestContent.value()
+    } }
     CompositionLocalProvider(
         LocalAppearanceSettings provides settings,
+        LocalBackgroundFrame provides backgroundFrame,
         LocalUiStyle provides settings.uiStyle,
     ) {
         when (settings.uiStyle) {
             UiStyle.MATERIAL -> ZiyuMaterialTheme(settings, retainedContent)
             UiStyle.MIUIX -> ZiyuMiuixTheme(settings, retainedContent)
             UiStyle.COUI -> ZiyuCouiTheme(settings, retainedContent)
+        }
+    }
+}
+
+/** Resolve icons inside the final palette, never from a transparent page token. */
+@Composable
+private fun ZiyuSystemBars() {
+    val view = LocalView.current
+    val settings = LocalAppearanceSettings.current
+    val surface = MaterialTheme.colorScheme.background
+    val barSurface = if (settings.backgroundPath.isBlank()) surface else
+        io.github.xgl34222220.ziyu.ui.appearance.backgroundScrimColor(settings, surface).compositeOver(surface)
+    val darkIcons = barSurface.luminance() > .179f
+    SideEffect {
+        view.context.findWindow()?.let { window ->
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = darkIcons
+                isAppearanceLightNavigationBars = darkIcons
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isStatusBarContrastEnforced = false
+                window.isNavigationBarContrastEnforced = false
+            }
         }
     }
 }
@@ -249,13 +271,12 @@ private fun ZiyuMaterialTheme(settings: AppearanceSettings, content: @Composable
         animate = true,
     ) {
         val base = MaterialTheme.colorScheme
-        val scheme = if (pureBlack) base.withAmoledSurfaces() else base
+        val scheme = (if (pureBlack) base.withAmoledSurfaces() else base).withAppearance(settings.overrides.colors(dark))
         ProvideZiyuThemeData(
             style = UiStyle.MATERIAL,
             colorScheme = scheme,
             shapes = MaterialShapes,
             typography = MaterialTypography,
-            preferAmoledCardSurface = pureBlack,
             content = content,
         )
     }
@@ -266,7 +287,7 @@ private fun ZiyuMiuixTheme(settings: AppearanceSettings, content: @Composable ()
     val dark = resolveDark(settings.themeMode)
     val pureBlack = dark && settings.amoledBlack
     val seedColor = resolveSeedColor(settings)
-    val colorSchemeMode = settings.themeMode.toMiuixColorSchemeMode()
+    val colorSchemeMode = settings.themeMode.toMiuixColorSchemeMode(settings.nativeMonetEnabled)
     val paletteStyle = settings.kolorStyle.toMiuixPaletteStyle()
     val colorSpec = if (settings.effectiveColorSpec() == ColorSpec.SpecVersion.SPEC_2025) MiuixColorSpec.Spec2025 else MiuixColorSpec.Spec2021
     val controller = remember(colorSchemeMode, seedColor, paletteStyle, colorSpec) {
@@ -278,35 +299,14 @@ private fun ZiyuMiuixTheme(settings: AppearanceSettings, content: @Composable ()
         )
     }
 
-    if (pureBlack) {
-        val generatedColors = controller.currentColors()
-        val nativeColors = remember(generatedColors, pureBlack) { generatedColors.withAmoledSurfaces() }
-        MiuixTheme(colors = nativeColors, textStyles = MiuixNativeTextStyles) {
-            ProvideZiyuThemeData(
-                style = UiStyle.MIUIX,
-                colorScheme = nativeColors.toMaterialColorScheme(dark = true),
-                shapes = MiuixBridgeShapes,
-                typography = MiuixBridgeTypography,
-                preferAmoledCardSurface = true,
-            ) {
-                content()
-                MiuixPopupHost()
-            }
-        }
-    } else {
-        MiuixTheme(controller = controller, textStyles = MiuixNativeTextStyles) {
-            val nativeColors = MiuixTheme.colorScheme
-            ProvideZiyuThemeData(
-                style = UiStyle.MIUIX,
-                colorScheme = nativeColors.toMaterialColorScheme(dark = dark),
-                shapes = MiuixBridgeShapes,
-                typography = MiuixBridgeTypography,
-                preferAmoledCardSurface = false,
-            ) {
-                content()
-                MiuixPopupHost()
-            }
-        }
+    val generatedColors = controller.currentColors()
+    val nativeColors = (if (pureBlack) generatedColors.withAmoledSurfaces() else generatedColors.copy())
+        .withAppearance(settings.overrides.colors(dark))
+    MiuixTheme(colors = nativeColors, textStyles = MiuixNativeTextStyles) {
+        ProvideZiyuThemeData(
+            style = UiStyle.MIUIX, colorScheme = nativeColors.toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark)),
+            shapes = MiuixBridgeShapes, typography = MiuixBridgeTypography,
+        ) { content(); MiuixPopupHost() }
     }
 }
 
@@ -315,7 +315,7 @@ private fun ZiyuCouiTheme(settings: AppearanceSettings, content: @Composable () 
     val dark = resolveDark(settings.themeMode)
     val pureBlack = dark && settings.amoledBlack
     val seedColor = resolveSeedColor(settings)
-    val colorSchemeMode = settings.themeMode.toCouiColorSchemeMode()
+    val colorSchemeMode = settings.themeMode.toCouiColorSchemeMode(settings.nativeMonetEnabled)
     val paletteStyle = settings.kolorStyle.toCouiPaletteStyle()
     val controller = remember(colorSchemeMode, seedColor, paletteStyle) {
         CouiThemeController(
@@ -325,35 +325,14 @@ private fun ZiyuCouiTheme(settings: AppearanceSettings, content: @Composable () 
         )
     }
 
-    if (pureBlack) {
-        val generatedColors = controller.currentColors()
-        val nativeColors = remember(generatedColors, pureBlack) { generatedColors.withAmoledSurfaces() }
-        COUITheme(colors = nativeColors, textStyles = CouiNativeTextStyles) {
-            ProvideZiyuThemeData(
-                style = UiStyle.COUI,
-                colorScheme = nativeColors.toMaterialColorScheme(dark = true),
-                shapes = CouiBridgeShapes,
-                typography = CouiBridgeTypography,
-                preferAmoledCardSurface = true,
-            ) {
-                content()
-                COUIPopupHost()
-            }
-        }
-    } else {
-        COUITheme(controller = controller, textStyles = CouiNativeTextStyles) {
-            val nativeColors = COUITheme.colorScheme
-            ProvideZiyuThemeData(
-                style = UiStyle.COUI,
-                colorScheme = nativeColors.toMaterialColorScheme(dark = dark),
-                shapes = CouiBridgeShapes,
-                typography = CouiBridgeTypography,
-                preferAmoledCardSurface = false,
-            ) {
-                content()
-                COUIPopupHost()
-            }
-        }
+    val generatedColors = controller.currentColors()
+    val nativeColors = (if (pureBlack) generatedColors.withAmoledSurfaces() else generatedColors.copy())
+        .withAppearance(settings.overrides.colors(dark))
+    COUITheme(colors = nativeColors, textStyles = CouiNativeTextStyles) {
+        ProvideZiyuThemeData(
+            style = UiStyle.COUI, colorScheme = nativeColors.toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark)),
+            shapes = CouiBridgeShapes, typography = CouiBridgeTypography,
+        ) { content(); COUIPopupHost() }
     }
 }
 
@@ -364,21 +343,16 @@ private fun ProvideZiyuThemeData(
     colorScheme: ColorScheme,
     shapes: Shapes,
     typography: Typography,
-    preferAmoledCardSurface: Boolean,
     content: @Composable () -> Unit,
 ) {
     // Resolve the root surface once for all native providers and the Material bridge.
-    val pageBackground = if (preferAmoledCardSurface) Color.Black else colorScheme.background
+    // Color overlays have already been composited over the generated palette by
+    // withAppearance(); use that opaque result so page containers cannot turn translucent.
+    val pageBackground = colorScheme.background
     val dark = pageBackground.luminance() < .5f
     val tokens = MiuixTokens(
         pageBackground = if (LocalAppearanceSettings.current.backgroundPath.isNotBlank()) Color.Transparent else pageBackground,
-        cardBackground = when {
-            style == UiStyle.MATERIAL -> if (preferAmoledCardSurface) colorScheme.surfaceContainerLow else colorScheme.surfaceBright
-            preferAmoledCardSurface -> colorScheme.surfaceContainerLow
-            // Native CardDefaults uses surfaceContainer, not the page/dialog surface.
-            // Resolve translucent COUI container roles over the page exactly once.
-            else -> colorScheme.surfaceContainer.compositeOver(pageBackground)
-        },
+        cardBackground = appearanceCardBackground(LocalAppearanceSettings.current, colorScheme, resolveDark(LocalAppearanceSettings.current.themeMode)),
         elevatedCardBackground = colorScheme.surfaceContainerHigh.compositeOver(pageBackground),
         textPrimary = colorScheme.onSurface,
         textSecondary = colorScheme.onSurfaceVariant,
@@ -576,9 +550,9 @@ private fun UiStyle.layoutMetrics() = when (this) {
 
 @Composable
 private fun resolveSeedColor(settings: AppearanceSettings): Color {
-    val resources = LocalResources.current
+    val context = LocalContext.current
     return if (settings.monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        Color(resources.getColor(android.R.color.system_accent1_500, null))
+        (if (resolveDark(settings.themeMode)) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).primary
     } else {
         Color(settings.seedArgb)
     }
@@ -591,16 +565,16 @@ private fun resolveDark(mode: ThemeMode): Boolean = when (mode) {
     ThemeMode.DARK -> true
 }
 
-private fun ThemeMode.toMiuixColorSchemeMode() = when (this) {
-    ThemeMode.SYSTEM -> MiuixColorSchemeMode.MonetSystem
-    ThemeMode.LIGHT -> MiuixColorSchemeMode.MonetLight
-    ThemeMode.DARK -> MiuixColorSchemeMode.MonetDark
+private fun ThemeMode.toMiuixColorSchemeMode(monet: Boolean = true) = when (this) {
+    ThemeMode.SYSTEM -> if(monet)MiuixColorSchemeMode.MonetSystem else MiuixColorSchemeMode.System
+    ThemeMode.LIGHT -> if(monet)MiuixColorSchemeMode.MonetLight else MiuixColorSchemeMode.Light
+    ThemeMode.DARK -> if(monet)MiuixColorSchemeMode.MonetDark else MiuixColorSchemeMode.Dark
 }
 
-private fun ThemeMode.toCouiColorSchemeMode() = when (this) {
-    ThemeMode.SYSTEM -> CouiColorSchemeMode.MonetSystem
-    ThemeMode.LIGHT -> CouiColorSchemeMode.MonetLight
-    ThemeMode.DARK -> CouiColorSchemeMode.MonetDark
+private fun ThemeMode.toCouiColorSchemeMode(monet: Boolean = true) = when (this) {
+    ThemeMode.SYSTEM -> if(monet)CouiColorSchemeMode.MonetSystem else CouiColorSchemeMode.System
+    ThemeMode.LIGHT -> if(monet)CouiColorSchemeMode.MonetLight else CouiColorSchemeMode.Light
+    ThemeMode.DARK -> if(monet)CouiColorSchemeMode.MonetDark else CouiColorSchemeMode.Dark
 }
 
 private fun KolorStyle.toPaletteStyle(): PaletteStyle = PaletteStyle.valueOf(paletteName)
@@ -617,34 +591,48 @@ private fun AppearanceSettings.effectiveColorSpec(): ColorSpec.SpecVersion =
 
 /** Preview only: no nested app themes, popup hosts or system-bar side effects. */
 @Composable
-internal fun rememberAppearancePreviewColors(settings: AppearanceSettings, dark: Boolean): ColorScheme {
+internal fun rememberAppearancePreviewColors(storedSettings: AppearanceSettings, dark: Boolean): ColorScheme {
+    val settings = storedSettings.forDark(dark)
     val seed = resolveSeedColor(settings)
     if (settings.uiStyle == UiStyle.MIUIX) {
         val spec = if (settings.effectiveColorSpec() == ColorSpec.SpecVersion.SPEC_2025) MiuixColorSpec.Spec2025 else MiuixColorSpec.Spec2021
-        val controller = remember(seed, dark, settings.kolorStyle, spec) {
+        val controller = remember(seed, dark, settings.kolorStyle, spec, settings.nativeMonetEnabled) {
             MiuixThemeController(
-                colorSchemeMode = if (dark) MiuixColorSchemeMode.MonetDark else MiuixColorSchemeMode.MonetLight,
+                colorSchemeMode = (if(dark)ThemeMode.DARK else ThemeMode.LIGHT).toMiuixColorSchemeMode(settings.nativeMonetEnabled),
                 keyColor = seed, paletteStyle = settings.kolorStyle.toMiuixPaletteStyle(), colorSpec = spec,
             )
         }
         val colors = controller.currentColors()
-        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).toMaterialColorScheme(dark)
+        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark))
     }
     if (settings.uiStyle == UiStyle.COUI) {
-        val controller = remember(seed, dark, settings.kolorStyle) {
+        val controller = remember(seed, dark, settings.kolorStyle, settings.nativeMonetEnabled) {
             CouiThemeController(
-                colorSchemeMode = if (dark) CouiColorSchemeMode.MonetDark else CouiColorSchemeMode.MonetLight,
+                colorSchemeMode = (if(dark)ThemeMode.DARK else ThemeMode.LIGHT).toCouiColorSchemeMode(settings.nativeMonetEnabled),
                 keyColor = seed, paletteStyle = settings.kolorStyle.toCouiPaletteStyle(),
             )
         }
         val colors = controller.currentColors()
-        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).toMaterialColorScheme(dark)
+        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark))
     }
     val colors = rememberDynamicColorScheme(
         seedColor = seed, isDark = dark, isAmoled = dark && settings.amoledBlack,
         style = settings.kolorStyle.toPaletteStyle(), specVersion = settings.effectiveColorSpec(),
     )
-    return if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors
+    return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).withAppearance(settings.overrides.colors(dark))
+}
+
+/** Identical surface choice for live cards and the theme preview. */
+internal fun appearanceCardBackground(settings: AppearanceSettings, colors: ColorScheme, dark: Boolean): Color {
+    val pureBlack=dark && settings.amoledBlack
+    val roles = settings.overrides.colors(dark)
+    val pageBase = if(pureBlack)Color.Black else colors.background
+    val page = roles["surface"]?.let { Color(it).compositeOver(pageBase).copy(alpha = 1f) } ?: pageBase
+    return roles["card"]?.let { Color(it).compositeOver(page).copy(alpha = 1f) } ?: when {
+        settings.uiStyle == UiStyle.MATERIAL -> if(pureBlack)colors.surfaceContainerLow else colors.surfaceBright
+        pureBlack -> colors.surfaceContainerLow
+        else -> colors.surfaceContainer.compositeOver(page)
+    }
 }
 
 private tailrec fun Context.findWindow(): Window? = when (this) {

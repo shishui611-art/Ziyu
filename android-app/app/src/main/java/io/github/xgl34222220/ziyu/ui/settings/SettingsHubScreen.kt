@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import io.github.xgl34222220.ziyu.ui.navigation.rememberPredictiveBack
 import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackMotion
-import io.github.xgl34222220.ziyu.ui.navigation.predictiveBackPreviewMotion
 import io.github.xgl34222220.ziyu.ui.navigation.backDestinationPreview
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -14,6 +13,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuMotionTokens
@@ -85,9 +86,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -138,6 +137,8 @@ import io.github.xgl34222220.ziyu.ui.theme.ZiyuIconTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuTopBar
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import io.github.xgl34222220.ziyu.ui.appearance.forDark
+import io.github.xgl34222220.ziyu.ui.appearance.themeText
 
 data class AppearanceActions(
     val setUiStyle: (UiStyle) -> Unit,
@@ -155,6 +156,9 @@ data class AppearanceActions(
     val setThemeDisplay: (ThemeMode, Boolean) -> Unit = { _, _ -> },
     val setPredictiveBack: (Boolean) -> Unit = {},
     val setCardTransparency: (Int) -> Unit = {},
+    val setAppearanceOverrides: (io.github.xgl34222220.ziyu.ui.appearance.AppearanceOverrides) -> Unit = {},
+    val setBackgroundEffects: (io.github.xgl34222220.ziyu.ui.appearance.BackgroundEffects, Int, Int) -> Unit = { _, _, _ -> },
+    val resetTheme: suspend () -> Unit = {},
 )
 
 internal enum class SettingsSection(
@@ -191,8 +195,9 @@ internal fun AppearanceSettingsRoute(
     fontBusy: Boolean = false,
     fontLoading: Boolean = false,
     onLoadFonts: () -> Unit = {},
+    onOpenFontLibrary: () -> Unit = {},
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary)
 }
 
 @Composable
@@ -209,6 +214,7 @@ internal fun SettingsHubRoute(
     fontBusy: Boolean,
     fontLoading: Boolean,
     onLoadFonts: () -> Unit,
+    onOpenFontLibrary: () -> Unit,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -233,21 +239,27 @@ internal fun SettingsHubRoute(
     }
 
     val transition = updateTransition(section, label = "settingsDetailTransition")
-    val homeContent: @Composable () -> Unit = {
+    val homeParallax by transition.animateFloat(
+        transitionSpec = { if (skipBackTransition) snap() else tween(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing) },
+        label = "settingsHomeParallax",
+    ) { if (it == null) 0f else 1f }
+    val homeBlocked = section != null || transition.currentState != null || back.active
+    Box(Modifier.fillMaxSize()) {
+    // Keep the settings list in one scene. Reparenting it from the preview into
+    // AnimatedContent at commit forced layout/state work on the handoff frame.
+    Box(
+        Modifier.fillMaxSize().graphicsLayer {
+            val showingDetail = section != null && transition.currentState == transition.targetState
+            alpha = if (showingDetail && !back.active) 0f else 1f
+            translationX = if (back.active) {
+                -back.direction * size.width * .25f * (1f - back.progress)
+            } else -size.width * .25f * homeParallax
+        }.then(if (homeBlocked) Modifier.backDestinationPreview() else Modifier)
+    ) {
         SettingsHome(model, ::openSection, onOpenTasks, currentFontLabel)
     }
-    val latestHome by rememberUpdatedState(homeContent)
-    val movableHome = remember { movableContentOf { latestHome() } }
-    val preparePreview = active && settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34 &&
-        (back.active || section != null && transition.currentState == transition.targetState)
-    Box(Modifier.fillMaxSize()) {
-    if (preparePreview) Box(
-        Modifier.fillMaxSize().predictiveBackPreviewMotion(back).backDestinationPreview()
-    ) {
-        movableHome()
-    }
     transition.AnimatedContent(
-        modifier = Modifier.fillMaxSize().predictiveBackMotion(back).background(LocalZiyuPaletteTokens.current.pageBackground).clipToBounds(),
+        modifier = Modifier.fillMaxSize().predictiveBackMotion(back).clipToBounds(),
         transitionSpec = {
             val slide = tween<androidx.compose.ui.unit.IntOffset>(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing)
             (if (skipBackTransition && targetState == null) {
@@ -264,7 +276,7 @@ internal fun SettingsHubRoute(
         },
     ) { target ->
         if (target == null) {
-            if (!preparePreview) movableHome()
+            Box(Modifier.fillMaxSize())
         } else {
             Column(
                 Modifier
@@ -281,7 +293,7 @@ internal fun SettingsHubRoute(
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
                         SettingsSection.FONT_RULES -> pageList { item { SettingCard("选择字体") { FontSlotRulesCard() } } }
                         SettingsSection.CLIPPING -> FontClippingPage(fonts, currentFontId, fontBusy, fontLoading)
-                        SettingsSection.BOOT_SAFETY -> BootSafetyPage()
+                        SettingsSection.BOOT_SAFETY -> BootSafetyPage(fontBusy, onOpenFontLibrary)
                         SettingsSection.APP_COVERAGE -> UncoveredAppsPage()
                         SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()
                         SettingsSection.STORAGE -> pageList {
@@ -409,7 +421,7 @@ private fun SettingsSectionLabel(title: String, subtitle: String? = null) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(title, style = titleStyle, color = tokens.textPrimary)
+        Text(themeText(title), style = titleStyle, color = tokens.textPrimary)
         subtitle?.takeIf { it.isNotBlank() }?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
         }
@@ -562,7 +574,7 @@ private fun SettingsNavigationRow(
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(title, color = tokens.textPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(themeText(title), color = tokens.textPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
             Text(subtitle, color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
@@ -636,6 +648,16 @@ private fun OverviewPage(model: SystemCenterViewModel, currentFontLabel: String)
 
 @Composable
 private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActions) {
+    var confirmThemeReset by rememberSaveable { mutableStateOf(false) }
+    var themeResetBusy by remember { mutableStateOf(false) }
+    var themeResetMessage by remember { mutableStateOf("") }
+    val themeResetScope = rememberCoroutineScope()
+    val dark = when (settings.themeMode) {
+        ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val current = settings.forDark(dark)
     pageList {
         item {
             SettingCard("界面风格") {
@@ -649,7 +671,13 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
                 ChoiceRow(UiStyle.entries, settings.uiStyle, { it.label }, actions.setUiStyle)
             }
         }
-        item { AppearanceModePreview(settings, actions) }
+        item { AppearanceModePreview(current, actions) }
+        if (settings.adaptive != null) item {
+            Text("当前为浅深主题；更改背景、主题色或卡片透明度后固定为当前外观。", style = MaterialTheme.typography.bodySmall)
+        }
+        item { ThemeLibraryCard(settings) }
+        item { AppearanceCustomizationCard(settings, actions) }
+        item { ThemePersonalizationCard(settings) }
         item {
             SettingCard("视觉与显示") {
                 ToggleLine("Monet 动态取色", "跟随系统壁纸强调色", settings.monetEnabled, actions.setMonetEnabled)
@@ -665,10 +693,42 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
                 ToggleLine("预测性返回", if (android.os.Build.VERSION.SDK_INT >= 34) "返回时预览上一页" else "当前系统使用普通返回", settings.predictiveBack && android.os.Build.VERSION.SDK_INT >= 34, actions.setPredictiveBack, android.os.Build.VERSION.SDK_INT >= 34)
             }
         }
-        item { AppearancePaletteCard(settings, actions) }
-        item { AppearanceCardTransparencyCard(settings, actions) }
-        item { BackgroundImageCard(settings, actions.setBackgroundPath) }
+        item { AppearancePaletteCard(current, actions) }
+        item { AppearanceCardTransparencyCard(current, actions) }
+        item { BackgroundImageCard(current, actions.setBackgroundPath) }
+        item {
+            SettingCard("恢复默认主题") {
+                Text("还原主题颜色、背景、卡片透明度和自定义文字。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                OutlinedButton({ themeResetMessage = ""; confirmThemeReset = true }, Modifier.fillMaxWidth(), enabled = !themeResetBusy) { Text(if (themeResetBusy) "正在恢复…" else "一键恢复默认主题") }
+                if (themeResetMessage.isNotBlank()) Text(themeResetMessage, style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
+    if (confirmThemeReset) AlertDialog(
+        onDismissRequest = { if (!themeResetBusy) confirmThemeReset = false },
+        shape = RoundedCornerShape(if (settings.uiStyle == UiStyle.MIUIX) 34.dp else 28.dp),
+        title = { Text("恢复默认主题？", fontWeight = FontWeight.Black) },
+        text = { Text("将清除已应用的主题背景、配色和自定义文字；界面风格、滑动与刷新设置会保留。") },
+        dismissButton = { TextButton({ confirmThemeReset = false }, enabled = !themeResetBusy) { Text("取消") } },
+        confirmButton = {
+            TextButton({
+                if (!themeResetBusy) {
+                    themeResetBusy = true
+                    themeResetScope.launch {
+                        try {
+                            actions.resetTheme()
+                            themeResetMessage = "已恢复默认主题"
+                            confirmThemeReset = false
+                        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (error: Exception) {
+                            themeResetMessage = error.message?.take(180) ?: "恢复失败，请重试"
+                            confirmThemeReset = false
+                        } finally { themeResetBusy = false }
+                    }
+                }
+            }, enabled = !themeResetBusy) { Text(if (themeResetBusy) "正在恢复…" else "恢复默认", fontWeight = FontWeight.Bold) }
+        },
+    )
 }
 
 @Composable
@@ -917,7 +977,7 @@ internal fun SettingCard(title: String, content: @Composable () -> Unit) {
                 Modifier.fillMaxWidth().padding(layout.cardPadding),
                 verticalArrangement = Arrangement.spacedBy(stackGap),
             ) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(themeText(title), style = MaterialTheme.typography.titleMedium)
                 content()
             }
         }
@@ -954,7 +1014,7 @@ private fun StatusCard(title: String, subtitle: String, level: HealthLevel, load
                 Surface(Modifier.size(34.dp), ZiyuShapeTokens.Medium, color = accent.copy(alpha = .10f), contentColor = accent) {
                     Box(contentAlignment = Alignment.Center) { if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(when (level) { HealthLevel.HEALTHY -> Icons.Rounded.CheckCircle; HealthLevel.WARNING -> Icons.Rounded.Info; HealthLevel.ERROR -> Icons.Rounded.Error }, null, Modifier.size(21.dp)) }
                 }
-                Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) { Text(title, style = MaterialTheme.typography.titleSmall); Text(if (loading) "正在读取状态…" else subtitle, color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) { Text(themeText(title), style = MaterialTheme.typography.titleSmall); Text(if (loading) "正在读取状态…" else subtitle, color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
             Spacer(Modifier.height(8.dp)); SettingsContentDivider(); content()
         }

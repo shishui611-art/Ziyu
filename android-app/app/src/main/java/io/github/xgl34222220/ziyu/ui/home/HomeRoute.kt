@@ -1,6 +1,7 @@
 package io.github.xgl34222220.ziyu.ui.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -22,6 +24,7 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
+import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard
 import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
 import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
@@ -83,6 +86,7 @@ fun HomeRoute(
 ) {
     var trustState by remember { mutableStateOf(DeviceTrustState()) }
     var showTrustDetails by remember { mutableStateOf(false) }
+    var showCurrentFont by remember { mutableStateOf(false) }
     var showMountSettings by remember { mutableStateOf(false) }
     var showAdvancedMount by remember { mutableStateOf(false) }
     var showUndo by remember { mutableStateOf(false) }
@@ -94,6 +98,7 @@ fun HomeRoute(
     var stockScanError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val visibleActions = actions.copy(
+        viewCurrentFont = { showCurrentFont = true },
         reboot = if (state.temporaryRootMode) ({ showTemporaryRootGuide = true }) else actions.reboot,
         mountSettings = { actions.mountSettings(); showMountSettings = true },
     )
@@ -188,6 +193,16 @@ fun HomeRoute(
         UiStyle.MIUIX -> HomeScreenMiuix(state, visibleActions, trustContent)
         UiStyle.COUI -> HomeScreenCoui(state, visibleActions, trustContent)
     }
+
+    if(showCurrentFont) AlertDialog(onDismissRequest={showCurrentFont=false},title={Text("当前字体")},text={
+        Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            androidx.compose.foundation.text.selection.SelectionContainer {Text(state.currentFont,style=MaterialTheme.typography.titleMedium)}
+            Text(state.taskTitle,style=MaterialTheme.typography.bodyMedium)
+            if(state.error.isNotBlank())Text(state.error,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
+            Text("模块 ${state.version}",style=MaterialTheme.typography.bodySmall)
+        }
+    },confirmButton={ZiyuButton(onClick={showCurrentFont=false;actions.openFontLibrary()}) {Text("打开字体库")}},
+        dismissButton={TextButton(onClick={showCurrentFont=false}) {Text("关闭")}})
 
     if (showMountSettings) {
         AlertDialog(
@@ -337,15 +352,26 @@ private fun MountModeOption(
 
 @Composable
 internal fun HomeMountButton(state: HomeUiState, actions: HomeActions) {
-    ZiyuOutlinedButton(
-        onClick = actions.mountSettings, enabled = !state.taskRunning && state.moduleInstalled && state.rootGranted,
-        modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+    val palette = LocalZiyuPaletteTokens.current
+    val enabled = !state.taskRunning && state.moduleInstalled && state.rootGranted
+    ZiyuCard(
+        onClick = actions.mountSettings, enabled = enabled,
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = palette.cardBackground, contentColor = palette.textPrimary,
+            disabledContainerColor = palette.cardBackground,
+            disabledContentColor = palette.textPrimary.copy(alpha = .38f),
+        ),
     ) {
-        ZiyuIcon(Icons.Rounded.Layers, contentDescription = null)
-        Spacer(Modifier.width(10.dp))
-        Text("挂载方式", modifier = Modifier.weight(1f))
-        Text(mountModeLabel(state.mountBackendPreference), style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.width(8.dp))
-        ZiyuIcon(Icons.Rounded.ChevronRight, contentDescription = null)
+        Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ZiyuIcon(Icons.Rounded.Layers, contentDescription = null)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("挂载方式", style = MaterialTheme.typography.titleSmall)
+                Text(mountModeLabel(state.mountBackendPreference), style = MaterialTheme.typography.bodySmall,
+                    color = palette.textSecondary.copy(alpha = if (enabled) palette.textSecondary.alpha else .38f))
+            }
+            ZiyuIcon(Icons.Rounded.ChevronRight, contentDescription = null)
+        }
     }
 }
