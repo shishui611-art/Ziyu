@@ -153,6 +153,15 @@ class AppControlsBridgeTest(unittest.TestCase):
             env.pop('MODDIR', None)
             env.pop('MODULE_DIR', None)
             env['PATH'] = str(Path(shell).parent) + os.pathsep + env.get('PATH', '')
+            # app_coverage executes the bundled runtime from the root-only module
+            # directory, so the production bridge requires root; simulate the
+            # root shell the App uses instead of weakening that gate.
+            tools = module / 'tools'
+            tools.mkdir()
+            root_id = tools / 'id'
+            root_id.write_text('#!/bin/sh\nprintf "0\\n"\n', encoding='utf-8', newline='\n')
+            root_id.chmod(0o755)
+            env['PATH'] = str(tools) + os.pathsep + env['PATH']
 
             def shell_path(path):
                 value = str(path.resolve())
