@@ -17,12 +17,16 @@ trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 
 # The health command now lives in common/ outside the replaceable payload.
 # It is executed (never sourced) by system/bin/ziyu-health, so these private
-# command helpers do not override App/router helpers. Pin the exact files;
+# command helpers do not override the independently executed app_status reader.
+# app_bridge executes that reader; it retains private helpers for its other commands.
+# Pin the exact files rather than allowing an arbitrary extra definition.
 # an additional definition must still fail instead of inheriting this exception.
-for fn in mount_engine read_value root_manager; do
+for fn in mount_engine read_value root_manager read_first_line temporary_root_mode; do
     case "$fn" in
         read_value) expected='common/font_switch_task.sh common/ziyu_health.sh' ;;
-        *) expected='common/app_bridge.sh common/ziyu_health.sh' ;;
+        root_manager) expected='common/app_bridge.sh common/app_status.sh common/ziyu_health.sh' ;;
+        read_first_line|temporary_root_mode) expected='common/app_bridge.sh common/app_status.sh' ;;
+        *) expected='common/app_status.sh common/ziyu_health.sh' ;;
     esac
     actual=$(grep -l "^${fn}()" "$ROOT"/common/*.sh "$ROOT"/*.sh 2>/dev/null | sed "s|$ROOT/||" | sort | tr '\n' ' ' | sed 's/ $//')
     [ "$actual" = "$expected" ] || fail "independent health helper changed: $fn -> $actual"
@@ -32,24 +36,15 @@ done
 cat > "$TMP/allow" <<'ALLOW'
 _copy_as_inventory
 _device_font_inventory_target
-_dfpr_anchor_lines
-_dfpr_prepare_dynamic_state
 _font_anchor
 _ziyu_config_weight_source
 _ziyu_font_config_specs
-_ziyu_magic_mount_present
-_ziyu_mountify_present
-_ziyu_self_visible_root
-_ziyu_visible_path
 _verify_font_copy
 apply_font_by_rom
 clear_managed_text_fonts
 copy_as_coloros
 copy_as_hyperos
 current_boot_id
-device_font_dynamic_mount_apply
-device_font_payload_build_install
-device_font_payload_clear
 fail_json
 font_config_disable
 font_config_enable_for_payload
@@ -84,13 +79,10 @@ ziyu_font_lock_starttime
 ziyu_font_lock_token
 ziyu_font_validate_global_cached
 ziyu_hybrid_backend
-ziyu_magic_mount_ensure_partitions
 ziyu_migrate_active_install
 ziyu_mount_backend
 ziyu_mount_preflight
 ziyu_mount_verify_active
-ziyu_mountify_module_selected
-ziyu_mountify_value
 ziyu_payload_build_manifest
 ziyu_payload_quarantine
 ziyu_payload_transaction_abort
@@ -102,10 +94,10 @@ ziyu_payload_validate_manifest_fast
 ziyu_payload_validate_manifest_full
 ziyu_process_starttime
 ziyu_used_partitions
-ziyu_write_mount_probe
-ziyu_write_mount_probes
 python_run
 read_prop
+read_first_line
+temporary_root_mode
 mount_engine
 read_value
 root_manager
