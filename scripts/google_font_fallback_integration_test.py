@@ -119,7 +119,7 @@ class IntegrationTest(unittest.TestCase):
         ui = ROOT / 'android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/settings'
         self.assertIn('SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()', (ui / 'SettingsHubScreen.kt').read_text())
         page = (ui / 'GoogleFontCompatibilityPage.kt').read_text()
-        for text in ('怎么用', '影响与恢复', '恢复原设置', '了解影响，确认开启', '停用模块不会保证自动撤销'):
+        for text in ('使用方法', '影响与恢复', '恢复原设置', '开启 Google 字体兼容？', '停用或卸载字域前，请先恢复原设置'):
             self.assertIn(text, page)
         self.assertNotIn('model.enable()', page.split('confirmButton')[0])
         uninstall = (ROOT / 'uninstall.sh').read_text()
