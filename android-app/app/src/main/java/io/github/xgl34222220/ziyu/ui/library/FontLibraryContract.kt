@@ -57,6 +57,7 @@ internal data class FontLibraryActions(
     val setFilter: (FontLibraryFilter) -> Unit = {},
     val setSort: (FontLibrarySort) -> Unit = {},
     val editPreviewText: () -> Unit = {},
+    val preview: (FontItem) -> Unit = {},
 )
 
 internal fun FontLibraryUiState.forDisplay(

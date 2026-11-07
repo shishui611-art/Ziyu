@@ -110,7 +110,7 @@ private fun PaletteShortcut(settings: AppearanceSettings, label: String, active:
             }
             if (active) ZiyuIcon(Icons.Rounded.Check, null, modifier = Modifier.align(Alignment.Center).size(18.dp), tint = colors.onPrimary)
         }
-        ZiyuText(label, style = MaterialTheme.typography.labelSmall)
+        ZiyuText(label, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
     }
 }
 

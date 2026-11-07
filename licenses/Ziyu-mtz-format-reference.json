@@ -1,0 +1,16 @@
+{
+  "component": "MTZ support in common/font_zip_extract.py",
+  "implementation": "Project-owned implementation using the existing Python zipfile and ElementTree; no upstream implementation or font copied",
+  "license": "GPL-3.0-only",
+  "licenseFile": "licenses/Ziyu-GPL-3.0.txt",
+  "formatReference": {
+    "repository": "https://github.com/mifansindonesia/miui-font-sample",
+    "commit": "7907d4495964a7b9b4a71e1dc68d9dda7977358f",
+    "path": "README.md",
+    "blobSha": "72e4aa4a61ae519cf651f2d4f88efecc05cde82e",
+    "scope": "ZIP-compatible MTZ containing fonts/ and description.xml; used as a format reference only"
+  },
+  "externalDependenciesAdded": false,
+  "fontAssetsBundled": false,
+  "extendedCompatibility": "One fonts/fonts.zip component and SFNT-header recognition of raw mrc/extensionless font payloads; real user samples pending"
+}

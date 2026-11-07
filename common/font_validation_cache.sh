@@ -5,10 +5,11 @@
 set +e
 
 # Increment whenever the meaning of a successful global-font validation changes.
+# v5 uses real SFNT/TTC table directories in both engines; earlier binary scans are invalid.
 # v4 reflects the HyperOS policy where usable letters + complete digits qualify Latin UI slots;
 # punctuation remains fallback-capable. Old v3 results used punctuation as a hard gate and must not
 # be restored or the upgraded build can still leave English/digits on the stock font.
-ZIYU_FONT_VALIDATION_SCHEMA="${ZIYU_FONT_VALIDATION_SCHEMA:-global-v4-latin-digits}"
+ZIYU_FONT_VALIDATION_SCHEMA="${ZIYU_FONT_VALIDATION_SCHEMA:-global-v5-table-directory}"
 
 ziyu_font_validation_hash() {
     if command -v sha256sum >/dev/null 2>&1; then

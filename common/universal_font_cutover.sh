@@ -59,6 +59,20 @@ _uc_value() {
     sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
 }
 
+_uc_script_mode() (
+    # Resolve the same library family naming convention in an isolated shell;
+    # never change the cutover controller's variables by sourcing legacy helpers.
+    . "$MODDIR/common/util_functions.sh" || return 1
+    for _ucsm_file in "$PUBLIC_DIR/fonts"/*.ttf "$PUBLIC_DIR/fonts"/*.otf "$PUBLIC_DIR/fonts"/*.ttc \
+                        "$PUBLIC_DIR/fonts"/*.TTF "$PUBLIC_DIR/fonts"/*.OTF "$PUBLIC_DIR/fonts"/*.TTC; do
+        [ -f "$_ucsm_file" ] || continue
+        [ "$(detect_font_family "${_ucsm_file##*/}")" = "$1" ] || continue
+        _uc_python "$MODDIR/common/font_script_support.py" plan "$_ucsm_file"
+        return $?
+    done
+    return 1
+)
+
 _uc_json_identity() {
     _ucj_manifest="$1"
     _uc_python - "$_ucj_manifest" <<'PY'
@@ -97,7 +111,7 @@ _uc_legacy() {
     _ucl_font="$1"; _ucl_reason="$2"
     _ucl_warning=''
     case "$_ucl_reason" in
-        default-font|composite-runtime|composite-family|physical-continuous-switch|font-clipping-compatibility)
+        default-font|composite-runtime|composite-family|physical-continuous-switch|font-clipping-compatibility|scoped-script-font)
             _uc_log "INFO compatibility path selected font=$_ucl_font reason=$_ucl_reason"
             ;;
         *)
@@ -246,6 +260,14 @@ _uc_switch() {
 
     if ! _uc_precondition; then
         _uc_legacy "$_uc_font" universal-precondition-missing
+        return $?
+    fi
+
+    # Japanese/Korean subsets must enter the OEM-based scoped publisher before
+    # any Universal whole-face mapper is prepared. It repeats the source checks.
+    _uc_scope=$(_uc_script_mode "$_uc_font" 2>>"$LOG_FILE")
+    if [ "$?" -ne 0 ] || [ "$_uc_scope" != global ]; then
+        _uc_legacy "$_uc_font" scoped-script-font
         return $?
     fi
 

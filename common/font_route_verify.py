@@ -603,7 +603,18 @@ def verify_physical_routes(
                 roles[role].add(Path(rel).name)
     # Stock symlink aliases and observed current process mappings can close
     # routes which are absent from both the XML and the stock metric slots.
+    original_link_evidence = {}
+    unresolved = verified_fonts.intersection(font_paths).difference(routed)
+    if unresolved and root == Path('/proc/1/root'):
+        from stock_font_link_evidence import original_links
+        try:
+            recovered, original_link_evidence = original_links(module, inventory, unresolved)
+            if recovered:
+                inventory = {**inventory, 'stockFontLinks': {**inventory.get('stockFontLinks', {}), **recovered}}
+        except (OSError, ValueError) as error:
+            original_link_evidence = {'source': 'unavailable', 'reason': str(error)}
     stock_link_scan, stock_link_reasons = stock_link_routes(inventory, verified_fonts, routed, evidence, roles, root, partitions)
+    stock_link_scan['originalLinkEvidence'] = original_link_evidence
     observed, process_scan = process_font_routes(root, verified_fonts.intersection(font_paths).difference(routed))
     for rel, proof in observed.items():
         routed.add(rel)

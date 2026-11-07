@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.xgl34222220.ziyu.ui.studio.StudioProfile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -538,6 +539,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     private var moduleStateReadGeneration = 0
     private var logsJob: Job? = null
     private var mixConfigJob: Job? = null
+    private var mixEditRevision = 0L
     private var pendingForceRefresh = false
     private var prewarmRequested = false
 
@@ -969,6 +971,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
 
     fun refreshMixConfig() {
         if (mixState.loading || mixState.busy) return
+        val editRevision = mixEditRevision
+        val keepSelection = editRevision > 0L
         mixState = mixState.copy(loading = true, error = "")
         mixConfigJob?.cancel()
         mixConfigJob = viewModelScope.launch {
@@ -981,6 +985,17 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 val root = firstJson(result.stdout)
                 if (root.optString("status") != "ok") error(root.optString("message", "组合配置读取失败"))
                 val data = root.getJSONObject("data")
+                // The response describes the last generated combination. A user
+                // may have loaded/edited a different profile while it was in flight,
+                // or left and returned to the page with an ungenerated selection.
+                if (keepSelection || editRevision != mixEditRevision) {
+                    mixState = mixState.copy(
+                        loading = false,
+                        enabled = data.optBoolean("enabled", false),
+                        manualTuneSupported = data.optBoolean("manualTuneSupported", false),
+                    )
+                    return@launch
+                }
                 val cjkWeight = data.optInt("cjkWeight", mixState.cjkWeight).coerceIn(1, 1000)
                 val latinWeight = data.optInt("latinWeight", mixState.latinWeight).coerceIn(1, 1000)
                 val digitWeight = data.optInt("digitWeight", mixState.digitWeight).coerceIn(1, 1000)
@@ -1017,6 +1032,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun updateMixFont(slot: MixSlot, fontId: String) {
+        if (mixState.busy || operationBusy) return
         val font = fonts.firstOrNull { it.id == fontId }
         if (font == null || !font.valid) {
             mixState = mixState.copy(error = "所选字体不可用，请重新选择字体")
@@ -1026,6 +1042,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             mixState = mixState.copy(error = "组合字体不能作为新的组合源字体，请选择普通字体")
             return
         }
+        mixEditRevision++
         mixState = when (slot) {
             MixSlot.Cjk -> mixState.copy(cjk = fontId, cjkAxes = mapOf("wght" to mixState.cjkWeight.toFloat()))
             MixSlot.Latin -> mixState.copy(latin = fontId, latinAxes = mapOf("wght" to mixState.latinWeight.toFloat()))
@@ -1038,9 +1055,11 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun updateMixAxis(slot: MixSlot, tag: String, value: Float) {
+        if (mixState.busy || operationBusy) return
         val cleanTag = tag.trim()
         if (cleanTag.length != 4 || !value.isFinite()) return
         val safe = if (cleanTag == "wght") value.coerceIn(1f, 1000f) else value
+        mixEditRevision++
         mixState = when (slot) {
             MixSlot.Cjk -> mixState.copy(
                 cjkWeight = if (cleanTag == "wght") safe.roundToInt() else mixState.cjkWeight,
@@ -1063,8 +1082,43 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         val safeOffset = offset.coerceIn(-MIX_LATIN_OFFSET_LIMIT, MIX_LATIN_OFFSET_LIMIT)
         if (mixState.latinSize == safeSize && mixState.latinOffset == safeOffset &&
             mixTunePrefs.contains("latinSize") && mixTunePrefs.contains("latinOffset")) return
+        mixEditRevision++
         mixState = mixState.copy(latinSize = safeSize, latinOffset = safeOffset)
         mixTunePrefs.edit().putInt("latinSize", safeSize).putInt("latinOffset", safeOffset).apply()
+    }
+
+    fun applyMixProfile(profile: StudioProfile): String? {
+        if (mixState.busy || operationBusy) return "请等待当前任务完成"
+        val sources = MixSlot.entries.map { slot ->
+            val config = profile.slots[slot] ?: return "方案不完整"
+            val font = fonts.firstOrNull { it.id == config.fontId }
+                ?: return "找不到字体：${config.fontName}"
+            if (!font.valid || font.combination) return "请选择可用的原字体：${font.name}"
+            if (config.axes.size > 16 || config.axes.any { (tag, value) ->
+                    tag.length != 4 || tag.any { it.code !in 33..126 } || !value.isFinite()
+                }) return "方案中的字体参数无效"
+            config
+        }
+        fun axes(index: Int) = sources[index].axes + ("wght" to
+            (sources[index].axes["wght"] ?: sources[index].weight.toFloat()).coerceIn(1f, 1000f))
+        val cjkAxes = axes(0)
+        val latinAxes = axes(1)
+        val digitAxes = axes(2)
+        val size = profile.latinSize.coerceIn(-MIX_LATIN_SIZE_LIMIT, MIX_LATIN_SIZE_LIMIT)
+        val offset = profile.latinOffset.coerceIn(-MIX_LATIN_OFFSET_LIMIT, MIX_LATIN_OFFSET_LIMIT)
+        // Validate all sources first, then publish the whole selection once.
+        // Keep fractional axis coordinates; the integer label is display-only.
+        mixEditRevision++
+        mixState = mixState.copy(
+            cjk = sources[0].fontId, latin = sources[1].fontId, digit = sources[2].fontId,
+            cjkWeight = cjkAxes.getValue("wght").roundToInt(),
+            latinWeight = latinAxes.getValue("wght").roundToInt(),
+            digitWeight = digitAxes.getValue("wght").roundToInt(),
+            cjkAxes = cjkAxes, latinAxes = latinAxes, digitAxes = digitAxes,
+            latinSize = size, latinOffset = offset, error = "", message = "方案已载入",
+        )
+        mixTunePrefs.edit().putInt("latinSize", size).putInt("latinOffset", offset).apply()
+        return null
     }
 
     fun startMix(name: String) {

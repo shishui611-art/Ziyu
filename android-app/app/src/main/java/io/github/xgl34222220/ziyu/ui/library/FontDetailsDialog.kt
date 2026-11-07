@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.Visibility
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +67,8 @@ import io.github.xgl34222220.ziyu.ui.theme.ZiyuLoadingSkeleton
 private enum class FontPreviewMode(val label: String) {
     Mixed("综合"),
     Cjk("中文"),
+    Japanese("日文"),
+    Korean("韩文"),
     Latin("English"),
     Numbers("数字"),
 }
@@ -80,6 +84,7 @@ internal fun FontDetailsDialogRoute(
     onDismiss: () -> Unit,
     onApply: () -> Unit,
     customPreviewText: String = "",
+    onGlyphPreview: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val tokens = LocalZiyuPaletteTokens.current
@@ -102,21 +107,28 @@ internal fun FontDetailsDialogRoute(
         deepLoading = false
     }
 
-    val previewModes = remember(font.id, font.supportsCjk) {
+    val previewModes = remember(font.id, font.supportsCjk, deepMetadata?.languages) {
         buildList {
             add(FontPreviewMode.Mixed)
             if (font.supportsCjk) add(FontPreviewMode.Cjk)
+            if (deepMetadata?.languages?.contains("japanese") == true) add(FontPreviewMode.Japanese)
+            if (deepMetadata?.languages?.contains("korean") == true) add(FontPreviewMode.Korean)
             add(FontPreviewMode.Latin)
             add(FontPreviewMode.Numbers)
         }
     }
     val previewText = when (previewMode) {
-        FontPreviewMode.Mixed -> customPreviewText.ifBlank { if (font.supportsCjk) {
-            "花间一壶酒\nZiyu Aa 0123456789"
-        } else {
-            "Ziyu Typeface\nAa 0123456789"
-        } }
+        FontPreviewMode.Mixed -> customPreviewText.ifBlank {
+            when {
+                deepMetadata?.applicationLanguages?.contains("japanese") == true -> "ひらがな カタカナ\n日本語のフォント"
+                deepMetadata?.applicationLanguages?.contains("korean") == true -> "가나다라마바사\n한글 글꼴 미리보기"
+                font.supportsCjk -> "花间一壶酒\nZiyu Aa 0123456789"
+                else -> "Ziyu Typeface\nAa 0123456789"
+            }
+        }
         FontPreviewMode.Cjk -> "花间一壶酒\n天地玄黄 宇宙洪荒"
+        FontPreviewMode.Japanese -> "ひらがな カタカナ\n日本語のフォント"
+        FontPreviewMode.Korean -> "가나다라마바사\n한글 글꼴 미리보기"
         FontPreviewMode.Latin -> "The quick brown fox\nZiyu Typeface"
         FontPreviewMode.Numbers -> "0123456789\n¥ 123,456.78"
     }
@@ -199,6 +211,11 @@ internal fun FontDetailsDialogRoute(
                 }
             }
 
+            Button(onClick = onGlyphPreview, enabled = font.valid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Icon(Icons.Rounded.Visibility, null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("字库预览", fontWeight = FontWeight.SemiBold)
+            }
             Spacer(Modifier.height(18.dp))
             Text("字体信息", color = primaryText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text("快速查看这款字体的能力、字重与文件信息", color = secondaryText, fontSize = 12.sp)
@@ -216,7 +233,11 @@ internal fun FontDetailsDialogRoute(
                         FontDetailLine("数字源", font.digitSourceName.ifBlank { "来源未记录" }, primaryText, secondaryText)
                     }
                     FontDetailLine("字重", font.weightLabel, primaryText, secondaryText)
-                    FontDetailLine("覆盖", if (font.supportsCjk) "中日韩 · 拉丁 · 数字" else "拉丁 · 数字", primaryText, secondaryText)
+                    FontDetailLine("文字", buildList {
+                        if (font.supportsCjk) add("汉字")
+                        if (deepMetadata?.languages?.contains("japanese") == true) add("日文")
+                        if (deepMetadata?.languages?.contains("korean") == true) add("韩文")
+                    }.joinToString(" · ").ifBlank { "见字库预览" }, primaryText, secondaryText)
                     FontDetailLine("格式", font.format.ifBlank { "未知" }, primaryText, secondaryText)
                     FontDetailLine("大小", font.size.ifBlank { "未知" }, primaryText, secondaryText)
                     FontDetailLine("导入", font.date.ifBlank { "未知" }, primaryText, secondaryText)
@@ -313,6 +334,13 @@ internal fun FontDetailsDialogRoute(
             }
 
             Spacer(Modifier.height(18.dp))
+            if (deepMetadata?.applicationLanguages?.isNotEmpty() == true) {
+                val labels = deepMetadata!!.applicationLanguages.mapNotNull {
+                    when (it) { "japanese" -> "日文"; "korean" -> "韩文"; else -> null }
+                }.joinToString("、")
+                Text(if (font.variable) "日韩可变字体暂不支持缺字补齐。" else "应用$labels，其他文字使用系统字体；需完整重启。", color = secondaryText, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
+            }
             Button(
                 onClick = onApply,
                 enabled = font.valid && !busy,

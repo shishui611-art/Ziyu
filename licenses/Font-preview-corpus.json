@@ -1,0 +1,11 @@
+{
+  "name": "User-provided font preview corpus",
+  "source": "https://www.coolapk.com/feed/53620096",
+  "revision": "coolapk-53620096-r1",
+  "acquisition": "Complete text supplied by the user",
+  "sourcePath": "docs/font-test-baseline/coolapk-53620096-r1.txt",
+  "apkAsset": "assets/font-preview/coolapk-53620096-r1.txt",
+  "sha256": "e45b90d6244268251d69d9b95d0ae5f36df4b0174b8b6dce280236be2db30bd2",
+  "license": "Not specified in the supplied source; no additional license is asserted",
+  "notice": "Original authors retain their rights. Packaged verbatim at the user's request for font preview. Preview rendering is not a coverage or mount verification result."
+}

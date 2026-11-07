@@ -68,12 +68,17 @@ common/font_active_state.sh
 common/font_boot_state.sh
 common/font_axis_info.py
 common/font_check.sh
+common/font_table_directory.sh
+licenses/Ziyu-font-table-directory.json
 common/font_config_overlay.py
 common/font_config_partitions.sh
 common/font_config_runtime.sh
 common/font_config_targets.py
 common/font_config_weights.sh
 common/font_coverage.py
+common/font_script_support.py
+common/font_default_restore.py
+licenses/Ziyu-script-font-support.json
 common/font_coverage.sh
 common/font_coverage_info.py
 common/font_details.sh
@@ -286,3 +291,8 @@ common/font_verity.sh
 licenses/SukiSU-Ultra-GPL-3.0.txt
 licenses/SukiSU-Ultra-theme-port.json
 common/stock_readonly_view.py
+licenses/Font-preview-corpus.json
+licenses/Ziyu-mtz-format-reference.json
+
+common/stock_font_link_evidence.py
+licenses/Ziyu-stock-font-link-evidence.json

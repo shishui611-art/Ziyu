@@ -2,86 +2,12 @@
 # Ziyu - 字体文件真实格式与基础兼容性检测
 # 只读取文件，不修改字体。
 
-# 基础检查沿用现有缓存；组合源使用真实 SFNT/TTC 表目录单独填充该缓存。
-FONT_TABLE_CACHE_FILE=""
-FONT_TABLE_CACHE_TAGS=""
-FONT_TABLE_CACHE_READY="false"
-FONT_TABLE_CACHE_ERROR=""
+# Both engines use the same bounded table-directory reader, including TTC face offsets.
+_ftd_module="${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
+. "$_ftd_module/common/font_table_directory.sh" || { return 1 2>/dev/null || exit 1; }
 
 font_magic_hex() {
     dd if="$1" bs=1 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n\r'
-}
-
-font_table_token() {
-    case "$1" in
-        'SVG ') printf '%s\n' 'SVG_' ;;
-        *) printf '%s\n' "$1" ;;
-    esac
-}
-
-font_table_directory_cache_load() {
-    _ftc_file="$1"
-    FONT_TABLE_CACHE_FILE="$_ftc_file"
-    FONT_TABLE_CACHE_TAGS=""
-    FONT_TABLE_CACHE_READY="false"
-    FONT_TABLE_CACHE_ERROR=""
-    _ftc_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
-    _ftc_root="$_ftc_module/common/python"
-    _ftc_checker="$_ftc_module/common/font_structure.py"
-    _ftc_python="${ZIYU_HOST_PYTHON:-$_ftc_root/bin/ziyu-python}"
-    if [ ! -f "$_ftc_checker" ] || [ ! -x "$_ftc_python" ]; then
-        FONT_TABLE_CACHE_ERROR="字体表目录校验器不可用"
-        return 1
-    fi
-    if [ -n "${ZIYU_HOST_PYTHON:-}" ]; then
-        _ftc_result=$("$_ftc_python" "$_ftc_checker" --tables "$_ftc_file" 2>&1)
-    else
-        _ftc_result=$(PYTHONHOME="$_ftc_root" PYTHONPATH="$_ftc_root/lib/python3.14/site-packages" \
-            LD_LIBRARY_PATH="$_ftc_root/lib:$_ftc_root/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            "$_ftc_python" "$_ftc_checker" --tables "$_ftc_file" 2>&1)
-    fi
-    _ftc_rc=$?
-    if [ "$_ftc_rc" -ne 0 ]; then
-        FONT_TABLE_CACHE_ERROR="字体表目录无效：${_ftc_result:-无法读取}"
-        return 1
-    fi
-    FONT_TABLE_CACHE_TAGS="$_ftc_result"
-    FONT_TABLE_CACHE_READY="true"
-    return 0
-}
-
-font_table_cache_load() {
-    _ftc_file="$1"
-    FONT_TABLE_CACHE_FILE="$_ftc_file"
-    FONT_TABLE_CACHE_TAGS=$(
-        dd if="$_ftc_file" bs=65536 count=2 2>/dev/null | \
-            grep -a -o -E 'cmap|head|maxp|fvar|COLR|CBDT|sbix|SVG ' 2>/dev/null | \
-            sed 's/^SVG $/SVG_/' | \
-            sort -u 2>/dev/null | \
-            tr '\n' '|'
-    )
-    if [ -n "$FONT_TABLE_CACHE_TAGS" ]; then
-        FONT_TABLE_CACHE_READY="true"
-    else
-        FONT_TABLE_CACHE_READY="false"
-    fi
-}
-
-font_has_table() {
-    _fht_file="$1"
-    _fht_tag="$2"
-    case "$_fht_tag" in
-        cmap|head|maxp|fvar|COLR|CBDT|sbix|'SVG ')
-            if [ "$FONT_TABLE_CACHE_READY" = "true" ] && [ "$FONT_TABLE_CACHE_FILE" = "$_fht_file" ]; then
-                _fht_token=$(font_table_token "$_fht_tag")
-                case "|$FONT_TABLE_CACHE_TAGS" in
-                    *"|${_fht_token}|"*) return 0 ;;
-                    *) return 1 ;;
-                esac
-            fi
-            ;;
-    esac
-    dd if="$_fht_file" bs=65536 count=2 2>/dev/null | grep -a -q "$_fht_tag"
 }
 
 font_detect_format() {
@@ -154,11 +80,7 @@ font_validate() {
             ;;
     esac
 
-    if [ "$_purpose" = mix-source ]; then
-        font_table_directory_cache_load "$_file" || { FONT_CHECK_ERROR="$FONT_TABLE_CACHE_ERROR"; return 1; }
-    else
-        font_table_cache_load "$_file"
-    fi
+    font_table_directory_cache_load "$_file" || { FONT_CHECK_ERROR="$FONT_TABLE_CACHE_ERROR"; return 1; }
 
     if ! font_has_table "$_file" "cmap"; then
         FONT_CHECK_ERROR="字体缺少 cmap 字符映射表"

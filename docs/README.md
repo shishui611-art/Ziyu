@@ -3,6 +3,8 @@
 ## 当前使用与行为说明
 
 - [使用指南](USER_GUIDE.md)：安装、字体轴与 TTC/OTC 组合、挂载选择、按应用诊断、开机/OTA 保护与恢复。
+- [日韩字体说明](JAPANESE_KOREAN_FONTS.md)：静态日文、韩文字体的适用范围、保留原厂字形规则与限制。
+- [MTZ 导入说明](MTZ_IMPORT.md)：可导入的 MTZ 字体包结构、容量限制与处理范围。
 - [挂载流程](MOUNT_FLOW.md)：四种用户选择的挂载模式、升级偏好和验证状态。
 - [字体热切换](FONT_LIVE_SWITCH.md)：热切换前提、限制及需要重启的情况。
 - [临时 Root 与软重启](TEMP_ROOT.md)：KernelSU / SukiSU Ultra 的适用条件和操作边界。

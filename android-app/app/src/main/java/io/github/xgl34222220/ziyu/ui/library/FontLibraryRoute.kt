@@ -54,6 +54,7 @@ internal fun FontLibraryRoute(
     var filter by rememberSaveable { mutableStateOf(FontLibraryFilter.ALL) }
     var sort by rememberSaveable { mutableStateOf(FontLibrarySort.ACTIVE_FIRST) }
     var detailFont by remember { mutableStateOf<FontItem?>(null) }
+    var previewFont by remember { mutableStateOf<FontItem?>(null) }
     var showManagement by rememberSaveable { mutableStateOf(false) }
     val latestActions by rememberUpdatedState(actions)
     val conflicts = remember(state.fonts) { analyzeFontLibraryConflicts(state.fonts) }
@@ -86,6 +87,7 @@ internal fun FontLibraryRoute(
             refresh = { latestActions.refresh() },
             setQuery = { latestActions.setQuery(it) },
             apply = { latestActions.apply(it) },
+            preview = { previewFont = it },
             delete = { latestActions.delete(it) },
             deleteMany = { latestActions.deleteMany(it) },
             restoreDefault = { latestActions.restoreDefault() },
@@ -138,7 +140,7 @@ internal fun FontLibraryRoute(
         }
     }
 
-    val childLayerActive = showManagement || detailFont != null || showPreviewEditor
+    val childLayerActive = showManagement || detailFont != null || previewFont != null || showPreviewEditor
     val pageScale by animateFloatAsState(
         targetValue = if (style == UiStyle.MIUIX && childLayerActive) .96f else 1f,
         animationSpec = tween(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing),
@@ -194,12 +196,17 @@ internal fun FontLibraryRoute(
             pending = state.activeFontPending,
             busy = state.operationBusy,
             customPreviewText = customPreviewText,
+            onGlyphPreview = { detailFont = null; previewFont = font },
             onDismiss = { detailFont = null },
             onApply = {
                 detailFont = null
                 latestActions.apply(font)
             },
         )
+    }
+
+    previewFont?.let { font ->
+        FontGlyphPreviewSheet(font = font, onDismiss = { previewFont = null })
     }
 
     if (showPreviewEditor) {
@@ -209,7 +216,7 @@ internal fun FontLibraryRoute(
             title = { ZiyuText("自定义预览文字") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ZiyuText("用于字体库卡片和详情中的综合预览，最多 200 个字符。留空或恢复默认后使用原来的示例文字。")
+                    ZiyuText("修改卡片上的样例，最多 200 个字符。")
                     ZiyuOutlinedTextField(
                         value = draftPreviewText,
                         onValueChange = { draftPreviewText = it },

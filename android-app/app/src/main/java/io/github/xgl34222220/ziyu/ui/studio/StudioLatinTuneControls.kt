@@ -45,7 +45,7 @@ internal fun StudioLatinTuneControls(state: FontStudioUiState, actions: FontStud
             contentColor = palette.textPrimary,
         ),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("英数微调", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                 TextButton(

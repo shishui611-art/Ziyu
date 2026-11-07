@@ -46,7 +46,7 @@ internal fun NativeImportFontPreview(uris: List<Uri>, enabled: Boolean, onCancel
                 dir.mkdirs()
                 val name = queryDisplayName(context, uri) ?: "font.ttf"
                 val extension = name.substringAfterLast('.', "").lowercase()
-                require(extension in setOf("ttf", "otf", "ttc", "woff", "woff2", "zip")) { "此文件不支持预览，可继续导入后查看结果" }
+                require(extension in FONT_IMPORT_EXTENSIONS) { "此文件不支持预览，可继续导入后查看结果" }
                 val temp = File(dir, "copy.tmp")
                 val hash = MessageDigest.getInstance("SHA-256")
                 copyUriWithLimit(context, uri, temp, hash)
@@ -103,12 +103,12 @@ internal fun NativeImportFontPreview(uris: List<Uri>, enabled: Boolean, onCancel
                         }) { ZiyuText("移除") }
                     }
                 }
-                preview.file?.takeUnless { it.extension == "zip" }?.let { file ->
+                preview.file?.takeUnless { it.extension in FONT_IMPORT_ARCHIVE_EXTENSIONS }?.let { file ->
                     NativeLocalFontPreview(file, preview.sha256, faceIndex, text,
                         if (range != null) renderedWeight.coerceIn(range) else null,
                         Modifier.fillMaxWidth().height((112f * fontScale.coerceAtLeast(1f)).dp), textSizeSp = 24f)
                 }
-                val isArchive = preview.file?.extension == "zip"
+                val isArchive = preview.file?.extension in FONT_IMPORT_ARCHIVE_EXTENSIONS
                 if (isArchive) ZiyuText("压缩包导入后可预览字体。", style = MaterialTheme.typography.bodySmall)
                 if ((faces?.length() ?: 0) > 1) {
                     ZiyuTextButton(onClick = { faceIndex = (faceIndex + 1) % faces!!.length() }) {

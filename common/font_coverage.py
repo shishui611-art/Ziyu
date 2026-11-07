@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from fontTools.ttLib import TTCollection, TTFont
@@ -33,18 +34,47 @@ CORE_HAN_RANGES = (
 )
 
 
-def load_cmaps(path: Path) -> list[set[int]]:
+def script_languages(cmap):
+    """Identify substantial Japanese/Korean coverage, never from a filename."""
+    hira = sum(cp in cmap for cp in range(0x3041, 0x3097))
+    kata = sum(cp in cmap for cp in range(0x30A1, 0x30FB))
+    hangul = sum(0xAC00 <= cp <= 0xD7A3 for cp in cmap)
+    korean = tuple(map(ord, '가나다라마바사아자차카타파하한글문자설정업데이트백업복원'))
+    result = []
+    if hira >= 70 and kata >= 72:
+        result.append('japanese')
+    if hangul >= 1000 and ratio(cmap, korean)[2] >= .95:
+        result.append('korean')
+    return result
+
+
+def declared_script_languages(font):
+    names = font['name'] if 'name' in font else None
+    label = ' '.join(filter(None, (names.getDebugName(i) for i in (1, 16)))) if names else ''
+    compact = re.sub(r'[^a-z0-9]+', '', label.lower())
+    result = []
+    if any(token in compact for token in ('cjkjp', 'sansjp', 'serifjp', 'japanese')):
+        result.append('japanese')
+    if any(token in compact for token in ('cjkkr', 'sanskr', 'serifkr', 'korean')):
+        result.append('korean')
+    return result
+
+
+def load_cmaps(path: Path, *, with_scripts=False):
+    def read(font):
+        cmap = set((font.getBestCmap() or {}).keys())
+        return (cmap, declared_script_languages(font)) if with_scripts else cmap
     with path.open("rb") as stream:
         magic = stream.read(4)
     if magic == b"ttcf":
         collection = TTCollection(str(path), lazy=True)
         try:
-            return [set((font.getBestCmap() or {}).keys()) for font in collection.fonts]
+            return [read(font) for font in collection.fonts]
         finally:
             collection.close()
     font = TTFont(str(path), lazy=True, recalcTimestamp=False)
     try:
-        return [set((font.getBestCmap() or {}).keys())]
+        return [read(font)]
     finally:
         font.close()
 
@@ -64,7 +94,8 @@ def count_core_han(cmap: set[int]) -> int:
 
 
 def inspect(path: Path) -> dict[str, object]:
-    faces = load_cmaps(path)
+    facts = load_cmaps(path, with_scripts=True)
+    faces = [cmap for cmap, _languages in facts]
     candidates = []
     for index, cmap in enumerate(faces):
         groups = {
@@ -89,6 +120,15 @@ def inspect(path: Path) -> dict[str, object]:
         and groups["punctuation"][2] >= 0.75
     )
     percentages = {name: round(values[2] * 100) for name, values in groups.items()}
+    scripts = []
+    for index, cmap in enumerate(faces):
+        languages = script_languages(cmap)
+        declared = [language for language in facts[index][1] if language in languages]
+        # A JP/KR regional family may also contain complete simplified Chinese;
+        # its declared language still wins over accidental global eligibility.
+        languages = declared or ([] if safe else languages)
+        scripts.append((len(languages), len(cmap), -index, languages))
+    _, _, script_index, languages = max(scripts, default=(0, 0, 0, []))
     return {
         "safe": safe,
         "face": face,
@@ -96,6 +136,8 @@ def inspect(path: Path) -> dict[str, object]:
         "coreHan": han_count,
         "minimumCoreHan": MIN_CORE_HAN,
         "coverage": percentages,
+        "scriptLanguages": languages,
+        "scriptFace": -script_index,
         "message": (
             f"字形覆盖通过：核心汉字 {han_count} 个"
             if safe

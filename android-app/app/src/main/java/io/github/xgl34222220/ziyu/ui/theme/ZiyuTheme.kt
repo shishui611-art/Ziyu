@@ -271,7 +271,7 @@ private fun ZiyuMaterialTheme(settings: AppearanceSettings, content: @Composable
         animate = true,
     ) {
         val base = MaterialTheme.colorScheme
-        val scheme = (if (pureBlack) base.withAmoledSurfaces() else base).withAppearance(settings.overrides.colors(dark))
+        val scheme = (if (pureBlack) base.withAmoledSurfaces() else base).withAutomaticSurfaces(settings).withAppearance(settings.overrides.colors(dark))
         ProvideZiyuThemeData(
             style = UiStyle.MATERIAL,
             colorScheme = scheme,
@@ -300,7 +300,7 @@ private fun ZiyuMiuixTheme(settings: AppearanceSettings, content: @Composable ()
     }
 
     val generatedColors = controller.currentColors()
-    val nativeColors = (if (pureBlack) generatedColors.withAmoledSurfaces() else generatedColors.copy())
+    val nativeColors = (if (pureBlack) generatedColors.withAmoledSurfaces() else generatedColors.copy()).withAutomaticSurfaces(settings)
         .withAppearance(settings.overrides.colors(dark))
     MiuixTheme(colors = nativeColors, textStyles = MiuixNativeTextStyles) {
         ProvideZiyuThemeData(
@@ -326,7 +326,7 @@ private fun ZiyuCouiTheme(settings: AppearanceSettings, content: @Composable () 
     }
 
     val generatedColors = controller.currentColors()
-    val nativeColors = (if (pureBlack) generatedColors.withAmoledSurfaces() else generatedColors.copy())
+    val nativeColors = (if (pureBlack) generatedColors.withAmoledSurfaces() else generatedColors.copy()).withAutomaticSurfaces(settings)
         .withAppearance(settings.overrides.colors(dark))
     COUITheme(colors = nativeColors, textStyles = CouiNativeTextStyles) {
         ProvideZiyuThemeData(
@@ -603,7 +603,7 @@ internal fun rememberAppearancePreviewColors(storedSettings: AppearanceSettings,
             )
         }
         val colors = controller.currentColors()
-        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark))
+        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).withAutomaticSurfaces(settings).toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark))
     }
     if (settings.uiStyle == UiStyle.COUI) {
         val controller = remember(seed, dark, settings.kolorStyle, settings.nativeMonetEnabled) {
@@ -613,13 +613,13 @@ internal fun rememberAppearancePreviewColors(storedSettings: AppearanceSettings,
             )
         }
         val colors = controller.currentColors()
-        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark))
+        return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).withAutomaticSurfaces(settings).toMaterialColorScheme(dark).withAppearance(settings.overrides.colors(dark))
     }
     val colors = rememberDynamicColorScheme(
         seedColor = seed, isDark = dark, isAmoled = dark && settings.amoledBlack,
         style = settings.kolorStyle.toPaletteStyle(), specVersion = settings.effectiveColorSpec(),
     )
-    return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).withAppearance(settings.overrides.colors(dark))
+    return (if (dark && settings.amoledBlack) colors.withAmoledSurfaces() else colors).withAutomaticSurfaces(settings).withAppearance(settings.overrides.colors(dark))
 }
 
 /** Identical surface choice for live cards and the theme preview. */

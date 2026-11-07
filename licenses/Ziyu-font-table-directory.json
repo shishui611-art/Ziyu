@@ -1,0 +1,9 @@
+{
+  "component": "common/font_table_directory.sh",
+  "origin": "Project-owned SFNT/TTC directory adapter extracted from common/font_check.sh",
+  "repository": "https://github.com/shishui611-art/Ziyu",
+  "baseCommit": "2013600400944cc541baf06ece8deeaeec141652",
+  "license": "GPL-3.0-only",
+  "licenseFile": "licenses/Ziyu-GPL-3.0.txt",
+  "externalDependenciesAdded": false
+}

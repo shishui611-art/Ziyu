@@ -53,6 +53,7 @@ internal data class FontStudioActions(
     val applyDirect: (String) -> Unit,
     val cancel: () -> Unit = {},
     val updateTune: (Int, Int) -> Unit = { _, _ -> },
+    val applyProfile: (StudioProfile) -> String?,
 )
 
 internal fun ZiyuViewModel.toFontStudioUiState(features: Alpha15FeatureViewModel): FontStudioUiState {
@@ -84,7 +85,7 @@ internal fun ZiyuViewModel.toFontStudioUiState(features: Alpha15FeatureViewModel
         progress = current.progress,
         error = current.error,
         slots = listOf(
-            slotState(MixSlot.Cjk, "中文基底", "完整中文、符号与系统回退基底", "字域中文 Aa 0123"),
+            slotState(MixSlot.Cjk, "中文", "设置中文与符号字体", "字域中文 Aa 0123"),
             slotState(MixSlot.Latin, "英文字形", "替换拉丁字母与英文标点轮廓", "Ziyu Typography 0123"),
             slotState(MixSlot.Digit, "数字字形", "替换数字与相关半角标点", "0123456789 Aa"),
         ),

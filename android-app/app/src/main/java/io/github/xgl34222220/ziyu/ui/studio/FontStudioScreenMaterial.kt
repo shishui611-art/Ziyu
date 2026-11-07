@@ -80,11 +80,10 @@ internal fun FontStudioScreenMaterial(
             end = layout.pageHorizontal,
             bottom = maxOf(LocalDockContentPadding.current, layout.dockSafeBottom),
         ),
-        verticalArrangement = Arrangement.spacedBy(layout.itemGap),
+        verticalArrangement = Arrangement.spacedBy(maxOf(layout.itemGap, 20.dp)),
     ) {
         item { MaterialStudioHeader(state.loading, actions.refresh, topAction) }
         item { MaterialCompositionOverview(state, actions) }
-        item { StudioLatinTuneControls(state, actions) }
 
         if (state.loading) {
             item { LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp)) }
@@ -95,10 +94,11 @@ internal fun FontStudioScreenMaterial(
 
         state.slots.forEach { slotState ->
             item(key = slotState.slot.name) {
-                MaterialSlotCard(slotState, state.busy || state.operationBusy, actions)
+                StudioSlotEditorCard(slotState, state.busy || state.operationBusy, actions)
             }
         }
 
+        item { StudioLatinTuneControls(state, actions) }
         item {
             Column(modifier = Modifier.bringIntoViewRequester(applyRequester),
                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -145,8 +145,8 @@ private fun MaterialCompositionOverview(state: FontStudioUiState, actions: FontS
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(Modifier.padding(20.dp)) {
-            Text("组合你的专属字体", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text("本次选择预览", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text("组合预览", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("分别选择中文、英文和数字字体。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -155,59 +155,7 @@ private fun MaterialCompositionOverview(state: FontStudioUiState, actions: FontS
             ) {
                 StudioSelectionPreview(state.slots)
             }
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                state.slots.forEach { slot ->
-                    MaterialSlotSummary(slot, Modifier.weight(1f), !state.busy && !state.operationBusy) { actions.pickSlot(slot.slot) }
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun MaterialSlotSummary(slot: StudioSlotUiState, modifier: Modifier, enabled: Boolean, onSelect: () -> Unit) {
-    val sample = when (slot.slot) {
-        MixSlot.Cjk -> "中"
-        MixSlot.Latin -> "Aa"
-        MixSlot.Digit -> "123"
-    }
-    Surface(
-        onClick = onSelect,
-        enabled = enabled,
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = if (slot.font == null) MaterialTheme.colorScheme.surfaceContainerHigh
-        else MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-            if (slot.font != null) {
-                NativeFontPreview(
-                    font = slot.font,
-                    text = sample,
-                    axes = slot.axes,
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
-                    textSizeSp = 24f,
-                    gravity = Gravity.START or Gravity.CENTER_VERTICAL,
-                    maxLines = 1,
-                )
-            } else {
-                Text(
-                    sample,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(slot.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text(
-                slot.font?.name ?: "未选择",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }
@@ -233,98 +181,6 @@ private fun MaterialStudioTask(state: FontStudioUiState) {
                 progress = { state.progress.coerceIn(0, 100) / 100f },
                 modifier = Modifier.fillMaxWidth().height(7.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun MaterialSlotCard(
-    slotState: StudioSlotUiState,
-    busy: Boolean,
-    actions: FontStudioActions,
-) {
-    val font = slotState.font
-    Card(
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(50.dp),
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            when (slotState.slot) {
-                                MixSlot.Cjk -> "中"
-                                MixSlot.Latin -> "Aa"
-                                MixSlot.Digit -> "123"
-                            },
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-                Spacer(Modifier.width(13.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(slotState.title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                    Text(slotState.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-            }
-            if (font != null) {
-                Spacer(Modifier.height(10.dp))
-                MaterialStudioPill(fontCapabilityLabel(font), MaterialTheme.colorScheme.primary)
-            }
-
-            Spacer(Modifier.height(14.dp))
-            OutlinedButton(
-                onClick = { actions.pickSlot(slotState.slot) },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
-                shape = MaterialTheme.shapes.large,
-            ) {
-                Text(
-                    font?.name ?: "点此选择字体",
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Bold,
-                )
-                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null)
-            }
-
-            if (font != null) {
-                Spacer(Modifier.height(13.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = Color.Transparent,
-                ) {
-                    NativeFontPreview(
-                        font = font,
-                        text = slotState.sample,
-                        axes = slotState.axes,
-                        modifier = Modifier.fillMaxWidth().height(82.dp).padding(horizontal = 15.dp),
-                        textSizeSp = 25f,
-                        gravity = Gravity.CENTER,
-                        maxLines = 1,
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))
-                Spacer(Modifier.height(14.dp))
-                MaterialStudioAxisControls(
-                    font = font,
-                    weight = slotState.weight,
-                    axes = slotState.axes,
-                    enabled = !busy,
-                    onWeight = { actions.updateWeight(slotState.slot, it) },
-                    onAxis = { tag, value -> actions.updateAxis(slotState.slot, tag, value) },
-                )
-            }
         }
     }
 }
@@ -409,7 +265,7 @@ private fun MaterialFinalAction(state: FontStudioUiState, actions: FontStudioAct
                 }
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (direct != null) "准备应用" else "让这个组合成为日常", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (direct != null) "准备应用" else "生成组合", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (direct != null) "三个部分使用同一款字体，可直接应用。"
                         else "按所选字重生成组合，保存到字体库并预览。",

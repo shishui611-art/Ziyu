@@ -103,13 +103,7 @@ def save_preference(module, family, value):
         raise ValueError('防裁切配置未通过回读')
 
 
-def _ui_character(cp):
-    return (0x20 <= cp <= 0x024f or 0x3000 <= cp <= 0x30ff
-            or 0x3400 <= cp <= 0x9fff or 0xf900 <= cp <= 0xfaff
-            or 0xfb00 <= cp <= 0xfb06 or 0xff00 <= cp <= 0xffef or 0x20000 <= cp <= 0x3347f)
-
-
-def plan(target, donor, cache=None, recordings=None):
+def plan(target, donor, cache=None, recordings=None, *, codepoint_filter):
     result = {'schema': SCHEMA, 'enabled': enabled(), 'scale': 1.0, 'baseline': 0.0,
               'transformed': False, 'state': 'disabled'}
     if not result['enabled']:
@@ -139,10 +133,13 @@ def plan(target, donor, cache=None, recordings=None):
         from font_ligatures import _sequences
         from font_instance import check_mix_cancellation
         glyphs = donor.getGlyphSet()
-        names = {name for cp, name in (donor.getBestCmap() or {}).items() if _ui_character(cp)}
+        # Use the publisher's exact roles. A separate abbreviated range list
+        # missed combining accents, extended Latin, radicals and Bopomofo even
+        # though replace_face subsequently emitted and checked those glyphs.
+        names = {name for cp, name in (donor.getBestCmap() or {}).items() if codepoint_filter(cp)}
         # Real GSUB ligatures can be unencoded. Joined-letter fallbacks cannot
         # grow vertically beyond these same measured letters.
-        names = sorted(names | set(_sequences(donor)))
+        names = sorted(names | (set(_sequences(donor)) if codepoint_filter(ord('A')) else set()))
         low, high, count = math.inf, -math.inf, 0
         glyf = donor['glyf'] if 'glyf' in donor else None
         for index, name in enumerate(names):
@@ -194,11 +191,11 @@ def plan(target, donor, cache=None, recordings=None):
     result.update(sourceBottom=low, sourceTop=high, targetBottom=bottom, targetTop=top,
                   measuredGlyphs=count, state='already-fits',
                   measurement='glyf-headers-checked-again-on-output' if 'glyf' in donor else 'decomposed-curve-bounds')
-    if low >= bottom and high <= top:
+    safe_low, safe_high = bottom + 2, top - 2
+    if low >= safe_low and high <= safe_high:
         return result
     # Two design units cover coordinate rounding. There is no hard-coded font
     # shrink percentage, per-character squeeze or line-height enlargement.
-    safe_low, safe_high = bottom + 2, top - 2
     factor = min(1.0, (safe_high - safe_low) / (high - low))
     if not 0 < factor <= 1:
         raise ValueError('防裁切比例无效')

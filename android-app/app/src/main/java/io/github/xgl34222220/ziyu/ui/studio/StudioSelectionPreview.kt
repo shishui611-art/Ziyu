@@ -24,7 +24,7 @@ internal fun StudioSelectionPreview(slots: List<StudioSlotUiState>) {
     val latin = slots.firstOrNull { it.slot == MixSlot.Latin }
     val digit = slots.firstOrNull { it.slot == MixSlot.Digit }
     Row(
-        modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 10.dp),
+        modifier = Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -20,8 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.xgl34222220.ziyu.ZiyuViewModel
 import io.github.xgl34222220.ziyu.MixSlot
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
 
@@ -32,7 +30,6 @@ internal fun FontStudioRoute(
     actions: FontStudioActions,
 ) {
     val context = LocalContext.current
-    val studioViewModel: ZiyuViewModel = viewModel()
     val profileBridge = remember(context.applicationContext) {
         StudioProfileBridgeStore(context.applicationContext)
     }
@@ -48,14 +45,15 @@ internal fun FontStudioRoute(
     val nameValid = mixName.trim().let { name ->
         name.isNotBlank() && name.length <= 60 && name.none { it in "\r\n\t/\\\u0000|" }
     }
-    val stableActions = remember(studioViewModel) {
+    val stableActions = remember {
         FontStudioActions(
             refresh = { latestActions.refresh() },
             pickSlot = { latestActions.pickSlot(it) },
-            updateFont = studioViewModel::updateMixFont,
+            updateFont = { slot, id -> latestActions.updateFont(slot, id) },
             updateWeight = { slot, weight -> latestActions.updateWeight(slot, weight) },
             updateAxis = { slot, tag, value -> latestActions.updateAxis(slot, tag, value) },
             updateTune = { size, offset -> latestActions.updateTune(size, offset) },
+            applyProfile = { latestActions.applyProfile(it) },
             inspectCoverage = { latestActions.inspectCoverage(it) },
             startMix = {
                 mixName = ""
@@ -66,21 +64,26 @@ internal fun FontStudioRoute(
         )
     }
 
-    LaunchedEffect(state.loading, state.fonts, state.slots, state.latinSize, state.latinOffset) {
+    LaunchedEffect(state.loading, state.busy, state.operationBusy, state.fonts, state.slots, state.latinSize, state.latinOffset) {
         if (!state.loading && state.slots.all { it.font != null }) {
             profileBridge.saveCurrent(encodeStudioProfile(state))
         }
         val pending = profileBridge.peekPending()
-        if (pending.isBlank() || state.loading || state.fonts.isEmpty()) return@LaunchedEffect
+        if (pending.isBlank() || state.loading || state.busy || state.operationBusy || state.fonts.isEmpty()) return@LaunchedEffect
         val parsed = parseStudioProfile(pending, state.fonts)
-        profileBridge.clearPending()
         if (parsed.valid && parsed.profile != null) {
-            applyStudioProfile(parsed.profile, stableActions)
+            val failure = applyStudioProfile(parsed.profile, stableActions)
+            if (failure != null) {
+                restoreNotice = "组合方案未恢复：$failure"
+                return@LaunchedEffect
+            }
+            profileBridge.clearPending()
             restoreNotice = buildString {
                 append("备份中的组合方案已载入")
                 if (parsed.warnings.isNotEmpty()) append("\n${parsed.warnings.joinToString("\n")}")
             }
         } else {
+            profileBridge.clearPending()
             restoreNotice = "组合方案未恢复：${parsed.errors.joinToString("；").ifBlank { "配置无效" }}"
         }
     }

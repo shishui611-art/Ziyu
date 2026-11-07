@@ -1,0 +1,10 @@
+{
+  "component": "common/font_script_support.py and common/font_default_restore.py",
+  "implementation": "Project-owned language-scoped payload publisher reusing the existing OEM snapshot, FontTools and outline compiler",
+  "license": "GPL-3.0-only",
+  "licenseFile": "licenses/Ziyu-GPL-3.0.txt",
+  "sourceReference": "https://github.com/fontworks-fonts/Klee",
+  "referenceScope": "User-supplied example of a Japanese static font; no upstream implementation or font copied",
+  "externalDependenciesAdded": false,
+  "fontAssetsBundled": false
+}

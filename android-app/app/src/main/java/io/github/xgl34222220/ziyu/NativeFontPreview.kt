@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -55,6 +56,7 @@ private class PreviewTextView(context: Context) : TextView(context) {
     private var lastMaxLines: Int = Int.MIN_VALUE
     private var lastColor: Int = Int.MIN_VALUE
     private var lastSizeSp: Float = Float.NaN
+    private var lastFontPadding: Boolean = false
 
     init {
         includeFontPadding = false
@@ -70,6 +72,7 @@ private class PreviewTextView(context: Context) : TextView(context) {
         maxLinesValue: Int,
         color: Int,
         sizeSp: Float,
+        fontPadding: Boolean,
     ) {
         if (lastText != value) {
             text = value
@@ -94,6 +97,10 @@ private class PreviewTextView(context: Context) : TextView(context) {
         if (lastSizeSp != sizeSp) {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
             lastSizeSp = sizeSp
+        }
+        if (lastFontPadding != fontPadding) {
+            includeFontPadding = fontPadding
+            lastFontPadding = fontPadding
         }
     }
 }
@@ -168,9 +175,11 @@ internal fun NativeFontPreview(
     maxLines: Int = 2,
     onReady: (Boolean) -> Unit = {},
     refreshKey: String = "",
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    includeFontPadding: Boolean = false,
 ) {
     val context = LocalContext.current.applicationContext
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val textColor = color.toArgb()
     val errorColor = MaterialTheme.colorScheme.error.toArgb()
     val cleanAxes = remember(axes) { normalizePreviewAxes(axes) }
     val axisKey = remember(cleanAxes) {
@@ -306,12 +315,12 @@ internal fun NativeFontPreview(
     val renderedColor = if (failed) errorColor else textColor
     val renderedSize = if (failed) minOf(textSizeSp, 12f) else textSizeSp
 
-    NativePreviewSurface(renderedText, renderedTypeface, modifier, gravity, maxLines, renderedColor, renderedSize)
+    NativePreviewSurface(renderedText, renderedTypeface, modifier, gravity, maxLines, renderedColor, renderedSize, includeFontPadding)
 }
 
 @Composable
 private fun NativePreviewSurface(value: String, typeface: Typeface, modifier: Modifier,
-    gravity: Int, maxLines: Int, color: Int, size: Float) {
+    gravity: Int, maxLines: Int, color: Int, size: Float, includeFontPadding: Boolean = false) {
     AndroidView(
         modifier = modifier,
         factory = { viewContext -> PreviewTextView(viewContext) },
@@ -323,6 +332,7 @@ private fun NativePreviewSurface(value: String, typeface: Typeface, modifier: Mo
                 maxLinesValue = maxLines,
                 color = color,
                 sizeSp = size,
+                fontPadding = includeFontPadding,
             )
         },
     )

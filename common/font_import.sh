@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# 字域 v2.0.0 - 安全 ZIP 字体包导入
+# 字域 - 安全 ZIP/MTZ 字体包导入
 # 只解压字体文件，不执行压缩包中的任何脚本。
 
 IMPORT_MAX_ZIP_BYTES=268435456
@@ -76,7 +76,7 @@ import_safe_basename() {
 
 find_import_zip() {
     _wanted=$(import_safe_basename "$1") || return 1
-    for _zip in "$USER_IMPORT_DIR"/*.zip "$USER_IMPORT_DIR"/*.ZIP; do
+    for _zip in "$USER_IMPORT_DIR"/*.zip "$USER_IMPORT_DIR"/*.ZIP "$USER_IMPORT_DIR"/*.mtz "$USER_IMPORT_DIR"/*.MTZ; do
         [ -f "$_zip" ] || continue
         [ "$(basename "$_zip")" = "$_wanted" ] && { printf '%s\n' "$_zip"; return 0; }
     done
@@ -123,7 +123,7 @@ import_write_font_config() {
     _author=$(printf '%s' "$_author" | tr -d '\r\n')
     {
         printf 'name=%s\n' "$_display_name"
-        printf 'description=从字体模块 %s 导入\n' "${_zip_name%.*}"
+        printf 'description=从字体包 %s 导入\n' "${_zip_name%.*}"
         printf 'version=%s\n' "${_version:-未知}"
         printf 'author=%s\n' "${_author:-未知}"
         printf 'supports_cjk=%s\n' "$_supports_cjk"
@@ -239,7 +239,7 @@ import_list_json() {
     mkdir -p "$USER_IMPORT_DIR" 2>/dev/null || true
     _first=true
     printf '{"status":"ok","data":{"path":"%s","packages":[' "$(json_escape "$USER_IMPORT_DIR")"
-    for _zip in "$USER_IMPORT_DIR"/*.zip "$USER_IMPORT_DIR"/*.ZIP; do
+    for _zip in "$USER_IMPORT_DIR"/*.zip "$USER_IMPORT_DIR"/*.ZIP "$USER_IMPORT_DIR"/*.mtz "$USER_IMPORT_DIR"/*.MTZ; do
         [ -f "$_zip" ] || continue
         _base=$(basename "$_zip"); _bytes=$(wc -c < "$_zip" 2>/dev/null | tr -d '[:space:]')
         case "$_bytes" in ''|*[!0-9]*) _bytes=0 ;; esac
@@ -260,21 +260,25 @@ import_list_json() {
 }
 
 import_zip_package() {
-    _zip=$(find_import_zip "$1") || { printf '{"status":"error","message":"未找到指定 ZIP 字体包"}\n'; return 0; }
+    _zip=$(find_import_zip "$1") || { printf '{"status":"error","message":"未找到指定字体包"}\n'; return 0; }
     _zip_name=$(basename "$_zip")
     _zip_bytes=$(wc -c < "$_zip" 2>/dev/null | tr -d '[:space:]')
     case "$_zip_bytes" in ''|*[!0-9]*) _zip_bytes=0 ;; esac
     if [ "$_zip_bytes" -le 0 ] || [ "$_zip_bytes" -gt "$IMPORT_MAX_ZIP_BYTES" ]; then
-        printf '{"status":"error","message":"ZIP 大小异常或超过 256 MB 限制"}\n'; return 0
+        printf '{"status":"error","message":"字体包为空或超过 256 MB 限制"}\n'; return 0
     fi
-    if ! command -v unzip >/dev/null 2>&1 && ! command -v busybox >/dev/null 2>&1; then
+    _import_mtz=false
+    case "$_zip" in *.mtz|*.MTZ) _import_mtz=true ;; esac
+    if [ "$_import_mtz" != true ] && ! command -v unzip >/dev/null 2>&1 && ! command -v busybox >/dev/null 2>&1; then
         printf '{"status":"error","message":"系统缺少 unzip，无法导入字体包"}\n'; return 0
     fi
 
-    _listing=$(import_unzip -l "$_zip" 2>/dev/null)
+    _listing=''
+    [ "$_import_mtz" = true ] || _listing=$(import_unzip -l "$_zip" 2>/dev/null)
 
     # 直接采用原模块 module.prop 的 name= 作为原生 App 显示名称。
-    _module_prop=$(import_zip_module_prop "$_zip" "$_listing")
+    _module_prop=''
+    [ "$_import_mtz" = true ] || _module_prop=$(import_zip_module_prop "$_zip" "$_listing")
     _module_name=$(import_prop_value "$_module_prop" name)
     _module_version=$(import_prop_value "$_module_prop" version)
     _module_author=$(import_prop_value "$_module_prop" author)
@@ -285,7 +289,9 @@ import_zip_package() {
     set -- $_declared; _declared_count=${1:-0}; _declared_bytes=${2:-0}
     case "$_declared_count" in ''|*[!0-9]*) _declared_count=0 ;; esac
     case "$_declared_bytes" in ''|*[!0-9]*) _declared_bytes=0 ;; esac
-    if [ "$_declared_count" -le 0 ]; then printf '{"status":"error","message":"ZIP 中没有找到 TTF / OTF / TTC 字体"}\n'; return 0; fi
+    # MTZ may contain a fonts component or raw SFNT named .mrc. Its bounded
+    # extractor counts the actual font payloads instead of trusting this listing.
+    if [ "$_import_mtz" != true ] && [ "$_declared_count" -le 0 ]; then printf '{"status":"error","message":"ZIP 中没有找到 TTF / OTF / TTC 字体"}\n'; return 0; fi
     if [ "$_declared_count" -gt "$IMPORT_MAX_FILES" ] || [ "$_declared_bytes" -gt "$IMPORT_MAX_EXTRACT_BYTES" ]; then
         printf '{"status":"error","message":"字体包内容过多（最多 128 个字体、解压后 512 MB）"}\n'; return 0
     fi
@@ -296,10 +302,18 @@ import_zip_package() {
     _extract_result=$(import_extract_zip_fonts "$_zip" "$_tmp" 2>&1) || {
         _extract_detail=$(printf '%s' "$_extract_result" | tr -d '\r\n' | cut -c1-200)
         rm -rf "$_tmp" 2>/dev/null || true
-        printf '{"status":"error","message":"ZIP 字体提取失败：%s"}\n' "$(json_escape "${_extract_detail:-无法运行安全提取器}")"
+        printf '{"status":"error","message":"字体包提取失败：%s"}\n' "$(json_escape "${_extract_detail:-无法运行安全提取器}")"
         return 0
     }
     find "$_tmp" -type l -exec rm -f {} \; 2>/dev/null || true
+
+    if [ "$_import_mtz" = true ] && [ -f "$_tmp/.mtz-title" ] && [ ! -L "$_tmp/.mtz-title" ]; then
+        _mtz_title=$(head -n1 "$_tmp/.mtz-title" | tr -d '\r\n')
+        if [ -n "$_mtz_title" ]; then
+            _display_name="$_mtz_title"
+            _package_label=$(import_package_label "$_display_name")
+        fi
+    fi
 
     _manifest="$_tmp/.manifest"; : > "$_manifest"
     _valid=0; _invalid=0; _ignored=0

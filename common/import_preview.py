@@ -10,11 +10,11 @@ from font_metadata import inspect
 
 def inspect_preview(path: Path) -> dict:
     path = path.resolve(strict=True)
-    if not re.fullmatch(r"/data/(?:user/\d+|data)/io\.github\.shishui611_art\.ziyu/cache/native-import-preview-[a-zA-Z0-9-]+/[a-f0-9]{64}\.(?:ttf|otf|ttc|woff2?|zip)", path.as_posix()):
+    if not re.fullmatch(r"/data/(?:user/\d+|data)/io\.github\.shishui611_art\.ziyu/cache/native-import-preview-[a-zA-Z0-9-]+/[a-f0-9]{64}\.(?:ttf|otf|ttc|woff2?|zip|mtz)", path.as_posix()):
         raise ValueError("预览文件不在字域临时目录")
     if not 0 < path.stat().st_size <= 268435456:
         raise ValueError("预览文件为空或超过 256 MB")
-    if path.suffix == '.zip':
+    if path.suffix in ('.zip', '.mtz'):
         with path.open('rb') as stream:
             stream.seek(max(0, path.stat().st_size - 65557))
             tail = stream.read()

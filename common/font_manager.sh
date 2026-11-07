@@ -218,4 +218,10 @@ case "${1:-}:${2:-}" in
         fi
         ;;
 esac
+if [ "${1:-}:${2:-}" = action:validate ]; then
+    # This is the App's header preflight, not a whole-face application permit.
+    # The task selects global/scoped mode and validates the actual OEM-based output.
+    ZIYU_VALIDATION_MODE=preflight
+    export ZIYU_VALIDATION_MODE
+fi
 exec sh "$CURRENT_MANAGER" "$@"

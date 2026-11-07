@@ -636,7 +636,8 @@ def _grow_output_bounds(font, mapping, cff_bounds):
 
 def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependencies=False,
                  preserve_unsafe=False, outline_cache=None, native_source=None,
-                 expand_bounds=False):
+                 expand_bounds=False, codepoint_filter=None):
+    role_for = codepoint_filter or role
     target = face_identity(font)
     donor_info = face_identity(donor)
     donor_info['weight'] = target_weight(donor)
@@ -656,7 +657,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     cmap, source = font.getBestCmap() or {}, donor.getBestCmap() or {}
     source_glyphs = donor.getGlyphSet()
     donor_metrics = donor['hmtx'].metrics
-    clipping = font_clipping_compat.plan(font, donor, outline_cache, recordings)
+    clipping = font_clipping_compat.plan(font, donor, outline_cache, recordings, codepoint_filter=role_for)
     scale = font['head'].unitsPerEm / donor['head'].unitsPerEm * clipping['scale']
     baseline = clipping['baseline']
 
@@ -797,7 +798,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     retained_conflicts = set()
     shared_conflicts = {}
     for cp, target_name in sorted(cmap.items()):
-        category = role(cp)
+        category = role_for(cp)
         if not category:
             continue
         source_name = source.get(cp)
@@ -828,7 +829,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     blocked = {name for table in font['cmap'].tables
                if table.isUnicode() and table.format != 14
                for cp, name in table.cmap.items()
-               if not role(cp) or (cp not in source and not 0xFB00 <= cp <= 0xFB06)}
+               if not role_for(cp) or (cp not in source and not 0xFB00 <= cp <= 0xFB06)}
     blocked.update(retained_conflicts)
     # Preserve non-default UVS targets: their format-14 entry names a glyph
     # directly, and that glyph can be a variant that is not in the base cmap.
@@ -846,8 +847,10 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     retained_shared = len(blocked.intersection(mapping))
     for name in blocked:
         mapping.pop(name, None)
-    ligatures, source_glyphs, donor_metrics = plan_latin_ligatures(
-        font, donor, mapping, source_glyphs, blocked)
+    ligatures = {}
+    if codepoint_filter is None:
+        ligatures, source_glyphs, donor_metrics = plan_latin_ligatures(
+            font, donor, mapping, source_glyphs, blocked)
     mapping.update(ligatures)
     retained_unsafe = 0
     unsafe_details = []
@@ -931,7 +934,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
     counts = dict.fromkeys(counts, 0)
     for cp, name in cmap.items():
         if name in mapping:
-            category = role(cp)
+            category = role_for(cp)
             if category in counts:
                 counts[category] += 1
     if (not counts['cjk'] if require_cjk else not any(counts.values())):
@@ -1137,7 +1140,7 @@ def replace_face(font, donor, recordings, *, require_cjk=True, preserve_dependen
         counts = dict.fromkeys(counts, 0)
         for cp, name in cmap.items():
             if name in mapping:
-                category = role(cp)
+                category = role_for(cp)
                 if category in counts:
                     counts[category] += 1
     freeze_horizontal_variations(font, mapping)
@@ -1183,15 +1186,22 @@ def _compile_face_task(task, recordings, outline_cache, donor=None):
     native_cff_before = outline_cache.get('nativeCffHits', 0)
     with TTFont(task['stock'], fontNumber=index, lazy=True, recalcBBoxes=False,
                 recalcTimestamp=False) as font:
-        original = protected(font, capture_bounds=True)
+        stock_order = list(font.getGlyphOrder()) if task.get('scriptScope') else None
+        original = protected(font, stock_order, capture_bounds=True)
         raw_tables = raw_table_hashes(font)
         context = nullcontext(donor) if donor is not None else TTFont(
             task['donor'], lazy=True, recalcTimestamp=False)
         with context as donor:
-            details = replace_face(font, donor, recordings, preserve_unsafe=True,
+            codepoint_filter = None
+            if task.get('scriptScope'):
+                from font_script_support import script_filter
+                codepoint_filter = script_filter(task['scriptScope'], task.get('regionalHan', False))
+            details = ({'mode': 'retained-not-selected', 'replaced': {}, 'targetStylePreserved': True}
+                       if task.get('scriptRetain') else replace_face(font, donor, recordings, preserve_unsafe=True,
                                    outline_cache=outline_cache, native_source=task['donor'],
-                                   expand_bounds=True)
-        if protected(font, bounds_reference=original) != original:
+                                   expand_bounds=True, codepoint_filter=codepoint_filter,
+                                   preserve_dependencies=bool(codepoint_filter)))
+        if protected(font, stock_order, bounds_reference=original) != original:
             raise ValueError(f'集合面 {index} 的原厂布局契约已变化')
         compiled_at = time.monotonic()
         output = task['output']
@@ -1213,11 +1223,11 @@ def _compile_face_task(task, recordings, outline_cache, donor=None):
     with TTFont(output, lazy=True, recalcTimestamp=False) as check:
         # A dependency may cause FontTools to recompile a table after it was
         # released. In that case retain the original canonical validation path.
-        matched = contract_matches(check, original, raw_tables,
+        matched = contract_matches(check, original, raw_tables, stock_order,
                                    allow_bounds_expansion=details.get('boundsExpansion') is True)
         if raw_tables and not matched:
             raw_tables = {}
-            matched = contract_matches(check, original,
+            matched = contract_matches(check, original, stock_order=stock_order,
                                        allow_bounds_expansion=details.get('boundsExpansion') is True)
         if not matched:
             raise ValueError(f'集合面 {index} 序列化后布局契约已变化')
@@ -1232,6 +1242,7 @@ def _compile_face_task(task, recordings, outline_cache, donor=None):
         'workerTemplateBytes': outline_cache.get('templateBytes', 0),
     }
     return {'index': index, 'contract': original, 'details': details,
+            'stockGlyphCount': len(stock_order) if stock_order is not None else None,
             'rawTables': raw_tables}
 
 

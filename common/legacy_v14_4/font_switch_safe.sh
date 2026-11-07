@@ -162,6 +162,8 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_slot_weight.py" \
                          "$MODDIR/common/font_slot_coverage.py" \
                          "$MODDIR/common/font_slot_compat.py" \
+                         "$MODDIR/common/font_script_support.py" \
+                         "$MODDIR/common/font_default_restore.py" \
                          "$MODDIR/common/font_clipping_compat.py" \
                          "$MODDIR/common/font_clipping_variable.py" \
                          "$MODDIR/common/font_clipping_stage.py" \
@@ -234,7 +236,7 @@ safe_validation_key() {
     _svk_file="$1"
     _svk_identity=$(safe_source_identity "$_svk_file") || return 1
     {
-        printf 'safe-validation-v1\n'
+        printf 'safe-validation-v3-script-scope\n'
         printf '%s\n' "$_svk_file"
         printf '%s\n' "$_svk_identity"
     } | safe_hash_stream
@@ -248,6 +250,8 @@ safe_validation_restore() {
     _svr_identity=$(safe_source_identity "$_svr_file") || return 1
     [ "$(read_state_value "$_svr_conf" valid)" = true ] || return 1
     [ "$(read_state_value "$_svr_conf" identity)" = "$_svr_identity" ] || return 1
+    FONT_APPLY_MODE=$(read_state_value "$_svr_conf" applyMode)
+    case "$FONT_APPLY_MODE" in global|japanese|korean|japanese,korean) ;; *) return 1 ;; esac
     return 0
 }
 
@@ -260,6 +264,7 @@ safe_validation_store() {
     {
         printf 'valid=true\n'
         printf 'identity=%s\n' "$_svs_identity"
+        printf 'applyMode=%s\n' "${FONT_APPLY_MODE:-global}"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
     } > "$_svs_conf.tmp.$$" 2>/dev/null || return 1
     mv -f "$_svs_conf.tmp.$$" "$_svs_conf" 2>/dev/null || return 1
@@ -355,6 +360,12 @@ safe_switch_cache_restore() {
         [ -d "$_scr_proofs" ] && [ ! -L "$_scr_proofs" ] || return 1
         cp -a "$_scr_proofs" "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || return 1
     fi
+    if [ "${FONT_APPLY_MODE:-global}" != global ]; then
+        for _scr_sidecar in .ziyu-script-report.json .ziyu-stock-preserved.paths; do
+            [ -f "$_scr_root/tree/$_scr_sidecar" ] && [ ! -L "$_scr_root/tree/$_scr_sidecar" ] || return 1
+            cp -f "$_scr_root/tree/$_scr_sidecar" "$STAGE_PAYLOAD/$_scr_sidecar" || return 1
+        done
+    fi
     [ "$(safe_source_identity "$_scr_file")" = "$_sck_identity" ] || return 1
     [ "$(safe_family_identity "$_scr_font")" = "$_sck_family" ] || return 1
     # Pruning is ordered by directory mtime. A successful reuse is a use, too.
@@ -422,6 +433,12 @@ safe_switch_cache_store() {
         _scs_saved=$((_scs_saved + 1))
     done
     [ "$_scs_saved" -gt 0 ] || { rm -rf "$_scs_stage" 2>/dev/null || true; return 1; }
+    if [ "${FONT_APPLY_MODE:-global}" != global ]; then
+        for _scs_sidecar in .ziyu-script-report.json .ziyu-stock-preserved.paths; do
+            [ -f "$STAGE_PAYLOAD/$_scs_sidecar" ] && [ ! -L "$STAGE_PAYLOAD/$_scs_sidecar" ] || return 1
+            cp -f "$STAGE_PAYLOAD/$_scs_sidecar" "$_scs_stage/tree/$_scs_sidecar" || return 1
+        done
+    fi
     if [ -d "$STAGE_PAYLOAD/.ziyu-collection-proofs" ] &&
        [ ! -L "$STAGE_PAYLOAD/.ziyu-collection-proofs" ]; then
         cp -a "$STAGE_PAYLOAD/.ziyu-collection-proofs" "$_scs_stage/tree/.ziyu-collection-proofs" 2>/dev/null || {
@@ -569,6 +586,7 @@ find_text_font_file() {
 
 validate_global() {
     _file="$1"
+    FONT_APPLY_MODE=global
     if safe_validation_restore "$_file"; then
         printf '[%s] [SAFE-SWITCH] validation cache hit: %s\n' \
             "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unknown)" "$_file" >> "$LOG_FILE" 2>/dev/null || true
@@ -579,6 +597,25 @@ validate_global() {
     fi
     _python="$MODDIR/common/python/bin/ziyu-python"
     _checker="$LEGACY_DIR/font_coverage.py"
+    if [ -x "$_python" ] && [ -f "$MODDIR/common/font_script_support.py" ]; then
+        _pyroot="$MODDIR/common/python"
+        _script_mode=$(PYTHONHOME="$_pyroot" \
+            PYTHONPATH="$MODDIR/common:$_pyroot/lib/python3.14:$_pyroot/lib/python3.14/site-packages" \
+            LD_LIBRARY_PATH="$_pyroot/lib:$_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$_python" "$MODDIR/common/font_script_support.py" plan "$_file" 2>&1)
+        if [ "$?" -ne 0 ]; then
+            FONT_CHECK_ERROR="${_script_mode:-日韩字体检查失败}"
+            return 1
+        fi
+        case "$_script_mode" in
+            japanese|korean|japanese,korean)
+                FONT_APPLY_MODE=$_script_mode
+                safe_validation_store "$_file" >/dev/null 2>&1 || true
+                return 0 ;;
+            global) ;;
+            *) FONT_CHECK_ERROR='字体应用范围检查失败'; return 1 ;;
+        esac
+    fi
     if [ -x "$_python" ] && [ -f "$_checker" ]; then
         _pyroot="$MODDIR/common/python"
         _coverage=$(PYTHONHOME="$_pyroot" \
@@ -593,6 +630,25 @@ validate_global() {
     fi
     safe_validation_store "$_file" >/dev/null 2>&1 || true
     return 0
+}
+
+stage_script_fonts() {
+    _ssf_action="$1"
+    _ssf_pyroot="$MODDIR/common/python"
+    PYTHONHOME="$_ssf_pyroot" \
+    PYTHONPATH="$MODDIR/common:$_ssf_pyroot/lib/python3.14:$_ssf_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_ssf_pyroot/lib:$_ssf_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_ssf_pyroot/bin/ziyu-python" "$MODDIR/common/font_script_support.py" "$_ssf_action" "$_source" \
+            --module "$MODDIR" --stage "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1
+}
+
+stage_default_fonts() {
+    _sdf_pyroot="$MODDIR/common/python"
+    PYTHONHOME="$_sdf_pyroot" \
+    PYTHONPATH="$MODDIR/common:$_sdf_pyroot/lib/python3.14:$_sdf_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_sdf_pyroot/lib:$_sdf_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_sdf_pyroot/bin/ziyu-python" "$MODDIR/common/font_default_restore.py" "$1" "$MODDIR" "$STAGE_PAYLOAD" \
+            >> "$LOG_FILE" 2>&1
 }
 
 payload_clone_source() {
@@ -645,15 +701,22 @@ stage_clear_text_payload() {
     # A new build must not inherit exclusions from a previous font/OTA state.
     rm -f "$STAGE_PAYLOAD/.ziyu-stock-preserved.paths"           "$STAGE_PAYLOAD/.ziyu-font-role-report.json"           "$STAGE_PAYLOAD/.ziyu-metrics-report.json" "$STAGE_PAYLOAD/.ziyu-clipping-report.json" 2>/dev/null || return 1
     rm -rf "$STAGE_PAYLOAD/.ziyu-collection-proofs" 2>/dev/null || true
+    rm -f "$STAGE_PAYLOAD/.ziyu-script-report.json" 2>/dev/null || return 1
     for _part in $(safe_partition_list); do
-        rm -rf "$STAGE_PAYLOAD/$_part/fonts" 2>/dev/null || true
-        _etc="$STAGE_PAYLOAD/$_part/etc"
-        [ -d "$_etc" ] || continue
-        rm -f "$_etc/fonts.xml" "$_etc/font_fallback.xml" \
-              "$_etc/fonts_customization.xml" "$_etc/font_customization.xml" 2>/dev/null || true
-        for _xml in "$_etc"/*.xml; do
-            [ -f "$_xml" ] || continue
-            grep -a -qE '(Ziyu|LuoShu)Slot-|(Ziyu|LuoShu)-|ziyu|luoshu' "$_xml" 2>/dev/null && rm -f "$_xml" 2>/dev/null || true
+        for _clear_root in "$STAGE_PAYLOAD/$_part" "$STAGE_PAYLOAD/system/$_part"; do
+            [ ! -L "$_clear_root" ] || return 1
+            rm -rf "$_clear_root/fonts" 2>/dev/null || return 1
+            _etc="$_clear_root/etc"
+            [ ! -L "$_etc" ] || return 1
+            [ -d "$_etc" ] || continue
+            rm -f "$_etc/fonts.xml" "$_etc/font_fallback.xml" \
+                  "$_etc/fonts_customization.xml" "$_etc/font_customization.xml" 2>/dev/null || return 1
+            for _xml in "$_etc"/*.xml; do
+                [ -f "$_xml" ] || continue
+                if grep -a -qE '(Ziyu|LuoShu)Slot-|(Ziyu|LuoShu)-|ziyu|luoshu' "$_xml" 2>/dev/null; then
+                    rm -f "$_xml" 2>/dev/null || return 1
+                fi
+            done
         done
     done
     mkdir -p "$STAGE_PAYLOAD/system/fonts" 2>/dev/null || return 1
@@ -726,6 +789,7 @@ stage_preserve_font_roles() {
 stage_verify() {
     _font="$1"
     [ "$_font" = default ] && return 0
+    [ "${FONT_APPLY_MODE:-global}" = global ] || { stage_script_fonts validate; return $?; }
     _count=$(find "$STAGE_PAYLOAD" -type f \( -iname '*.ttf' -o -iname '*.otf' -o -iname '*.ttc' \) \
         2>/dev/null | wc -l | tr -d '[:space:]')
     case "$_count" in ''|*[!0-9]*) _count=0 ;; esac
@@ -864,6 +928,7 @@ switch_font() {
     _collection_mix=false
     _collection_cache_hit=false
     _collection_config=''
+    FONT_APPLY_MODE=global
 
     _source=''
     if [ "$_font" != default ]; then
@@ -893,6 +958,10 @@ switch_font() {
             safe_error "${FONT_CHECK_ERROR:-字体校验失败}"
             return 1
         fi
+        if [ "$FONT_APPLY_MODE" != global ]; then
+            _collection_mix=false
+            _collection_config=''
+        fi
         progress 14 '正在检查本机已生成的字体缓存'
     fi
 
@@ -921,12 +990,29 @@ switch_font() {
     stage_clone_live || { safe_error '无法创建下一启动字体负载'; return 1; }
     progress 36 '正在清理暂存区旧文字映射'
     stage_clear_text_payload || { safe_error '无法准备下一启动字体负载'; return 1; }
+    if [ "$_font" = default ]; then
+        stage_default_fonts prepare || { safe_error '默认字体清理未完成，当前字体保持不变；请查看日志'; return 1; }
+    fi
 
     if [ "$_font" != default ]; then
         PAYLOAD_ROOT="$STAGE_PAYLOAD"
         SYSTEM_FONTS_DIR="$STAGE_PAYLOAD/system/fonts"
         export PAYLOAD_ROOT SYSTEM_FONTS_DIR
-        if safe_switch_cache_restore "$_source" "$_font"; then
+        if [ "$FONT_APPLY_MODE" != global ]; then
+            # Scoped output must never pass through a whole-face ROM mapper.
+            # Reuse only a cache whose proof is independently checked below.
+            if safe_switch_cache_restore "$_source" "$_font" && stage_script_fonts validate; then
+                _collection_cache_hit=true
+                progress 80 '已复用日韩字体缓存'
+            else
+                stage_clear_text_payload || { safe_error '无法清理字体暂存区'; return 1; }
+                progress 48 '正在适配日韩字体并保留原厂缺字'
+                if ! stage_script_fonts build; then
+                    safe_error '日韩字体适配失败，当前字体保持不变；请查看日志'
+                    return 1
+                fi
+            fi
+        elif safe_switch_cache_restore "$_source" "$_font"; then
             _collection_cache_hit=true
             progress 80 '已复用本机字体对齐缓存'
         else
@@ -965,8 +1051,10 @@ switch_font() {
         safe_switch_sources_unchanged || {
             safe_error '源字体或字重文件已变化，请重新切换'; return 1;
         }
-        stage_preserve_font_roles || { safe_error '字体槽位保护校验失败，当前启动字体未改动'; return 1; }
-        if [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ] && [ "${IS_COLOROS:-false}" != true ] && [ "$_collection_cache_hit" != true ]; then
+        if [ "$FONT_APPLY_MODE" = global ]; then
+            stage_preserve_font_roles || { safe_error '字体槽位保护校验失败，当前启动字体未改动'; return 1; }
+        fi
+        if [ "$FONT_APPLY_MODE" = global ] && [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ] && [ "${IS_COLOROS:-false}" != true ] && [ "$_collection_cache_hit" != true ]; then
             progress 87 '正在适配字体边界'
             _clip_pyroot="$MODDIR/common/python"
             _clip_collection_arg=''
@@ -1033,6 +1121,9 @@ switch_font() {
         fi
     fi
 
+    if [ "$_font" = default ]; then
+        stage_default_fonts verify || { safe_error '仍有字体覆盖残留，本次没有提交恢复'; return 1; }
+    fi
     progress 94 '正在提交下一启动字体负载'
     prepare_next_payload "$_active_label" "$PREVIOUS_FONT" "$PREVIOUS_LEGACY" || {
         safe_error '下一启动字体负载提交失败，当前启动字体未被改动'

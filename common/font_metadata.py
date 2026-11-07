@@ -114,6 +114,7 @@ def hit_count(cmap: dict[int, str], probes: tuple[int, ...]) -> int:
 
 
 def coverage(font: TTFont) -> dict[str, Any]:
+    from font_coverage import script_languages
     cmap = font.getBestCmap() or {}
     cjk_hits = hit_count(cmap, CJK_PROBES)
     latin_hits = hit_count(cmap, LATIN_PROBES)
@@ -129,6 +130,7 @@ def coverage(font: TTFont) -> dict[str, Any]:
     )
     return {
         "codepoints": len(cmap),
+        "scriptLanguages": script_languages(set(cmap)),
         "cjkCount": cjk_count,
         "cjkProbe": {"present": cjk_hits, "required": len(CJK_PROBES)},
         "latinProbe": {"present": latin_hits, "required": len(LATIN_PROBES)},
@@ -174,6 +176,8 @@ def inspect(path: Path) -> dict[str, Any]:
         raise ValueError("字体文件不存在或文件过小")
     file_hash = sha256(path)
     count = face_count(path)
+    from font_coverage import inspect as inspect_application_coverage
+    application = inspect_application_coverage(path)
     return {
         "status": "ok",
         "data": {
@@ -183,6 +187,7 @@ def inspect(path: Path) -> dict[str, Any]:
             "bytes": path.stat().st_size,
             "faceCount": count,
             "collection": count > 1,
+            "applicationLanguages": application['scriptLanguages'],
             "faces": [inspect_face(path, file_hash, index) for index in range(count)],
         },
     }

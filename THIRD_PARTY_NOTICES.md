@@ -174,3 +174,19 @@ v1.4.53 的 `common/font_native_cff.py`、原生 Type 2 写入器、边界计算
 - v1.4.103 references the same pinned commit's `ThemeStoreScreen.kt`, `ThemeStoreBrowse.kt`, `ThemeStoreModels.kt`, `Theme.kt`, `MiuixTheme.kt`, `MaterialTheme.kt` and `ui/MainActivity.kt` for banner store layout, tags/stats, native palette modes, explicit seed priority and signed scrim semantics. Ziyu retains its data-only import/download and font-management logic. Source blobs are recorded in `licenses/SukiSU-Ultra-theme-port.json`; the inspected user theme and its artwork are not bundled or relicensed.
 
 - v1.4.108 adapts device-access acquisition and refresh protocol from SukiSU-Ultra `8ed5bd556fba073d52f4a4d98500b782db6437e6`, `ThemeStoreAccessRepository.kt` and `ThemeStoreDefaults.kt`. Ziyu implements private AtomicFile storage, serialized rotation, source isolation and bounded retry using existing Android APIs; no account/upload implementation or new dependency is included. See the protocol reference records in `licenses/SukiSU-Ultra-theme-port.json`.
+
+## 用户提供的字体预览语料
+
+- 来源：用户提供的酷安文章 https://www.coolapk.com/feed/53620096 完整文字快照，版本 `coolapk-53620096-r1`。
+- App 构建直接复制固定原文到预览资源，保留字节与字符序列；未另行声明原文许可证，原作者权利保留。
+- 来源记录：`licenses/Font-preview-corpus.json`；完整语料和摘要位于 `docs/font-test-baseline/`。
+
+v1.5.2 的 `common/font_table_directory.sh` 从本项目既有 `common/font_check.sh` 的目录读取功能提取，为两条应用路径共用；沿用 GPL-3.0-only（`licenses/Ziyu-GPL-3.0.txt`）。来源记录为 `licenses/Ziyu-font-table-directory.json`，运行文件与记录均进入模块清单；没有新增外部依赖或字体。
+
+MTZ 导入的目录格式参考 miui-font-sample 作者公开的 [README](https://github.com/mifansindonesia/miui-font-sample/blob/7907d4495964a7b9b4a71e1dc68d9dda7977358f/README.md)，只参考 `fonts/` 与 `description.xml` 的包结构，不复制上游实现或字体。新增兼容逻辑为本项目 GPL-3.0-only 自有代码，复用既有 Python 标准库；来源与边界见 `licenses/Ziyu-mtz-format-reference.json`。
+
+v1.5.4 新增 `common/font_script_support.py`、`common/font_default_restore.py` 为本项目 GPL-3.0-only 自有代码，复用现有 FontTools、原厂快照、轮廓编译器与 Python 标准库；没有复制 Klee 的源码或字体，也没有增加第三方运行依赖。来源记录见 `licenses/Ziyu-script-font-support.json`。
+
+## 原厂字体链接证据
+
+`common/stock_font_link_evidence.py` 为本仓库原创 GPL-3.0-only 代码，复用既有独立只读分区视图读取原厂链接，不引入第三方字体或运行库。来源记录见 `licenses/Ziyu-stock-font-link-evidence.json`。

@@ -1,9 +1,35 @@
 import java.util.Properties
 import java.security.MessageDigest
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+abstract class FontPreviewAssetTask : DefaultTask() {
+    @get:InputFile
+    abstract val corpus: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val assetDirectory: DirectoryProperty
+
+    @TaskAction
+    fun copyCorpus() {
+        val bytes = corpus.get().asFile.readBytes()
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        check(digest == "e45b90d6244268251d69d9b95d0ae5f36df4b0174b8b6dce280236be2db30bd2") {
+            "Font preview corpus differs from the canonical r1 snapshot"
+        }
+        val target = assetDirectory.file("font-preview/coolapk-53620096-r1.txt").get().asFile
+        target.parentFile.mkdirs()
+        target.writeBytes(bytes)
+    }
 }
 
 val moduleProperties = Properties().apply {
@@ -39,6 +65,14 @@ check(xposedApiHash == "f48c635f1c7469fdec0e00ad2ea0b7a6b2f5b55065784a35b7ca3a84
     "Unexpected Xposed API jar digest"
 }
 
+// Package the user's canonical corpus verbatim instead of maintaining a second text copy.
+val fontPreviewCorpus = rootProject.projectDir.parentFile
+    .resolve("docs/font-test-baseline/coolapk-53620096-r1.txt")
+val syncFontPreviewCorpus = tasks.register<FontPreviewAssetTask>("syncFontPreviewCorpus") {
+    corpus.set(fontPreviewCorpus)
+    assetDirectory.set(layout.buildDirectory.dir("generated/fontPreviewAssets"))
+}
+
 android {
     namespace = "io.github.xgl34222220.ziyu"
     // Miuix 0.9.3 publishes against API 37. This is compile-time only: targetSdk and the
@@ -58,6 +92,7 @@ android {
         compose = true
         buildConfig = true
     }
+
 
     signingConfigs {
         if (hasReleaseSigning) {
@@ -117,6 +152,10 @@ android {
             "/META-INF/NOTICE*"
         )
     }
+}
+
+androidComponents.onVariants { variant ->
+    variant.sources.assets?.addGeneratedSourceDirectory(syncFontPreviewCorpus) { it.assetDirectory }
 }
 
 dependencies {

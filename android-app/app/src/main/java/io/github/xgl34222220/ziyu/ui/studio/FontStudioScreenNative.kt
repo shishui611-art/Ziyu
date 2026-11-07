@@ -105,11 +105,10 @@ private fun FontStudioPageNative(
             end = layout.pageHorizontal,
             bottom = dockBottomPadding,
         ),
-        verticalArrangement = Arrangement.spacedBy(layout.itemGap),
+        verticalArrangement = Arrangement.spacedBy(maxOf(layout.itemGap, 20.dp)),
     ) {
         item { NativeStudioHeader(state.loading, actions.refresh, topAction) }
         item { NativeCompositionMap(state, actions) }
-        if (style == UiStyle.MIUIX) item { StudioLatinTuneControls(state, actions) }
 
         if (state.loading) {
             item { LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp)) }
@@ -120,10 +119,10 @@ private fun FontStudioPageNative(
 
         state.slots.forEach { slotState ->
             item(key = slotState.slot.name) {
-                NativeSlotCard(slotState, state.busy || state.operationBusy, actions)
+                StudioSlotEditorCard(slotState, state.busy || state.operationBusy, actions)
             }
         }
-        if (style == UiStyle.COUI) item { StudioLatinTuneControls(state, actions) }
+        item { StudioLatinTuneControls(state, actions) }
 
         item {
             Column(modifier = Modifier.bringIntoViewRequester(applyRequester),
@@ -179,8 +178,8 @@ private fun NativeCompositionMap(state: FontStudioUiState, actions: FontStudioAc
                 .fillMaxWidth()
                 .padding(layout.cardPadding),
         ) {
-            Text(if (coui) "字体搭配" else "组合你的专属字体", color = tokens.textPrimary, style = MaterialTheme.typography.titleMedium)
-            Text("本次选择预览", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+            Text(if (coui) "组合预览" else "组合预览", color = tokens.textPrimary, style = MaterialTheme.typography.titleMedium)
+            Text("分别选择中文、英文和数字字体。", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(8.dp))
             if (coui) StudioSelectionPreview(state.slots) else Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -189,75 +188,7 @@ private fun NativeCompositionMap(state: FontStudioUiState, actions: FontStudioAc
             ) {
                 StudioSelectionPreview(state.slots)
             }
-            Spacer(Modifier.height(14.dp))
-            if (coui) {
-                val pickerEnabled = !state.busy && !state.operationBusy
-                state.slots.forEach { slot ->
-                    ZiyuListItem(
-                        onClick = { actions.pickSlot(slot.slot) },
-                        enabled = pickerEnabled,
-                        onClickLabel = "选择${slot.title}",
-                        headlineContent = { Text(slot.title, style = MaterialTheme.typography.titleSmall) },
-                        supportingContent = { Text(slot.font?.name ?: "未选择", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        trailingContent = { Text("选择", color = MaterialTheme.colorScheme.primary.copy(alpha = if (pickerEnabled) 1f else .38f), style = MaterialTheme.typography.labelLarge) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                    )
-                }
-            } else Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                state.slots.forEach { slot ->
-                    NativeSlotSummary(slot, Modifier.weight(1f), !state.busy && !state.operationBusy) { actions.pickSlot(slot.slot) }
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun NativeSlotSummary(slot: StudioSlotUiState, modifier: Modifier, enabled: Boolean, onSelect: () -> Unit) {
-    val tokens = LocalZiyuPaletteTokens.current
-    val sample = when (slot.slot) {
-        MixSlot.Cjk -> "中"
-        MixSlot.Latin -> "Aa"
-        MixSlot.Digit -> "123"
-    }
-    Surface(
-        onClick = onSelect,
-        enabled = enabled,
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = if (slot.font == null) tokens.textPrimary.copy(alpha = .045f)
-        else MaterialTheme.colorScheme.primary.copy(alpha = .11f),
-        border = ZiyuCardDefaults.border(),
-    ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
-            if (slot.font != null) {
-                NativeFontPreview(
-                    font = slot.font,
-                    text = sample,
-                    axes = slot.axes,
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
-                    textSizeSp = 24f,
-                    gravity = Gravity.START or Gravity.CENTER_VERTICAL,
-                    maxLines = 1,
-                )
-            } else {
-                Text(
-                    sample,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-            Spacer(Modifier.height(5.dp))
-            Text(slot.title, color = tokens.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                slot.font?.name ?: "未选择",
-                color = tokens.textSecondary,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }
@@ -297,109 +228,6 @@ private fun NativeStudioTask(state: FontStudioUiState) {
                 progress = { state.progress.coerceIn(0, 100) / 100f },
                 modifier = Modifier.fillMaxWidth().height(7.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun NativeSlotCard(
-    slotState: StudioSlotUiState,
-    busy: Boolean,
-    actions: FontStudioActions,
-) {
-    val tokens = LocalZiyuPaletteTokens.current
-    val layout = LocalZiyuThemeTokens.current.layout
-    val font = slotState.font
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
-    ) {
-        Column(Modifier.padding(layout.cardPadding)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (LocalUiStyle.current == UiStyle.MIUIX) Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(15.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = .11f),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            when (slotState.slot) {
-                                MixSlot.Cjk -> "中"
-                                MixSlot.Latin -> "Aa"
-                                MixSlot.Digit -> "123"
-                            },
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(slotState.title, color = tokens.textPrimary, style = MaterialTheme.typography.titleMedium)
-                    Text(slotState.subtitle, color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            if (font != null) {
-                Spacer(Modifier.height(10.dp))
-                NativeStudioPill(fontCapabilityLabel(font), MaterialTheme.colorScheme.primary)
-            }
-
-            Spacer(Modifier.height(10.dp))
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !busy, role = Role.Button) { actions.pickSlot(slotState.slot) },
-                shape = RoundedCornerShape(16.dp),
-                color = tokens.textPrimary.copy(alpha = .04f),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            font?.name ?: "点此选择字体",
-                            color = tokens.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (font != null) {
-                            Text(font.format, color = tokens.textSecondary, fontSize = 12.sp)
-                        }
-                    }
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = tokens.textSecondary)
-                }
-            }
-
-            if (font != null) {
-                Spacer(Modifier.height(9.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(17.dp),
-                    color = tokens.textPrimary.copy(alpha = .035f),
-                ) {
-                    NativeFontPreview(
-                        font = font,
-                        text = slotState.sample,
-                        axes = slotState.axes,
-                        modifier = Modifier.fillMaxWidth().height(84.dp).padding(horizontal = 12.dp),
-                        textSizeSp = 23f,
-                        gravity = Gravity.CENTER,
-                        maxLines = 1,
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                NativeStudioAxisControls(
-                    font = font,
-                    weight = slotState.weight,
-                    axes = slotState.axes,
-                    enabled = !busy,
-                    onWeight = { actions.updateWeight(slotState.slot, it) },
-                    onAxis = { tag, value -> actions.updateAxis(slotState.slot, tag, value) },
-                )
-            }
         }
     }
 }
@@ -505,7 +333,7 @@ private fun NativeFinalAction(state: FontStudioUiState, actions: FontStudioActio
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (direct != null) "准备应用" else "让这个组合成为日常",
+                        if (direct != null) "准备应用" else "生成组合",
                         color = tokens.textPrimary,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,

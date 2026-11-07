@@ -1,6 +1,6 @@
 #!/system/bin/sh
 # 字域 v2.0.0：原生 App 文件选择器导入桥。
-# 只接受 App 私有缓存中的 TTF/OTF/TTC/WOFF/WOFF2/ZIP；网页字体先安全转换为 SFNT。
+# 只接受 App 私有缓存中的字体、ZIP/MTZ；网页字体先安全转换为 SFNT。
 set +e
 
 MODDIR="${MODDIR:-}"
@@ -226,7 +226,8 @@ import_web_font_file() {
 import_zip_file() {
     _src="$1"
     _display="$2"
-    command -v unzip >/dev/null 2>&1 || command -v busybox >/dev/null 2>&1 || {
+    _archive_ext=$(printf '%s' "${_display##*.}" | tr '[:upper:]' '[:lower:]')
+    [ "$_archive_ext" = mtz ] || command -v unzip >/dev/null 2>&1 || command -v busybox >/dev/null 2>&1 || {
         fail_json "系统缺少 unzip，无法导入字体模块 ZIP"
         return
     }
@@ -238,8 +239,8 @@ import_zip_file() {
     _hash=$(file_hash "$_src")
     [ -n "$_hash" ] || { fail_json "无法计算 ZIP SHA-256"; return; }
     _stem=$(safe_stem "$_display")
-    _target="$USER_IMPORT_DIR/${_stem}.zip"
-    [ ! -e "$_target" ] || _target="$USER_IMPORT_DIR/${_stem}-$(printf '%s' "$_hash" | cut -c1-10).zip"
+    _target="$USER_IMPORT_DIR/${_stem}.${_archive_ext}"
+    [ ! -e "$_target" ] || _target="$USER_IMPORT_DIR/${_stem}-$(printf '%s' "$_hash" | cut -c1-10).${_archive_ext}"
     cp -f "$_src" "$_target" 2>/dev/null || { fail_json "无法复制 ZIP 到安全导入目录"; return; }
     chmod 0644 "$_target" 2>/dev/null || true
 
@@ -257,7 +258,7 @@ import_zip_file() {
     else
         _detail=$(printf '%s' "${_stderr:-$_result}" | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' | cut -c1-180)
         [ -n "$_detail" ] || _detail="安全导入器没有返回结果（代码 $_rc）"
-        fail_json "字体模块 ZIP 导入失败：$_detail"
+        fail_json "字体包导入失败：$_detail"
     fi
 }
 
@@ -278,7 +279,7 @@ _ext=$(printf '%s' "${display_name##*.}" | tr '[:upper:]' '[:lower:]')
 case "$_ext" in
     ttf|otf|ttc) import_font_file "$source_path" "$display_name" ;;
     woff|woff2) import_web_font_file "$source_path" "$display_name" ;;
-    zip) import_zip_file "$source_path" "$display_name" ;;
-    *) fail_json "仅支持 TTF、OTF、TTC、WOFF、WOFF2 和字体模块 ZIP" ;;
+    zip|mtz) import_zip_file "$source_path" "$display_name" ;;
+    *) fail_json "请选择字体文件、ZIP 或 MTZ 字体包" ;;
 esac
 exit 0

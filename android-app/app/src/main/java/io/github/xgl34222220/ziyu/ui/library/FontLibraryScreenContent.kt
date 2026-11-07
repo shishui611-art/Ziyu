@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.Visibility
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import androidx.compose.material3.CardDefaults
@@ -298,6 +299,7 @@ internal fun FontLibraryPageContent(
                 font = font, active = state.activeFontId == font.id, pending = state.activeFontPending, busy = state.operationBusy,
                 cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
                 onDetails = { actions.details(font) }, onApply = { actions.apply(font) },
+                onPreview = { actions.preview(font) },
                 onDelete = { actions.delete(font) }, style = style, previewText = state.previewText,
             )
         }
@@ -346,7 +348,7 @@ private fun CompactSystemFontRow(
 private fun LibraryFontCard(
     font: FontItem, active: Boolean, pending: Boolean, busy: Boolean, cardColor: Color,
     textPrimary: Color, textSecondary: Color,
-    onDetails: () -> Unit, onApply: () -> Unit, onDelete: () -> Unit,
+    onDetails: () -> Unit, onApply: () -> Unit, onDelete: () -> Unit, onPreview: () -> Unit,
     style: UiStyle, previewText: String,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -389,17 +391,28 @@ private fun LibraryFontCard(
             }
             if (font.valid) {
                 Surface(
+                    onClick = onPreview,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     color = scheme.primary.copy(alpha = if (active) .12f else .08f),
                     border = BorderStroke(1.dp, scheme.primary.copy(alpha = .40f)),
                 ) {
-                    NativeFontPreview(
-                        font = font,
-                        text = previewText.ifBlank { if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123" },
-                        modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 14.dp),
-                        textSizeSp = 23f, gravity = Gravity.CENTER_VERTICAL, maxLines = 1,
-                    )
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
+                        NativeFontPreview(
+                            font = font,
+                            text = previewText.ifBlank { if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123" },
+                            modifier = Modifier.fillMaxWidth().height(60.dp),
+                            textSizeSp = 23f, gravity = Gravity.CENTER_VERTICAL, maxLines = 1,
+                        )
+                    }
+                }
+                FilledTonalButton(
+                    onClick = onPreview,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Icon(Icons.Rounded.Visibility, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("字库预览", fontWeight = FontWeight.SemiBold)
                 }
             } else if (font.error.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

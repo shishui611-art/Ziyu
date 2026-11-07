@@ -11,6 +11,8 @@ internal data class FontDeepMetadata(
     val title: String,
     val text: String,
     val error: String = "",
+    val languages: Set<String> = emptySet(),
+    val applicationLanguages: List<String> = emptyList(),
 )
 
 internal suspend fun loadFontDeepMetadata(font: FontItem): FontDeepMetadata {
@@ -96,7 +98,15 @@ internal fun formatFontDeepMetadata(data: JSONObject, fallbackName: String): Fon
             if (index < faces.length() - 1) append('\n')
         }
     }.trimEnd()
-    return FontDeepMetadata(title = title, text = text)
+    val languages = buildSet {
+        for (index in 0 until faces.length()) {
+            val values = faces.optJSONObject(index)?.optJSONObject("coverage")?.optJSONArray("scriptLanguages") ?: continue
+            for (item in 0 until values.length()) add(values.optString(item))
+        }
+    }
+    val application = data.optJSONArray("applicationLanguages")
+    return FontDeepMetadata(title = title, text = text, languages = languages,
+        applicationLanguages = List(application?.length() ?: 0) { application!!.optString(it) })
 }
 
 private fun firstMetadataJson(raw: String): JSONObject {

@@ -48,6 +48,7 @@ import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private const val STUDIO_PROFILE_SCHEMA = 1
 private const val STUDIO_PROFILE_TYPE = "ziyu-studio-profile"
@@ -132,13 +133,20 @@ internal fun parseStudioProfile(
             return@forEach
         }
         val fontId = item.optString("fontId").trim()
-        val font = fontMap[fontId]
+        val savedName = item.optString("fontName").trim()
+        // Re-imports can change an ID. Rebind only an unambiguous, usable name;
+        // never silently replace a missing source with the first library font.
+        val font = fontMap[fontId] ?: availableFonts.filter {
+            it.valid && !it.combination && savedName.isNotBlank() && it.name == savedName
+        }.singleOrNull()
         when {
             fontId.isBlank() -> errors += "${slot.profileLabel}槽位没有字体 ID"
             font == null -> errors += "本机字体库缺少：${item.optString("fontName", fontId)}"
             !font.valid -> errors += "${font.name} 当前未通过字体验证"
+            font.combination -> errors += "${font.name} 是组合字体，请选择原字体"
         }
-        if (font == null || !font.valid) return@forEach
+        if (font == null || !font.valid || font.combination || fontId.isBlank()) return@forEach
+        if (font.id != fontId) warnings += "已重新关联：${font.name}"
 
         val weight = item.optInt("weight", 400).coerceIn(1, 1000)
         val axesObject = item.optJSONObject("axes") ?: JSONObject()
@@ -154,12 +162,11 @@ internal fun parseStudioProfile(
             }
         }
         axes["wght"] = (axes["wght"] ?: weight.toFloat()).coerceIn(1f, 1000f)
-        val savedName = item.optString("fontName").trim()
         if (savedName.isNotBlank() && savedName != font.name) warnings += "$savedName 在本机显示为 ${font.name}"
         parsedSlots[slot] = StudioProfileSlot(
             fontId = font.id,
             fontName = font.name,
-            weight = axes.getValue("wght").toInt().coerceIn(1, 1000),
+            weight = axes.getValue("wght").roundToInt().coerceIn(1, 1000),
             axes = axes,
         )
     }
@@ -178,15 +185,8 @@ internal fun parseStudioProfile(
     )
 }
 
-internal fun applyStudioProfile(profile: StudioProfile, actions: FontStudioActions) {
-    actions.updateTune(profile.latinSize, profile.latinOffset)
-    MixSlot.entries.forEach { slot ->
-        val config = profile.slots[slot] ?: return@forEach
-        actions.updateFont(slot, config.fontId)
-        config.axes.forEach { (tag, value) -> actions.updateAxis(slot, tag, value) }
-        actions.updateWeight(slot, config.weight)
-    }
-}
+internal fun applyStudioProfile(profile: StudioProfile, actions: FontStudioActions): String? =
+    actions.applyProfile(profile)
 
 @Composable
 internal fun StudioProfileTransferDialog(
@@ -257,7 +257,7 @@ internal fun StudioProfileTransferDialog(
         text = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "导出会保存三个 Family、字重和全部设计轴。导入前会检查本机字体库，不会应用缺失字体的半完整方案。",
+                    "保存或载入字体搭配与字重。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                 )
@@ -301,9 +301,12 @@ internal fun StudioProfileTransferDialog(
             if (profile != null) {
                 TextButton(
                     onClick = {
-                        applyStudioProfile(profile, actions)
-                        pendingProfile = null
-                        status = "方案已载入到字体工坊，生成前仍可继续调整"
+                        val failure = applyStudioProfile(profile, actions)
+                        errorMessage = failure.orEmpty()
+                        if (failure == null) {
+                            pendingProfile = null
+                            status = "方案已载入"
+                        }
                     },
                 ) { Text("应用方案", fontWeight = FontWeight.Black) }
             } else {

@@ -108,7 +108,12 @@ internal fun StudioPresetDialog(
             errorMessage = ""
             val parsed = parseStudioProfile(item.profileRaw, state.fonts)
             if (parsed.valid && parsed.profile != null) {
-                applyStudioProfile(parsed.profile, actions)
+                val failure = applyStudioProfile(parsed.profile, actions)
+                if (failure != null) {
+                    errorMessage = failure
+                    busy = false
+                    return@launch
+                }
                 runCatching { store.touch(item.id); reload() }
                 status = buildString {
                     append("已载入：${item.name}")
@@ -151,7 +156,7 @@ internal fun StudioPresetDialog(
         text = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "保存中文、英文、数字 Family、字重与变量轴。收藏方案置顶，最近使用方案自动排序，方便快速回到上一套搭配。",
+                    "保存字体搭配，下次直接载入。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp,
                     lineHeight = 15.sp,

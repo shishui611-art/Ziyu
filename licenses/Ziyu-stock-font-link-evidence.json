@@ -1,0 +1,9 @@
+{
+  "component": "Ziyu original stock font link evidence reader",
+  "files": [
+    "common/stock_font_link_evidence.py"
+  ],
+  "origin": "Original code in this repository",
+  "license": "GPL-3.0-only",
+  "scope": "Caches only original symlink metadata from the existing independent read-only block view; mutable bridge links remain live-verified."
+}

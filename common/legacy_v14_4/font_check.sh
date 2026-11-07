@@ -18,10 +18,9 @@ font_detect_format() {
     esac
 }
 
-font_has_table() {
-    # SFNT 表目录位于文件头部。只读取前 128 KiB，避免对几十个 10–30 MB 字体反复全文件 grep。
-    dd if="$1" bs=65536 count=2 2>/dev/null | grep -a -q "$2"
-}
+# Both engines use the same bounded table-directory reader, including TTC face offsets.
+_ftd_module="${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
+. "$_ftd_module/common/font_table_directory.sh" || { return 1 2>/dev/null || exit 1; }
 
 font_validate() {
     _file="$1"
@@ -86,6 +85,8 @@ font_validate() {
             return 1
             ;;
     esac
+
+    font_table_directory_cache_load "$_file" || { FONT_CHECK_ERROR="$FONT_TABLE_CACHE_ERROR"; return 1; }
 
     if ! font_has_table "$_file" "cmap"; then
         FONT_CHECK_ERROR="字体缺少 cmap 字符映射表"

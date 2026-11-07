@@ -306,9 +306,11 @@ internal fun ZiyuAppShell(
         FontStudioActions(
             refresh = viewModel::refreshMixConfig,
             pickSlot = { pickerSlot = it },
+            updateFont = viewModel::updateMixFont,
             updateWeight = viewModel::updateMixWeight,
             updateAxis = viewModel::updateMixAxis,
             updateTune = viewModel::updateMixTune,
+            applyProfile = viewModel::applyMixProfile,
             inspectCoverage = features::inspectCoverage,
             startMix = viewModel::startMix,
             applyDirect = { id ->
