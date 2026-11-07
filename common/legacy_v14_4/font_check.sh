@@ -18,9 +18,17 @@ font_detect_format() {
     esac
 }
 
-# Both engines use the same bounded table-directory reader, including TTC face offsets.
-_ftd_module="${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
-. "$_ftd_module/common/font_table_directory.sh" || { return 1 2>/dev/null || exit 1; }
+# Loading a validator as a library must not access a module or consume arguments.
+# Resolve the shared directory reader only when an actual font is validated.
+font_load_table_reader() {
+    type font_table_directory_cache_load >/dev/null 2>&1 && return 0
+    _ftd_module="${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
+    if [ ! -f "$_ftd_module/common/font_table_directory.sh" ]; then
+        FONT_TABLE_CACHE_ERROR="字体表目录校验器不可用"
+        return 1
+    fi
+    . "$_ftd_module/common/font_table_directory.sh"
+}
 
 font_validate() {
     _file="$1"
@@ -54,12 +62,14 @@ font_validate() {
         _struct_module="${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
         _struct_root="$_struct_module/common/python"
         _struct_checker="$_struct_module/common/font_structure.py"
-        _struct_python="${ZIYU_HOST_PYTHON:-$_struct_root/bin/ziyu-python}"
+        _struct_host="${ZIYU_HOST_PYTHON:-${ZIYU_IMPORT_PYTHON:-}}"
+        _struct_python="${_struct_host:-$_struct_root/bin/ziyu-python}"
+        [ -z "$_struct_host" ] || _struct_python=$(command -v "$_struct_host" 2>/dev/null)
         if [ ! -f "$_struct_checker" ] || [ ! -x "$_struct_python" ]; then
             FONT_CHECK_ERROR="字体结构校验器不可用"
             return 1
         fi
-        if [ -n "${ZIYU_HOST_PYTHON:-}" ]; then
+        if [ -n "$_struct_host" ]; then
             _struct_error=$("$_struct_python" "$_struct_checker" "$_file" 2>&1)
         else
             _struct_error=$(PYTHONHOME="$_struct_root" PYTHONPATH="$_struct_root/lib/python3.14/site-packages" \
@@ -86,7 +96,7 @@ font_validate() {
             ;;
     esac
 
-    font_table_directory_cache_load "$_file" || { FONT_CHECK_ERROR="$FONT_TABLE_CACHE_ERROR"; return 1; }
+    font_load_table_reader && font_table_directory_cache_load "$_file" || { FONT_CHECK_ERROR="$FONT_TABLE_CACHE_ERROR"; return 1; }
 
     if ! font_has_table "$_file" "cmap"; then
         FONT_CHECK_ERROR="字体缺少 cmap 字符映射表"

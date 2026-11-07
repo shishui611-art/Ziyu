@@ -15,12 +15,14 @@ font_table_directory_cache_load() {
     _ftc_module="${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}"
     _ftc_root="$_ftc_module/common/python"
     _ftc_checker="$_ftc_module/common/font_structure.py"
-    _ftc_python="${ZIYU_HOST_PYTHON:-$_ftc_root/bin/ziyu-python}"
+    _ftc_host="${ZIYU_HOST_PYTHON:-${ZIYU_IMPORT_PYTHON:-}}"
+    _ftc_python="${_ftc_host:-$_ftc_root/bin/ziyu-python}"
+    [ -z "$_ftc_host" ] || _ftc_python=$(command -v "$_ftc_host" 2>/dev/null)
     if [ ! -f "$_ftc_checker" ] || [ ! -x "$_ftc_python" ]; then
         FONT_TABLE_CACHE_ERROR="字体表目录校验器不可用"
         return 1
     fi
-    if [ -n "${ZIYU_HOST_PYTHON:-}" ]; then
+    if [ -n "$_ftc_host" ]; then
         _ftc_result=$("$_ftc_python" "$_ftc_checker" --tables "$_ftc_file" 2>&1)
     else
         _ftc_result=$(PYTHONHOME="$_ftc_root" PYTHONPATH="$_ftc_root/lib/python3.14/site-packages" \

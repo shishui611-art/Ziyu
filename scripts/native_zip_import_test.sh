@@ -97,14 +97,21 @@ author=LuoShu CI
 PROP
 (cd "$TMP/pkg" && zip -q -r "$TMP/public/import/regression.zip" .)
 
-SOURCE_RESULT=$(sh -c '
-    zip_path="$1"
-    checker="$2"
-    set -- "$zip_path"
-    . "$checker"
-    printf sourced-ok
-' sh "$TMP/public/import/regression.zip" "$ROOT/common/font_check.sh")
-test "$SOURCE_RESULT" = sourced-ok
+# Both entry points can be sourced before a caller resolves its module path.
+# They must preserve the caller arguments and defer executable dependencies.
+for CHECKER in "$ROOT/common/font_check.sh" "$ROOT/common/legacy_v14_4/font_check.sh"; do
+    SOURCE_RESULT=$(sh -c '
+        zip_path="$1"
+        checker="$2"
+        unset MODDIR MODULE_DIR ZIYU_REAL_MODDIR
+        set -- "$zip_path"
+        . "$checker"
+        [ "$#" = 1 ] && [ "$1" = "$zip_path" ] || exit 1
+        type font_validate >/dev/null 2>&1
+        printf sourced-ok
+    ' sh "$TMP/public/import/regression.zip" "$CHECKER")
+    test "$SOURCE_RESULT" = sourced-ok
+done
 
 # App 的原生导入桥必须直接装配安全 ZIP 导入器与第三方模块字重兼容层。
 grep -q 'common/font_import.sh' "$ROOT/common/native_import.sh"
