@@ -27,6 +27,16 @@ cp "$ROOT/common/font_next_transaction.sh" "$MODDIR/common/font_next_transaction
 cp "$ROOT/common/font_live_state.sh" "$ROOT/common/legacy_identity.sh" "$MODDIR/common/"
 cp "$ROOT/common/font_live_switch.sh" "$MODDIR/common/font_live_switch.sh"
 cp "$ROOT/common/font_live_payload.py" "$MODDIR/common/font_live_payload.py"
+# Exercise the real restore cleaner in the same staged module. The Linux host
+# supplies only the interpreter; do not stub the cleaner or its output checks.
+cp "$ROOT/common/font_default_restore.py" "$MODDIR/common/font_default_restore.py"
+mkdir -p "$MODDIR/common/python/bin"
+cat > "$MODDIR/common/python/bin/ziyu-python" <<'PYTHON'
+#!/bin/sh
+unset PYTHONHOME PYTHONPATH LD_LIBRARY_PATH
+exec python3 "$@"
+PYTHON
+chmod 0755 "$MODDIR/common/python/bin/ziyu-python"
 ln -s "$ROOT/common/legacy_v14_4" "$MODDIR/common/legacy_v14_4"
 TEST_BIN="$TMP/test-bin"
 REAL_READLINK="$(command -v readlink)"
