@@ -1,4 +1,5 @@
 """Content-addressed preparation cache. Cached warnings are replayed on every use."""
+from ziyu_limits import limit_bytes as _limit_bytes
 import hashlib
 import json
 import os
@@ -39,7 +40,7 @@ def prune(cache_dir, protected=()):
     total = 0
     for _, cached, size in sorted(entries, key=lambda entry: entry[0], reverse=True):
         total += size
-        if total > 384 * 1024 * 1024 and cached not in protected:
+        if total > max(384 * 1024 * 1024, _limit_bytes()) and cached not in protected:
             cached.unlink(missing_ok=True)
             cached.with_suffix(".json").unlink(missing_ok=True)
 

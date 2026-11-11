@@ -15,8 +15,6 @@ common/font_preload_helper.sh
 common/font_preload_control.sh
 common/font_preload_state.py
 common/apatch_boot_prepare.sh
-common/temporary_root_mode.sh
-common/soft_reboot.sh
 common/mount_provider_reload.sh
 common/mount_diagnostics.sh
 common/mount_overlay_layer.sh
@@ -222,8 +220,6 @@ customize.sh
 module.prop
 icon/icon.png
 post-fs-data.sh
-late-load.sh
-emulated-soft-reboot.sh
 post-mount.sh
 service.sh
 uninstall.sh
@@ -276,7 +272,7 @@ common/composite_collection_contract.py
 common/composite_collection_build.sh
 common/boot_ota_guard.sh
 common/boot_ota_recover.sh
-common/boot_ota_recover_task.sh
+common/boot_profile.sh
 
 common/user_storage.sh
 common/user_storage.py
@@ -296,3 +292,26 @@ licenses/Ziyu-mtz-format-reference.json
 
 common/stock_font_link_evidence.py
 licenses/Ziyu-stock-font-link-evidence.json
+common/mount_manager_backend.sh
+common/slot_coverage.sh
+common/ziyu_live.sh
+common/slot_targets/aosp.list
+common/slot_targets/coloros.list
+common/slot_targets/flyme.list
+common/slot_targets/honor.list
+common/slot_targets/huawei.list
+common/slot_targets/hyperos.list
+common/slot_targets/oneui.list
+common/slot_targets/originos.list
+common/slot_targets/protect.list
+common/slot_targets/redmagic.list
+common/slot_targets/samsung.list
+live.sh
+common/device_slot_discovery.py
+common/import_limit.sh
+late-load.sh
+emulated-soft-reboot.sh
+common/soft_reboot.sh
+common/temporary_root_mode.sh
+common/ziyu_limits.py
+common/restore_stock_factory.sh

@@ -89,8 +89,8 @@ ziyu_migrate_active_install() {
         } > "$_lvm_new/config/font-payload-rebuild-pending.conf" 2>/dev/null || return 1
     fi
 
-    find "$_lvm_new/config" -type d -exec chmod 0755 {} \; 2>/dev/null || true
-    find "$_lvm_new/config" -type f -exec chmod 0644 {} \; 2>/dev/null || true
+    find "$_lvm_new/config" -type d -exec chmod 0755 {} + 2>/dev/null || true
+    find "$_lvm_new/config" -type f -exec chmod 0644 {} + 2>/dev/null || true
     return 0
 }
 

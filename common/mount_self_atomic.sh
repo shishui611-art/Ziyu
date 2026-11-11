@@ -578,3 +578,35 @@ ziyu_mount_verify_active() {
     ziyu_mount_record verified '已提交的字体目录已通过系统主命名空间检查，应用范围以字体路由报告为准' '' 0 0 system system
     return 0
 }
+
+# An external provider owns the font routes now. Retire this module's own older
+# self-mount journal, captured lower views and work image so the next launch does
+# not report a stale self-mount and an unreferenced ext4 mirror does not keep
+# holding /data. Only this module's own state root and receipts are touched; a
+# tree that still backs a live mount (or an unreadable mount table) is preserved.
+ziyu_self_stale_assets_cleanup() {
+    _lsasc_module=$(_ziyu_self_module)
+    # A current-boot live pointer resolves the state root to the hot-switch work
+    # directory; that tree is in use and must never be retired here.
+    if type ziyu_live_current >/dev/null 2>&1 && ziyu_live_current; then
+        _ziyu_self_log '存在当前热挂载指针，跳过旧自挂载目录清理'
+        return 1
+    fi
+    _lsasc_state=$(_ziyu_self_state_root)
+    [ -n "$_lsasc_state" ] || return 0
+    case "$_lsasc_state" in
+        /data/adb/ziyu/self-mount|/data/adb/ziyu/self-mount/*|/data/adb/modules/*/.ziyu-state/*) ;;
+        *) return 2 ;;
+    esac
+    [ -d "$_lsasc_state" ] || return 0
+    if _ziyu_self_state_mounts_remain payload; then
+        _ziyu_self_log '外部后端已生效，但旧自挂载工作目录仍被挂载；保留账本等待下次启动'
+        return 1
+    fi
+    rm -f "$_lsasc_state/mounts.list" "$_lsasc_state/boot-id" 2>/dev/null || return 1
+    rm -rf "$_lsasc_state/lower" "$_lsasc_state/work" 2>/dev/null || return 1
+    rm -f "$_lsasc_module/config/self-mount.conf" \
+        "$_lsasc_module/config/self-mount-required.conf" 2>/dev/null || return 1
+    _ziyu_self_log "已清理旧自挂载账本与工作目录：state=$_lsasc_state（外部后端生效）"
+    return 0
+}

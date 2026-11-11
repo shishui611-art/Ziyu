@@ -6,21 +6,29 @@ MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
 mkdir -p "$MODDIR/logs" 2>/dev/null || true
 
-if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" complete "$MODDIR" \
-        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1 || true
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" hook "$MODDIR" \
-        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1
-    _boot_guard_rc=$?
-    case "$_boot_guard_rc" in
-        0) ;;
-        10|12)
-            [ ! -f "$MODDIR/common/mount_backend_runtime.sh" ] || \
-                MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/mount_backend_runtime.sh" hook service \
-                    >> "$MODDIR/logs/mount-backend.log" 2>&1 || true
-            exit 0
+# 清理过期的“待重启”标记：后端已确认本次启动挂载/验证通过时，字体已经生效，
+# 不应继续要求重启（否则 apply 会被“请先重启手机”拦住）。
+if [ -f "$MODDIR/config/mount-backend.conf" ] && [ -f "$MODDIR/config/text_reboot_required.conf" ]; then
+    _bc_now=''
+    IFS= read -r _bc_now < /proc/sys/kernel/random/boot_id 2>/dev/null || _bc_now=''
+    _bc_boot=''; _bc_ver=''; _bc_active=''
+    while IFS= read -r _bc_line || [ -n "$_bc_line" ]; do
+        case "$_bc_line" in
+            boot_id=*) _bc_boot=${_bc_line#boot_id=} ;;
+            verification=*) _bc_ver=${_bc_line#verification=} ;;
+            active_backend=*) _bc_active=${_bc_line#active_backend=} ;;
+        esac
+    done < "$MODDIR/config/mount-backend.conf"
+    case "$_bc_ver" in
+        passed|pass)
+            case "$_bc_active" in
+                manager|self|meta|external)
+                    if [ -n "$_bc_now" ] && [ "$_bc_boot" = "$_bc_now" ]; then
+                        rm -f "$MODDIR/config/text_reboot_required.conf" 2>/dev/null || true
+                    fi
+                    ;;
+            esac
             ;;
-        *) exit 1 ;;
     esac
 fi
 

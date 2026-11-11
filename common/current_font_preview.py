@@ -12,7 +12,8 @@ import stat
 import sys
 import tempfile
 
-MAX_FONT = 256 * 1024 * 1024
+from ziyu_limits import limit_bytes as _limit_bytes
+MAX_FONT = _limit_bytes()
 
 
 def proof(module: Path, font: str, boot: str):

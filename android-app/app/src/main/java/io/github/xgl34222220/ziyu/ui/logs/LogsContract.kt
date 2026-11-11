@@ -17,7 +17,6 @@ internal data class LogsUiState(
     val completedTaskCount: Int = 0,
     val failedTaskCount: Int = 0,
     val rebootRequired: Boolean = false,
-    val temporaryRootMode: Boolean = false,
     val logsViewed: Boolean = false,
     val warningsIgnored: Boolean = false,
     val undoAvailable: Boolean = false,
@@ -133,7 +132,7 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
                     message = if (snapshot.taskType == "switch" && snapshotPhase == TaskPhase.SUCCESS) {
                         when {
                             snapshot.fontEffectState in setOf("live", "live-partial") && snapshot.effectiveFont == snapshot.activeFont ->
-                                "字体已热挂载并通过路由校验；部分界面可能需重新打开或手动软重启以刷新缓存" +
+                                "字体已热挂载并通过路由校验；部分界面可能需重新打开应用或完整重启以刷新缓存" +
                                     if (snapshot.fontEffectState == "live-partial") "；${snapshot.mountFailure}" else ""
                             snapshot.fontEffectState == "partial" && snapshot.effectiveFont == snapshot.activeFont ->
                                 snapshot.mountFailure.ifBlank { "字体已应用；部分槽位的挂载或加载状态需要确认，详见提示日志" }
@@ -238,7 +237,6 @@ internal fun ZiyuViewModel.toLogsUiState(): LogsUiState {
         completedTaskCount = tasks.count { it.completed },
         failedTaskCount = tasks.count { it.phase == TaskPhase.FAILED },
         rebootRequired = currentRebootRequired,
-        temporaryRootMode = snapshot.temporaryRootMode,
         logsViewed = logsViewed,
         warningsIgnored = warningsIgnored,
         undoAvailable = undoAvailable,

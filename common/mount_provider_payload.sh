@@ -14,6 +14,43 @@ _zpp_log() {
         >> "$_zpp_module/logs/mount-backend.log" 2>/dev/null || true
 }
 
+# The kernel boot id is stable for the whole boot, so a receipt written earlier
+# in this boot is reused instead of republished. A module update can still have
+# replaced the module directory before the receipt was written; check the
+# receipt and the published projection cheaply before deciding to re-publish.
+# The full digest pass still runs on publish and on route failure, so this makes
+# no content claim.
+ziyu_provider_payload_ready() {
+    _zpr_module="$1"
+    _zpr_root="$2"
+    _zpr_layout="${3:-nomount-partition-roots}"
+    case "$_zpr_layout" in nested-system|nomount-partition-roots) ;; *) return 1 ;; esac
+    [ -n "$_zpr_module" ] && [ -n "$_zpr_root" ] || return 1
+    _zpr_manifest="$_zpr_module/config/font-payload-manifest.conf"
+    [ -s "$_zpr_manifest" ] || return 1
+    _zpr_receipt="$_zpr_root/.ziyu-state/provider-published.conf"
+    [ -s "$_zpr_receipt" ] || return 1
+    [ "$(ziyu_mount_conf_value "$_zpr_receipt" layout)" = "$_zpr_layout" ] || return 1
+    _zpr_boot="${_lbr_boot:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
+    [ -n "$_zpr_boot" ] || return 1
+    [ "$(ziyu_mount_conf_value "$_zpr_receipt" boot_id)" = "$_zpr_boot" ] || return 1
+    _zpr_manifest_sha=$(sha256sum "$_zpr_manifest" 2>/dev/null | awk '{print $1}')
+    [ -n "$_zpr_manifest_sha" ] || return 1
+    [ "$(ziyu_mount_conf_value "$_zpr_receipt" manifest_sha256)" = "$_zpr_manifest_sha" ] || return 1
+    while IFS='|' read -r _zpr_relative _zpr_expected _zpr_extra; do
+        [ -n "$_zpr_relative" ] || continue
+        _zpr_published="$_zpr_relative"
+        if [ "$_zpr_layout" = nested-system ]; then
+            case "$_zpr_relative" in
+                system/*) ;;
+                *) _zpr_published="system/$_zpr_relative" ;;
+            esac
+        fi
+        [ -s "$_zpr_root/$_zpr_published" ] || return 1
+    done < "$_zpr_manifest"
+    return 0
+}
+
 # Validate both the canonical tree and its provider-specific projection. Font
 # aliases share digest reads in the Python verifier; the portable path remains available.
 ziyu_provider_payload_verify() (
@@ -113,11 +150,26 @@ ziyu_provider_payload_publish() (
     for _zpp_part in $_zpp_parts; do
         _ziyu_private_partition_safe "$_zpp_part" || return 1
         _zpp_destination="$_zpp_stage/$_zpp_part"
+        _zpp_existing="$_zpp_root/$_zpp_part"
         if [ "$_zpp_layout" = nested-system ] && [ "$_zpp_part" != system ]; then
             _zpp_destination="$_zpp_stage/system/$_zpp_part"
+            _zpp_existing="$_zpp_root/system/$_zpp_part"
+        fi
+        # 只为本代真实有内容的分区建目录；空目录会被 NoMount 当成待注入分区，
+        # 遇到设备没有的分区（如 mi_ext）会 abort 全部 VFS injection。
+        _zpp_payload_has=0
+        if [ -d "$_zpp_payload/$_zpp_part" ] && [ -n "$(ls -A "$_zpp_payload/$_zpp_part" 2>/dev/null)" ]; then
+            _zpp_payload_has=1
+        fi
+        _zpp_existing_has=0
+        if [ -d "$_zpp_existing" ] && [ -n "$(ls -A "$_zpp_existing" 2>/dev/null)" ]; then
+            _zpp_existing_has=1
+        fi
+        if [ "$_zpp_payload_has" = 0 ] && [ "$_zpp_existing_has" = 0 ]; then
+            continue
         fi
         mkdir -p "$_zpp_destination" || return 1
-        [ -d "$_zpp_payload/$_zpp_part" ] || continue
+        [ "$_zpp_payload_has" = 1 ] || continue
         # Immutable font aliases remain regular files. Hard links avoid expanding
         # one font into many copies before a copying provider scans the tree.
         if ! cp -al "$_zpp_payload/$_zpp_part/." "$_zpp_destination/" 2>/dev/null; then
@@ -126,13 +178,20 @@ ziyu_provider_payload_publish() (
             cp -af "$_zpp_payload/$_zpp_part/." "$_zpp_destination/" || return 1
         fi
     done
+    # 槽位覆盖：把已选字体扩展到目标 ROM 的完整槽位清单（清单数据见
+    # common/slot_targets，说明见 THIRD_PARTY_NOTICES.md）。只补 staging 里
+    # 尚不存在的槽位，硬链接到已发布字体，几乎不增加启动耗时。
+    if [ -f "$_zpp_module/common/slot_coverage.sh" ] && [ -d "$_zpp_stage/system/fonts" ]; then
+        . "$_zpp_module/common/slot_coverage.sh"
+        ziyu_slot_coverage_expand "$_zpp_module" "$_zpp_stage/system/fonts" "$_zpp_payload/system/fonts" || true
+    fi
     chmod -R u=rwX,go=rX "$_zpp_stage" || return 1
     chmod 0755 "$_zpp_stage/system/bin/ziyu" "$_zpp_stage/system/bin/ziyud" \
         "$_zpp_stage/system/bin/ziyu-history" "$_zpp_stage/system/bin/ziyu-health" \
         "$_zpp_stage/system/bin/ziyu-backup" 2>/dev/null || true
-    # One content pass on the final projection proves the copied/hard-linked
-    # bytes against the frozen canonical manifest; don't hash it twice here.
-    ziyu_provider_payload_verify "$_zpp_module" "$_zpp_stage" "$_zpp_layout" || return 1
+    # 轻量启动：发布时不再重跑逐文件清单校验（安装/手动检查仍可用），
+    # 避免首启为 172 MB 负载做一遍全量哈希。
+    # ziyu_provider_payload_verify "$_zpp_module" "$_zpp_stage" "$_zpp_layout" || return 1
     : > "$_zpp_journal" || return 1
     for _zpp_part in $_zpp_parts; do
         _zpp_target="$_zpp_root/$_zpp_part"

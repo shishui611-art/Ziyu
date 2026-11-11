@@ -5,7 +5,7 @@
 # until a trusted stock scan for the new build exists, otherwise a scan taken
 # while the old payload is mounted could record the user font as "stock". This
 # helper performs that scan on demand and reports whether the prepared payload
-# is already approved for the current build, so the switch and soft-reboot paths
+# is already approved for the current build, so the switch and recovery paths
 # can self-heal instead of failing until the user opens the boot-safety page.
 set +e
 

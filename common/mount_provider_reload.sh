@@ -115,6 +115,8 @@ ziyu_provider_reload_check() {
         _zpr_lock=1
     fi
     _zpr_hook=0
+    # This file belongs to the Mountify metamodule itself, not to Ziyu. Read it
+    # as provider metadata only; Ziyu no longer runs a late/soft-reboot stage.
     [ ! -s "$_zpr_dir/emulated-soft-reboot.sh" ] || _zpr_hook=1
     _zpr_name=$(sed -n 's/^[[:space:]]*FAKE_MOUNT_NAME=["\047]*\([A-Za-z0-9_.-]*\).*/\1/p' \
         /data/adb/mountify/config.sh 2>/dev/null | tail -n1)
@@ -156,7 +158,7 @@ ziyu_provider_reload_check() {
         else
             _zpr_result=blocked
             [ "$PROVIDER_RELOAD_REASON" != none ] || PROVIDER_RELOAD_REASON=mountify-soft-reload-unavailable
-            PROVIDER_RELOAD_MESSAGE='Mountify 旧挂载清理未确认，已保留待应用字体。请导出挂载日志；临时 Root 请勿完整重启。'
+            PROVIDER_RELOAD_MESSAGE='Mountify 旧挂载清理未确认，已保留待应用字体。请导出挂载日志。'
         fi
     fi
     mkdir -p "$_zpr_module/config" || return 1

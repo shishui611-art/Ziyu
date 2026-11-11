@@ -50,8 +50,17 @@ def trusted_stage(raw):
         raise ValueError('备份暂存路径无效')
     resolved = path.resolve(strict=True)
     parts = resolved.parts
-    # /data/data resolves to /data/user/0; package id comes from the current App.
-    if len(parts) < 8 or parts[1:3] != ('data', 'user') or not parts[3].isdigit() or parts[4] not in PACKAGES or parts[5:7] != ('cache', 'full_backup'):
+    # App private storage is exposed as /data/user/<user>/<package> on current
+    # Android and as /data/data/<package> on some ROMs; both name the same App
+    # data directory. Prove ownership by package identity and location instead
+    # of one path shape, so a renamed package or a secondary user still restores.
+    if len(parts) >= 7 and parts[1:3] == ('data', 'user') and parts[3].isdigit():
+        package, tail = parts[4], parts[5:]
+    elif len(parts) >= 6 and parts[1:3] == ('data', 'data'):
+        package, tail = parts[3], parts[4:]
+    else:
+        raise ValueError('备份暂存目录不属于字域 App')
+    if package not in PACKAGES or tail[:2] != ('cache', 'full_backup'):
         raise ValueError('备份暂存目录不属于字域 App')
     if resolved.stat().st_uid < 10000:
         raise ValueError('备份暂存目录的 App 所有权不匹配')

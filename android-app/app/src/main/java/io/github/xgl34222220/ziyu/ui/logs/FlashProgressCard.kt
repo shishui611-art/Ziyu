@@ -63,7 +63,7 @@ internal fun FlashProgressCard(state: LogsUiState) {
     val title = when {
         running -> if (task?.phase == TaskPhase.QUEUED) "正在等待执行" else "正在处理字体"
         failed -> if (task?.kind == TaskKind.APPLY) "字体应用失败" else "本次任务失败"
-        reboot -> if (state.temporaryRootMode) "准备就绪，等待软重启" else "准备就绪，等待重启"
+        reboot -> "准备就绪，等待重启"
         complete -> if (task?.kind == TaskKind.APPLY) "字体应用成功" else "本次任务已完成"
         else -> "等待新的字体任务"
     }
@@ -121,7 +121,7 @@ internal fun FlashProgressCard(state: LogsUiState) {
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
             )
             if (reboot) {
-                Text(if (state.temporaryRootMode) "字体已准备，请执行软重启后查看验证结果。" else "字体已准备，请完整重启后查看验证结果。", color = accent, style = MaterialTheme.typography.bodySmall)
+                Text("字体已准备，请完整重启后查看验证结果。", color = accent, style = MaterialTheme.typography.bodySmall)
             } else if (failed) {
                 Text("展开下方详情查看原因；原始输出保留在日志页。", color = accent, fontSize = 13.sp, lineHeight = 20.sp)
             }

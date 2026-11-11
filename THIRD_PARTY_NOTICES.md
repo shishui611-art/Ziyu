@@ -52,7 +52,7 @@ v1.4.89 的 `common/font_clipping_variable.py` 为字域原创 GPL-3.0-only 运�
 
 `common/font_structure.py` 中 v1.3.12 新增的 SFNT/TTC 目录读取及 `common/font_check.sh` 的组合源接入为字域自行编写的 GPL-3.0-only 代码，使用 Python 标准库，未引入第三方解析代码。FontTools 的既有完整验证仍按其原许可证使用。
 
-新增 `common/mount_provider_reload.sh` 是字域自行编写的 GPL-3.0-only 代码，依据安装版本的可读证据检查软重启兼容性。协议参考 [Mountify 扫描脚本](https://github.com/backslashxx/mountify/blob/master/module/post-fs-data.sh)（Unlicense）和 [KernelSU v3.3.0 阶段执行逻辑](https://github.com/tiann/KernelSU/blob/v3.3.0/userspace/ksud/src/init_event.rs)；未引入或执行上述项目的第三方脚本副本。
+新增 `common/mount_provider_reload.sh` 是字域自行编写的 GPL-3.0-only 代码，依据安装版本的可读证据检查 Mountify 提供者层是否可以安全重载。协议参考 [Mountify 扫描脚本](https://github.com/backslashxx/mountify/blob/master/module/post-fs-data.sh)（Unlicense）；未引入或执行上述项目的第三方脚本副本。
 
 ## 原创状态读取代码
 
@@ -190,3 +190,13 @@ v1.5.4 新增 `common/font_script_support.py`、`common/font_default_restore.py`
 ## 原厂字体链接证据
 
 `common/stock_font_link_evidence.py` 为本仓库原创 GPL-3.0-only 代码，复用既有独立只读分区视图读取原厂链接，不引入第三方字体或运行库。来源记录见 `licenses/Ziyu-stock-font-link-evidence.json`。
+
+## 槽位清单与临时 Root 流程参考（v1.5.22）
+
+- 槽位文件名清单（`common/slot_targets/*.list`）来自 `ayss2188/custom-font-switcher` v1.5.1.3（作者：暗影双生，模块 id `custom_font_switcher`）。该仓库未声明开源许可证；本项目只把这些清单当作“某 ROM 存在哪些字体槽位”的设备事实数据使用，不复制其脚本实现，槽位匹配、覆盖扩展与临时 Root 挂载脚本（`common/slot_coverage.sh`、`common/ziyu_live.sh`）均为字域独立实现，沿用本仓库 GPL-3.0-only。
+- 临时 Root 立即生效流程参考其 `live.sh` 的“通过 nsenter 进入 init 挂载命名空间”思路，未复制代码；字域实现见 `common/ziyu_live.sh`，入口保持在模块根目录 `live.sh`，与对方模块的入口位置一致。
+- 若后续需要直接复用对方脚本代码，须先取得作者授权并在本文件补充许可证记录。
+
+## 设备槽位发现（v1.5.24）
+
+- `common/device_slot_discovery.py` 为本项目独立实现：解析设备 `fonts.xml` 家族/字重/语言并合并 `common/slot_targets/*.list` 机型清单，生成本机槽位表。仅参考 `custom-font-switcher` 的“设备槽位发现”思路，未复制其 `slots.sh` 代码；沿用本仓库 GPL-3.0-only 授权。

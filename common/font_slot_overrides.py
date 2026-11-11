@@ -106,6 +106,26 @@ def selectable_fonts(module: Path, rules: dict) -> dict:
         except ValueError:
             continue
         options[path] = {"path": path, "name": posixpath.basename(path), "role": slot["role"]}
+    # 设备槽位发现（fonts.xml + 机型清单）补充新分类的槽位，供“保留原厂字体”页使用。
+    slots_cache = config / "device-slots.list"
+    if slots_cache.is_file():
+        role_map = {"cjk": "cjk", "latin": "latin", "digit": "numeric"}
+        try:
+            for line in slots_cache.read_text(encoding="utf-8", errors="replace").splitlines():
+                if not line.startswith("slot="):
+                    continue
+                fields = line[len("slot="):].split("|")
+                if len(fields) < 2:
+                    continue
+                name, category = fields[0].strip(), fields[1].strip()
+                if not name or category not in role_map:
+                    continue
+                path = "system/fonts/" + name
+                if path in options:
+                    continue
+                options[path] = {"path": path, "name": name, "role": role_map[category]}
+        except OSError:
+            pass
     return {"status": "ok", "rules": rules, "fonts": sorted(options.values(), key=lambda item: (item["role"], item["name"].lower(), item["path"]))}
 
 

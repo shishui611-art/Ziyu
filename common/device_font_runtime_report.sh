@@ -55,7 +55,7 @@ _device_font_report_export_public() {
         rm -rf "$_dfr_public_stage" 2>/dev/null || true
         return 2
     }
-    find "$_dfr_public_stage" -type f -exec chmod 0644 {} \; 2>/dev/null || true
+    find "$_dfr_public_stage" -type f -exec chmod 0644 {} + 2>/dev/null || true
     rm -rf "$_dfr_public_root" 2>/dev/null || true
     mv -f "$_dfr_public_stage" "$_dfr_public_root" 2>/dev/null || {
         rm -rf "$_dfr_public_stage" 2>/dev/null || true
@@ -164,7 +164,7 @@ EOF_RUNTIME_PAIR
         grep -Ei 'google[-_ ]?sans|product[-_ ]?sans|ZiyuSlot' "$_dfr_stage/font-manager-dump.txt" 2>/dev/null || true
     } > "$_dfr_stage/dynamic-font-proof.txt"
 
-    find "$_dfr_stage" -type f -exec chmod 0644 {} \; 2>/dev/null || true
+    find "$_dfr_stage" -type f -exec chmod 0644 {} + 2>/dev/null || true
     rm -rf "$_dfr_root" 2>/dev/null || true
     mkdir -p "${_dfr_root%/*}" 2>/dev/null || {
         rm -rf "$_dfr_stage" 2>/dev/null || true

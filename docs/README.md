@@ -7,7 +7,6 @@
 - [MTZ 导入说明](MTZ_IMPORT.md)：可导入的 MTZ 字体包结构、容量限制与处理范围。
 - [挂载流程](MOUNT_FLOW.md)：四种用户选择的挂载模式、升级偏好和验证状态。
 - [字体热切换](FONT_LIVE_SWITCH.md)：热切换前提、限制及需要重启的情况。
-- [临时 Root 与软重启](TEMP_ROOT.md)：KernelSU / SukiSU Ultra 的适用条件和操作边界。
 - [模块更新](MODULE_UPDATE.md)：模块 ZIP 与内置 App 的更新关系。
 - [字体诊断](FONT_DIAGNOSTICS.md)、[挂载故障诊断](MOUNT_FAILURE_DIAGNOSIS.md)：进程字体来源只读检查、日志字段和排查顺序。
 - [ColorOS 适配](COLOROS17.md)：数字字体槽策略、桥接链接检查和部分应用结果。

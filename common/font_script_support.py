@@ -21,10 +21,11 @@ import font_coverage
 
 SCHEMA = 'ziyu-script-payload-v1'
 REPORT = '.ziyu-script-report.json'
-MAX_BYTES = 384 * 1024 * 1024
+from ziyu_limits import limit_bytes as _limit_bytes
+MAX_BYTES = max(384 * 1024 * 1024, _limit_bytes())
 MAX_TARGETS = 16
 MAX_FACES = 128
-MAX_SOURCE = 128 * 1024 * 1024
+MAX_SOURCE = _limit_bytes()
 JAPANESE = ((0x3040, 0x30FF), (0x31F0, 0x31FF), (0xFF61, 0xFF9F),
             (0x1AFF0, 0x1AFFF), (0x1B000, 0x1B16F))
 KOREAN = ((0x1100, 0x11FF), (0x3130, 0x318F), (0xA960, 0xA97F),

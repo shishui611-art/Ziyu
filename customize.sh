@@ -113,6 +113,15 @@ if [ -f "$MODPATH/common/mount_backend_preferences.sh" ]; then
     [ ! -f "$MODPATH/common/meta_mount_detection.sh" ] || . "$MODPATH/common/meta_mount_detection.sh"
     type ziyu_meta_mount_detect >/dev/null 2>&1 && ziyu_meta_mount_detect >/dev/null
     ziyu_install_choose_mount_backend "$_lc_saved_preference"
+    # 默认走元模块 / 根管理器挂载：检测到 NoMount 时，未指定或 auto 的偏好
+    # 直接落为 manager，避免首次安装后被自动策略切到自挂载。
+    case "${META_ENGINE:-none}" in
+        nomount)
+            case "$ZIYU_INSTALL_BACKEND_PREFERENCE" in
+                ''|auto|meta|self) ZIYU_INSTALL_BACKEND_PREFERENCE=manager ;;
+            esac
+            ;;
+    esac
     ziyu_mount_preference_write "$ZIYU_INSTALL_BACKEND_PREFERENCE" "$MODPATH" || {
         abort '挂载偏好保存失败'
         return 1 2>/dev/null || exit 1
@@ -174,6 +183,18 @@ if [ "${BOOTMODE:-false}" = true ] && [ -f "$MODPATH/common/display_typography.s
         ui_print '• 系统显示服务暂不可读，首次打开字域时补充本地配置'
     fi
 fi
-[ "$_lc_real_old_mod" != /data/adb/modules/LuoShu ] || ui_print '• 旧标识已迁移为 ziyu，本次必须完整重启；后续字体切换可选受支持的 KSU 软重启'
+[ "$_lc_real_old_mod" != /data/adb/modules/LuoShu ] || ui_print '• 旧标识已迁移为 ziyu，本次必须完整重启'
+# NoMount 的脚本接管会扫描模块根下所有 *.sh；安装时就把运行库移入 data/
+# （NoMount 会裁剪该目录）并留相对符号链接，开机路径不变但不再被逐个扫描。
+if [ -d "$MODPATH/common" ] && [ ! -L "$MODPATH/common" ]; then
+    if mkdir -p "$MODPATH/data" 2>/dev/null &&
+       mv "$MODPATH/common" "$MODPATH/data/common" 2>/dev/null &&
+       ln -s data/common "$MODPATH/common" 2>/dev/null; then
+        :
+    else
+        [ -d "$MODPATH/data/common" ] && [ ! -e "$MODPATH/common" ] &&
+            mv "$MODPATH/data/common" "$MODPATH/common" 2>/dev/null
+    fi
+fi
 type ziyu_install_complete >/dev/null 2>&1 && ziyu_install_complete
 return 0 2>/dev/null || exit 0

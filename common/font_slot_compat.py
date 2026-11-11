@@ -7,6 +7,7 @@ outline transplant for single SFNT faces. Stock cmap/UVS, glyph IDs, names,
 layout, axes and line metrics remain unchanged; uncovered characters stay OEM.
 """
 from __future__ import annotations
+from ziyu_limits import limit_bytes as _limit_bytes
 
 import gc
 import os
@@ -23,7 +24,7 @@ import font_source_profile
 import stock_font_snapshot
 import font_clipping_compat
 
-MAX_FONT_BYTES = 128 * 1024 * 1024
+MAX_FONT_BYTES = max(128 * 1024 * 1024, _limit_bytes())
 
 
 class SlotCompat:

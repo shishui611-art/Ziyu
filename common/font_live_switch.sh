@@ -168,7 +168,7 @@ live_apply() {
         case "$UI_CACHE" in stale|current-mappings) ;; *) UI_CACHE=unknown ;; esac
         printf 'boot_id=%s\nstate=mounted\nfont=%s\nrequest_id=%s\nui_cache_state=%s\n' "$BOOT" "$FONT" "$REQUEST" "$UI_CACHE" > "$MODDIR/config/font-live-attempt.conf"
         if [ "$UI_CACHE" = stale ]; then
-            live_log 'WARN 字体文件已热挂载；SystemUI 仍映射旧字体，可由用户确认软重启刷新系统界面'
+            live_log 'WARN 字体文件已热挂载；SystemUI 仍映射旧字体，完整重启后刷新系统界面'
         fi
         live_log "字体已热挂载且 PID 1 路由校验通过：$FONT；部分已打开界面可能仍使用字体缓存"
         return 0

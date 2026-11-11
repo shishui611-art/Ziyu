@@ -1,17 +1,27 @@
 package io.github.xgl34222220.ziyu.legacy
 
 import android.content.Context
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.LruCache
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.TextView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -111,6 +121,15 @@ private class PreviewTextView(context: Context) : TextView(context) {
 }
 
 private val previewMemoryCache = object : LruCache<String, PreviewMemoryEntry>(PREVIEW_MEMORY_MAX_ENTRIES) {}
+private val previewCoverageCache = object : LruCache<String, Int>(256) {}
+
+private fun previewCoverageGet(key: String): Int? = synchronized(previewCoverageCache) {
+    previewCoverageCache.get(key)
+}
+
+private fun previewCoveragePut(key: String, value: Int) = synchronized(previewCoverageCache) {
+    previewCoverageCache.put(key, value)
+}
 private val previewLocks = ConcurrentHashMap<String, Mutex>()
 private val previewExportSemaphore = Semaphore(PREVIEW_EXPORT_CONCURRENCY)
 private val axisInfoCache = ConcurrentHashMap<String, WeightAxisInfo>()
@@ -241,7 +260,7 @@ internal fun NativeFontPreview(
     val sourceRevision = remember(font, requestedWeight) {
         font?.let {
             val staticRevision = if (it.variable) "" else "|wght=$requestedWeight"
-            "${it.id}|${it.size}|${it.date}$staticRevision"
+            "${it.id}|${it.size}|${it.date}|face=${it.faceIndex}$staticRevision"
         }
     }
     val extension = remember(font?.format) {
@@ -279,6 +298,7 @@ internal fun NativeFontPreview(
                         previewExportSemaphore.withPermit {
                             try {
                                 var exported = false
+                                var renderFile = target
                                 if (!target.isFile || target.length() == 0L) {
                                     val command = "sh ${RootShell.quote(APP_BRIDGE)} preview_export " +
                                         "${RootShell.quote(font.id)} ${RootShell.quote(target.absolutePath)} $requestedWeight"
@@ -296,16 +316,31 @@ internal fun NativeFontPreview(
                                     if (!target.isFile || target.length() == 0L) {
                                         error("预览字体文件为空")
                                     }
+                                    // 同 sha256 的字体只保留一份缓存，避免不同 id/时间重复复制大字体。
+                                    val sha = root?.optJSONObject("data")?.optString("sha256").orEmpty()
+                                    if (sha.length >= 16) {
+                                        val shaFile = File(cacheDir, "sha256-${sha}.$extension")
+                                        if (shaFile.isFile && shaFile.length() > 0L) {
+                                            target.delete()
+                                            renderFile = shaFile
+                                        } else if (target.renameTo(shaFile)) {
+                                            renderFile = shaFile
+                                        }
+                                    }
                                     exported = true
                                 }
-                                val loaded = Typeface.createFromFile(target)
-                                target.setLastModified(System.currentTimeMillis())
-                                if (exported) trimPreviewCache(cacheDir, target)
+                                val loaded = if (font.faceIndex > 0) {
+                                    Typeface.Builder(renderFile).setTtcIndex(font.faceIndex).build()
+                                } else {
+                                    Typeface.createFromFile(renderFile)
+                                }
+                                renderFile.setLastModified(System.currentTimeMillis())
+                                if (exported) trimPreviewCache(cacheDir, renderFile)
                                 previewMemoryPut(
                                     sourceRevision,
-                                    PreviewMemoryEntry(typeface = loaded, file = target),
+                                    PreviewMemoryEntry(typeface = loaded, file = renderFile),
                                 )
-                                PreviewTypefaceState(typeface = loaded, file = target)
+                                PreviewTypefaceState(typeface = loaded, file = renderFile)
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
                             } catch (error: Throwable) {
@@ -343,25 +378,60 @@ internal fun NativeFontPreview(
     val renderedText = if (failed) "预览失败 · $failure" else text
     val renderedColor = if (failed) errorColor else textColor
     val renderedSize = if (failed) minOf(textSizeSp, 12f) else textSizeSp
+    // 用 Android 原生字形查询判断字体是否真的缺字；缺字时系统会静默回退，这里显式标出来。
+    // 覆盖结果按「字体来源+变化轴+文本」缓存，避免滚动/重组时反复逐字查询。
+    val coverageKey = remember(sourceRevision, axisKey, renderedText, failed) {
+        if (failed || renderedText.isBlank()) "" else "${sourceRevision.orEmpty()}|$axisKey|${stableKey(renderedText)}"
+    }
+    val missingGlyphs = remember(renderedTypeface, coverageKey) {
+        if (coverageKey.isEmpty()) 0
+        else previewCoverageGet(coverageKey)
+            ?: missingGlyphCount(renderedTypeface, renderedText).also { previewCoveragePut(coverageKey, it) }
+    }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { viewContext -> PreviewTextView(viewContext) },
-        update = { view ->
-            view.render(
-                value = renderedText,
-                font = renderedTypeface,
-                gravityValue = gravity,
-                maxLinesValue = maxLines,
-                color = renderedColor,
-                sizeSp = renderedSize,
+    androidx.compose.foundation.layout.Box(modifier = modifier) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { viewContext -> PreviewTextView(viewContext) },
+            update = { view ->
+                view.render(
+                    value = renderedText,
+                    font = renderedTypeface,
+                    gravityValue = gravity,
+                    maxLinesValue = maxLines,
+                    color = renderedColor,
+                    sizeSp = renderedSize,
+                )
+            },
+        )
+        if (missingGlyphs > 0) {
+            Text(
+                "缺字 $missingGlyphs · 系统回退",
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(2.dp)
+                    .background(Color(0x99000000), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                color = Color.White,
+                fontSize = 9.sp,
             )
-        },
-    )
+        }
+    }
 }
 
-private fun normalizePreviewAxes(axes: Map<String, Float>): Map<String, Float> =
-    axes.filter { (tag, value) -> tag.length == 4 && value.isFinite() }
+private fun missingGlyphCount(typeface: Typeface, text: String): Int {
+    val paint = Paint().apply { this.typeface = typeface }
+    var missing = 0
+    var index = 0
+    while (index < text.length) {
+        val codePoint = text.codePointAt(index)
+        if (!Character.isWhitespace(codePoint) && !paint.hasGlyph(String(Character.toChars(codePoint)))) missing++
+        index += Character.charCount(codePoint)
+    }
+    return missing
+}
+
+private fun normalizePreviewAxes(axes: Map<String, Float>): Map<String, Float> =    axes.filter { (tag, value) -> tag.length == 4 && value.isFinite() }
 
 private fun toAndroidVariationSettings(axes: Map<String, Float>): String = axes.entries
     .sortedBy { it.key }

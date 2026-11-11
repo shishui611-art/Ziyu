@@ -114,14 +114,6 @@ if [ "$UPDATE_PRESERVED" != true ]; then
     printf 'default\n' > "$MODPATH/config/active_font.conf"
 fi
 
-# Ask after migration so an inherited preference cannot overwrite this choice.
-# Both fresh installs and upgrades enter this path before scanning stock fonts.
-if ! type ziyu_install_choose_root_mode >/dev/null 2>&1 || \
-   ! ziyu_install_choose_root_mode "$MODPATH" "$OLD_MOD"; then
-    abort 'Root 类型保存失败，本次安装已停止，请保留安装日志'
-    exit 1
-fi
-
 if [ -f "$MODPATH/common/font_weight_retire.sh" ]; then
     if sh "$MODPATH/common/font_weight_retire.sh" "$OLD_MOD" "$MODPATH" flash; then
         ui_print '✓ 已移除全局粗细设置，保留字体自身字重'
@@ -220,7 +212,7 @@ chmod 0755 "$MODPATH"/*.sh "$MODPATH/common"/*.sh 2>/dev/null || true
 chmod 0644 "$MODPATH/common"/*.py 2>/dev/null || true
 chmod 0755 "$MODPATH/common/python/bin/ziyu-python" "$MODPATH/system/bin/ziyu" 2>/dev/null || true
 [ ! -f "$MODPATH/system/bin/ziyud" ] || chmod 0755 "$MODPATH/system/bin/ziyud" 2>/dev/null || true
-find "$MODPATH/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
+find "$MODPATH/system/fonts" -type f -exec chmod 0644 {} + 2>/dev/null || true
 chmod 0755 "$MODPATH/system/fonts" "$MODPATH/system/bin" "$MODPATH/config" "$MODPATH/logs" 2>/dev/null || true
 [ ! -f "$MODPATH/bundled/Ziyu-App.apk" ] || chmod 0644 "$MODPATH/bundled/Ziyu-App.apk" "$MODPATH/bundled/app.prop" 2>/dev/null || true
 [ ! -f "$MODPATH/bundled/Ziyu-App.apk" ] || chmod 0644 "$MODPATH/bundled/Ziyu-App.apk" "$MODPATH/bundled/app.prop" 2>/dev/null || true

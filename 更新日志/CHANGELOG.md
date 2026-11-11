@@ -1,5 +1,264 @@
 # 字域更新日志
 
+## v1.5.41 · 2026-11-10（本地 Debug）
+
+- 新增槽位定位工具：`slot-coverage-limit.conf` 的 limit 二分扩展数量；`slot-coverage.log` 记录每个扩展槽位。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.40 · 2026-11-10（本地 Debug）
+
+- 安全与维护新增“全量槽位覆盖（100+）”开关：开启后覆盖其它语种槽位（含日语/韩语，约 200+），默认仍只覆盖 27 个安全槽位。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.39 · 2026-11-10（本地 Debug）
+
+- 安全槽位扩展：默认开启但跳过 TTC、Emoji/彩色/时钟、lang 槽位；设备实测 27 个安全槽位。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.38 · 2026-11-10（本地 Debug）
+
+- 排查开机卡动画：槽位覆盖扩展默认关闭，需 `config/tools/slot-coverage-enabled.conf` 的 `enabled=1` 才启用。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.37 · 2026-11-10（本地 Debug）
+
+- 修复空负载状态“无法创建下一启动字体负载”：恢复清理保留空负载骨架，切换无旧负载时从空骨架继续。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.36 · 2026-11-10（本地 Debug）
+
+- 补清 manager nested-system 发布留下的空 `system/<partition>` 目录；开机/恢复默认与顶层空目录一起清理。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.35 · 2026-11-10（本地 Debug）
+
+- 补查：开机清理空负载分区目录改用 rmdir 循环（Android find 不支持 -delete），发布/恢复/开机三处清理一致。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.34 · 2026-11-10（本地 Debug）
+
+- 修复 NoMount `VFS missing target: ziyu/mi_ext`：发布跳过空负载分区目录；开机/恢复默认清理空负载分区目录与模块空目录。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.33 · 2026-11-10（本地 Debug）
+
+- 修复 NoMount 开机挂载失败：发布负载不再为不存在的分区创建空目录（mi_ext 等），避免 VFS injection 被中止；开机/恢复默认流程清理已有空分区目录。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.32 · 2026-11-10（本地 Debug）
+
+- 修复“字体工具 / 临时 Root”菜单闪退：去掉页面内嵌套 verticalScroll（LazyColumn item 无限高约束）。
+- 补齐 `font_slot_compat`、`composite_collection_build`、`stock_font_snapshot` 剩余 128MB 硬上限，统一跟随 512MB 滑块。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.31 · 2026-11-10（本地 Debug）
+
+- 设置拆分：新增“字体工具”（大小上限、其它语言槽位）与“临时 Root”（软重启/立即生效）两个独立菜单；新增配置写入 `config/tools/` 并开机迁移旧文件。
+- 修复彩色字体应用失败：检测到 COLR/CBDT/sbix/SVG 彩色字体时自动跳过防裁切继续应用，不再让任务报“彩色字体暂不支持防裁切”。
+- 应用/合成/裁切/诊断/MTZ 上限统一跟随 512MB 滑块（补查 4 处遗漏）。
+- 新增恢复默认/卸载强制清理：清发布树、槽位文件、负载与回执，保证回原厂字体。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
+## v1.5.30 · 2026-11-10（本地 Debug）
+
+- 预览缺字检测结果按“字体来源+变化轴+文本”LRU 缓存，标签改为“缺字 N · 系统回退”。
+- 预览字体缓存按源文件 sha256 去重：同字体不同 id/时间不再重复复制大文件。
+- 预览接入 `faceIndex`（TTC 用 `Typeface.Builder.setTtcIndex` 选面）；字库条目解析 `faceIndex` 字段（现有条目默认 0，需导入侧记录 face 后生效）。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.29 · 2026-11-10（本地 Debug）
+
+- 修复重启后仍显示“已准备，待本次启动验证”：状态识别 backend 验证为 verified，后端确认后忽略/清除过期的“待重启”标记。
+- 系统字体导出改为后台 start/status（折中只导 Regular，首次约 2~3 分钟，命中缓存秒回）；字体库入口改为“添加系统字体”按钮；设置里的系统字体导入卡片删除。
+- 字库预览新增 `Paint.hasGlyph()` 缺字标注（右下角“缺字 N”），用于区分字体真缺字与系统回退显示；预览仍走 Android 原生 Skia/HarfBuzz 排版。
+- 保留原厂字体规则页接入设备槽位分类；首页恢复“立即软重启”。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.28 · 2026-11-10（本地 Debug）
+
+- 从 v1.5.14 备份恢复临时 Root / late-load / 软重启流程：`late-load.sh`、`emulated-soft-reboot.sh`、`common/soft_reboot.sh`、`common/temporary_root_mode.sh`。
+- `app_bridge.sh` 新增 `temporary_root get|set` 与 `soft_reboot` 路由；状态协议新增 `temporaryRootMode`（字段数 34）；`post-fs-data.sh` 增加软重启失败保护。
+- 设置 → 存储新增“临时 Root / 软重启”卡片。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.27 · 2026-11-10（本地 Debug）
+
+- 设备槽位缓存增加 `classifier`/`module_version` 校验：升级后自动重建（本机 323 → 文本家族 113；真实存在文本槽位约 30）。
+- 状态在后端 `mounted + verified` 时写 `effectiveActive=当前字体 / fontEffectState=verified`，首页不再显示“已准备，待本次启动验证”。
+- 首页槽位卡显示中文/数字/英文三项。
+- 设置 → 存储新增“其它语言槽位”开关：打开后覆盖各语种字体槽位（可到 200+，但阿拉伯/泰文等可能回退）；关闭只覆盖中文/英文/数字文本家族。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.26 · 2026-11-10（本地 Debug）
+
+- 槽位发现只统计系统文本家族（sans-serif/serif/monospace + 中文字体 + 数字/时钟），跳过装饰字体与各语种 Noto；首页槽位总数从 323 改为约 113（中文 46/数字 5/英文 62），覆盖计划只保留文本槽位。
+- 设置 → 存储新增“字体大小上限”滑块（32–512 MB，默认 256 MB），持久化到 `config/font-import-limit.conf`；模块 `font_import.sh`/`native_import.sh` 与 App 导入入口同步读取，错误提示显示当前上限。
+- 修复 `common/system_font_library.sh` 参数拼接错误；设备实测可导出系统默认中文/英文/数字字体到字体库。
+- 设置 → 存储新增“系统字体导入”和“临时 Root 立即生效（挂载/撤销/状态）”卡片，临时 Root 入口走 `app_bridge.sh live`。
+- 包含 v1.5.25 的槽位计划解析修复（mksh 竖线拆分）与 manager 待验证误判修复。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.25 · 2026-11-10（本地 Debug）
+
+- 修复设备槽位“能发现但应用不到”的根因：Android mksh 对 `${var%%|*}` 竖线模式解析不可靠，导致槽位计划文件名为空、全部被跳过；改用 `IFS='|' read` 拆字段。设备实测槽位表 323 个（中文 46/数字 5/英文 192/其它 80），计划从 0/19 修复为 152 个可覆盖槽位。
+- 修复状态把 `active_backend=manager` 的 `verification=passed` 误判为待验证：现在映射为 mounted + verified/PASS，首页应显示模块已连接。
+- 文件末尾补 `customize.sh` 安装偏好 manager、原生桥收口、两段式握手（v1.5.23 内容保持一致）。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.24 · 2026-11-10（本地 Debug）
+
+- 移植设备槽位发现：新增 `common/device_slot_discovery.py` 解析 `fonts.xml` 家族/字重/语言并合并机型清单，缓存 `config/device-slots.list`；覆盖计划与首页槽位统计改用设备真实槽位口径（中文/数字/总数）。
+- 槽位按 fonts.xml 字重（400/500/700 等）映射到对应负载文件，缺字重回退 Regular。
+- 状态脚本优先读设备槽位缓存，缺失时自动触发一次发现；首页无需等发布即可显示设备槽位数。
+- 澄清并保持：原生桥=HarfBuzz 原生实例化，字体应用原生优先、失败回退 FontTools；握手=App 与模块握手后刷新主页。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.23 · 2026-11-10（本地 Debug）
+
+- 按“字体应用尽量走原生桥”收口：切换历史改走 `app_bridge.sh switch_history`、字体导出改走 `app_bridge.sh ttf_export`、首页原厂字体重扫改走 `app_bridge.sh stock_scan`；字体应用 `switch_start/mix_start` 原本就在原生桥。
+- 桥新增 `switch_history`、`ttf_export` 路由，App 不再直接调用内部脚本/工具路径。
+- 恢复两段式握手：先轻量握手点亮首页，再读完整状态刷新主页。
+- 修复“待验证”：本次开机刚发布的 manager 挂载在 post-mount/service 按内容抽样核对，通过即写 mounted/passed。
+- NoMount 设备默认挂载偏好落为 `manager`（元模块/根管理器挂载）。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.22 · 2026-11-10（本地 Debug）
+
+- 引入 `custom-font-switcher v1.5.1.3` 的 ROM 槽位清单（`common/slot_targets/*.list`），发布负载时把已选字体按字重扩展到目标 ROM 全部真实槽位；只补设备上存在的 `/system/fonts` 文件，稳态启动不重复执行。
+- 新增模块根目录 `live.sh` 与 `common/ziyu_live.sh`：临时 Root 立即生效，支持 `mount`（必要时 `nsenter -t 1 -m` 进 init 命名空间）、`unmount`、`status`，不重启即可挂载/撤销。
+- 首页新增“槽位覆盖”卡片，显示中文字体槽位数与数字字体槽位数；状态协议新增 `slotTotal/slotCjk/slotDigit/slotRom`（字段数 29→33）。
+- App 握手优化：启动先直接读完整状态，成功时省掉一次握手 `su` 进程；失败才回退握手以区分 Root/模块问题。
+- 槽位清单仅作设备事实数据使用，来源与许可证边界见 `THIRD_PARTY_NOTICES.md`；`common/slot_coverage.sh`、`common/ziyu_live.sh` 为字域独立实现。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.21 · 2026-11-10（本地 Debug）
+
+- 定位 v1.5.20 仍超 5000 PID 的原因：字域自身 `post-fs-data` 已降到 325 个 PID、约 0.14 秒，但 NoMount 元模块的“脚本接管”会扫描模块根下所有 `*.sh` 并逐个 `stat`/检查，字域模块里有约 **170 个**脚本，使 metamodule 挂载阶段多出约 **5 秒**（禁用字域时该阶段约 1 秒）。
+- 运行库迁移：安装时（`customize.sh`）与开机兜底（`post-fs-data.sh`）把 `common/` 移到 `data/common/`，保留 `common -> data/common` 相对符号链接。NoMount 会裁剪 `data` 目录、也不会跟随 `common` 符号链接，开机扫描从约 170 个脚本降到十余个；字域所有 `$MODDIR/common/...` 路径和 App 调用保持不变。
+- 安装时迁移失败会自动还原为普通目录；开机兜底同样可回滚，不会让模块因迁移失败无法启动。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机，实际启动耗时与 zygote PID 待验证。
+
+## v1.5.20 · 2026-11-10（本地 Debug）
+
+- 实测确认此前 zygote PID 偏高的原因：字域启用时 `post-fs-data` 被拉长到 11~16.5 秒，zygote PID 5944~7358；禁用字域后 ksud 阶段仅 2.447 秒，zygote 6.5 秒启动、PID 3608（春秋 Normal）。ColorOS 在等待期间持续创建任务，每多等约 1 秒约多 400~500 个 PID。
+- 轻量启动：`post-fs-data` 移除自动 OTA/开机保护判定与原厂字体快照；`service.sh`、`post-mount.sh`、`boot-completed.sh` 不再执行开机守卫；挂载运行时不再重复守卫；发布负载时跳过逐文件清单校验（172 MB 全量哈希）。
+- 无待激活负载时跳过事务恢复、旧热挂载清理和激活，直接进入挂载后端；`boot-profile.log` 新增 `dur=` 秒数用于核对每阶段耗时。
+- 保留字体应用/挂载/激活、App 内手动开机保护页与安装时的一次性原厂扫描。去掉自动保护后不再自动暂停字体，需要时手工处理。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机，真机启动耗时与 zygote PID 待验证。
+
+## v1.5.19 · 2026-11-09（本地 Debug）
+
+- 按 v1.5.18 的实测数据优化开机进程：字域 `post-fs-data` 自身创建 779 个 PID，其中 ota-guard 169、mount-runtime 491。本版先处理 ota-guard。
+- `boot-ota-guard hook` 同一 `boot_id` 内只执行一次：根 `post-fs-data` 与挂载运行时此前各调用一次，现在第二次复用返回码 0/10/12，标记 `config/boot-ota-guard-hook.conf` 跨启动自动失效。
+- 状态读取改为 shell 内建：`_zbg_value` 不再用 `sed | head | tr`，`_zbg_boot_id`/`_zbg_fingerprint`/`_zbg_boot_completed` 去掉 `cat|tr`、`getprop|tr`，`_zbg_load_state` 一次读全 6 个字段，21 处 `printf | cut` 改为参数展开，`sha256sum | awk` 改为参数展开。
+- 挂载运行时新增 `mount-guard`/`mount-detect`/`mount-manager-apply` 打点，下一轮重启可区分检测、发布、状态写入各自的 PID 占比。
+- 判定结果、字体应用与挂载逻辑不变。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+## v1.5.18 · 2026-11-09（本地 Debug）
+
+- 新增 `common/boot_profile.sh`：`post-fs-data` 用 `/proc/loadavg` 最后分配的 PID 和 `/proc/uptime` 记录本模块自身在 zygote 启动前创建的任务数，并在 storage、ota-guard、stock-snapshot、transaction、live-retire、activation、mount-runtime 各阶段打点；统计只使用 shell 内建与 `/proc` 读取，不额外派生进程。日志写入 `logs/boot-profile.log`。
+- 修正上一版覆盖范围的判断：v1.5.16 的批量 `chmod` 只在 v2.2.7 兼容运行时生效，而本机当前使用 legacy `physical-safe-v1` 运行时，`post-fs-data` 会跳过该脚本；因此本机 zygote PID 仍为 6495 → 6503（波动），该修改未影响本机开机 PID。后续将按 `boot-profile.log` 的实测数据优化实际 legacy 路径。
+- 字体应用、挂载、验证与回滚逻辑未改。
+- 完成本地 Debug 编译与 APK/模块 ZIP 一致性检查；未安装、刷入或重启手机。
+
+## v1.5.17 · 2026-11-09（本地 Debug）
+
+- 继续减少短命进程：安装脚本的 `system/fonts` 权限校正、模块更新的配置与字体目录校正、私有字体负载复制、运行报告导出等 10 处 `find -exec chmod … \;` 改为 `{} +` 批量调用，单次 `find` 通常只启动 1 个 `chmod`。
+- 权限结果不变（目录 0755，字体与配置 0644）；批量写法与仓库既有 `common/legacy_v14_4/payload_clone.sh` 一致。
+- 本机同条件对比（200 文件、9 目录）：旧写法约 5.7 s、新写法约 0.2 s；属 Git Bash 宿主机进程创建成本，不能当作手机耗时，手机端未测。
+- 安装、更新、负载复制与报告流程的其它行为未改；字体应用、挂载验证与回滚逻辑未改。
+- 完成本地 Debug 编译与 APK/模块 ZIP 一致性检查；未安装、刷入或重启手机。
+
+## v1.5.16 · 2026-11-09（本地 Debug）
+
+- 减少开机阶段进程创建：`post-fs-data`（zygote 启动前）与 `service` 原本用 `find -exec chmod` 对 `common` 顶层每个文件各执行一次 `chmod`，约 253 个文件即约 253 个短命进程；现改为一次批量 `chmod`。两阶段合计每次开机少启动约 500 个进程，权限结果不变（可执行脚本 0755，Python 数据文件随后仍为 0644）。
+- 本机同条件对比 253 个文件：旧写法 5 次平均约 6737 ms，新写法约 117 ms；这是 Git Bash 宿主机进程创建成本，不能直接当作手机开机耗时，手机端耗时未测。
+- 挂载、字体负载验证、开机保护与回滚逻辑未改。
+- 完成本地 Debug 编译与 APK/模块 ZIP 一致性检查；未安装、刷入或重启手机。
+
+## v1.5.15 · 2026-11-09（本地 Debug）
+
+- 彻底移除临时 Root 与软重启链路：设置页「KernelSU 软重启 / 临时 Root 模式」开关、重启选择弹窗中的软重启分支、状态协议 `temporaryRootMode` 字段与桥接 `soft_reboot` / `temporary_root` 命令全部删除。
+- 模块删除 `common/soft_reboot.sh`、`common/temporary_root_mode.sh`、`late-load.sh`、`emulated-soft-reboot.sh` 与 `common/boot_ota_recover_task.sh`；安装时不再用音量键选择 Root 类型，`post-fs-data` 不再处理软重启清理与 late-load 会话。
+- 字体应用、恢复默认字体和挂载方式切换统一要求完整重启；重启后回到 App 查看挂载验证。挂载后端选择、开机保护、系统更新后的原厂字体重扫、失败回滚与诊断导出保持不变。
+- 完成本地 Debug 编译与 APK/模块 ZIP 一致性检查；未运行完整测试套件，未安装、刷入或重启手机，完整重启链路仍待设备验收。
+
+## v1.5.14 · 2026-11-09（本地 Debug）
+
+- 保留 KernelSU 软重启及挂载验证流程；重启选择页读取字域进程的实际父 PID，仅在高于 5000 时提示软重启不会重置 PID，并建议挂载验证后再完整重启一次以复测春秋 `getppid()>5000` 判据。
+- 软重启结果同步显示后续完整重启建议，不自动发起第二次重启；未改写进程父 PID 或 Seccomp 状态。
+- 完成本地 Debug 编译与 APK/模块 ZIP 一致性检查；未安装、刷入或重启手机，检测结果仍待设备复测。
+
+## v1.5.13 · 2026-11-09（本地 Debug）
+
+- 修复管理器挂载"一直等待验证"：此前每次开机 `post-fs-data` 都会重新发布并改写回执 `boot_id`，`post-mount`/`service` 因此永远认为"还要等下次重启"。现在负载清单与字体未变化时不再重新发布、也不改写回执，重启后即可执行 `/system/fonts` 路由校验。
+- 管理器挂载校验新增明确失败原因：`manager-publication-missing`、`manager-payload-missing`、`manager-no-payload-fonts`、`manager-route-mismatch`，以及元模块接管模块挂载时的 `manager-mount-delegated-to-metamodule`。
+- 记录恢复路径也补上管理器挂载的重新发布判断，切换到管理器挂载后换字体仍会重新发布。
+- 真机观察（v1.5.12，2026-11-09）：`preferred_backend=manager` 已写入但 `active_backend=none`、`verification=pending`；`/data/adb/metamodule -> meta-nomount`，PID 1 挂载表无 KSU/NoMount 挂载、`/system/fonts/DroidSans.ttf` 仍为 19 字节原厂符号链接，确认管理器挂载被 NoMount 元模块接管而未实际生效。
+- 完成本地编译与包完整性检查；元模块停用后的管理器挂载真机复测仍待执行。
+
+## v1.5.12 · 2026-11-09（本地 Debug）
+
+- 新增「管理器挂载」：字体发布到模块自身的 `system/` 树，只释放字域自有的 `skip_mount` / `skip_mountify`，由 Root 管理器开机自动挂载；该模式不创建任何 bind/overlay 挂载，也不依赖元模块。
+- `post-fs-data` 只发布并记录 `selected_backend=manager`，首次选择后需完整重启；`post-mount` / `service` 比对 `/system/fonts` 可见文件与 `.ziyu-payload`（大小全部一致 + 抽样 3 个文件哈希一致）才判定通过，失败记录 `manager-route-verification-failed`。
+- 切回系统默认字体时发布空负载并撤销回执，避免管理器继续挂载旧字体；其它模块或用户添加的 skip 标记不删除。
+- App 挂载设置新增「管理器挂载」选项，安装脚本与桥接校验同步接受该值。
+- 完成本地编译与包完整性检查；管理器挂载的真机实际挂载、路由校验与外部环境检测复测仍待执行。
+
+## v1.5.11 · 2026-11-09（本地 Debug）
+
+- 修复自动模式回退自挂载后，后续软重启仍沿用自挂载：软重启不改变 kernel boot_id，恢复分支会把上一次的 `selected=self` 原样恢复，导致 post-fs-data 不再检测外部提供者、也不再发布。真机 v1.5.10 日志（10:01 软重启）中没有任何重新发布或外部检测记录，直接恢复自挂载。
+- 现在 post-fs-data 阶段若 `preferred_backend=auto` 且上次记录为回退自挂载（`fallback_used=1`），不再恢复旧记录，而是重新执行提供者检测、发布与自有 skip 标记释放；重新选择前先回收本次内核启动残留的自挂载 overlay/lower，回收未确认时保留自挂载并明确失败。用户显式选择的 OverlayFS、Magic Mount 或字域自挂载仍按原记录恢复。
+- post-mount / service 阶段仍只恢复本次启动记录，不在晚期重新选择或发布。
+- 真机观察（v1.5.10，2026-11-09 10:01 软重启）：`[PROVIDER-REPUBLISH]` 未出现，`mount-backend.conf` 在 post-fs-data 后仍是 `selected_backend=self`，NoMount `VFS injection result=0`，属于恢复分支直接沿用回退结果。
+- 真机复测通过：安装 v1.5.11 完整重启后 `selected_backend=external`、`fallback_used=0`、无自有 skip 标记；随后两次软重启（kernel boot_id 不变）都重新发布、NoMount `VFS injection result=1`，post-mount 外部路由验证通过，未回退自挂载。
+- v1.5.10 的 skip 标记释放修复保留；两者叠加后，软重启应能重新发布并让 NoMount 扫描到字域。
+
+## v1.5.10 · 2026-11-09（本地 Debug）
+
+- 修复 v1.5.9 未覆盖的软重启回退自挂载：安装模块时字域会为自己创建 `skip_mount` / `skip_mountify` 标记，让元模块等字域先发布；v1.5.9 在软重启恢复分支重新发布后没有释放这两个标记，NoMount 扫描时继续跳过字域，发布树虽有效仍被判为外部路由失败并回退自挂载。现在恢复分支在确认发布有效后释放自有标记，再交回元模块。
+- 保留首次启动分支既有的发布后释放顺序；外部标记（非字域自有）不会删除，释放失败仍按 `owned-skip-cleanup-failed` 失败处理。
+- 本次针对真机 v1.5.9 软重启日志修正；完成本地编译与包完整性检查，安装新版模块并再次软重启的验证仍待执行。
+- v1.5.9 的其他修复保持不变：软重启重新发布、旧自挂载镜像清理、备份恢复暂存白名单、正式签名单一 App。
+
+## v1.5.9 · 2026-11-09（本地 Debug）
+
+- 修复模块更新后软重启（KernelSU / SukiSU）误回退自挂载：进入用户态重启时内核启动 ID 不变，旧逻辑只恢复上次后端而跳过发布，模块更新已删掉发布树与回执，导致外部挂载验证失败。现在 post-fs-data 恢复分支会核对发布回执与发布树，失效时在早期边界重新发布一次并交回元模块；post-mount 与 service 仍只读验证。
+- 外部提供者验证通过后清理字域自己的旧自挂载账本、lower/work 与 ext4 兼容镜像（本机约 172 MiB），避免挂载详情和诊断继续显示旧自挂载、以及无引用的镜像占用 /data。仍有挂载或挂载表不可读时保留账本。
+- 修复备份与恢复的暂存目录校验：旧版 `ziyu-backup` 只认旧包名 `io.github.xgl34222220.ziyu`，当前 App 的缓存暂存目录会被判为“不受信任”；`full_backup.py` 只接受 `/data/user/…` 形态，拒绝部分 ROM 的 `/data/data/…`。两处统一支持四个历史包名、多用户与两种路径形态，并保留非符号链接与 App 所有权校验；字体库归档导出的同源白名单同步修正。
+- App 安装器区分签名冲突与损坏包：签名不一致时明确说明“已安装 App 与内置 App 证书不同”，不自动卸载、不丢数据；检测到旧包名残留时提示手动卸载，避免桌面出现第二个图标。
+- 本轮 Debug APK 使用现有正式签名构建，可覆盖已安装正式版，保持单一 App；正式版与调试版不再形成两个包。
+- 完成本地编译与包完整性检查后交付；未运行功能测试，未安装到手机或刷入模块，软重启升级链路与备份恢复真机复测待完成。
+
+## v1.5.8 · 2026-11-08（本地 Debug）
+
+- 修正 MTZ 文件变化检查：读取前后与重新打开原路径均通过文件描述符核对，避免将路径查询与打开文件的信息差异当成文件修改。
+- 保留读取期间修改、替换、删除的拦截，以及压缩包目录、条目大小、CRC、字体格式和失败清理检查；不额外复制或完整哈希 MTZ。
+- 完成本地编译与包完整性检查后交付；本次未运行功能测试，未取得报错 MTZ 样包，原包导入及真机效果仍待复测，未安装或发布。
+
 ## v1.5.7 · 2026-11-07（正式版）
 
 - 相较上一正式版 v1.5.0，更新字库预览、MTZ 导入、日韩静态字体局部替换、组合方案恢复与默认字体清理，并修复字体检查和应用状态误报。
@@ -1233,3 +1492,4 @@ GitHub 上一正式稳定版为 v1.4.2。v1.4.3–v1.4.18 是之后的本地工�
 - 支持 KernelSU 开机后加载临时 Root 时接管字体挂载。
 - 在设置中新增 KernelSU 软重启流程选择；启用后，字体任务会提示通过管理器软重启，不会从字域发起完整重启。
 - 软重启后重新选择挂载后端并验证字体。若回收旧自挂载失败，会停止激活新字体并记录原因。
+

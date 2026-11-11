@@ -59,11 +59,12 @@ METRIC_EXTREMA = {'hhea': ('advanceWidthMax', 'minLeftSideBearing', 'minRightSid
 CJK_RANGES = ((0x2E80, 0x31EF), (0x3400, 0x9FFF), (0xF900, 0xFAFF),
               (0xFF00, 0xFFEF), (0x20000, 0x323AF))
 MAX_COLLECTION_TARGETS = 16
-MAX_COLLECTION_BYTES = 384 * 1024 * 1024
+from ziyu_limits import limit_bytes as _limit_bytes
+MAX_COLLECTION_BYTES = max(384 * 1024 * 1024, _limit_bytes() * 2)
 MAX_COLLECTION_FACE_TOTAL = 512
-MAX_STOCK_FILE_BYTES = 128 * 1024 * 1024
-MAX_OUTPUT_FACE_BYTES = 128 * 1024 * 1024
-MAX_MIX_SOURCE_BYTES = 128 * 1024 * 1024
+MAX_STOCK_FILE_BYTES = max(128 * 1024 * 1024, _limit_bytes())
+MAX_OUTPUT_FACE_BYTES = max(128 * 1024 * 1024, _limit_bytes())
+MAX_MIX_SOURCE_BYTES = max(128 * 1024 * 1024, _limit_bytes())
 PROOF_DIRECTORY = '.ziyu-collection-proofs'
 MAX_GLYPH_TEMPLATE_BYTES = 64 * 1024 * 1024
 # Only tables which replace_face does not intentionally mutate. The complete

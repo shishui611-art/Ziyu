@@ -684,8 +684,13 @@ clone_payload_tree() {
 
 stage_clone_live() {
     _clone_source=$(payload_clone_source) || {
-        safe_error '当前启动字体负载不可读取，请重新刷入当前字域版本'
-        return 1
+        # 空负载状态（恢复默认、卸载残留）没有可克隆的旧负载：用空骨架继续，
+        # 不把用户卡死在“无法创建下一启动字体负载”。
+        mkdir -p "$LIVE_PAYLOAD/system/fonts" 2>/dev/null || {
+            safe_error '当前启动字体负载不可读取，请重新刷入当前字域版本'
+            return 1
+        }
+        _clone_source="$LIVE_PAYLOAD"
     }
     if ! clone_payload_tree "$_clone_source"; then
         printf '[%s] [SAFE-SWITCH] clone failed source=%s live=%s next=%s\n' \

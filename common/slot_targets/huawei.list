@@ -1,0 +1,16 @@
+# huawei 机型清单（EMUI / HarmonyOS）
+#
+# 来源同上：参考模块里的厂商字体名
+
+[main]
+HarmonyOS_Sans_SC_Regular.ttf
+HarmonyOS_Sans_SC.ttf
+HarmonyOS_Sans_Regular.ttf
+HarmonyOS_Sans.ttf
+HarmonyOS_Sans_Naskh_Arabic_Regular.ttf
+HwChinese-Regular.ttf
+HwChinese-Medium.ttf
+HwChinese-Bold.ttf
+
+[clock]
+HwClock.ttf

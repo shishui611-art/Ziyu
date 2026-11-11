@@ -5,21 +5,6 @@ MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
 mkdir -p "$MODDIR/logs" 2>/dev/null || true
 
-if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" hook "$MODDIR" \
-        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1
-    _boot_guard_rc=$?
-    case "$_boot_guard_rc" in
-        0) ;;
-        10|12)
-            [ ! -f "$MODDIR/common/mount_backend_runtime.sh" ] || \
-                MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/mount_backend_runtime.sh" hook post-mount \
-                    >> "$MODDIR/logs/mount-backend.log" 2>&1 || true
-            exit 0
-            ;;
-        *) exit 1 ;;
-    esac
-fi
 RUNTIME="$MODDIR/common/mount_backend_runtime.sh"
 V4_POST_MOUNT="$MODDIR/.ziyu-runtime/core/post-mount.sh"
 LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"

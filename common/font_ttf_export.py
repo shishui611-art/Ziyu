@@ -19,7 +19,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 from font_digest_cache import file_identity
 
-MAX_BYTES = 128 * 1024 * 1024
+from ziyu_limits import limit_bytes as _limit_bytes
+MAX_BYTES = _limit_bytes()
 MAX_CHOICES = 512
 
 

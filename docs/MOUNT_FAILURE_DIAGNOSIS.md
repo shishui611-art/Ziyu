@@ -44,21 +44,19 @@ ColorOS 的 SysFont 桥接链接只读取受限位置的链接元数据；确认
 
 检查 `config/self-mount.conf`、`config/self-mount-required.conf`、`/data/adb/luoshu/self-mount/mounts.list` 和 `logs/self-mount.log`。每个字域挂载都应有自身账本记录。若错误中含 `rollback-failed`、`cleanup`、`residual` 或 `unconfirmed`，先停止反复提交，保留证据并按 Root 管理器的停用/恢复路径操作；不要手工全局卸载或清理其他模块目录。
 
-软重启另检查 `logs/soft-reboot.log` 和 `config/temporary-root-soft-reboot.conf`。请求成功只表示 `ksud` 接受请求，不代表重新加载、后端挂载或字体效果已经通过。
+### Mountify 与提供者重扫
 
-### Mountify 与 KSU 软重启
+Mountify v2.0.4 的扫描脚本使用 `/dev/mountify_single_instance` 阻止重复扫描；其 `boot-completed.sh` 会释放标记并删除 /dev 日志，但不卸载字体 OverlayFS。新负载部署成功也不能证明现有提供者层已被替换，必须复核 PID 1 的实际文件。
 
-Mountify v2.0.4 的扫描脚本使用 `/dev/mountify_single_instance` 阻止重复扫描；其 `boot-completed.sh` 会释放标记并删除 /dev 日志，但不卸载字体 OverlayFS。KSU v3.3.0 的软重启会在同一内核启动内重新执行模块阶段。新负载部署成功也不能证明现有提供者层已被替换，必须复核 PID 1 的实际文件。
+完整重启后的启动阶段，若 PID 1 路由验证失败且提供者为 Mountify，字域会按 PID 1 挂载来源建立只读清理计划：先确认提供者身份、安装脚本协议、PID 1 命名空间、lowerdir 来源和挂载父子关系，只对确认属于 Mountify 的 OverlayFS 层按子到父顺序逐层卸载，核对挂载 ID 已消失，再释放已确认的扫描标记。随后由 Root 管理器按原顺序继续启动阶段并重新扫描其启用模块。字域不在普通查询或路由校验失败时全局卸载共享层，不调用 metamount.sh、不改提供者启动计数，也不改用户所选模式。
 
-v1.3.2 在 App 请求前建立只读清理计划。在 KSU 的 `emulated-soft-reboot.sh` 阶段，先退役字域自己的热挂载，再确认提供者身份、安装脚本协议、PID 1 命名空间、lowerdir 来源和挂载父子关系。只对确认属于 Mountify 的 OverlayFS 层按子到父顺序逐层卸载，核对挂载 ID 已消失，最后释放已确认的扫描标记。KSU 随后按原顺序执行 post-fs-data → metamount → post-mount，重新挂载其所有启用模块。字域不在 App 查询或验证失败分支中卸载共享层，不调用 metamount.sh、不改提供者启动计数，也不改用户所选模式。
-
-支持已堆叠的旧层。路径越界、不识别的文件系统、其他来源的子挂载、命名空间不符或卸载残留都会中止激活并保留队列。启动计数未复位时保留 Mountify 的防启动循环保护。模块更新后由新的 post-fs-data 再复核一次，覆盖旧版清理钩子先运行的情况。`config/provider-reload-check.conf` 和 `.ziyu-state/provider-reload.started` 记录实查结果及开始时的清理计划。删除 /dev 日志后仍通过 PID 1 挂载来源建立计划，不依赖已被提供者删掉的日志。
+路径越界、不识别的文件系统、其他来源的子挂载、命名空间不符或卸载残留都会中止激活并保留队列。启动计数未复位时保留 Mountify 的防启动循环保护。模块更新后由新的 post-fs-data 再复核一次。`config/provider-reload-check.conf` 和 `.ziyu-state/provider-reload.started` 记录实查结果及开始时的清理计划。删除 /dev 日志后仍通过 PID 1 挂载来源建立计划，不依赖已被提供者删掉的日志。
 
 `external-route-verification-failed` 仍须对照发布回执和清单：发布目录校验通过但 PID 1 哈希不同，说明提供者没有呈现这一批文件；`provider-published-payload-invalid` 表示发布树本身不一致。不能仅凭版本号认定具体设备一定命中了扫描锁问题。
 
-临时 Root 使用 KSU 软重启即可走该重载路径。偏好改成自挂载时，也先在管理器阶段清理旧提供者层；恢复默认字体时，先清理旧层，再发布空字体负载，避免露出旧字体。不要静默叠加另一模式；源码已实现适配不代表已完成对应手机验收。
+偏好改成自挂载或恢复默认字体时，同样在完整重启后的启动阶段处理旧提供者层；恢复默认时先清理旧层，再发布空字体负载，避免露出旧字体。不要静默叠加另一模式；源码已实现适配不代表已完成对应手机验收。
 
-协议依据：[Mountify 扫描脚本](https://github.com/backslashxx/mountify/blob/master/module/post-fs-data.sh)、[KernelSU v3.3.0 软重启流程](https://github.com/tiann/KernelSU/blob/v3.3.0/userspace/ksud/src/init_event.rs)。报告中的 `activeFont`、`bootId`、`checkedAt` 和 `payloadManifestSha256` 用于区分同一内核启动中的不同字体批次。
+协议依据：[Mountify 扫描脚本](https://github.com/backslashxx/mountify/blob/master/module/post-fs-data.sh)。报告中的 `activeFont`、`bootId`、`checkedAt` 和 `payloadManifestSha256` 用于区分同一内核启动中的不同字体批次。
 
 ## 导出给维护者
 
@@ -66,7 +64,7 @@ v1.3.2 在 App 请求前建立只读清理计划。在 KSU 的 `emulated-soft-re
 
 v1.3.3 在 post-fs-data 中、发布下一套字体前，把已验证的 ROM/lower/mirror 字体文件复制到模块的 `config/stock-font-snapshot/`。不为读取快照新建挂载，也不把活动覆盖层中的可读字体当作原厂。清单与系统构建身份绑定，编译读取时验证内容 SHA-256；同一系统和同一目标集合复用快照，升级迁移保留。单文件上限 128 MiB、快照内容上限 384 MiB；不可验证或超出限制的目标保留缺失记录，不宣称捕获完整。
 
-首次刷入后需要进入一次原厂目录可验证的启动阶段；临时 Root 可使用现有 KSU 软重启重载，在旧 Mountify 层清理后、提供者重新扫描前捕获。`logs/stock-font-snapshot.log` 中 `complete`/`partial`/`deferred` 与清单里的 `missing` 用于判断实际捕获结果。通用编译的其他格式、字重、轴或样式限制仍独立存在，不能由快照存在推断整份编译成功。
+首次刷入后需要进入一次原厂目录可验证的启动阶段再捕获快照。`logs/stock-font-snapshot.log` 中 `complete`/`partial`/`deferred` 与清单里的 `missing` 用于判断实际捕获结果。通用编译的其他格式、字重、轴或样式限制仍独立存在，不能由快照存在推断整份编译成功。
 
 Vivo 兼容生成不再只使用三个固定中文名称。系统属性/品牌或可信库存识别为 OriginOS 后，按清单中度量和字符覆盖有效的普通 UI 槽位生成；保留 Emoji、图标、等宽、斜体、时钟和集合容器的保护。按字重实例化，变量容器沿用既有保留策略，相同来源/角色/度量的输出在单次生成中复用。
 

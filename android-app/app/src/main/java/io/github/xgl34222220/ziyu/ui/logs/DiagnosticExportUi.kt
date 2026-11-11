@@ -174,7 +174,7 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             config/display-typography.conf config/display-config-storage.conf config/display-typography-dirty \
             config/mount-backend-preference.conf config/provider-reload-check.conf config/apatch-pre-mount.conf \
             .ziyu-state/provider-published.conf .ziyu-state/provider-reload.started config/font-payload-manifest.conf \
-            config/temporary-root-soft-reboot.conf config/stock-font-snapshot/manifest.json logs/stock-font-snapshot.log \
+            config/stock-font-snapshot/manifest.json logs/stock-font-snapshot.log \
             config/adb-storage-migration.conf config/stock-scan-source.conf logs/adb-storage.log \
             config/font-payload-next.conf config/font-payload-activated.conf \
             config/font-live.conf config/font-live-previous.conf config/font-live-boot-previous.conf \
@@ -185,7 +185,7 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             config/font-apply-result.conf config/font-mount-warnings.conf config/device_font_partitions.conf \
             config/device-font-load-verification.conf config/device-font-load-route-verification.json \
             logs/mount-backend.log logs/self-mount.log logs/mount-diagnostics.log \
-            logs/mount-diagnostics.log.previous logs/soft-reboot.log logs/font-live.log; do
+            logs/mount-diagnostics.log.previous logs/font-live.log; do
             path="${'$'}MOD/${'$'}relative"
             printf '\n[module-file:%s]\n' "${'$'}relative" >> "${'$'}OUT"
             if [ -s "${'$'}path" ]; then

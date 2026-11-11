@@ -50,12 +50,13 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private const val STOCK_SCAN_COMMAND =
-    "sh /data/adb/modules/ziyu/common/font_manager.sh action stock_scan"
+    "sh /data/adb/modules/ziyu/common/app_bridge.sh stock_scan"
 
 private fun mountModeLabel(mode: String): String = when (mode) {
     "magic" -> "Magic Mount"
     "overlayfs" -> "OverlayFS"
     "self_mount" -> "字域自挂载"
+    "manager" -> "管理器挂载"
     else -> "自动挂载"
 }
 
@@ -91,16 +92,16 @@ fun HomeRoute(
     var showAdvancedMount by remember { mutableStateOf(false) }
     var showUndo by remember { mutableStateOf(false) }
     var showAcceptanceGuide by remember { mutableStateOf(false) }
-    var showTemporaryRootGuide by remember { mutableStateOf(false) }
     var trustRefreshGeneration by remember { mutableIntStateOf(0) }
     var stockScanBusy by remember { mutableStateOf(false) }
     var stockScanMessage by remember { mutableStateOf("") }
     var stockScanError by remember { mutableStateOf(false) }
+    var showTemporaryRootGuide by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val visibleActions = actions.copy(
         viewCurrentFont = { showCurrentFont = true },
-        reboot = if (state.temporaryRootMode) ({ showTemporaryRootGuide = true }) else actions.reboot,
         mountSettings = { actions.mountSettings(); showMountSettings = true },
+        reboot = if (state.temporaryRootMode) ({ showTemporaryRootGuide = true }) else actions.reboot,
     )
 
     LaunchedEffect(state.typographyVisible, state.currentFontId, state.currentFontRevision, state.loading) {
@@ -217,6 +218,13 @@ fun HomeRoute(
                         selected = state.mountPreferenceLoaded && state.mountBackendPreference == "auto",
                         onClick = { actions.setMountBackend("auto") },
                     )
+                    MountModeOption(
+                        title = "管理器挂载",
+                        description = "字体放进模块目录，由 Root 管理器开机自动挂载。",
+                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "manager",
+                        onClick = { actions.setMountBackend("manager") },
+                    )
                     ZiyuOutlinedButton(onClick = { showAdvancedMount = !showAdvancedMount }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (showAdvancedMount) "收起高级选项" else "高级选项")
                     }
@@ -245,7 +253,7 @@ fun HomeRoute(
                     }
                     if (state.mountPreferenceSaving) Text("正在保存挂载选择…")
                     if (!state.mountPreferenceLoaded && state.mountPreferences.isNotBlank()) Text(state.mountPreferences)
-                    Text(if (state.temporaryRootMode) "切换模式后需通过 KernelSU 软重启验证。" else "切换模式后需完整重启验证。")
+                    Text("切换模式后需完整重启验证。")
                 }
             },
             confirmButton = { TextButton(onClick = { showMountSettings = false }) { Text("完成") } },
@@ -257,13 +265,12 @@ fun HomeRoute(
             title = { Text("是否重启验证挂载？") },
             text = {
                 Text("已保存为${mountModeLabel(mode)}。" +
-                    if (state.temporaryRootMode) "下一步选择可用的重启方式。重启完成后回到字域查看实际挂载方式和验证结果。"
-                    else "完整重启后执行所选挂载方式。下一步确认重启，完成后回到字域查看实际挂载方式和验证结果。")
+                    "完整重启后执行所选挂载方式。下一步确认重启，完成后回到字域查看实际挂载方式和验证结果。")
             },
             confirmButton = {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ZiyuButton(onClick = { actions.dismissMountBackendRebootPrompt(); actions.reboot() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("继续选择重启方式")
+                        Text("继续重启")
                     }
                     ZiyuOutlinedButton(onClick = actions.dismissMountBackendRebootPrompt, modifier = Modifier.fillMaxWidth()) {
                         Text("稍后重启")

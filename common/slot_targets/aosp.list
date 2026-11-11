@@ -1,0 +1,71 @@
+# aosp —— 按分区组织
+#
+# ★ 2026-10-17：改成**分区**格式。分区的作用：
+#   开关（保留锁屏时钟字体 / 保留日韩 / 保留特殊槽）只需要决定"读哪个分区"，
+#   不用再去遍历字体配置、扫描目录 —— 切换开关能做到零扫描。
+#
+# 分区标记格式：单独一行的 [分区名]
+#   没有分区标记的老清单会被当成整份 [base]（向后兼容）。
+#
+# 分区列表：
+#
+# 分区（开关只决定读不读某个分区，不用扫描）：
+#   [main]    主力字体（中/英/数字）—— 永远读
+#   [clock]   时钟字体 —— 「保留锁屏时钟」开着时不读
+#   [theme]   主题字体（圆体/方体/衬线/斜体/等宽/装饰）
+#   [cjk]     中文（繁中/兰亭）
+#   [kana]    日文     [hangul] 韩文
+#   [lang]    其它文字（阿拉伯/希伯来/泰文…）
+
+[clock]
+AndroidClock.ttf
+# ★ 2026-11-02（红魔 NX809J 用户报告）：红魔/努比亚的锁屏+桌面时钟数字用的是
+#   RedMagicDigit / ZDigit（ZTE 系），原来没分类 → 落进 [main] 被一起换掉。
+#   放进 [clock] 后，「保留锁屏时钟字体」开着就会保留它们（关着照常替换）。
+RedMagicDigit.ttf
+RedMagicDigit-Regular.ttf
+ZDigit-Bold.ttf
+ZDigit-Light.ttf
+ZDigit-Medium.ttf
+ZDigit-Regular.ttf
+ZDigit-Thin.ttf
+
+[main]
+DroidSans-Bold.ttf
+DroidSans.ttf
+GoogleSans-Bold.ttf
+GoogleSans-Light.ttf
+GoogleSans-Medium.ttf
+GoogleSans-Regular.ttf
+GoogleSansFlex-Regular.ttf
+GoogleSansText-Bold.ttf
+GoogleSansText-Medium.ttf
+GoogleSansText-Regular.ttf
+NotoSans-Bold.ttf
+NotoSans-Light.ttf
+NotoSans-Medium.ttf
+NotoSans-Regular.ttf
+Roboto-Black.ttf
+Roboto-Bold.ttf
+Roboto-ExtraBold.ttf
+Roboto-ExtraLight.ttf
+Roboto-Light.ttf
+Roboto-Medium.ttf
+Roboto-Regular.ttf
+Roboto-SemiBold.ttf
+Roboto-Thin.ttf
+RobotoFlex-Regular.ttf
+RobotoStatic-Regular.ttf
+
+[theme]
+NotoSans-BoldItalic.ttf
+NotoSans-Italic.ttf
+Roboto-BlackItalic.ttf
+Roboto-BoldItalic.ttf
+Roboto-ExtraBoldItalic.ttf
+Roboto-ExtraLightItalic.ttf
+Roboto-Italic.ttf
+Roboto-LightItalic.ttf
+Roboto-MediumItalic.ttf
+Roboto-SemiBoldItalic.ttf
+Roboto-ThinItalic.ttf

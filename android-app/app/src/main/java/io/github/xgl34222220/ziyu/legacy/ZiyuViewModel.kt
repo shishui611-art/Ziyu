@@ -113,6 +113,7 @@ internal data class FontItem(
     val error: String,
     val weights: List<String>,
     val supportsCjk: Boolean = true,
+    val faceIndex: Int = 0,
 ) {
     val weightLabel: String
         get() = when {
@@ -940,6 +941,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     error = item.optString("error", ""),
                     weights = weights,
                     supportsCjk = item.optBoolean("supportsCjk", true),
+                    faceIndex = item.optInt("faceIndex", 0).coerceAtLeast(0),
                 ),
             )
         }

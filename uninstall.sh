@@ -5,6 +5,10 @@
 set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
+# 卸载前强制清掉已发布字体树/槽位扩展，确保回到原厂字体，不依赖后续清理步骤。
+if [ -f "$MODDIR/common/restore_stock_factory.sh" ]; then
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/restore_stock_factory.sh" "$MODDIR" >/dev/null 2>&1 || true
+fi
 if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
     _boot_guard_cleanup=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
         sh "$MODDIR/common/boot_ota_guard.sh" uninstall-cleanup "$MODDIR" 2>&1)

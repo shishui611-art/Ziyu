@@ -22,6 +22,11 @@ PYROOT="$MODDIR/common/python"
 PYBIN="$PYROOT/bin/ziyu-python"
 WEB_CONVERTER="$MODDIR/common/font_web_convert.py"
 MAX_BYTES=268435456
+# 单字体上限跟随设置页的“字体大小上限”（默认 256 MB）。
+if [ -f "$MODDIR/common/import_limit.sh" ]; then
+    IMPORT_LIMIT_LIBRARY_ONLY=1 . "$MODDIR/common/import_limit.sh"
+    MAX_BYTES=$(import_limit_get_bytes)
+fi
 
 [ -f "$MODDIR/common/util_functions.sh" ] && . "$MODDIR/common/util_functions.sh"
 [ -f "$MODDIR/common/font_check.sh" ] && . "$MODDIR/common/font_check.sh"
@@ -273,7 +278,7 @@ trusted_source "$source_path" || { fail_json "导入来源目录不受信任"; e
 [ -f "$source_path" ] || { fail_json "待导入文件不存在"; exit 0; }
 _bytes=$(wc -c < "$source_path" 2>/dev/null | tr -d '[:space:]')
 case "$_bytes" in ''|*[!0-9]*) _bytes=0 ;; esac
-[ "$_bytes" -gt 0 ] && [ "$_bytes" -le "$MAX_BYTES" ] || { fail_json "文件为空或超过 256 MB 限制"; exit 0; }
+[ "$_bytes" -gt 0 ] && [ "$_bytes" -le "$MAX_BYTES" ] || { fail_json "文件为空或超过 $((MAX_BYTES / 1024 / 1024)) MB 限制"; exit 0; }
 [ -n "$display_name" ] || display_name=$(basename "$source_path")
 _ext=$(printf '%s' "${display_name##*.}" | tr '[:upper:]' '[:lower:]')
 case "$_ext" in

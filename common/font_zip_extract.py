@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from ziyu_limits import limit_bytes as _limit_bytes
+
 import hashlib
 from contextlib import contextmanager
 import os
@@ -168,7 +170,7 @@ def _extract_mtz(archive_path, destination, max_files, max_bytes):
                 continue
             if info.flag_bits & 1:
                 raise ValueError("MTZ 字体已加密，无法读取")
-            if not 4 <= info.file_size <= min(max_bytes, MTZ_MAX_COMPONENT_BYTES):
+            if not 4 <= info.file_size <= min(max_bytes, max(MTZ_MAX_COMPONENT_BYTES, _limit_bytes())):
                 raise ValueError("MTZ 字体或组件大小无效")
             with archive.open(info) as source:
                 magic = source.read(4)
@@ -209,8 +211,21 @@ def _extract_mtz(archive_path, destination, max_files, max_bytes):
             before = identity(os.fstat(stream.fileno()))
             with _mtz_archive(stream) as archive:
                 visit(archive)
-            if before != identity(os.fstat(stream.fileno())) or before != identity(archive_path.stat()):
+            if before != identity(os.fstat(stream.fileno())):
                 raise ValueError("MTZ 文件在读取期间发生变化，请重新导入")
+            # A shared-storage path lookup can expose different metadata from
+            # an open file. Compare fstat with fstat, including a fresh open of
+            # the original path, so both in-place writes and replacements still
+            # invalidate this extraction without another content read or copy.
+            try:
+                current_fd = os.open(archive_path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+                try:
+                    if before != identity(os.fstat(current_fd)):
+                        raise ValueError("MTZ 文件在读取期间发生变化，请重新导入")
+                finally:
+                    os.close(current_fd)
+            except FileNotFoundError as error:
+                raise ValueError("MTZ 文件在读取期间发生变化，请重新导入") from error
         if not budget["fonts"]:
             raise ValueError("这个 MTZ 包中没有可导入的字体")
         if title:

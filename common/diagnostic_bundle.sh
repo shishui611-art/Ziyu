@@ -204,8 +204,6 @@ _diag_dump_once() {
         _diag_emit_file 'universal-font-runtime.conf' "$MODDIR/config/universal-font-runtime.conf"
         _diag_emit_file 'universal-font-runtime-verification.conf' "$MODDIR/config/universal-font-runtime-verification.conf"
         _diag_emit_file 'mount-backend.log' "$MODDIR/logs/mount-backend.log" 600
-        _diag_emit_file 'soft-reboot.log' "$MODDIR/logs/soft-reboot.log" 120
-        _diag_emit_file 'temporary-root-soft-reboot.conf' "$MODDIR/config/temporary-root-soft-reboot.conf"
         _diag_emit_file 'fontswitch.log' "$MODDIR/logs/fontswitch.log" 400
         _diag_emit_file 'service-legacy-v14.4.log' "$MODDIR/logs/service-legacy-v14.4.log" 400
         _diag_emit_file 'runtime-report.log' "$MODDIR/logs/runtime-report.log" 200

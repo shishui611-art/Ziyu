@@ -10,5 +10,7 @@ ziyu_temporary_root_mode() {
        [ "$(sed -n 's/^mode=//p' "$_ztr_session" 2>/dev/null | head -n1)" = late-load ]; then
         return 0
     fi
-    [ "$(sed -n 's/^enabled=//p' "$_ztr_module/config/temporary-root-mode.conf" 2>/dev/null | head -n1)" = true ]
+    _ztr_mode_file="$_ztr_module/config/tools/temporary-root-mode.conf"
+    [ -s "$_ztr_mode_file" ] || _ztr_mode_file="$_ztr_module/config/temporary-root-mode.conf"
+    [ "$(sed -n 's/^enabled=//p' "$_ztr_mode_file" 2>/dev/null | head -n1)" = true ]
 }

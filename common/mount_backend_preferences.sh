@@ -17,10 +17,10 @@ _lmp_value() {
         sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n'
     fi
 }
-_lmp_valid() { case "$1" in auto|magic|overlayfs|self_mount|meta|self) return 0 ;; *) return 1 ;; esac; }
+_lmp_valid() { case "$1" in auto|magic|overlayfs|self_mount|manager|meta|self) return 0 ;; *) return 1 ;; esac; }
 _lmp_normalize() {
     case "${1:-}" in
-        magic|overlayfs|self_mount) printf '%s\n' "$1" ;;
+        magic|overlayfs|self_mount|manager) printf '%s\n' "$1" ;;
         auto|meta|self|'') printf 'auto\n' ;;
         *) printf 'auto\n' ;;
     esac

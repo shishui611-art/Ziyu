@@ -71,11 +71,6 @@ root_manager() {
     printf 'Root'
 }
 
-temporary_root_mode() {
-    case "$(root_manager)" in KernelSU|SukiSU\ Ultra) ;; *) return 1 ;; esac
-    ziyu_temporary_root_mode "$MODDIR"
-}
-
 mount_engine() {
     _backend_file=$(type ziyu_current_boot_backend_state >/dev/null 2>&1 && ziyu_current_boot_backend_state)
     if [ -n "$_backend_file" ]; then
@@ -164,9 +159,9 @@ status_field() {
 }
 
 status_emit() {
-    [ "$#" -eq 29 ] || { printf '{"status":"error","message":"模块状态字段不完整"}\n'; return 1; }
+    [ "$#" -eq 33 ] || { printf '{"status":"error","message":"模块状态字段不完整"}\n'; return 1; }
     if [ "$_AS_FORMAT" = json ]; then
-    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskFont":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"temporaryRootMode":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s"}}\n' \
+    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskFont":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s","temporaryRootMode":%s,"slotTotal":%s,"slotCjk":%s,"slotDigit":%s,"slotRom":"%s"}}\n' \
         "$_installed" "$(json_escape "$_version")" "${_version_code:-0}" "$(json_escape "$_active")" \
         "$(json_escape "$_effective_active")" "$(json_escape "$_font_effect_state")" \
         "$(json_escape "$_verification_state")" "$(json_escape "$_verification_grade")" "$(json_escape "$_verification_mode")" \
@@ -174,8 +169,9 @@ status_emit() {
         "$(json_escape "$_cutover_state")" "$(json_escape "$_cutover_decision")" "$(json_escape "$_rollback_state")" "$_rollback_pending" \
         "$(json_escape "$_rollback_target_font")" "$(json_escape "$_rollback_target_mode")" \
         "$(json_escape "$_task_type")" "$(json_escape "$_task_id")" "$(json_escape "$_task_font")" "$(json_escape "$_task_state")" \
-        "$(json_escape "$_task_message")" "$_task_progress" "$_reboot_required" "$_temporary_root" \
-        "$(json_escape "$(root_manager)")" "$(json_escape "$(mount_engine)")" "$(json_escape "$MODDIR")"
+        "$(json_escape "$_task_message")" "$_task_progress" "$_reboot_required" \
+        "$(json_escape "$(root_manager)")" "$(json_escape "$(mount_engine)")" "$(json_escape "$MODDIR")" \
+        "$_temporary_root" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$(json_escape "$_slot_rom")"
         return $?
     fi
     printf 'schema=ziyu-app-status-v1\nstatus=ok\nroot=true\n'
@@ -204,11 +200,15 @@ status_emit() {
     status_field taskMessage "$1"; shift
     status_field taskProgress "$1"; shift
     status_field rebootRequired "$1"; shift
-    status_field temporaryRootMode "$1"; shift
     status_field rootManager "$1"; shift
     status_field mountEngine "$1"; shift
     status_field moduleDir "$1"; shift
-    printf 'field_count=30\ncomplete=ziyu-app-status-v1\n'
+    status_field temporaryRootMode "$1"; shift
+    status_field slotTotal "$1"; shift
+    status_field slotCjk "$1"; shift
+    status_field slotDigit "$1"; shift
+    status_field slotRom "$1"; shift
+    printf 'field_count=34\ncomplete=ziyu-app-status-v1\n'
 }
 
 status_json() {
@@ -293,7 +293,14 @@ status_json() {
                 case "$_mount_failed" in *rollback-failed*|*rollback-verification-failed*|*cleanup*|*backend-conflict*) _backend_rollback_uncertain=true ;; esac
                 ;;
             passed|pass)
-                case "$_backend_active" in self|meta|external) _mount_state=mounted ;; *) _mount_state=pending ;; esac
+                case "$_backend_active" in
+                    self|meta|external|manager)
+                        _mount_state=mounted
+                        _verification_state=verified; _verification_grade=PASS
+                        _verification_mode=backend; _verification_reason=none
+                        ;;
+                    *) _mount_state=pending ;;
+                esac
                 ;;
             not-applicable)
                 _mount_state=not-applicable
@@ -314,6 +321,11 @@ status_json() {
     elif [ -f "$MODDIR/config/mount-backend.conf" ]; then
         _mount_state=pending; _verification_state=pending; _verification_grade=PENDING
         _verification_reason=backend-current-boot-unconfirmed
+    fi
+    # 后端本次启动已确认挂载通过时，过期的待重启标记不再作为“需要重启”的依据。
+    if [ "$_reboot_required" = true ] && [ -n "$_backend_current" ] &&
+       [ "$_mount_state" = mounted ] && { [ "$_verification_state" = verified ] || [ "$_verification_state" = partial ]; }; then
+        _reboot_required=false
     fi
 
     _cutover_file="$MODDIR/config/universal-font-cutover.conf"
@@ -362,8 +374,6 @@ EOF_TASK_SELECTION
         _physical_pending=true
         _reboot_required=true
     fi
-    _temporary_root=false
-    temporary_root_mode && _temporary_root=true
 
     _effective_active='unknown'
     _font_effect_state='pending'
@@ -427,7 +437,7 @@ EOF_TASK_SELECTION
         fi
     elif [ "$_verification_state" = verified ]; then
         case "$_verification_mode" in
-            aligned|mount-verified|mount-confirmed|universal-pass)
+            aligned|mount-verified|mount-confirmed|universal-pass|backend)
                 _effective_active="$_active"
                 _font_effect_state=verified
                 ;;
@@ -476,7 +486,7 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         fi
     fi
 
-    # Task history records preparation, not the outcome of a later soft reboot.
+    # Task history records preparation, not the outcome of a later full reboot.
     # Return current verified state without rewriting the historical receipt.
     if [ "$_task_type" = switch ] && [ "$_task_state" = success ] &&
        [ "$_task_font" = "$_active" ] && [ "$_effective_active" = "$_active" ] &&
@@ -488,6 +498,47 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         esac
     fi
 
+    # 槽位覆盖统计：优先设备槽位发现缓存（fonts.xml + 机型清单），否则读发布记录。
+    _temporary_root=false
+    type temporary_root_mode >/dev/null 2>&1 && temporary_root_mode && _temporary_root=true
+    _slot_total=0; _slot_cjk=0; _slot_digit=0; _slot_latin=0; _slot_rom=''
+    _slot_cache="$MODDIR/config/device-slots.list"
+    if [ -f "$MODDIR/common/slot_coverage.sh" ]; then
+        . "$MODDIR/common/slot_coverage.sh" 2>/dev/null
+        type ziyu_slot_discover >/dev/null 2>&1 && ziyu_slot_discover "$MODDIR" >/dev/null 2>&1
+    fi
+    if [ -s "$_slot_cache" ]; then
+        while IFS= read -r _slot_line || [ -n "$_slot_line" ]; do
+            case "$_slot_line" in
+                count_cjk=*) _slot_cjk=${_slot_line#*=} ;;
+                count_digit=*) _slot_digit=${_slot_line#*=} ;;
+                count_latin=*) _slot_latin=${_slot_line#*=} ;;
+            esac
+        done < "$_slot_cache"
+        _slot_total=$((_slot_cjk + _slot_digit + _slot_latin))
+        type ziyu_slot_rom >/dev/null 2>&1 && _slot_rom=$(ziyu_slot_rom "$MODDIR")
+    elif [ -s "$MODDIR/config/slot-coverage.conf" ]; then
+        while IFS= read -r _slot_line || [ -n "$_slot_line" ]; do
+            case "$_slot_line" in
+                total=*) _slot_total=${_slot_line#*=} ;;
+                cjk=*) _slot_cjk=${_slot_line#*=} ;;
+                digit=*) _slot_digit=${_slot_line#*=} ;;
+                rom=*) _slot_rom=${_slot_line#*=} ;;
+            esac
+        done < "$MODDIR/config/slot-coverage.conf"
+    fi
+    case "$_slot_total" in ''|*[!0-9]*) _slot_total=0 ;; esac
+    case "$_slot_cjk" in ''|*[!0-9]*) _slot_cjk=0 ;; esac
+    case "$_slot_digit" in ''|*[!0-9]*) _slot_digit=0 ;; esac
+    case "$_slot_rom" in *[!A-Za-z0-9._-]*) _slot_rom='' ;; esac
+
+    # 后端已确认挂载/验证通过时，字体效果就是 verified；否则会一直显示“待本次启动验证”。
+    if [ "$_mount_state" = mounted ] && [ "$_verification_state" = verified ] &&
+       [ "$_active" != default ] && [ -n "$_active" ]; then
+        _effective_active=$_active
+        _font_effect_state=verified
+    fi
+
     status_emit \
         "$_installed" "$_version" "${_version_code:-0}" "$_active" \
         "$_effective_active" "$_font_effect_state" \
@@ -496,8 +547,9 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         "$_cutover_state" "$_cutover_decision" "$_rollback_state" "$_rollback_pending" \
         "$_rollback_target_font" "$_rollback_target_mode" \
         "$_task_type" "$_task_id" "$_task_font" "$_task_state" \
-        "$_task_message" "$_task_progress" "$_reboot_required" "$_temporary_root" \
-        "$(root_manager)" "$(mount_engine)" "$MODDIR"
+        "$_task_message" "$_task_progress" "$_reboot_required" \
+        "$(root_manager)" "$(mount_engine)" "$MODDIR" \
+        "$_temporary_root" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$_slot_rom"
 }
 
 case "$(read_prop "$MODDIR/module.prop" id)" in

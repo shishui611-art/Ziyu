@@ -112,6 +112,22 @@ PM_BIN=$(resolve_tool "${APP_INSTALL_PM_BIN:-}" pm)
 DUMPSYS_BIN=$(resolve_tool "${APP_INSTALL_DUMPSYS_BIN:-}" dumpsys)
 TIMEOUT_BIN=$(resolve_tool "${APP_INSTALL_TIMEOUT_BIN:-}" timeout)
 
+# Historical identities used a different applicationId (and an old `.debug`
+# suffix). They are separate packages, so they can survive next to the current
+# App as a second launcher icon. Report them instead of silently uninstalling.
+legacy_packages() {
+    _legacy_found=''
+    for _legacy_pkg in io.github.xgl34222220.ziyu io.github.xgl34222220.ziyu.debug \
+        io.github.shishui611_art.ziyu.debug; do
+        [ "$_legacy_pkg" != "$APP_PACKAGE" ] || continue
+        _legacy_list=$($PM_BIN list packages "$_legacy_pkg" 2>/dev/null)
+        case "$_legacy_list" in
+            *"package:$_legacy_pkg"*) _legacy_found="$_legacy_found $_legacy_pkg" ;;
+        esac
+    done
+    printf '%s' "${_legacy_found# }"
+}
+
 installed_version_code() {
     _dump=""
     if [ -n "$DUMPSYS_BIN" ]; then
@@ -156,7 +172,13 @@ fi
 printf '%s\n' "$INSTALL_RESULT" >> "$LOG" 2>/dev/null || true
 if [ "$INSTALL_CODE" -eq 0 ] && printf '%s' "$INSTALL_RESULT" | grep -q 'Success'; then
     rm -f "$PENDING" "$RETRY_STATE" 2>/dev/null || true
-    write_state installed "覆盖安装成功"
+    LEGACY_FOUND=$(legacy_packages)
+    if [ -n "$LEGACY_FOUND" ]; then
+        log_app INFO "检测到旧包名安装：$LEGACY_FOUND；桌面可能出现第二个图标，确认不再使用后请手动卸载"
+        write_state installed "覆盖安装成功；检测到旧包名：$LEGACY_FOUND（请手动卸载）"
+    else
+        write_state installed "覆盖安装成功"
+    fi
     log_app INFO "字域 App 已安装或更新到 $APP_VERSION_CODE"
     printf 'installed\n'
     exit 0
@@ -170,9 +192,15 @@ if [ "$INSTALL_CODE" -eq 124 ] || [ "$INSTALL_CODE" -eq 137 ]; then
     exit 10
 fi
 case "$INSTALL_RESULT" in
-    *INSTALL_FAILED_UPDATE_INCOMPATIBLE*|*INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES*|*INSTALL_FAILED_SHARED_USER_INCOMPATIBLE*|*INSTALL_FAILED_INVALID_APK*|*INSTALL_PARSE_FAILED_*)
-        write_state blocked "${INSTALL_RESULT:-安装包或签名不兼容}"
-        log_app ERROR "App 安装存在永久阻断，需要用户手动处理旧签名或损坏安装包"
+    *INSTALL_FAILED_UPDATE_INCOMPATIBLE*|*INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES*|*INSTALL_FAILED_SHARED_USER_INCOMPATIBLE*)
+        write_state blocked "已安装 App 与模块内置 App 签名不同；请卸载旧版后重试，或使用同一签名构建"
+        log_app ERROR "已安装 $APP_PACKAGE 的证书与内置 App 不一致，无法覆盖安装；不会自动卸载。确认需要正式版后请在系统设置中卸载旧版再重启"
+        printf 'signature-mismatch\n'
+        exit 12
+        ;;
+    *INSTALL_FAILED_INVALID_APK*|*INSTALL_PARSE_FAILED_*)
+        write_state blocked "${INSTALL_RESULT:-安装包损坏或格式不受支持}"
+        log_app ERROR "App 安装存在永久阻断，需要用户手动处理损坏的安装包"
         printf 'permanent-failure\n'
         exit 12
         ;;

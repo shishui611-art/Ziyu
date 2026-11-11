@@ -6,6 +6,7 @@ admitted just because its name or metrics resemble stock. Compilation verifies
 the build identity and content hash before using a saved copy.
 """
 from __future__ import annotations
+from ziyu_limits import limit_bytes as _limit_bytes
 
 import argparse
 import hashlib
@@ -21,7 +22,7 @@ from font_scan_profile import walk
 
 SCHEMA = 'ziyu-stock-font-snapshot-v1'
 MAX_BYTES = 384 * 1024 * 1024
-MAX_FILE = 128 * 1024 * 1024
+MAX_FILE = max(128 * 1024 * 1024, _limit_bytes())
 _verified = {}
 _loaded = {}
 

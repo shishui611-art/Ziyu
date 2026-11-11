@@ -404,7 +404,7 @@ printf '扫描完成：字体 XML %s 个，提取具体字体路由 %s 条。正
         printf '\n%s\n' '模块日志中的失败、blocked artifact、fallback、挂载和验证目标摘录（每份最多 120 行）'
         _logs=0
         for _name in logs/fontswitch.log logs/device-font-load-verify.log logs/mount-backend.log \
-          logs/font-route-verify.log logs/mount.log logs/self-mount.log logs/mount-diagnostics.log logs/soft-reboot.log logs/universal-runtime.log logs/service.log logs/stock-font-snapshot.log; do
+          logs/font-route-verify.log logs/mount.log logs/self-mount.log logs/mount-diagnostics.log logs/universal-runtime.log logs/service.log logs/stock-font-snapshot.log; do
             _file="$_fpc_moddir/$_name"; [ -s "$_file" ] || continue
             printf '\n[%s]\n' "$_name"
             if [ "$_name" = logs/mount-diagnostics.log ]; then

@@ -44,6 +44,58 @@ if [ "${1:-}" = diagnostic_capture ]; then
     shift
     exec sh "$MODDIR/common/diagnostic_capture.sh" "$@"
 fi
+if [ "${1:-}" = live ]; then
+    shift
+    exec sh "$MODDIR/common/ziyu_live.sh" "$@"
+fi
+if [ "${1:-}" = slot_stats ]; then
+    . "$MODDIR/common/slot_coverage.sh" || exit 1
+    ziyu_slot_stats "$MODDIR"
+    exit $?
+fi
+if [ "${1:-}" = import_limit ]; then
+    [ -f "$MODDIR/common/import_limit.sh" ] || { printf 'max_mb=256\n'; exit 1; }
+    shift
+    [ "$#" -gt 0 ] || set -- get
+    exec sh "$MODDIR/common/import_limit.sh" "$@"
+fi
+if [ "${1:-}" = soft_reboot ]; then
+    [ -f "$MODDIR/common/soft_reboot.sh" ] || { printf '{"status":"error","message":"软重启组件不可用"}\n'; exit 1; }
+    exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
+fi
+if [ "${1:-}" = temporary_root ]; then
+    [ -f "$MODDIR/common/temporary_root_mode.sh" ] && . "$MODDIR/common/temporary_root_mode.sh"
+    case "${2:-get}" in
+        set)
+            _tr_want=false
+            case "${3:-}" in true|1|on) _tr_want=true ;; esac
+            mkdir -p "$MODDIR/config/tools" 2>/dev/null || true
+            printf 'enabled=%s\n' "$_tr_want" > "$MODDIR/config/tools/temporary-root-mode.conf"
+            ;;
+    esac
+    if type ziyu_temporary_root_mode >/dev/null 2>&1 && ziyu_temporary_root_mode "$MODDIR"; then
+        printf 'enabled=true\n'
+    else
+        printf 'enabled=false\n'
+    fi
+    exit 0
+fi
+if [ "${1:-}" = slot_lang ]; then
+    mkdir -p "$MODDIR/config" 2>/dev/null || true
+    _sl_action="${2:-get}"
+    _sl_conf="$MODDIR/config/tools/slot-coverage-lang.conf"
+    [ -s "$_sl_conf" ] || _sl_conf="$MODDIR/config/slot_coverage_lang.conf"
+    _sl_value=0
+    [ -f "$_sl_conf" ] && _sl_value=$(sed -n 's/^enabled=//p' "$_sl_conf" 2>/dev/null | head -n1 | tr -d ' \r')
+    case "$_sl_action" in
+        set)
+            case "${3:-}" in on|1|true) _sl_value=1 ;; *) _sl_value=0 ;; esac
+            printf 'enabled=%s\n' "$_sl_value" > "$_sl_conf"
+            ;;
+    esac
+    printf 'enabled=%s\n' "${_sl_value:-0}"
+    exit 0
+fi
 if [ "${1:-}" = import_preview ]; then
     [ "$#" -eq 2 ] || exit 2
     exec sh "$MODDIR/common/import_preview.sh" "$2"
@@ -85,7 +137,6 @@ if [ "${1:-}" = display_config_storage ]; then
 fi
 [ -f "$MODDIR/common/mount_backend_details.sh" ] && . "$MODDIR/common/mount_backend_details.sh"
 [ -f "$MODDIR/common/root_manager_detection.sh" ] && . "$MODDIR/common/root_manager_detection.sh"
-[ -f "$MODDIR/common/temporary_root_mode.sh" ] && . "$MODDIR/common/temporary_root_mode.sh"
 [ -f "$MODDIR/common/meta_mount_detection.sh" ] && . "$MODDIR/common/meta_mount_detection.sh"
 FONT_MANAGER="$MODDIR/common/font_manager.sh"
 FONT_SWITCH_TASK="$MODDIR/common/font_switch_task.sh"
@@ -163,12 +214,6 @@ root_manager() {
     # provider is shown generically instead of being guessed from /data/adb/ksu.
     printf 'Root'
 }
-
-temporary_root_mode() {
-    case "$(root_manager)" in KernelSU|SukiSU\ Ultra) ;; *) return 1 ;; esac
-    ziyu_temporary_root_mode "$MODDIR"
-}
-
 
 manager_ready() {
     [ -x "$FONT_MANAGER" ] || [ -f "$FONT_MANAGER" ] || {
@@ -397,38 +442,30 @@ case "${1:-status}" in
         ;;
     stock_scan) manager_ready || exit 1; sh "$FONT_MANAGER" action stock_scan ;;
     import_system_fonts)
-        MODDIR="$MODDIR" sh "$MODDIR/common/system_font_library.sh"
+        shift
+        [ "$#" -gt 0 ] || set -- export
+        MODDIR="$MODDIR" sh "$MODDIR/common/system_font_library.sh" "$@"
         ;;
     switch_start) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" start "${2:-default}" ;;
     switch_status) switch_task_ready || exit 1; MODDIR="$MODDIR" sh "$FONT_SWITCH_TASK" status "${2:-}" ;;
+    # 字体应用相关入口统一走原生桥：App 不再直接调用内部脚本/工具。
+    switch_history)
+        shift
+        _sh_tool="$MODDIR/system/bin/ziyu-history"
+        [ -f "$_sh_tool" ] || _sh_tool="$MODDIR/common/ziyu_history.sh"
+        [ -f "$_sh_tool" ] || { printf '{"status":"error","message":"切换历史组件不可用"}\n'; exit 1; }
+        exec sh "$_sh_tool" "$@"
+        ;;
+    ttf_export)
+        shift
+        [ -f "$MODDIR/common/font_ttf_export.sh" ] || { printf '{"status":"error","message":"字体导出组件不可用"}\n'; exit 1; }
+        exec sh "$MODDIR/common/font_ttf_export.sh" "$@"
+        ;;
     delete) manager_ready || exit 1; sh "$FONT_MANAGER" action delete "${2:-}" ;;
     delete_many) manager_ready || exit 1; shift; sh "$FONT_MANAGER" action delete_many "$@" ;;
     mix_config) mix_ready || exit 1; sh "$MIX_ENGINE" config ;;
     mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-0}" "${13:-0}" ;;
     mix_status) mix_ready || exit 1; sh "$MIX_ENGINE" status "${2:-}" ;;
-    temporary_root)
-        case "${2:-status}" in
-            status)
-                _tr_enabled=false
-                temporary_root_mode && _tr_enabled=true
-                printf '{"status":"ok","data":{"enabled":%s,"rootManager":"%s"}}\n' "$_tr_enabled" "$(json_escape "$(root_manager)")"
-                ;;
-            enable|disable)
-                case "$(root_manager)" in KernelSU|SukiSU\ Ultra) ;; *) printf '{"status":"error","message":"仅支持 KernelSU 系列管理器"}\n'; exit 1 ;; esac
-                _tr_enabled=false
-                [ "$2" != enable ] || _tr_enabled=true
-                _tr_file="$MODDIR/config/temporary-root-mode.conf"
-                printf 'enabled=%s\n' "$_tr_enabled" > "${_tr_file}.tmp.$$" &&
-                    chmod 0600 "${_tr_file}.tmp.$$" && mv -f "${_tr_file}.tmp.$$" "$_tr_file" || exit 1
-                temporary_root_mode && _tr_enabled=true
-                printf '{"status":"ok","data":{"enabled":%s}}\n' "$_tr_enabled"
-                ;;
-            *) printf '{"status":"error","message":"未知临时 Root 设置"}\n'; exit 1 ;;
-        esac
-        ;;
-    soft_reboot)
-        exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
-        ;;
     reboot)
         manager_ready || exit 1
         sh "$FONT_MANAGER" action reboot_device

@@ -24,7 +24,7 @@ _lnm_cli() {
     if [ -n "$_lnm_meta" ]; then
         _ziyu_nomount_cli_for_dir "$_lnm_meta" && return 0
     fi
-    # The soft-reboot hook can run without provider detection having populated
+    # A cleanup-only path can run without provider detection having populated
     # META_MODULE_DIR. Locate only a module whose declared id is NoMount.
     for _lnm_candidate_dir in /data/adb/modules/nomount /data/adb/modules/NoMount /data/adb/modules/*; do
         [ -d "$_lnm_candidate_dir" ] || continue
@@ -277,115 +277,6 @@ ziyu_nomount_cleanup() {
     mkdir -p "$_lnm_module/logs" 2>/dev/null || true
     _lnm_cleanup_rows "$_lnm_module" "$_lnm_ledger_file" "$_lnm_cli_path" "$_lnm_boot"
 }
-
-# Only KernelSU's managed post-stop reload calls this adapter. NoMount 2.0
-# has no cleanup hook; its published module rules outlive a userspace restart.
-# Remove exact module-owned file pairs, never another module's rules or the
-# provider's global table. KernelSU still runs NoMount's native metamount stage.
-# This relies on KernelSU's managed ordering: Android has stopped and NoMount's
-# metamount path-rule writer runs later. The shared font lock excludes our own
-# tasks; it cannot serialize an independent root/adb invocation of the nm CLI.
-ziyu_nomount_reload_window_ready() {
-    [ "${ZIYU_KSU_POST_STOP_RELOAD:-0}" = 1 ] || return 1
-    [ "$(getprop init.svc.zygote 2>/dev/null)" = stopped ] || return 1
-    for _lnm_service in zygote_secondary zygote32 zygote64 zygote_next; do
-        case "$(getprop "init.svc.$_lnm_service" 2>/dev/null)" in ''|stopped) ;; *) return 1 ;; esac
-    done
-    # ColorOS's independent zygote_tango translator keeps argv[0]="zygote"
-    # across KernelSU's stop/start cycle. pidof therefore matches a process
-    # outside the services being reloaded and rejects every managed reload.
-    # Init's service lifecycle is authoritative, as in the manager's stop stage.
-    return 0
-}
-
-ziyu_nomount_provider_reload_cleanup() (
-    _lnm_module=$(_lnm_module "${1:-}")
-    ziyu_nomount_reload_window_ready || return 1
-    [ "$(readlink /proc/self/ns/mnt)" = "$(readlink /proc/1/ns/mnt)" ] &&
-        [ -n "$(readlink /proc/1/ns/mnt)" ] || return 1
-    _lnm_cli_path=$(_lnm_cli) || return 1
-    _lnm_setup_cli "$_lnm_cli_path" || return 1
-    _lnm_provider_found=0
-    for _lnm_provider in "${_lnm_cli_path%/*}" "${_lnm_cli_path%/*/*}" "${_lnm_cli_path%/*/*/*}"; do
-        _lnm_provider_id=$(sed -n 's/^id=//p' "$_lnm_provider/module.prop" 2>/dev/null | tr -d '\r\n' | tr '[:upper:]' '[:lower:]')
-        case "$_lnm_provider_id" in nomount|meta-nomount) _lnm_provider_found=1 ;; esac
-    done
-    [ "$_lnm_provider_found" = 1 ] || return 1
-    . "$_lnm_module/common/font_switch_lock.sh" || return 1
-    _lnm_reload_lock="$_lnm_module/.font_switch.lock"
-    ziyu_font_lock_acquire "$_lnm_reload_lock" "$$" || return 1
-    trap 'ziyu_font_lock_release "$_lnm_reload_lock" "$$" >/dev/null 2>&1' EXIT
-    # Retire rescue rules under the same font-transaction exclusion as the
-    # provider's published pairs, so a background font task cannot race either.
-    ziyu_nomount_cleanup "$_lnm_module" || return 1
-    mkdir -p "$_lnm_module/.ziyu-state" "$_lnm_module/logs" || return 1
-    _lnm_plan="$_lnm_module/.ziyu-state/nomount-provider-reload.plan"
-    _lnm_removed="$_lnm_module/.ziyu-state/nomount-provider-reload.removed"
-    _lnm_boot=$(_lnm_boot_id)
-    [ -n "$_lnm_boot" ] || return 1
-    if [ -s "$_lnm_removed" ] &&
-       [ "$(sed -n 's/^boot_id=//p' "$_lnm_removed" | head -n1)" != "$_lnm_boot" ]; then
-        # A complete kernel boot discards NoMount's RAM-only rule table.
-        rm -f "$_lnm_removed" "$_lnm_plan" || return 1
-    fi
-    # An interrupted transaction must be investigated instead of overwritten.
-    [ ! -s "$_lnm_removed" ] || { _lnm_log "$_lnm_module" 'provider-reload-previous-transaction-incomplete'; return 1; }
-    _lnm_json=$(_lnm_list_json "$_lnm_cli_path") || return 1
-    printf '%s\n' "$_lnm_json" | _lnm_json_parse "$_lnm_module" owned-plan-v2 "$_lnm_module" > "$_lnm_plan" || return 1
-    chmod 0600 "$_lnm_plan" || return 1
-    # Validate the complete plan before touching any rule. A module path alone
-    # is not sufficient: the virtual target must match its partition mapping.
-    while IFS='|' read -r _lnm_target _lnm_source _lnm_public; do
-        [ -n "$_lnm_target" ] || continue
-        case "$_lnm_source" in "$_lnm_module/"*) ;; *) return 1 ;; esac
-        _lnm_relative=${_lnm_source#"$_lnm_module/"}
-        [ "$(_lnm_target_for_rel "$_lnm_relative")" = "$_lnm_target" ] || return 1
-    done < "$_lnm_plan"
-    printf 'boot_id=%s\n' "$_lnm_boot" > "$_lnm_removed" || return 1
-    chmod 0600 "$_lnm_removed" || return 1
-    _lnm_bad=0
-    while IFS='|' read -r _lnm_target _lnm_source _lnm_public; do
-        [ -n "$_lnm_target" ] || continue
-        _lnm_current=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_target" "$_lnm_source") || { _lnm_bad=1; break; }
-        case "$_lnm_current" in
-            exact)
-                printf '%s|%s|%s\n' "$_lnm_target" "$_lnm_source" "$_lnm_public" >> "$_lnm_removed" || { _lnm_bad=1; break; }
-                _lnm_mutate "$_lnm_cli_path" del "$_lnm_target" >>"$_lnm_module/logs/mount-backend.log" 2>&1 || { _lnm_bad=1; break; }
-                _lnm_after=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_target" "$_lnm_source") || { _lnm_bad=1; break; }
-                [ "$_lnm_after" != exact ] || { _lnm_bad=1; break; }
-                ;;
-            absent|conflict) ;; # Ownership changed; never remove the new owner's rule.
-            *) _lnm_bad=1; break ;;
-        esac
-    done < "$_lnm_plan"
-    if [ "$_lnm_bad" = 0 ] &&
-       [ "$(ziyu_nomount_module_rules_state "$_lnm_module")" = absent ]; then
-        _lnm_log "$_lnm_module" 'provider-reload-owned-rules-removed; native metamount will republish'
-        rm -f "$_lnm_plan" "$_lnm_removed"
-        return 0
-    fi
-    _lnm_rollback_bad=0
-    while IFS='|' read -r _lnm_target _lnm_source _lnm_public; do
-        [ -n "$_lnm_target" ] || continue
-        case "$_lnm_target" in boot_id=*) continue ;; esac
-        _lnm_current=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_target" "$_lnm_source") || { _lnm_rollback_bad=1; continue; }
-        case "$_lnm_current" in
-            exact) ;;
-            absent)
-                _lnm_mutate "$_lnm_cli_path" add "$_lnm_target" "$_lnm_source" "${_lnm_public:-private}" >>"$_lnm_module/logs/mount-backend.log" 2>&1 || { _lnm_rollback_bad=1; continue; }
-                [ "$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_target" "$_lnm_source")" = exact ] || _lnm_rollback_bad=1
-                ;;
-            *) _lnm_rollback_bad=1 ;;
-        esac
-    done < "$_lnm_removed"
-    if [ "$_lnm_rollback_bad" = 0 ]; then
-        rm -f "$_lnm_plan" "$_lnm_removed"
-        _lnm_log "$_lnm_module" 'provider-reload-failed; original rules restored'
-    else
-        _lnm_log "$_lnm_module" 'provider-reload-rollback-unconfirmed; recovery ledger retained'
-    fi
-    return 1
-)
 
 ziyu_nomount_apply() (
     _lnm_module=$(_lnm_module "${1:-}")

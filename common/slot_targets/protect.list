@@ -1,0 +1,25 @@
+# ===========================================================================
+#  永不替换名单（targets/protect.list）
+#
+#  这些字体**任何情况下都不参与替换**，不管它是从 targets 名单来的、
+#  还是自动扫描目录发现的。判据走 slots.sh 里的 _role_set → ROLE=vadj，
+#  跟"粗细调节族引用的字体"同一条路。
+#
+#  为什么需要：有些机型的主字体被系统用于「字体粗细」调节（可变字体 / 带变体轴），
+#  替换成静态字体后，系统仍按轴去调节，个别 ROM（如 MagicOS）会导致
+#  SystemUI 反复异常、手机基本没法用。这类字体一律不碰。
+# ===========================================================================
+# 荣耀 MagicOS：主字体与全部可变字体（VF）
+HnFont.ttf
+HnEmoji.ttf
+EmojiIcon.otf
+HONORSansVFCondensed.ttf
+HONORSansVFConItalic.ttf
+HONORSansVFArabic.ttf
+HONORSansVFArabicUI.ttf
+RobotoFlex-Regular.ttf
+# 三星（真机反馈 2026-10-25）：某些三星自家 app 的定位/图标字形在这两个字体里，
+# 换掉就会出现"没有图标 / 一个方框"。显式列入永不替换。
+SamsungColorEmoji.ttf
+NotoSansSymbols-Regular-Subsetted2.ttf
+NotoSansSymbols-Regular-Subsetted.ttf

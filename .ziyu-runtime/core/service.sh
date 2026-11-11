@@ -57,9 +57,10 @@ MODULE_DIR="$MODDIR"
     fi
 
     # 原生 App 后端统一通过 sh 调用，仍校正权限以兼容不同 Root 管理器的解压行为。
+    # 一次批量 chmod，避免为 common 顶层每个文件各执行一次 chmod 进程。
     chmod 0755 "$MODDIR" "$MODDIR/common" 2>/dev/null || true
     chmod 0755 "$MODDIR/customize.sh" "$MODDIR/post-fs-data.sh" "$MODDIR/post-mount.sh" "$MODDIR/boot-completed.sh" "$MODDIR/service.sh" "$MODDIR/uninstall.sh" "$MODDIR/action.sh" 2>/dev/null || true
-    find "$MODDIR/common" -maxdepth 1 -type f -exec chmod 0755 {} \; 2>/dev/null || true
+    chmod 0755 "$MODDIR/common"/* 2>/dev/null || true
     chmod 0644 "$MODDIR/common/font_instance.py" "$MODDIR/common/composite_font.py" "$MODDIR/common/font_metrics_normalize.py" 2>/dev/null || true
     chmod 0755 "$MODDIR/common/python/bin/ziyu-python" 2>/dev/null || true
     chmod 0755 "$MODDIR/system/bin/ziyu" "$MODDIR/system/bin/ziyud" 2>/dev/null || true

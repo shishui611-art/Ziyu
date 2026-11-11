@@ -581,7 +581,6 @@ internal fun ZiyuAppShell(
                                 navigate(AppPage.Logs)
                             },
                             onDetailChanged = { settingsDetailVisible = it },
-                            onTemporaryRootChanged = viewModel::refresh,
                             onOpenFontLibrary = { navigate(AppPage.Library) },
                         )
                     }
@@ -775,8 +774,7 @@ internal fun ZiyuAppShell(
                 style = appearance.uiStyle,
                 kind = FontActionKind.APPLY,
                 message = if (font.supportsCjk) {
-                    if (viewModel.snapshot.temporaryRootMode) "直接应用「${font.name}」。完成后显示挂载结果；如需重启应用或刷新系统字体缓存，请使用 KernelSU 软重启。"
-                    else "直接应用「${font.name}」。完成后显示挂载结果，以及系统字体缓存是否需要重启刷新。"
+                    "直接应用「${font.name}」。完成后显示挂载结果，以及系统字体缓存是否需要重启刷新。"
                 } else {
                     "「${font.name}」不包含完整中文字形。直接应用后中文会继续使用系统默认字体，看起来可能没有变化；建议在组合页把它作为英文字体使用。"
                 },
@@ -806,7 +804,7 @@ internal fun ZiyuAppShell(
             FontActionDialogRoute(
                 style = appearance.uiStyle,
                 kind = FontActionKind.RESTORE,
-                message = if (viewModel.snapshot.temporaryRootMode) "恢复 ROM 自带字体映射。完成后请在 KernelSU 管理器中软重启。" else "恢复 ROM 自带字体映射。完成后需要完整重启手机。",
+                message = "恢复 ROM 自带字体映射。完成后需要完整重启手机。",
                 onDismiss = { restoreDefault = false },
                 onConfirm = {
                     restoreDefault = false

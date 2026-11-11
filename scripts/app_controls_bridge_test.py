@@ -27,7 +27,7 @@ class AppControlsBridgeTest(unittest.TestCase):
             (config / 'boot-safety-current-boot.conf').write_text(
                 f'schema=ziyu-boot-safety-current-v1\nstate=blocked\nboot_id={boot_id}\n', encoding='utf-8')
             shutil.copy2(ROOT / 'common/app_bridge.sh', common / 'app_bridge.sh')
-            for name in ('app_status.sh', 'root_manager_detection.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'temporary_root_mode.sh', 'legacy_identity.sh', 'font_boot_state.sh', 'font_live_state.sh'):
+            for name in ('app_status.sh', 'root_manager_detection.sh', 'mount_backend_state.sh', 'mount_backend_details.sh', 'legacy_identity.sh', 'font_boot_state.sh', 'font_live_state.sh'):
                 shutil.copy2(ROOT / 'common' / name, common / name)
             (common / 'boot_ota_guard.sh').write_text(
                 '#!/bin/sh\nprintf "status=ok\\nsafe_mode=1\\ncurrent_boot_blocked=1\\nreason=boot-safety-safe-mode\\n"\n',

@@ -27,8 +27,9 @@ from font_digest_cache import FontDigestCache, file_identity
 from font_instance import check_mix_cancellation
 from font_metrics_io import FontMetricsIO
 
-MAX_BYTES = 128 * 1024 * 1024
-MAX_TEMPLATE_BYTES = 384 * 1024 * 1024
+from ziyu_limits import limit_bytes as _limit_bytes
+MAX_BYTES = _limit_bytes()
+MAX_TEMPLATE_BYTES = max(384 * 1024 * 1024, _limit_bytes())
 MAX_DELTA_POINTS = 100_000_000
 UNSUPPORTED = frozenset(('CFF2', 'VARC', 'COLR', 'CBDT', 'CBLC', 'EBDT', 'EBLC', 'EBSC', 'bdat', 'bloc', 'sbix', 'SVG ',
     'morx', 'mort', 'kerx', 'ankr', 'Silf', 'Glat', 'Gloc', 'Feat', 'Sill',

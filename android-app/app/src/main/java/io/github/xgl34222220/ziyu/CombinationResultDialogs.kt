@@ -2,12 +2,9 @@ package io.github.xgl34222220.ziyu
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
@@ -16,7 +13,6 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog as AlertDialog
 import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
-import io.github.xgl34222220.ziyu.ui.design.ZiyuCircularProgressIndicator
 import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedTextField
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText
@@ -48,36 +44,20 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
         AlertDialog(
             onDismissRequest = viewModel::dismissRebootChoice,
             title = { ZiyuText("重启应用字体") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ZiyuText(viewModel.rebootChoiceMessage)
-                    if (viewModel.rebootChoiceChecking) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            ZiyuCircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            ZiyuText("正在确认软重启是否可用…")
-                        }
-                    }
-                }
-            },
+            text = { ZiyuText(viewModel.rebootChoiceMessage) },
             confirmButton = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     ZiyuButton(
-                        onClick = { viewModel.confirmReboot(false) },
+                        onClick = viewModel::confirmReboot,
                         modifier = Modifier.fillMaxWidth(),
                     ) { ZiyuText("完整重启") }
-                    if (viewModel.softRebootSupported) {
-                        ZiyuOutlinedButton(
-                            onClick = { viewModel.confirmReboot(true) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { ZiyuText("KernelSU 软重启") }
-                    }
                     ZiyuTextButton(
                         onClick = viewModel::dismissRebootChoice,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { ZiyuText("稍后") }
+                    ) { ZiyuText("取消") }
                 }
             },
             dismissButton = null,

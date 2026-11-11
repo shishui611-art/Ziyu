@@ -335,11 +335,14 @@ private fun CompactSystemFontRow(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             ) { Text("恢复", fontSize = 13.sp) }
         }
-        TextButton(
-            onClick = onImport,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        ) { Text("添加系统字体到字体库，用于组合") }
+        Row(Modifier.fillMaxWidth().padding(PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 12.dp)), verticalAlignment = Alignment.CenterVertically) {
+            Text("系统字体可添加为组合素材", color = textSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            FilledTonalButton(
+                onClick = onImport, enabled = !busy,
+                modifier = Modifier.heightIn(min = 40.dp), shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) { Text("添加系统字体", fontSize = 13.sp) }
+        }
 
     }
 }

@@ -29,6 +29,13 @@ ziyu_mount_backend_details() {
     _mbd_fallback_reason=$ZIYU_BACKEND_FALLBACK_REASON
     _mbd_provider=$ZIYU_BACKEND_PROVIDER_ID
     [ -n "$_mbd_provider" ] || _mbd_provider=$ZIYU_BACKEND_META_ENGINE
+    if [ "$_mbd_selected" = manager ]; then
+        MOUNT_PROVIDER_NAME='Root 管理器自动挂载'
+        MOUNT_PROVIDER_VERSION=$ZIYU_BACKEND_ROOT_VERSION
+        MOUNT_METHOD='模块树由 Root 管理器在开机阶段自动挂载'
+        MOUNT_METHOD_EVIDENCE='本次启动路由校验记录'
+        return 0
+    fi
     if [ "$_mbd_selected" = self ]; then
         MOUNT_PROVIDER_NAME='字域自挂载'
         if [ "$_mbd_fallback" = 1 ]; then

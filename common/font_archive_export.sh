@@ -33,10 +33,18 @@ dest="${2:-}"
 
 case "$dest" in
     *'/../'*|*/..|../*) _fae_fail "归档缓存路径无效" ;;
-    /data/user/0/io.github.shishui611_art.ziyu/cache/font_archive/*|\
-    /data/data/io.github.shishui611_art.ziyu/cache/font_archive/*|\
-    /data/user/0/io.github.shishui611_art.ziyu.debug/cache/font_archive/*|\
-    /data/data/io.github.shishui611_art.ziyu.debug/cache/font_archive/*) ;;
+esac
+# Accept every supported App identity and both private-storage path shapes.
+# A secondary user or a renamed/debug package must not be treated as foreign.
+case "$dest" in
+    /data/user/[0-9]*/io.github.shishui611_art.ziyu/cache/font_archive/?*|\
+    /data/user/[0-9]*/io.github.shishui611_art.ziyu.debug/cache/font_archive/?*|\
+    /data/user/[0-9]*/io.github.xgl34222220.ziyu/cache/font_archive/?*|\
+    /data/user/[0-9]*/io.github.xgl34222220.ziyu.debug/cache/font_archive/?*|\
+    /data/data/io.github.shishui611_art.ziyu/cache/font_archive/?*|\
+    /data/data/io.github.shishui611_art.ziyu.debug/cache/font_archive/?*|\
+    /data/data/io.github.xgl34222220.ziyu/cache/font_archive/?*|\
+    /data/data/io.github.xgl34222220.ziyu.debug/cache/font_archive/?*) ;;
     *) _fae_fail "归档目标目录不受信任" ;;
 esac
 

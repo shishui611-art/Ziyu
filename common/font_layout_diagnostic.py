@@ -32,7 +32,8 @@ PROBES = "中永国岁你好AHIx01247"
 PACKAGES = ("com.android.deskclock", "com.duokan.phone.remotecontroller",
             "com.tencent.mobileqq", "com.coolapk.market")
 MAX_EXTRA_SLOTS = 24
-MAX_FONT_BYTES = 128 * 1024 * 1024
+from ziyu_limits import limit_bytes as _limit_bytes
+MAX_FONT_BYTES = _limit_bytes()
 MAX_JSON_BYTES = 8 * 1024 * 1024
 SLOT_NAME = re.compile(r"[A-Za-z0-9_.+-]{1,120}\.(?:ttf|otf|ttc|otc)", re.I)
 KEY_NAME = re.compile(r"^(?:MiSans|Mitype|MiClock|AndroidClock|Clockopia|Roboto|"

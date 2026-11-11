@@ -21,11 +21,11 @@ trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 # app_bridge executes that reader; it retains private helpers for its other commands.
 # Pin the exact files rather than allowing an arbitrary extra definition.
 # an additional definition must still fail instead of inheriting this exception.
-for fn in mount_engine read_value root_manager read_first_line temporary_root_mode; do
+for fn in mount_engine read_value root_manager read_first_line; do
     case "$fn" in
         read_value) expected='common/font_switch_task.sh common/ziyu_health.sh' ;;
         root_manager) expected='common/app_bridge.sh common/app_status.sh common/ziyu_health.sh' ;;
-        read_first_line|temporary_root_mode) expected='common/app_bridge.sh common/app_status.sh' ;;
+        read_first_line) expected='common/app_bridge.sh common/app_status.sh' ;;
         *) expected='common/app_status.sh common/ziyu_health.sh' ;;
     esac
     actual=$(grep -l "^${fn}()" "$ROOT"/common/*.sh "$ROOT"/*.sh 2>/dev/null | sed "s|$ROOT/||" | sort | tr '\n' ' ' | sed 's/ $//')
@@ -97,7 +97,6 @@ ziyu_used_partitions
 python_run
 read_prop
 read_first_line
-temporary_root_mode
 mount_engine
 read_value
 root_manager

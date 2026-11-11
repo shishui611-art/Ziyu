@@ -6,11 +6,11 @@ import org.json.JSONObject
 internal object ModuleStatus {
     private const val SCHEMA = "ziyu-app-status-v1"
     private val booleans = setOf("root", "installed", "rollbackPending", "rebootRequired", "temporaryRootMode")
-    private val integers = setOf("versionCode", "taskProgress")
+    private val integers = setOf("versionCode", "taskProgress", "slotTotal", "slotCjk", "slotDigit")
     private val strings = setOf("version", "active", "effectiveActive", "fontEffectState", "verificationState",
         "verificationGrade", "verificationMode", "verificationReason", "mountState", "mountFailure", "cutoverState",
         "cutoverDecision", "rollbackState", "rollbackTargetFont", "rollbackTargetMode", "taskType", "taskId",
-        "taskFont", "taskState", "taskMessage", "rootManager", "mountEngine", "moduleDir")
+        "taskFont", "taskState", "taskMessage", "rootManager", "mountEngine", "moduleDir", "slotRom")
 
     suspend fun read(): ShellResult = RootShell.exec(
         "if [ -r /data/adb/modules/ziyu/common/app_status.sh ]; then " +

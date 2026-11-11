@@ -189,6 +189,24 @@ _uc_paths() {
     [ -s "$UC_PLAN" ] && [ -s "$UC_ROUTE" ] && [ -s "$UC_ARTIFACTS" ] && [ -s "$UC_DEPLOYMENT" ] && [ -d "$UC_PAYLOAD" ]
 }
 
+
+# 用户字体是否为彩色字体（防裁切不支持；此时自动跳过防裁切而不是让应用失败）。
+_uc_source_is_color() {
+    _ucsc_font="$1"
+    _ucsc_src=''
+    for _ucsc_ext in ttf otf ttc TTF OTF TTC; do
+        _ucsc_candidate="$PUBLIC_DIR/fonts/$_ucsc_font.$_ucsc_ext"
+        if [ -f "$_ucsc_candidate" ]; then _ucsc_src="$_ucsc_candidate"; break; fi
+    done
+    [ -n "$_ucsc_src" ] || return 1
+    [ -f "$MODDIR/common/font_check.sh" ] || return 1
+    (
+        . "$MODDIR/common/font_check.sh" 2>/dev/null || exit 1
+        font_validate "$_ucsc_src" >/dev/null 2>&1 || exit 1
+        [ "${FONT_CHECK_COLOR:-false}" = true ]
+    )
+}
+
 _uc_switch() {
     _uc_font="$1"
     [ -n "$_uc_font" ] || { printf '{"status":"error","message":"未指定字体"}\n'; return 1; }
@@ -234,10 +252,17 @@ _uc_switch() {
     }
     export ZIYU_FONT_CLIP_ENABLED
     if [ "$ZIYU_FONT_CLIP_ENABLED" = 1 ]; then
-        # The checked physical publisher preserves OEM line metrics while it
-        # fits donor outlines. Do not return success from an unaffected path.
-        _uc_legacy "$_uc_font" font-clipping-compatibility
-        return $?
+        if _uc_source_is_color "$_uc_font"; then
+            # 彩色字形无法按轮廓做防裁切；跳过防裁切继续应用，而不是让任务失败。
+            export ZIYU_FONT_CLIP_FORCE_OFF=1
+            export ZIYU_FONT_CLIP_ENABLED=0
+            _uc_log "INFO clipping skipped color font=$_uc_font"
+        else
+            # The checked physical publisher preserves OEM line metrics while it
+            # fits donor outlines. Do not return success from an unaffected path.
+            _uc_legacy "$_uc_font" font-clipping-compatibility
+            return $?
+        fi
     fi
     if [ -n "${ZIYU_REAL_MODDIR:-}" ]; then
         _uc_legacy "$_uc_font" composite-runtime

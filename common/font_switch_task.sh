@@ -74,7 +74,7 @@ write_task() {
        grep -Fqx "request_id=$_task" "$MODDIR/config/font-live-attempt.conf" 2>/dev/null &&
        grep -Fqx "boot_id=$_boot" "$MODDIR/config/font-live-attempt.conf" 2>/dev/null; then
         _ui_cache_refresh=true
-        _message='100% · 字体已热挂载；状态栏和通知界面仍使用旧字体缓存，可通过软重启刷新'
+        _message='100% · 字体已热挂载；状态栏和通知界面仍可能使用旧字体缓存，完整重启后刷新'
     fi
     case "$_reboot_required" in true|false) ;; *) _reboot_required=unknown ;; esac
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
@@ -491,8 +491,8 @@ status_task() {
     [ "$_live_applied" = true ] || _live_applied=false
     case "$_reboot_required" in true|false) ;; *) _reboot_required=null ;; esac
     case "$_percent" in ''|*[!0-9]*) _percent=0 ;; esac
-    # KernelSU soft reboot preserves boot_id. Bind completion to the exact
-    # activation request and the current generation proof, not a boot-id change.
+    # boot_id 只在完整重启后变化。完成判定绑定本次激活请求与当前代际证明，
+    # 不等待 boot_id 变化，也不把历史任务记录当成新一次激活的证据。
     if [ "$_state" = success ] && [ "$_reboot_required" != false ] &&
        [ ! -e "$MODDIR/config/text_reboot_required.conf" ] &&
        [ ! -e "$MODDIR/config/font-payload-next.conf" ] &&

@@ -19,7 +19,6 @@ data class HomeUiState(
     val taskMessage: String = "暂无后台字体任务",
     val taskProgress: Int = 0,
     val rebootRequired: Boolean = false,
-    val temporaryRootMode: Boolean = false,
     val error: String = "",
     val romCheckMessage: String = "",
     val mountPreferences: String = "",
@@ -33,6 +32,11 @@ data class HomeUiState(
     val libraryCount: Int? = null,
     val libraryCountStale: Boolean = false,
     val libraryCountLoading: Boolean = false,
+    val slotTotal: Int = 0,
+    val slotCjk: Int = 0,
+    val slotDigit: Int = 0,
+    val slotRom: String = "",
+    val temporaryRootMode: Boolean = false,
     val typographyVisible: Boolean = false,
     val typography: DisplayTypographyState = DisplayTypographyState(),
 )
@@ -88,7 +92,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
             else -> "正在等待模块连接"
         },
         taskMessage = when {
-            fontEffectState in setOf("live", "live-partial") -> "新字体挂载已验证。部分已打开界面可能仍使用缓存，可重新打开应用或手动软重启。" +
+            fontEffectState in setOf("live", "live-partial") -> "新字体挂载已验证。部分已打开界面可能仍使用缓存，可重新打开应用或完整重启。" +
                 if (fontEffectState == "live-partial") " ${mountFailure.ifBlank { verificationReason }}" else ""
             fontEffectState == "partial" -> mountFailure.ifBlank { verificationReason }
             mountState == "failed" && (mountFailure.contains("rollback-failed") ||
@@ -101,6 +105,10 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
         },
         taskProgress = taskProgress,
         rebootRequired = rebootRequired,
+        slotTotal = slotTotal,
+        slotCjk = slotCjk,
+        slotDigit = slotDigit,
+        slotRom = slotRom,
         temporaryRootMode = temporaryRootMode,
         error = error,
     )

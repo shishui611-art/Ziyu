@@ -5,6 +5,13 @@
 IMPORT_MAX_ZIP_BYTES=268435456
 IMPORT_MAX_FILES=128
 IMPORT_MAX_EXTRACT_BYTES=536870912
+# 单字体/ZIP 的上限可在设置里调整（默认 256 MB，范围 32–512 MB）。
+_import_limit_mod="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
+if [ -f "$_import_limit_mod/common/import_limit.sh" ]; then
+    IMPORT_LIMIT_LIBRARY_ONLY=1 . "$_import_limit_mod/common/import_limit.sh"
+    IMPORT_MAX_ZIP_BYTES=$(import_limit_get_bytes)
+    IMPORT_MAX_EXTRACT_BYTES=$((IMPORT_MAX_ZIP_BYTES * 2))
+fi
 [ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
@@ -265,7 +272,7 @@ import_zip_package() {
     _zip_bytes=$(wc -c < "$_zip" 2>/dev/null | tr -d '[:space:]')
     case "$_zip_bytes" in ''|*[!0-9]*) _zip_bytes=0 ;; esac
     if [ "$_zip_bytes" -le 0 ] || [ "$_zip_bytes" -gt "$IMPORT_MAX_ZIP_BYTES" ]; then
-        printf '{"status":"error","message":"字体包为空或超过 256 MB 限制"}\n'; return 0
+        printf '{"status":"error","message":"字体包为空或超过 %s MB 限制"}\n' "$((IMPORT_MAX_ZIP_BYTES / 1024 / 1024))"; return 0
     fi
     _import_mtz=false
     case "$_zip" in *.mtz|*.MTZ) _import_mtz=true ;; esac

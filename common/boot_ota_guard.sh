@@ -3,6 +3,8 @@
 # Only owned disable files are ever removed. Font selections, payloads and XML stay intact.
 set +e
 . "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
+# 读取状态文件时用于去尾部回车；只初始化一次，避免每个键都开子进程。
+_ZBG_CR=$(printf '\r')
 
 _zbg_module() {
     if [ -n "$1" ]; then printf '%s\n' "$1"
@@ -18,11 +20,11 @@ _zbg_candidates() {
     printf '%s\n' "$_zbg_current"
     case "$_zbg_current" in
         */modules_update/ziyu)
-            _zbg_base=$(printf '%s\n' "$_zbg_current" | sed 's,/modules_update/ziyu$,,')
+            _zbg_base=${_zbg_current%/modules_update/ziyu}
             [ -d "$_zbg_base/modules/ziyu" ] && printf '%s\n' "$_zbg_base/modules/ziyu"
             ;;
         */modules/ziyu)
-            _zbg_base=$(printf '%s\n' "$_zbg_current" | sed 's,/modules/ziyu$,,')
+            _zbg_base=${_zbg_current%/modules/ziyu}
             [ -d "$_zbg_base/modules_update/ziyu" ] && printf '%s\n' "$_zbg_base/modules_update/ziyu"
             ;;
     esac
@@ -33,7 +35,7 @@ _zbg_read_candidates() {
     _zbg_current=$(_zbg_module "$1")
     case "$_zbg_current" in
         */modules_update/ziyu)
-            _zbg_base=$(printf '%s\n' "$_zbg_current" | sed 's,/modules_update/ziyu$,,')
+            _zbg_base=${_zbg_current%/modules_update/ziyu}
             [ -d "$_zbg_base/modules/ziyu" ] && printf '%s\n' "$_zbg_base/modules/ziyu"
             printf '%s\n' "$_zbg_current"
             ;;
@@ -42,35 +44,64 @@ _zbg_read_candidates() {
 }
 
 _zbg_value() {
-    _zbg_read_value=$(sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1 | tr -d '\r\n')
+    _zbg_read_value=''
+    if [ -r "$1" ]; then
+        while IFS= read -r _zbg_read_line || [ -n "$_zbg_read_line" ]; do
+            case "$_zbg_read_line" in
+                "$2"=*)
+                    _zbg_read_value=${_zbg_read_line#"$2="}
+                    case "$_zbg_read_value" in
+                        *"$_ZBG_CR") _zbg_read_value=${_zbg_read_value%%"$_ZBG_CR"*} ;;
+                    esac
+                    break
+                    ;;
+            esac
+        done < "$1"
+    fi
     if [ "$2" = schema ]; then ziyu_legacy_schema "$_zbg_read_value"
     else printf '%s' "$_zbg_read_value"; fi
 }
 
 _zbg_boot_id() {
-    if [ -n "$ZIYU_BOOT_OTA_TEST_BOOT_ID" ]; then printf '%s\n' "$ZIYU_BOOT_OTA_TEST_BOOT_ID"
-    else cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n'
-    fi
+    if [ -n "$ZIYU_BOOT_OTA_TEST_BOOT_ID" ]; then printf '%s\n' "$ZIYU_BOOT_OTA_TEST_BOOT_ID"; return 0; fi
+    _zbg_bid=''
+    IFS= read -r _zbg_bid < /proc/sys/kernel/random/boot_id 2>/dev/null || _zbg_bid=''
+    case "$_zbg_bid" in
+        *"$_ZBG_CR"*) _zbg_bid=${_zbg_bid%%"$_ZBG_CR"*} ;;
+    esac
+    printf '%s' "$_zbg_bid"
 }
 
 _zbg_boot_completed() {
     if [ -n "$ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED" ]; then
         [ "$ZIYU_BOOT_OTA_TEST_BOOT_COMPLETED" = 1 ]
     else
-        [ "$(getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')" = 1 ]
+        _zbg_bc=$(getprop sys.boot_completed 2>/dev/null)
+        case "$_zbg_bc" in
+            *"$_ZBG_CR"*) _zbg_bc=${_zbg_bc%%"$_ZBG_CR"*} ;;
+        esac
+        [ "$_zbg_bc" = 1 ]
     fi
 }
 
 _zbg_fingerprint() {
-    if [ -n "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" ]; then printf '%s\n' "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" | tr -d '\r\n'
-    else getprop ro.build.fingerprint 2>/dev/null | tr -d '\r\n'
+    if [ -n "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" ]; then
+        _zbg_fp="$ZIYU_BOOT_OTA_TEST_FINGERPRINT"
+    else
+        _zbg_fp=$(getprop ro.build.fingerprint 2>/dev/null)
     fi
+    case "$_zbg_fp" in
+        *"$_ZBG_CR"*) _zbg_fp=${_zbg_fp%%"$_ZBG_CR"*} ;;
+    esac
+    printf '%s' "$_zbg_fp"
 }
 
 _zbg_rom_identity() {
     local _zbg_file _zbg_values
     if [ -n "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" ]; then
-        printf 'system-file-v2:%s\n' "$(printf '%s\n' "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" | sha256sum | awk '{print $1}')"
+        _zbg_hash=$(printf '%s\n' "$ZIYU_BOOT_OTA_TEST_FINGERPRINT" | sha256sum)
+        _zbg_hash=${_zbg_hash%% *}
+        printf 'system-file-v2:%s\n' "$_zbg_hash"
         return
     fi
     # Global getprop fields can be changed by Root modules after early boot.
@@ -80,7 +111,9 @@ _zbg_rom_identity() {
         [ -r "$_zbg_file" ] || continue
         _zbg_values=$(sed -n '/^ro\.system\.build\.fingerprint=/p; /^ro\.system\.build\.version\.incremental=/p; /^ro\.build\.version\.sdk=/p' "$_zbg_file")
         [ -n "$_zbg_values" ] || continue
-        printf 'system-file-v2:%s\n' "$(printf '%s\n' "$_zbg_values" | sha256sum | awk '{print $1}')"
+        _zbg_hash=$(printf '%s\n' "$_zbg_values" | sha256sum)
+        _zbg_hash=${_zbg_hash%% *}
+        printf 'system-file-v2:%s\n' "$_zbg_hash"
         return 0
     done
     return 1
@@ -191,12 +224,40 @@ _zbg_load_state() {
         fi
     done
     if [ -n "$_zbg_file" ]; then
-        ZBG_COUNT=$(_zbg_value "$_zbg_file" unfinished_boots)
-        ZBG_PENDING_BOOT=$(_zbg_value "$_zbg_file" pending_boot_id)
-        ZBG_LAST_COMPLETED=$(_zbg_value "$_zbg_file" last_completed_boot_id)
-        ZBG_FINGERPRINT=$(_zbg_value "$_zbg_file" fingerprint)
-        ZBG_ROM_IDENTITY=$(_zbg_value "$_zbg_file" rom_identity)
-        ZBG_REASON=$(_zbg_value "$_zbg_file" reason)
+        ZBG_COUNT=''
+        ZBG_PENDING_BOOT=''
+        ZBG_LAST_COMPLETED=''
+        ZBG_FINGERPRINT=''
+        ZBG_ROM_IDENTITY=''
+        ZBG_REASON=''
+        while IFS= read -r _zbg_state_line || [ -n "$_zbg_state_line" ]; do
+            case "$_zbg_state_line" in
+                unfinished_boots=*)
+                    ZBG_COUNT=${_zbg_state_line#*=}
+                    case "$ZBG_COUNT" in *"$_ZBG_CR"*) ZBG_COUNT=${ZBG_COUNT%%"$_ZBG_CR"*} ;; esac
+                    ;;
+                pending_boot_id=*)
+                    ZBG_PENDING_BOOT=${_zbg_state_line#*=}
+                    case "$ZBG_PENDING_BOOT" in *"$_ZBG_CR"*) ZBG_PENDING_BOOT=${ZBG_PENDING_BOOT%%"$_ZBG_CR"*} ;; esac
+                    ;;
+                last_completed_boot_id=*)
+                    ZBG_LAST_COMPLETED=${_zbg_state_line#*=}
+                    case "$ZBG_LAST_COMPLETED" in *"$_ZBG_CR"*) ZBG_LAST_COMPLETED=${ZBG_LAST_COMPLETED%%"$_ZBG_CR"*} ;; esac
+                    ;;
+                fingerprint=*)
+                    ZBG_FINGERPRINT=${_zbg_state_line#*=}
+                    case "$ZBG_FINGERPRINT" in *"$_ZBG_CR"*) ZBG_FINGERPRINT=${ZBG_FINGERPRINT%%"$_ZBG_CR"*} ;; esac
+                    ;;
+                rom_identity=*)
+                    ZBG_ROM_IDENTITY=${_zbg_state_line#*=}
+                    case "$ZBG_ROM_IDENTITY" in *"$_ZBG_CR"*) ZBG_ROM_IDENTITY=${ZBG_ROM_IDENTITY%%"$_ZBG_CR"*} ;; esac
+                    ;;
+                reason=*)
+                    ZBG_REASON=${_zbg_state_line#*=}
+                    case "$ZBG_REASON" in *"$_ZBG_CR"*) ZBG_REASON=${ZBG_REASON%%"$_ZBG_CR"*} ;; esac
+                    ;;
+            esac
+        done < "$_zbg_file"
     else
         ZBG_COUNT=0
         ZBG_PENDING_BOOT=''
@@ -708,7 +769,7 @@ _zbg_finalize_default_after_scan() {
 _zbg_apply_verified() {
     local _zbg_block_file _zbg_boot _zbg_current _zbg_device_verify _zbg_expected_digest _zbg_expected_id _zbg_font _zbg_generation _zbg_marker _zbg_mod _zbg_ota _zbg_state _zbg_universal_verify _zbg_verified
     _zbg_mod="$1"; _zbg_ota=$(_zbg_ota_pending "$1")
-    [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] || return 0
+    [ "${_zbg_ota%%|*}" = 1 ] || return 0
     _zbg_marker=$(_zbg_ota_path "$_zbg_mod")
     _zbg_state=$(_zbg_value "$_zbg_marker" state)
     if [ "$_zbg_state" = default-ready ]; then
@@ -850,7 +911,7 @@ _zbg_mark_apply_failed() {
     local _zbg_boot _zbg_candidate _zbg_current_font _zbg_file _zbg_marker _zbg_mod _zbg_ota _zbg_reason _zbg_tmp
     _zbg_mod="$1"; _zbg_reason="$2"
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] || return 0
+    [ "${_zbg_ota%%|*}" = 1 ] || return 0
     _zbg_marker=$(_zbg_ota_path "$_zbg_mod")
     [ "$(_zbg_value "$_zbg_marker" state)" = apply-ready ] || return 0
     _zbg_current_font=$(_zbg_effective_font "$_zbg_mod")
@@ -912,7 +973,7 @@ _zbg_schedule_watcher() {
                 # existing lock instead of leaving an OTA hold stuck forever.
                 if _zbg_boot_completed; then
                     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-                    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] &&
+                    if [ "${_zbg_ota%%|*}" = 1 ] &&
                        ! _zbg_stock_scan_trusted "$_zbg_mod"; then
                         _zbg_queue_rescan "$_zbg_mod" >/dev/null
                         return $?
@@ -1011,8 +1072,9 @@ _zbg_run_rescan_direct() (
                 return 1
             }
         fi
+        _zbg_pending_value=$(_zbg_ota_pending "$_zbg_mod")
         printf 'status=ok\nscan_state=complete\nreason=stock-rescan-complete\nota_pending=%s\nscan_complete=1\n' \
-            "$(printf '%s\n' "$(_zbg_ota_pending "$_zbg_mod")" | cut -d '|' -f1)"
+            "${_zbg_pending_value%%|*}"
         return 0
     fi
     _zbg_message=$(printf '%s\n' "$_zbg_out" | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tail -n1 | cut -c1-900)
@@ -1189,7 +1251,7 @@ _zbg_queue_rescan_locked() {
     local _zbg_boot _zbg_lock _zbg_lock_root _zbg_mod _zbg_ota _zbg_scan_timeout _zbg_script _zbg_start_rc _zbg_started _zbg_state _zbg_task _zbg_watch_mod _zbg_rom _zbg_attempt
     _zbg_mod="$1"
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] && \
+    if [ "${_zbg_ota%%|*}" = 1 ] && \
        _zbg_stock_scan_trusted "$_zbg_mod" && \
        [ "$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" state)" = default-ready ]; then
         _zbg_finalize_default_after_scan "$_zbg_mod" || {
@@ -1198,9 +1260,9 @@ _zbg_queue_rescan_locked() {
         _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
     fi
     if [ "${2:-auto}" != manual ] && \
-       { [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" != 1 ] || _zbg_scan_output_trusted "$_zbg_mod"; }; then
+       { [ "${_zbg_ota%%|*}" != 1 ] || _zbg_scan_output_trusted "$_zbg_mod"; }; then
         printf 'status=ok\nscan_state=complete\nota_pending=%s\nscan_complete=%s\n' \
-            "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" \
+            "${_zbg_ota%%|*}" \
             "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f2)"
         return 0
     fi
@@ -1296,7 +1358,7 @@ _zbg_watcher() {
     if _zbg_boot_completed; then
         sh "$_zbg_mod/common/boot_ota_guard.sh" complete "$_zbg_mod" >> "$_zbg_mod/logs/boot-ota-guard.log" 2>&1 || return 1
         _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-        if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] && \
+        if [ "${_zbg_ota%%|*}" = 1 ] && \
            ! _zbg_stock_scan_trusted "$_zbg_mod"; then
             _zbg_queue_rescan "$_zbg_mod" >/dev/null || _zbg_rc=$?
         fi
@@ -1389,10 +1451,10 @@ _zbg_status() {
     }
     _zbg_load_state "$_zbg_mod"
     _zbg_safe=$(_zbg_safe_mode "$_zbg_mod")
-    _zbg_safe_value=$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f1)
+    _zbg_safe_value=${_zbg_safe%%|*}
     _zbg_safe_reason=$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f2)
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    _zbg_ota_value=$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)
+    _zbg_ota_value=${_zbg_ota%%|*}
     _zbg_scan_value=$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f2)
     _zbg_reason=none
     if [ "$_zbg_safe_value" = 1 ]; then _zbg_reason=boot-safety-safe-mode
@@ -1434,7 +1496,7 @@ _zbg_recover() {
     local _zbg_candidate _zbg_marker _zbg_mod _zbg_ota _zbg_ota_value _zbg_rc _zbg_safe _zbg_safe_value
     _zbg_mod="$1"; _zbg_rc=0
     _zbg_safe=$(_zbg_safe_mode "$_zbg_mod")
-    _zbg_safe_value=$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f1)
+    _zbg_safe_value=${_zbg_safe%%|*}
     if [ "$_zbg_safe_value" = 1 ]; then
         _zbg_release_disable "$_zbg_mod" safe_mode || _zbg_rc=1
         if [ "$_zbg_rc" -eq 0 ]; then
@@ -1452,7 +1514,7 @@ _zbg_recover() {
     ZBG_COUNT=0; ZBG_PENDING_BOOT=''; ZBG_REASON=none
     _zbg_write_state_all "$_zbg_mod" || _zbg_rc=1
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    _zbg_ota_value=$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)
+    _zbg_ota_value=${_zbg_ota%%|*}
     if [ "$_zbg_ota_value" = 1 ]; then
         _zbg_create_disable "$_zbg_mod" ota_hold "$(_zbg_boot_id)" || _zbg_rc=1
     fi
@@ -1473,7 +1535,7 @@ _zbg_observe() {
     _zbg_boot=$(_zbg_boot_id)
     [ -n "$_zbg_boot" ] || return 1
     _zbg_safe=$(_zbg_safe_mode "$_zbg_mod")
-    _zbg_safe_value=$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f1)
+    _zbg_safe_value=${_zbg_safe%%|*}
     if _zbg_boot_completed; then
         ZBG_COUNT=0; ZBG_PENDING_BOOT=''; ZBG_LAST_COMPLETED=$_zbg_boot; ZBG_REASON=none
         _zbg_write_state_all "$_zbg_mod" || return 1
@@ -1489,7 +1551,7 @@ _zbg_observe() {
     fi
     [ "$_zbg_safe_value" != 1 ] || return 10
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ]; then
+    if [ "${_zbg_ota%%|*}" = 1 ]; then
         if ! _zbg_stock_scan_trusted "$_zbg_mod" || \
            ! _zbg_apply_ready_matches "$_zbg_mod" "$(_zbg_effective_font "$_zbg_mod")"; then
             ZBG_COUNT=0; ZBG_PENDING_BOOT=$_zbg_boot; ZBG_REASON=ota-hold
@@ -1550,14 +1612,14 @@ _zbg_hook() {
         *) return 1 ;;
     esac
     _zbg_safe=$(_zbg_safe_mode "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f1)" = 1 ] && _zbg_effective_custom_font "$_zbg_mod"; then
+    if [ "${_zbg_safe%%|*}" = 1 ] && _zbg_effective_custom_font "$_zbg_mod"; then
         _zbg_create_disable "$_zbg_mod" safe_mode "$(_zbg_boot_id)" || return 1
         _zbg_write_current_boot_block "$_zbg_mod" boot-safety-safe-mode "$(_zbg_boot_id)" || return 1
         _zbg_schedule_watcher "$_zbg_mod" || true
         return 10
     fi
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ]; then
+    if [ "${_zbg_ota%%|*}" = 1 ]; then
         _zbg_schedule_watcher "$_zbg_mod" || true
         if _zbg_effective_custom_font "$_zbg_mod" && \
            { ! _zbg_stock_scan_trusted "$_zbg_mod" || ! _zbg_apply_ready_matches "$_zbg_mod" "$(_zbg_effective_font "$_zbg_mod")"; }; then
@@ -1575,12 +1637,12 @@ _zbg_allow_apply() {
     _zbg_mod="$1"; _zbg_font="$2"
     [ "$_zbg_font" != default ] || return 0
     _zbg_safe=$(_zbg_safe_mode "$_zbg_mod")
-    [ "$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f1)" != 1 ] || {
+    [ "${_zbg_safe%%|*}" != 1 ] || {
         printf '%s\n' 'BootSafety safe mode is active; only restoring the system default font is allowed.' >&2
         return 20
     }
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
-    if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ]; then
+    if [ "${_zbg_ota%%|*}" = 1 ]; then
         _zbg_stock_scan_trusted "$_zbg_mod" || {
             printf '%s\n' 'OTA hold is waiting for a verified stock-font rescan; reapplying user fonts is paused.' >&2
             return 21
@@ -1594,13 +1656,13 @@ _zbg_record_apply() {
     _zbg_mod="$1"; _zbg_font="$2"
     _zbg_ota=$(_zbg_ota_pending "$_zbg_mod")
     _zbg_safe=$(_zbg_safe_mode "$_zbg_mod")
-    if [ "$_zbg_font" != default ] && [ "$(printf '%s\n' "$_zbg_safe" | cut -d '|' -f1)" = 1 ]; then
+    if [ "$_zbg_font" != default ] && [ "${_zbg_safe%%|*}" = 1 ]; then
         return 20
     fi
     if [ "$_zbg_font" = default ]; then
         _zbg_identity=$(_zbg_apply_generation_identity "$_zbg_mod" default 1) || return 1
         _zbg_release_disable "$_zbg_mod" safe_mode || return 1
-        if [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ]; then
+        if [ "${_zbg_ota%%|*}" = 1 ]; then
             _zbg_old=$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" previous_fingerprint)
             _zbg_current=$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" fingerprint)
             _zbg_boot=$(_zbg_value "$(_zbg_ota_path "$_zbg_mod")" detected_boot_id)
@@ -1613,7 +1675,7 @@ _zbg_record_apply() {
         _zbg_log "$_zbg_mod" "verified default generation accepted; safe-mode marker remains"
         return 0
     fi
-    [ "$(printf '%s\n' "$_zbg_ota" | cut -d '|' -f1)" = 1 ] || return 0
+    [ "${_zbg_ota%%|*}" = 1 ] || return 0
     _zbg_stock_scan_trusted "$_zbg_mod" || return 1
     _zbg_identity=$(_zbg_apply_generation_identity "$_zbg_mod" "$_zbg_font" 1) || return 1
     _zbg_marker=$(_zbg_ota_path "$_zbg_mod")
@@ -1638,7 +1700,35 @@ _zbg_cli() {
         initialize) _zbg_detect_ota "$_zbg_mod" ;;
         status) _zbg_status "$_zbg_mod" ;;
         recover) _zbg_recover "$_zbg_mod" ;;
-        hook) _zbg_hook "$_zbg_mod" ;;
+        hook)
+            # root post-fs-data 与挂载运行时本轮启动都会调用 hook；同一 boot_id
+            # 内复用第一次结果，避免重复做完整 OTA/开机保护判定。
+            _zbg_hook_marker="$_zbg_mod/config/boot-ota-guard-hook.conf"
+            _zbg_hook_cached_boot=''
+            _zbg_hook_cached_rc=''
+            if [ -r "$_zbg_hook_marker" ] && [ ! -L "$_zbg_hook_marker" ]; then
+                while IFS= read -r _zbg_hm_line || [ -n "$_zbg_hm_line" ]; do
+                    case "$_zbg_hm_line" in
+                        boot=*) _zbg_hook_cached_boot=${_zbg_hm_line#*=} ;;
+                        rc=*) _zbg_hook_cached_rc=${_zbg_hm_line#*=} ;;
+                    esac
+                done < "$_zbg_hook_marker"
+            fi
+            _zbg_hook_now=$(_zbg_boot_id)
+            case "$_zbg_hook_cached_rc" in 0|10|12) ;; *) _zbg_hook_cached_rc='' ;; esac
+            if [ -n "$_zbg_hook_now" ] && \
+               [ "$_zbg_hook_cached_boot" = "$_zbg_hook_now" ] && \
+               [ -n "$_zbg_hook_cached_rc" ]; then
+                return "$_zbg_hook_cached_rc"
+            fi
+            _zbg_hook "$_zbg_mod"
+            _zbg_hook_rc=$?
+            case "$_zbg_hook_rc" in 0|10|12)
+                printf 'boot=%s\nrc=%s\n' "$_zbg_hook_now" "$_zbg_hook_rc" > "$_zbg_hook_marker" 2>/dev/null || true
+                ;;
+            esac
+            return "$_zbg_hook_rc"
+            ;;
         observe) _zbg_observe "$_zbg_mod" ;;
         complete) _zbg_complete "$_zbg_mod" ;;
         allow-apply) _zbg_allow_apply "$_zbg_mod" "$3" ;;

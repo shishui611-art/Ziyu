@@ -8,7 +8,7 @@ MODULE="$TMP/module"
 CONFIG="$MODULE/config"
 mkdir -p "$CONFIG" "$MODULE/common" "$TMP/bin"
 # Status is a dedicated helper with a Root boundary; simulate that boundary here.
-for helper in app_status.sh root_manager_detection.sh mount_backend_state.sh mount_backend_details.sh temporary_root_mode.sh legacy_identity.sh font_boot_state.sh font_live_state.sh; do
+for helper in app_status.sh root_manager_detection.sh mount_backend_state.sh mount_backend_details.sh legacy_identity.sh font_boot_state.sh font_live_state.sh; do
     cp "$ROOT/common/$helper" "$MODULE/common/"
 done
 printf '#!/bin/sh\nprintf "0\\n"\n' > "$TMP/bin/id"

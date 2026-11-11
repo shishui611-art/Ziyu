@@ -18,6 +18,7 @@ ziyu_mount_select() {
     [ "${3:-false}" = true ] || { printf 'none\n'; return 0; }
     case "${4:-auto}" in
         magic|overlayfs|self_mount) printf 'self\n'; return 0 ;;
+        manager) printf 'manager\n'; return 0 ;;
     esac
     case "${2:-unknown}" in
         available) printf 'external\n' ;;

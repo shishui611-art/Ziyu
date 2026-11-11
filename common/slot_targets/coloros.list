@@ -1,0 +1,145 @@
+# coloros —— 按分区组织
+#
+# ★ 2026-10-17：改成**分区**格式。分区的作用：
+#   开关（保留锁屏时钟字体 / 保留日韩 / 保留特殊槽）只需要决定"读哪个分区"，
+#   不用再去遍历字体配置、扫描目录 —— 切换开关能做到零扫描。
+#
+# 分区标记格式：单独一行的 [分区名]
+#   没有分区标记的老清单会被当成整份 [base]（向后兼容）。
+#
+# 分区列表：
+#
+# 分区（开关只决定读不读某个分区，不用扫描）：
+#   [main]    主力字体（中/英/数字）—— 永远读
+#   [clock]   时钟字体 —— 「保留锁屏时钟」开着时不读
+#   [theme]   主题字体（圆体/方体/衬线/斜体/等宽/装饰）
+#   [cjk]     中文（繁中/兰亭）
+#   [kana]    日文     [hangul] 韩文
+#   [lang]    其它文字（阿拉伯/希伯来/泰文…）
+
+[clock]
+AndroidClock.ttf
+
+OSans-Solid-Digits-VF.ttf
+[main]
+DINPro-Bold.ttf
+DINPro-Medium.ttf
+DINPro-Regular.ttf
+GoogleSans-Bold.ttf
+GoogleSans-Medium.ttf
+GoogleSans-Regular.ttf
+GoogleSans-SemiBold.ttf
+GoogleSans-VF.ttf
+GoogleSansFlex-Regular.ttf
+GoogleSansText-Bold.ttf
+GoogleSansText-Medium.ttf
+GoogleSansText-Regular.ttf
+GoogleSansText-SemiBold.ttf
+GoogleSansText-VF.ttf
+GoogleSansTextVF.ttf
+OPPODIN-Bold.ttf
+OPPODIN-Medium.ttf
+OPPODIN-Regular.ttf
+OPSans-En-Regular.ttf
+OplusOSUI-Black.ttf
+OplusOSUI-Bold.ttf
+OplusOSUI-ExtraBold.ttf
+OplusOSUI-ExtraLight.ttf
+OplusOSUI-Light.ttf
+OplusOSUI-Medium.ttf
+OplusOSUI-Regular.ttf
+OplusOSUI-SemiBold.ttf
+OplusOSUI-Thin.ttf
+OplusOSUI-XThin.ttf
+OplusSans-Black.ttf
+OplusSans-Bold.ttf
+OplusSans-ExtraBold.ttf
+OplusSans-ExtraLight.ttf
+OplusSans-Light.ttf
+OplusSans-Medium.ttf
+OplusSans-Regular.ttf
+OplusSans-SemiBold.ttf
+OplusSans-Thin.ttf
+OppoSans-Black.ttf
+OppoSans-Bold.ttf
+OppoSans-ExtraBold.ttf
+OppoSans-Light.ttf
+OppoSans-Medium.ttf
+OppoSans-Regular.ttf
+OppoSans-SemiBold.ttf
+OppoSans-Thin.ttf
+Opposans-En-Bold.ttf
+Opposans-En-Light.ttf
+Opposans-En-Medium.ttf
+Opposans-En-Regular.ttf
+Opposans-Hans-Bold.ttf
+Opposans-Hans-Light.ttf
+Opposans-Hans-Medium.ttf
+Opposans-Hans-Regular.ttf
+Roboto-Black.ttf
+Roboto-Bold.ttf
+Roboto-ExtraBold.ttf
+Roboto-ExtraLight.ttf
+Roboto-Light.ttf
+Roboto-Medium.ttf
+Roboto-Regular.ttf
+Roboto-SemiBold.ttf
+Roboto-Thin.ttf
+RobotoFlex-Regular.ttf
+RobotoStatic-Regular.ttf
+SourceSansPro-Bold.ttf
+SourceSansPro-Regular.ttf
+SourceSansPro-SemiBold.ttf
+SysFont-Black.ttf
+SysFont-Bold.ttf
+SysFont-Hans-Bold.ttf
+SysFont-Hans-Light.ttf
+SysFont-Hans-Medium.ttf
+SysFont-Hans-Regular.ttf
+SysFont-Hans-Thin.ttf
+SysFont-Light.ttf
+SysFont-Medium.ttf
+SysFont-Regular.ttf
+SysFont-Static-Bold.ttf
+SysFont-Static-Light.ttf
+SysFont-Static-Medium.ttf
+SysFont-Static-Regular.ttf
+SysFont-Thin.ttf
+SysSans-En-Black.ttf
+SysSans-En-Bold.ttf
+SysSans-En-Light.ttf
+SysSans-En-Medium.ttf
+SysSans-En-Regular.ttf
+SysSans-En-Thin.ttf
+SysSans-Hans-Bold.ttf
+SysSans-Hans-Light.ttf
+SysSans-Hans-Medium.ttf
+SysSans-Hans-Regular.ttf
+
+SysFont-Myanmar.ttf
+Rotobo-Regular.ttf
+MyanmarZg.ttf
+FZZWXBTOT_Uni.ttf
+HYShenQiTuJianU.ttf
+Banana_Wide_Brush_Inspiration.ttf
+Billgates-2.ttf
+Galada-Regular.ttf
+[theme]
+DINCondensedBold.ttf
+OPPODINCondensed-Bold.ttf
+OPPODINCondensed-Medium.ttf
+OPPODINCondensed-Regular.ttf
+Oplus-Serif.ttf
+DancingScript-Bold.ttf
+
+[lang]
+SysFont-Hant-Bold.ttf
+SysFont-Hant-Light.ttf
+SysFont-Hant-Medium.ttf
+SysFont-Hant-Regular.ttf
+SysFont-Hant-Thin.ttf
+SysSans-Hant-Bold.ttf
+SysSans-Hant-Light.ttf
+SysSans-Hant-Medium.ttf
+SysSans-Hant-Regular.ttf
+NotoSerifHentaigana.ttf

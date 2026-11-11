@@ -39,10 +39,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val TTF_EXPORT_BRIDGE = "/data/adb/modules/ziyu/common/font_ttf_export.sh"
+private const val TTF_EXPORT_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
 
 private suspend fun ttfCommand(command: String): JSONObject {
-    val result = RootShell.exec("sh ${RootShell.quote(TTF_EXPORT_BRIDGE)} $command", timeoutMs = 360_000L)
+    val result = RootShell.exec("sh ${RootShell.quote(TTF_EXPORT_BRIDGE)} ttf_export $command", timeoutMs = 360_000L)
     val root = result.stdout.lineSequence().mapNotNull { line ->
         runCatching { JSONObject(line) }.getOrNull()
     }.lastOrNull() ?: error(result.stderr.ifBlank { "字体模块没有返回导出结果，请确认 App 与模块版本一致" })

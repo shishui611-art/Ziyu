@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private const val STOCK_SCAN_COMMAND =
-    "sh /data/adb/modules/ziyu/common/font_manager.sh action stock_scan"
+    "sh /data/adb/modules/ziyu/common/app_bridge.sh stock_scan"
 
 private fun stockScanResultMessage(stdout: String, stderr: String, code: Int): String {
     val jsonLine = stdout.lineSequence()

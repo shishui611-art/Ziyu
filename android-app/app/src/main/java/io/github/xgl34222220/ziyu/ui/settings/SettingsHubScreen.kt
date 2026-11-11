@@ -43,6 +43,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.Build
@@ -119,7 +120,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.xgl34222220.ziyu.BuildConfig
-import io.github.xgl34222220.ziyu.RootShell
 import io.github.xgl34222220.ziyu.ui.appearance.AccentOptions
 import io.github.xgl34222220.ziyu.ui.appearance.AppearanceSettings
 import io.github.xgl34222220.ziyu.ui.appearance.KolorStyle
@@ -136,7 +136,6 @@ import io.github.xgl34222220.ziyu.ui.theme.ZiyuGlyph
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuIconTokens
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuTopBar
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 import io.github.xgl34222220.ziyu.ui.appearance.forDark
 import io.github.xgl34222220.ziyu.ui.appearance.themeText
 
@@ -177,6 +176,8 @@ internal enum class SettingsSection(
     APP_COVERAGE("检查应用字体", "字体没变化时，查找原因", Icons.Rounded.Search, .98f),
     GOOGLE("Google 字体兼容", "英文或数字恢复默认时使用", Icons.Rounded.Build, .96f),
     STORAGE("文件与配置位置", "管理字体文件与 DPI 配置", Icons.Rounded.Backup, 1.08f),
+    TOOLS("字体工具", "导入上限与槽位范围", Icons.Rounded.Build, .96f),
+    TEMP_ROOT("临时 Root", "软重启与立即生效", Icons.Rounded.RestartAlt, .96f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
     UPDATE("模块更新", "GitHub 正式版模块与更新说明", Icons.Rounded.SystemUpdate, 1.03f),
 }
@@ -187,7 +188,6 @@ internal fun AppearanceSettingsRoute(
     actions: AppearanceActions,
     onOpenTasks: () -> Unit = {},
     onDetailChanged: (Boolean) -> Unit = {},
-    onTemporaryRootChanged: () -> Unit = {},
     active: Boolean = true,
     currentFontLabel: String = "",
     fonts: List<io.github.xgl34222220.ziyu.FontItem> = emptyList(),
@@ -197,7 +197,7 @@ internal fun AppearanceSettingsRoute(
     onLoadFonts: () -> Unit = {},
     onOpenFontLibrary: () -> Unit = {},
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, onTemporaryRootChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary)
 }
 
 @Composable
@@ -206,7 +206,6 @@ internal fun SettingsHubRoute(
     actions: AppearanceActions,
     onOpenTasks: () -> Unit,
     onDetailChanged: (Boolean) -> Unit,
-    onTemporaryRootChanged: () -> Unit,
     active: Boolean,
     currentFontLabel: String,
     fonts: List<io.github.xgl34222220.ziyu.FontItem>,
@@ -290,7 +289,7 @@ internal fun SettingsHubRoute(
                         SettingsSection.OVERVIEW -> OverviewPage(model, currentFontLabel)
                         SettingsSection.APPEARANCE -> AppearancePage(settings, actions)
                         SettingsSection.NOTIFICATIONS -> pageList { item { io.github.xgl34222220.ziyu.NotificationAccessCard() } }
-                        SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle, onTemporaryRootChanged)
+                        SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle)
                         SettingsSection.FONT_RULES -> pageList { item { SettingCard("选择字体") { FontSlotRulesCard() } } }
                         SettingsSection.CLIPPING -> FontClippingPage(fonts, currentFontId, fontBusy, fontLoading)
                         SettingsSection.BOOT_SAFETY -> BootSafetyPage(fontBusy, onOpenFontLibrary)
@@ -300,6 +299,8 @@ internal fun SettingsHubRoute(
                             item { UserStorageCard() }
                             item { DisplayConfigStorageCard() }
                         }
+                        SettingsSection.TOOLS -> pageList { item { FontToolsPage() } }
+                        SettingsSection.TEMP_ROOT -> pageList { item { TempRootPage() } }
                         SettingsSection.BACKUP -> pageList { item { FullBackupCard(settings, actions) } }
                         SettingsSection.UPDATE -> UpdatePage(model)
                     }
@@ -390,6 +391,16 @@ internal fun SettingsHome(
                 SettingsNavigationRow(
                     section = SettingsSection.STORAGE,
                     onClick = { onOpenSection(SettingsSection.STORAGE) },
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    section = SettingsSection.TOOLS,
+                    onClick = { onOpenSection(SettingsSection.TOOLS) },
+                )
+                SettingsDivider()
+                SettingsNavigationRow(
+                    section = SettingsSection.TEMP_ROOT,
+                    onClick = { onOpenSection(SettingsSection.TEMP_ROOT) },
                 )
                 SettingsDivider()
                 SettingsNavigationRow(
@@ -732,54 +743,16 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
 }
 
 @Composable
-private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle, onTemporaryRootChanged: () -> Unit) {
+private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle) {
     val h = model.health
     val m = model.maintenance
     var confirmRestore by remember { mutableStateOf(false) }
-    var temporaryRootEnabled by remember { mutableStateOf(false) }
-    var temporaryRootBusy by remember { mutableStateOf(false) }
-    var temporaryRootMessage by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    val ksuAvailable = h.rootManager == "KernelSU" || h.rootManager == "SukiSU Ultra"
-    LaunchedEffect(ksuAvailable) {
-        if (ksuAvailable) {
-            val result = RootShell.exec("sh /data/adb/modules/ziyu/common/app_bridge.sh temporary_root status", 8_000L)
-            runCatching { JSONObject(result.stdout.trim()).optJSONObject("data")?.optBoolean("enabled") }
-                .getOrNull()?.let { temporaryRootEnabled = it }
-        }
-    }
     pageList {
+        item { SlotLanguageCard() }
         item {
             SettingCard("LSPosed 网页字体") {
                 Text("在 LSPosed 中启用字域、选择应用，再重新打开应用。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Text("部分网页或自带浏览器可能不支持。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-            }
-        }
-        if (ksuAvailable) item {
-            SettingCard("KernelSU 软重启") {
-                ToggleLine(
-                    title = "临时 Root 模式",
-                    description = "完整重启后会失去 Root 时开启。应用字体后可选择 KernelSU 软重启。",
-                    checked = temporaryRootEnabled,
-                    enabled = !temporaryRootBusy,
-                    onChange = { enabled ->
-                        scope.launch {
-                            temporaryRootBusy = true
-                            val action = if (enabled) "enable" else "disable"
-                            val result = RootShell.exec("sh /data/adb/modules/ziyu/common/app_bridge.sh temporary_root $action", 8_000L)
-                            val response = runCatching { JSONObject(result.stdout.trim()) }.getOrNull()
-                            if (result.code == 0 && response?.optString("status") == "ok") {
-                                temporaryRootEnabled = response.optJSONObject("data")?.optBoolean("enabled") == true
-                                temporaryRootMessage = if (temporaryRootEnabled) "已开启临时 Root 模式" else "已关闭临时 Root 模式"
-                                onTemporaryRootChanged()
-                            } else {
-                                temporaryRootMessage = response?.optString("message").orEmpty().ifBlank { result.stderr.ifBlank { "设置失败" } }
-                            }
-                            temporaryRootBusy = false
-                        }
-                    },
-                )
-                if (temporaryRootMessage.isNotBlank()) Text(temporaryRootMessage, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
             }
         }
         item {

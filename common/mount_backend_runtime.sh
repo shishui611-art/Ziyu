@@ -5,6 +5,7 @@
 set +e
 MODDIR="${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"
 MODULE_DIR="$MODDIR"
+[ ! -f "$MODDIR/common/boot_profile.sh" ] || . "$MODDIR/common/boot_profile.sh"
 _lbr_state="$MODDIR/config/mount-backend.conf"
 _lbr_log="$MODDIR/logs/mount-backend.log"
 _lbr_boot="${ZIYU_BACKEND_TEST_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')}"
@@ -22,7 +23,7 @@ ziyu_backend_load_dependencies() {
     done
     type ziyu_backend_state_load >/dev/null 2>&1 || return 1
     [ "${ZIYU_BACKEND_TEST_MODE:-0}" != 1 ] || return 0
-    for _lbr_dependency in util_functions font_config_runtime font_config_partitions mount_compat mount_self_backend; do
+    for _lbr_dependency in util_functions font_config_runtime font_config_partitions mount_compat mount_self_backend mount_manager_backend; do
         _lbr_helper="$MODDIR/common/$_lbr_dependency.sh"
         [ ! -f "$_lbr_helper" ] || . "$_lbr_helper"
     done
@@ -57,12 +58,14 @@ _lbr_log_mount_summary() {
     _lbr_summary_method='未确认'
     case "$_lbr_summary_selected" in
         self) _lbr_summary_selected_name='字域自挂载 (self)' ;;
+        manager) _lbr_summary_selected_name='根管理器挂载 (manager)' ;;
         external|meta) _lbr_summary_selected_name='外部提供者 (external)' ;;
         none) _lbr_summary_selected_name='无 (none)' ;;
         unresolved) _lbr_summary_selected_name='未能确定 (unresolved)' ;;
     esac
     case "$_lbr_summary_active" in
         self) _lbr_summary_active_name='字域自挂载 (self)' ;;
+        manager) _lbr_summary_active_name='根管理器挂载 (manager)' ;;
         external|meta) _lbr_summary_active_name='外部提供者 (external)' ;;
         none|'') _lbr_summary_active_name='无 (none)' ;;
     esac
@@ -429,6 +432,76 @@ _lbr_restore_boot_choice() {
     [ -n "$_lbr_fallback_service_retry" ] || _lbr_fallback_service_retry=0
 }
 
+# The kernel boot id is unchanged across later module stages, so the record is
+# restored rather than re-selected. A module update can have replaced the module
+# directory between the record and this hook, dropping the provider scan tree and
+# receipt, which used to fail over to self-mount. Reuse the restored external
+# choice, but re-publish once at the early boundary when the projection no longer
+# matches; post-mount and service stay read-only.
+_lbr_republish_restored_external() {
+    [ "$_lbr_stage" = post-fs-data ] || return 0
+    if [ "$_lbr_selected" = manager ]; then
+        # A changed payload must be published again; an unchanged one keeps its
+        # previous boot receipt so route verification can run in this boot.
+        ziyu_manager_backend_apply "$MODDIR"
+        _lbr_mgr_apply_rc=$?
+        type ziyu_boot_profile_mark >/dev/null 2>&1 && ziyu_boot_profile_mark "$MODDIR" mount-manager-apply
+        case "$_lbr_mgr_apply_rc" in
+            0)
+                _lbr_write_state manager none 0 prepared not-run "$_lbr_stage" pending manager-mount-awaiting-verification
+                _lbr_log_mount_summary pending "$_lbr_stage" manager-mount-awaiting-verification
+                return 0
+                ;;
+            3)
+                _lbr_write_state manager none 0 prepared not-run "$_lbr_stage" pending manager-mount-awaiting-reboot
+                _lbr_log_mount_summary pending "$_lbr_stage" manager-mount-awaiting-reboot
+                return 0
+                ;;
+        esac
+        _lbr_write_state manager none 0 failed not-run "$_lbr_stage" failed manager-mount-prepare-failed
+        _lbr_log_mount_summary failed "$_lbr_stage" manager-mount-prepare-failed
+        return 1
+    fi
+    [ "$_lbr_selected" = external ] || return 0
+    [ "${PROVIDER_STATE:-unknown}" = available ] || return 0
+    case "${PROVIDER_LAYOUT:-}" in nested-system|nomount-partition-roots) ;; *) return 0 ;; esac
+    [ -n "${PROVIDER_CONTENT_ROOT:-}" ] || return 0
+    [ "$(_lbr_active_font)" != default ] || return 0
+    type ziyu_provider_payload_ready >/dev/null 2>&1 || return 0
+    _lbr_republish_needed=1
+    if ziyu_provider_payload_ready "$MODDIR" "$PROVIDER_CONTENT_ROOT" "$PROVIDER_LAYOUT"; then
+        _lbr_republish_needed=0
+    fi
+    if [ "$_lbr_republish_needed" = 1 ]; then
+        _lbr_log '[PROVIDER-REPUBLISH] 本次启动记录仍为 external，但发布树或回执已失效（模块更新后同一启动记录失效）；在 post-fs-data 重新发布'
+        if ! ziyu_provider_payload_publish "$MODDIR" "$PROVIDER_CONTENT_ROOT" "$PROVIDER_LAYOUT"; then
+            _lbr_route_error=provider-publish-failed
+            _lbr_try_auto_self_fallback "$_lbr_route_error"
+            _lbr_fallback_rc=$?
+            [ "$_lbr_fallback_rc" -eq 2 ] || return "$_lbr_fallback_rc"
+            _lbr_write_state external none 0 failed not-run "$_lbr_stage" failed "$_lbr_route_error"
+            _lbr_log_mount_summary failed "$_lbr_stage" "$_lbr_route_error"
+            return 1
+        fi
+    fi
+    # Installing the module claims this module's own skip markers so the next
+    # boot can publish before any provider scans. Keep the restored external
+    # choice, but release those markers or the metamodule skips this module and
+    # the run falls back to self-mount even though the tree is valid.
+    if type ziyu_skip_release_owned >/dev/null 2>&1 && ! ziyu_skip_release_owned "$MODDIR"; then
+        _lbr_route_error=owned-skip-cleanup-failed
+        _lbr_try_auto_self_fallback "$_lbr_route_error"
+        _lbr_fallback_rc=$?
+        [ "$_lbr_fallback_rc" -eq 2 ] || return "$_lbr_fallback_rc"
+        _lbr_write_state external none 0 failed not-run "$_lbr_stage" failed "$_lbr_route_error"
+        _lbr_log_mount_summary failed "$_lbr_stage" "$_lbr_route_error"
+        return 1
+    fi
+    _lbr_write_state external none "$_lbr_fallback" prepared not-run "$_lbr_stage" pending provider-scan-pending
+    _lbr_log_mount_summary pending "$_lbr_stage" provider-scan-pending
+    return 0
+}
+
 _lbr_cleanup_nomount_rules() {
     [ -e "$MODDIR/.ziyu-state/nomount-rules.current" ] || return 0
     . "$MODDIR/common/mount_nomount_backend.sh" || return 1
@@ -577,30 +650,8 @@ _lbr_try_auto_self_fallback() {
 ziyu_mount_backend_hook() {
     _lbr_stage="$1"
     mkdir -p "$MODDIR/config" "$MODDIR/logs" || return 1
-    if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
-        MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" hook "$MODDIR" \
-            >> "$MODDIR/logs/boot-ota-guard.log" 2>&1
-        _lbr_guard_rc=$?
-        case "$_lbr_guard_rc" in
-            0) ;;
-            10|12)
-                _lbr_guard_reason=ota-fingerprint-change
-                [ "$_lbr_guard_rc" != 10 ] || _lbr_guard_reason=boot-safety-safe-mode
-                # The guard blocks activation and mounting, not read-only
-                # identity detection. Keep real manager/meta evidence visible
-                # instead of replacing it with unknown on a protected boot.
-                _lbr_detect || :
-                _lbr_write_state unresolved none 0 blocked blocked "$_lbr_stage" failed "$_lbr_guard_reason" || return 1
-                _lbr_log "mounting blocked: $_lbr_guard_reason; detected root=${ROOT_MANAGER:-unknown} meta=${META_ENGINE:-none}; no payload activated"
-                return 0
-                ;;
-            *)
-                _lbr_write_state unresolved none 0 blocked blocked "$_lbr_stage" failed boot-guard-failed || return 1
-                _lbr_log 'boot guard failed; provider detection refused'
-                return 1
-                ;;
-        esac
-    fi
+    # 轻量启动：挂载运行时不再重复执行 OTA/开机保护判定。
+    type ziyu_boot_profile_mark >/dev/null 2>&1 && ziyu_boot_profile_mark "$MODDIR" mount-guard
     if [ -e "$MODDIR/config/font-live-transaction.conf" ]; then
         _lbr_log 'live transaction in progress or requires recovery; boot backend verification deferred'
         return 0
@@ -640,15 +691,48 @@ ziyu_mount_backend_hook() {
         return 0
     fi
 
+    _lbr_restore_record=0
     if [ "$ZIYU_BACKEND_BOOT_ID" = "$_lbr_boot" ] && \
        { [ "$_lbr_stage" != post-fs-data ] || [ "$ZIYU_BACKEND_LAST_ERROR" != early-hook-missing ]; }; then
+        _lbr_restore_record=1
+        # The boot id stays the same within one boot. One automatic self-mount
+        # fallback must not own every later stage: automatic mode re-detects the
+        # provider at post-fs-data instead of restoring the fallback forever. A
+        # self mode the user actually selected is still restored verbatim.
+        if [ "$_lbr_stage" = post-fs-data ] && \
+           [ "$ZIYU_BACKEND_PREFERRED_BACKEND" = auto ] && \
+           [ "$ZIYU_BACKEND_FALLBACK_USED" = 1 ]; then
+            _lbr_restore_record=0
+            _lbr_log '[RE-DETECT] 自动模式的本次启动记录为回退自挂载；post-fs-data 重新检测外部提供者'
+        fi
+    fi
+    if [ "$_lbr_restore_record" = 1 ]; then
         _lbr_restore_boot_choice
+        _lbr_republish_restored_external || return $?
     else
         # The initial choice and publication have a single early-boot boundary.
         if [ "$_lbr_stage" != post-fs-data ]; then
             _lbr_write_state unresolved none 0 not-run not-run "$_lbr_stage" pending early-hook-missing
             _lbr_log_mount_summary pending "$_lbr_stage" early-hook-missing
             return 1
+        fi
+        # Automatic mode reached this branch because a previous stage fell back
+        # to self-mount. That kernel mount survives within the boot, so reclaim
+        # it before re-selecting a provider; otherwise the stale overlay shadows
+        # the provider and later diagnostics disagree.
+        if [ "$ZIYU_BACKEND_SELECTED_BACKEND" = self ] || [ "$ZIYU_BACKEND_ACTIVE_BACKEND" = self ]; then
+            _lbr_restore_boot_choice
+            if ! _lbr_rollback_self_attempt; then
+                _lbr_log '[RE-DETECT] 旧自挂载回收未确认，保留自挂载并等待下次启动'
+                _lbr_write_state self self 1 not-selected failed "$_lbr_stage" failed self-rollback-before-redetect-failed
+                _lbr_log_mount_summary failed "$_lbr_stage" self-rollback-before-redetect-failed
+                return 1
+            fi
+            _lbr_log '[RE-DETECT] 已回收本次启动的旧自挂载，重新检测外部提供者'
+            _lbr_fallback=0
+            _lbr_fallback_reason=none
+            _lbr_self_backend_selected=none
+            _lbr_self_backend_active=none
         fi
         _lbr_preference=$(ziyu_mount_preference_get)
         _lbr_previous_boot=$ZIYU_BACKEND_BOOT_ID
@@ -671,6 +755,7 @@ ziyu_mount_backend_hook() {
         fi
         _lbr_selected=$(ziyu_mount_select false "$PROVIDER_STATE" "$_lbr_has_font" "$_lbr_preference")
         _lbr_log "provider=$PROVIDER_STATE id=$PROVIDER_ID selected=$_lbr_selected"
+        type ziyu_boot_profile_mark >/dev/null 2>&1 && ziyu_boot_profile_mark "$MODDIR" mount-detect
         case "$_lbr_selected" in
             external)
                 # Publish files first; clear only owned exclusions after success.
@@ -727,6 +812,29 @@ ziyu_mount_backend_hook() {
                         return 1
                         ;;
                 esac
+                ;;
+            manager)
+                # Manager mount: publish the tree and let the Root manager mount
+                # it automatically on the next boot. This module creates no bind
+                # or overlay mount of its own in this mode.
+                ziyu_manager_backend_apply "$MODDIR"
+                _lbr_mgr_apply_rc=$?
+                type ziyu_boot_profile_mark >/dev/null 2>&1 && ziyu_boot_profile_mark "$MODDIR" mount-manager-apply
+                case "$_lbr_mgr_apply_rc" in
+                    0)
+                        _lbr_write_state manager none 0 prepared not-run "$_lbr_stage" pending manager-mount-awaiting-verification
+                        _lbr_log_mount_summary pending "$_lbr_stage" manager-mount-awaiting-verification
+                        return 0
+                        ;;
+                    3)
+                        _lbr_write_state manager none 0 prepared not-run "$_lbr_stage" pending manager-mount-awaiting-reboot
+                        _lbr_log_mount_summary pending "$_lbr_stage" manager-mount-awaiting-reboot
+                        return 0
+                        ;;
+                esac
+                _lbr_write_state manager none 0 failed not-run "$_lbr_stage" failed manager-mount-prepare-failed
+                _lbr_log_mount_summary failed "$_lbr_stage" manager-mount-prepare-failed
+                return 1
                 ;;
             unresolved)
                 _lbr_route_error="provider-unavailable:$PROVIDER_REASON"
@@ -826,6 +934,12 @@ ziyu_mount_backend_hook() {
                 _lbr_external_self_result=$ZIYU_BACKEND_SELF_RESULT
                 _lbr_write_state external external "$_lbr_fallback" passed "${_lbr_external_self_result:-not-run}" "$_lbr_stage" "$FONT_ROUTE_VERIFY_RESULT" none
                 _lbr_log_mount_summary success "$_lbr_stage" none
+                # The provider owns the routes now; retire this module's own
+                # older self-mount journal and mirror instead of reporting it.
+                if type ziyu_self_stale_assets_cleanup >/dev/null 2>&1; then
+                    ziyu_self_stale_assets_cleanup || \
+                        _lbr_log '旧自挂载账本清理未完成；保留工作目录等待下次启动'
+                fi
                 return 0
             fi
             _lbr_route_error=external-route-verification-failed
@@ -852,6 +966,28 @@ ziyu_mount_backend_hook() {
             _lbr_write_state external none 0 failed not-run "$_lbr_stage" failed "$_lbr_route_error"
             _lbr_log_mount_summary failed "$_lbr_stage" "$_lbr_route_error"
             return 1
+            ;;
+        manager)
+            [ "$_lbr_stage" = post-fs-data ] || {
+                ziyu_manager_backend_verify "$MODDIR"
+                _lbr_mgr_verify_rc=$?
+                case "$_lbr_mgr_verify_rc" in
+                    0)
+                        _lbr_write_state manager manager 0 passed not-run "$_lbr_stage" passed none
+                        _lbr_log_mount_summary success "$_lbr_stage" none
+                        return 0
+                        ;;
+                    2)
+                        _lbr_write_state manager none 0 prepared not-run "$_lbr_stage" pending manager-mount-awaiting-verification
+                        _lbr_log_mount_summary pending "$_lbr_stage" manager-mount-awaiting-verification
+                        return 0
+                        ;;
+                esac
+                _lbr_write_state manager none 0 failed not-run "$_lbr_stage" failed "${ZIYU_MANAGER_VERIFY_REASON:-manager-route-verification-failed}"
+                _lbr_log_mount_summary failed "$_lbr_stage" "${ZIYU_MANAGER_VERIFY_REASON:-manager-route-verification-failed}"
+                return 1
+            }
+            return 0
             ;;
         self)
             # Record real capability even when the user selected self-mount;

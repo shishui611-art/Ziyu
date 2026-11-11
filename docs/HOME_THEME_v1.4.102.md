@@ -42,5 +42,3 @@ Material 悬浮底栏统一改为自己的 MaterialExpandingTabs：260 ms 同步
 拖动按本次布局相对于底栏的真实 tab 边界命中，保留滑动切换；点击、辅助功能、返回历史继续沿用原 onSelect/navigate。
 非悬浮 Material 保留系统 NavigationBar。没有加入新的后台任务。
 底栏真机动画流畅度、快速连点/拖动、RTL、预测性返回与窄屏/大字号仍需设备验证。
-
-临时 Root 可见性排查另见 [TEMP_ROOT_VISIBILITY_v1.4.102.md](TEMP_ROOT_VISIBILITY_v1.4.102.md)，本次未实现或承诺系统级特征隐藏。

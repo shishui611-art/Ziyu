@@ -8,13 +8,30 @@ FONT_ROOT="$PUBLIC_ROOT/fonts"
 CONFIG_DIR="$MODDIR/config"
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n\r' '  '; }
+# The stage must live under one of this module's App packages. Old builds only
+# knew the previous applicationId, so a renamed App was told its own cache
+# directory was untrusted. Accept every supported identity and both storage
+# path shapes (/data/user/<user>/<package> and /data/data/<package>).
 trusted_stage() {
-    case "$1" in
-        /data/user/0/io.github.xgl34222220.ziyu/cache/full_backup/*|/data/data/io.github.xgl34222220.ziyu/cache/full_backup/*|\
-        /data/user/0/io.github.xgl34222220.ziyu.debug/cache/full_backup/*|/data/data/io.github.xgl34222220.ziyu.debug/cache/full_backup/*|\
-        /tmp/ziyu-full-backup-test/*) return 0 ;;
+    _ts_path="$1"
+    [ -n "$_ts_path" ] || return 1
+    case "$_ts_path" in /tmp/ziyu-full-backup-test/*) return 0 ;; esac
+    case "$_ts_path" in
+        /data/user/[0-9]*/io.github.shishui611_art.ziyu/cache/full_backup/*|\
+        /data/user/[0-9]*/io.github.shishui611_art.ziyu.debug/cache/full_backup/*|\
+        /data/user/[0-9]*/io.github.xgl34222220.ziyu/cache/full_backup/*|\
+        /data/user/[0-9]*/io.github.xgl34222220.ziyu.debug/cache/full_backup/*|\
+        /data/data/io.github.shishui611_art.ziyu/cache/full_backup/*|\
+        /data/data/io.github.shishui611_art.ziyu.debug/cache/full_backup/*|\
+        /data/data/io.github.xgl34222220.ziyu/cache/full_backup/*|\
+        /data/data/io.github.xgl34222220.ziyu.debug/cache/full_backup/*) ;;
+        *) return 1 ;;
     esac
-    return 1
+    [ -d "$_ts_path" ] && [ ! -L "$_ts_path" ] || return 1
+    _ts_owner=$(stat -c '%u' "$_ts_path" 2>/dev/null)
+    case "$_ts_owner" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$_ts_owner" -ge 10000 ] 2>/dev/null || return 1
+    return 0
 }
 safe_copy_file() { [ -f "$1" ] || return 0; mkdir -p "${2%/*}" 2>/dev/null || return 1; cp -f "$1" "$2" 2>/dev/null; }
 

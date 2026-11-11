@@ -25,32 +25,7 @@ mkdir -p "$MODDIR/logs" 2>/dev/null || true
     . "$MODDIR/common/user_storage.sh" || exit 1
     ziyu_user_storage_command "$MODDIR" apply >> "$MODDIR/logs/user-storage.log" 2>&1
 ) </dev/null >/dev/null 2>&1 &
-# This bounded worker is independent of this module's service callback, which
-# a manager may skip after the early guard writes an owned disable marker.
-if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" schedule-watcher "$MODDIR" \
-        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1 || true
-    if [ "$(getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')" = 1 ]; then
-        MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" complete "$MODDIR" \
-            >> "$MODDIR/logs/boot-ota-guard.log" 2>&1 || true
-    fi
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/boot_ota_guard.sh" hook "$MODDIR" \
-        >> "$MODDIR/logs/boot-ota-guard.log" 2>&1
-    _boot_guard_rc=$?
-    case "$_boot_guard_rc" in
-        0) ;;
-        10|12)
-            [ ! -f "$MOUNT_BACKEND_RUNTIME" ] || MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-                sh "$MOUNT_BACKEND_RUNTIME" hook service >> "$MODDIR/logs/mount-backend.log" 2>&1 || true
-            exit 0
-            ;;
-        *)
-            printf '[BOOT-OTA-GUARD] service safety check failed rc=%s\n' "$_boot_guard_rc" >> "$MODDIR/logs/boot-ota-guard.log"
-            exit 1
-            ;;
-    esac
-fi
-
+# 轻量启动：service 阶段不再执行 OTA/开机保护判定。
 # A Meta backend is verified after the manager's mount stage. The runtime is a
 # no-op for a self backend already committed at its Root-specific hook.
 mkdir -p "$MODDIR/logs" 2>/dev/null || true

@@ -566,9 +566,9 @@ _ziyu_migrate_active_install_locked() {
         } > "$_new/config/font-payload-rebuild-pending.conf" 2>/dev/null || return 1
         rm -f "$_new/config/font-payload-reapply-notified.conf" 2>/dev/null || true
     fi
-    find "$_new/config" -type d -exec chmod 0755 {} \; 2>/dev/null || true
-    find "$_new/config" -type f -exec chmod 0644 {} \; 2>/dev/null || true
-    find "$_new/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
+    find "$_new/config" -type d -exec chmod 0755 {} + 2>/dev/null || true
+    find "$_new/config" -type f -exec chmod 0644 {} + 2>/dev/null || true
+    find "$_new/system/fonts" -type f -exec chmod 0644 {} + 2>/dev/null || true
     ZIYU_UPDATE_FAILURE_REASON=''
     return 0
 }

@@ -54,9 +54,13 @@ internal data class ModuleSnapshot(
     val taskMessage: String = "暂无后台任务",
     val taskProgress: Int = 0,
     val rebootRequired: Boolean = false,
-    val temporaryRootMode: Boolean = false,
     val rootManager: String = "未知",
     val mountEngine: String = "未知",
+    val slotTotal: Int = 0,
+    val slotCjk: Int = 0,
+    val slotDigit: Int = 0,
+    val slotRom: String = "",
+    val temporaryRootMode: Boolean = false,
     val error: String = "",
 ) {
     // A consumed reboot queue can still be waiting for the bounded boot verifier.
@@ -385,7 +389,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
 
     fun loadMountPreferences() = mountPreferenceRequest("get")
     fun setMountPreference(value: String) {
-        if (!mountPreferenceSaving && value != mountBackendPreference && value in setOf("auto", "magic", "overlayfs", "self_mount")) mountPreferenceRequest("set $value")
+        if (!mountPreferenceSaving && value != mountBackendPreference && value in setOf("auto", "magic", "overlayfs", "self_mount", "manager")) mountPreferenceRequest("set $value")
     }
     fun dismissMountBackendRebootPrompt() { mountBackendRebootPrompt = null }
     fun cancelMountPreference() = mountPreferenceRequest("cancel")
@@ -421,11 +425,12 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             if (!data.optBoolean("ok")) error(data.optString("message").ifBlank { data.optString("error", result.stderr) })
             if (action.startsWith("set ") && data.optString("preferredBackend") != action.removePrefix("set ")) error("保存的挂载方式与本次选择不一致，请重新读取挂载设置")
             mountBackendPreference = data.optString("preferredBackend", "auto")
-                .takeIf { it in setOf("auto", "magic", "overlayfs", "self_mount") } ?: "auto"
+                .takeIf { it in setOf("auto", "magic", "overlayfs", "self_mount", "manager") } ?: "auto"
             mountPreferenceLoaded = true
             fun label(value: String) = when (value) {
                 "external", "meta" -> "外部提供者"
                 "self" -> "字域兼容挂载"
+                "manager" -> "根管理器挂载"
                 "unresolved" -> "等待确认"
                 else -> "未启用"
             }
@@ -433,6 +438,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 "magic" -> "Magic Mount（字域 bind 挂载，别名冲突时使用目录镜像）"
                 "overlayfs" -> "OverlayFS（仅使用 OverlayFS）"
                 "self_mount" -> "字域自挂载（OverlayFS / bind / 目录镜像）"
+                "manager" -> "管理器挂载（由 Root 管理器开机自动挂载）"
                 else -> "元模块自动挂载"
             }
             val selfModeLabel = when (data.optString("selectedSelfBackend")) {
@@ -461,7 +467,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                         lastError == "boot-safety-safe-mode" -> "开机保护已暂停加载，请在设置中查看开机保护。"
                         lastError == "ota-fingerprint-change" -> "系统更新后旧负载暂缓加载，请完成原厂重扫并重新应用。"
                         lastError.contains("mountify-soft-reload-unavailable") ->
-                            "Mountify 未重新扫描字体，软重启兼容检查未通过；待应用字体已保留。"
+                            "Mountify 未重新扫描字体，提供者重载检查未通过；待应用字体已保留。"
                         lastError == "provider-published-payload-invalid" ->
                             "交给元模块的字体文件与本次负载不一致，请导出日志联系维护者。"
                         lastError == "provider-publish-failed" ->
@@ -472,7 +478,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                     }
                     append("\n状态原因：$reason")
                 }
-                if (data.optBoolean("pending")) append(if (snapshot.temporaryRootMode) "\n等待 KernelSU 软重启后的挂载验证。" else "\n等待完整重启后的挂载验证。")
+                if (data.optBoolean("pending")) append("\n等待完整重启后的挂载验证。")
             }
         }.getOrElse { it.message ?: "挂载状态读取失败" }
         if (action != "get") operationMessage = mountPreferences
@@ -617,20 +623,6 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     var rebootRequired by mutableStateOf(false)
         private set
 
-    var fontCacheRefreshPrompt by mutableStateOf(false)
-        private set
-
-    val fontCacheSoftRebootAvailable: Boolean
-        get() = snapshot.rootManager.contains("KernelSU", ignoreCase = true) ||
-            snapshot.rootManager.contains("SukiSU", ignoreCase = true)
-
-    fun dismissFontCacheRefresh() { fontCacheRefreshPrompt = false }
-
-    fun confirmFontCacheRefresh() {
-        fontCacheRefreshPrompt = false
-        requestDeviceReboot(softReboot = true)
-    }
-
     var mixState by mutableStateOf(MixState(
         latinSize = mixTunePrefs.getInt("latinSize", 0).coerceIn(-MIX_LATIN_SIZE_LIMIT, MIX_LATIN_SIZE_LIMIT),
         latinOffset = mixTunePrefs.getInt("latinOffset", 0).coerceIn(-MIX_LATIN_OFFSET_LIMIT, MIX_LATIN_OFFSET_LIMIT),
@@ -699,6 +691,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             // read issued before a font switch would otherwise restore the old
             // selection after the switch already committed the new one.
             fun superseded(): Boolean = readGeneration != moduleStateReadGeneration
+            // 先做轻量握手：快速确认 Root/模块身份并先点亮首页；
+            // 随后再读完整状态刷新主页细节，避免首屏干等重状态脚本。
             if (!snapshot.rootGranted || !snapshot.installed) {
                 val hello = ModuleHandshake.read()
                 if (superseded()) return@launch
@@ -816,16 +810,37 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         fontError = ""
         viewModelScope.launch {
             try {
-                val result = RootShell.exec(
-                    "sh ${RootShell.quote(bridge)} import_system_fonts",
-                    timeoutMs = 120_000L,
+                val start = RootShell.exec(
+                    "sh ${RootShell.quote(bridge)} import_system_fonts start",
+                    timeoutMs = 20_000L,
                 )
-                val root = firstJson(result.stdout)
-                if (result.code != 0 || root.optString("status") != "ok") {
-                    error(root.optString("message", result.stderr.ifBlank { "系统字体添加失败" }))
+                if (start.code != 0) {
+                    error(start.stderr.trim().ifBlank { "系统字体导出启动失败" })
+                    operationMessage = ""
+                    return@launch
                 }
-                operationMessage = "已添加系统默认中文、英文和数字字体，可在组合页选择"
-                refreshFonts(force = true)
+                operationMessage = "系统字体正在后台导出（约 1~3 分钟），完成后自动刷新字体库…"
+                var polls = 0
+                while (polls < 80) {
+                    delay(3_000L)
+                    polls += 1
+                    val status = RootShell.exec(
+                        "sh ${RootShell.quote(bridge)} import_system_fonts status",
+                        timeoutMs = 15_000L,
+                    )
+                    val root = runCatching { firstJson(status.stdout) }.getOrNull() ?: continue
+                    val state = root.optString("state")
+                    if (state == "running") continue
+                    if (root.optString("status") == "ok") {
+                        operationMessage = "已添加系统默认中文、英文和数字字体，可在组合页选择"
+                        refreshFonts(force = true)
+                    } else {
+                        error(root.optString("message", "系统字体添加失败"))
+                        operationMessage = ""
+                    }
+                    return@launch
+                }
+                operationMessage = "系统字体仍在后台导出，稍后打开字体库刷新即可"
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Throwable) {
@@ -1333,59 +1348,35 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
 
     var rebootChoiceVisible by mutableStateOf(false)
         private set
-    var softRebootSupported by mutableStateOf(false)
-        private set
     var rebootChoiceMessage by mutableStateOf("")
         private set
-    var rebootChoiceChecking by mutableStateOf(false)
-        private set
-    private var rebootChoiceJob: Job? = null
 
     fun rebootDevice() {
         if (rebootRequestJob?.isActive == true || rebootChoiceVisible) return
-        softRebootSupported = false
         rebootChoiceMessage = "字体在重启后生效。重启会中断当前应用，请先保存工作。"
-        rebootChoiceChecking = fontCacheSoftRebootAvailable
         rebootChoiceVisible = true
-        if (rebootChoiceChecking) {
-            rebootChoiceJob = viewModelScope.launch {
-                val result = RootShell.exec("if [ -s /data/adb/modules_update/ziyu/config/identity-migration-full-reboot.conf ]; then printf '%s' '{\"status\":\"error\",\"message\":\"ziyu 标识升级首次需要完整重启\"}'; else sh ${RootShell.quote(bridge)} soft_reboot status; fi", timeoutMs = 8_000L)
-                if (!currentCoroutineContext().isActive || !rebootChoiceVisible) return@launch
-                val reply = runCatching { firstJson(result.stdout) }.getOrNull()
-                softRebootSupported = result.code == 0 && reply?.optJSONObject("data")?.optBoolean("supported") == true
-                if (!softRebootSupported) rebootChoiceMessage += "\n" + (reply?.optString("message")?.takeIf { it.isNotBlank() } ?: "本机未确认可用的 KernelSU 软重启，将使用完整重启。")
-                rebootChoiceChecking = false
-            }
-        } else rebootChoiceMessage += "\n当前 Root 管理器请使用完整重启。"
     }
     fun dismissRebootChoice() {
         rebootChoiceVisible = false
-        rebootChoiceJob?.cancel()
-        rebootChoiceJob = null
-        rebootChoiceChecking = false
     }
-    fun confirmReboot(soft: Boolean) {
-        if (!rebootChoiceVisible || (soft && !softRebootSupported)) return
+    fun confirmReboot() {
+        if (!rebootChoiceVisible) return
         dismissRebootChoice()
-        requestDeviceReboot(soft)
+        requestDeviceReboot()
     }
 
-    private fun requestDeviceReboot(softReboot: Boolean) {
+    private fun requestDeviceReboot() {
         if (rebootRequestJob?.isActive == true) return
         // Complete reboot is deliberately independent from font-task busy state. A stale worker
         // flag used to make the button look dead for tens of seconds even though reboot itself is
         // immediate. The shell bridge backgrounds the reboot command, so use a short request timeout.
-        operationMessage = if (softReboot) "正在请求 KernelSU 软重启…" else "正在请求完整重启…"
+        operationMessage = "正在请求完整重启…"
         rebootRequestJob = viewModelScope.launch {
-            val command = if (softReboot) "soft_reboot request" else "reboot"
-            val result = RootShell.exec("sh ${RootShell.quote(bridge)} $command", timeoutMs = if (softReboot) 15_000L else 4_000L)
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} reboot", timeoutMs = 4_000L)
             val response = runCatching { firstJson(result.stdout) }.getOrNull()
             if (result.code != 0 || response?.optString("status") == "error") {
                 operationMessage = response?.optString("message")?.takeIf { it.isNotBlank() }
                     ?: result.stderr.ifBlank { "重启请求失败" }
-            } else if (softReboot) {
-                operationMessage = response?.optJSONObject("data")?.optString("message")
-                    ?.takeIf { it.isNotBlank() } ?: "已请求软重启，完成后返回查看挂载验证。"
             }
         }
     }
@@ -1504,7 +1495,6 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             val applied = result.optString("font", fontId).ifBlank { fontId }
             val reused = result.optBoolean("reused", false)
             val liveApplied = result.optBoolean("liveApplied", false)
-            fontCacheRefreshPrompt = false
             val nextRebootRequired = when {
                 result.has("rebootRequired") && !result.isNull("rebootRequired") -> result.optBoolean("rebootRequired", true)
                 liveApplied -> false
@@ -1515,9 +1505,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 liveApplied -> result.optString("message").ifBlank { "字体已准备完成，请重启后查看结果" }
                 reused -> "当前字体负载已校验，请重启后查看结果"
                 !nextRebootRequired -> result.optString("message").ifBlank { "字体已应用" }
-                snapshot.temporaryRootMode -> "字体已准备完成；请在 KernelSU 管理器中软重启后查看挂载结果"
                 applied == "default" -> "已准备恢复系统字体，重启后生效"
-                else -> "字体已准备完成，重启后全局生效"
+                else -> "字体已准备完成；请完整重启后查看挂载结果"
             }
             rebootRequired = nextRebootRequired
             // Invalidate pre-commit reads before publishing or suspending again.
@@ -1767,9 +1756,13 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 taskMessage = data.optString("taskMessage", "暂无后台任务"),
                 taskProgress = data.optInt("taskProgress", 0).coerceIn(0, 100),
                 rebootRequired = data.optBoolean("rebootRequired", false),
-                temporaryRootMode = data.optBoolean("temporaryRootMode", false),
                 rootManager = data.optString("rootManager", "Root"),
                 mountEngine = data.optString("mountEngine", "原生模块挂载"),
+                slotTotal = data.optInt("slotTotal", 0),
+                slotCjk = data.optInt("slotCjk", 0),
+                slotDigit = data.optInt("slotDigit", 0),
+                slotRom = data.optString("slotRom", ""),
+                temporaryRootMode = data.optBoolean("temporaryRootMode", false),
             )
         } catch (error: Exception) {
             snapshot.copy(

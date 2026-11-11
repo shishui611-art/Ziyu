@@ -1,0 +1,19 @@
+# honor 机型清单（荣耀 MagicOS）
+#
+# 来源：参考模块（洛书/字域）里的厂商字体名 + 荣耀/华为共用 HarmonyOS Sans 的公开信息
+# 说明：AOSP 通用字体由 aosp.list 兜底，这里只列厂商专有。
+
+[main]
+HarmonyOS_Sans_SC_Regular.ttf
+HarmonyOS_Sans_SC.ttf
+HarmonyOS_Sans_Regular.ttf
+HarmonyOS_Sans.ttf
+HONORSans-Regular.ttf
+HONORSans-Bold.ttf
+HONORSans-Medium.ttf
+HONORSans-Light.ttf
+HihonorSans-Regular.ttf
+HihonorSans-Bold.ttf
+
+[clock]
+HONORClock.ttf

@@ -105,7 +105,7 @@ def rank(face: Face, role: str, main: str) -> tuple:
     specialized_digits = role == "digit" and "solid-digits" in name
     simplified = role == "cjk" and any(word in name for word in ("cjksc", "sanssc", "simplified", "简体"))
     serif_or_mono = any(word in name for word in ("serif", "mono"))
-    return (not specialized_digits, face.logical != main, not simplified,
+    return (not specialized_digits, face.index is not None, face.logical != main, not simplified,
             serif_or_mono, role != "cjk" and face.cjk,
             abs(face.weight - 400), not face.variable, face.name, str(face.path), face.index or 0)
 
@@ -126,13 +126,18 @@ def import_system_fonts(module: Path, destination: Path) -> dict:
             chosen = min(candidates, key=lambda face: rank(face, role, main))
             if chosen.variable:
                 choices[role] = [chosen]
-            else:
+            elif os.environ.get("ZIYU_SYSTEM_FONT_ALL_WEIGHTS") == "1":
                 siblings = [face for face in candidates if face.family == chosen.family and not face.variable]
                 by_weight = {}
                 for face in sorted(siblings, key=lambda item: rank(item, role, main)):
                     weight = min(WEIGHTS, key=lambda value: abs(value - face.weight))
                     by_weight.setdefault(weight, face)
                 choices[role] = list(by_weight.values())
+            else:
+                # 折中模式：只导出每个角色最接近 Regular(400) 的一个字重，缩短导出时间。
+                siblings = [face for face in candidates if face.family == chosen.family and not face.variable]
+                pool = siblings or [chosen]
+                choices[role] = [min(pool, key=lambda face: abs(face.weight - 400))]
         destination.mkdir(parents=True, exist_ok=True)
         reports = []
         with tempfile.TemporaryDirectory(prefix=".system-font-import-", dir=destination) as temp:

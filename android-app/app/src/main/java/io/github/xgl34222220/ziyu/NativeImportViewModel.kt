@@ -21,7 +21,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 private const val IMPORT_BRIDGE = "/data/adb/modules/ziyu/common/app_bridge.sh"
-private const val MAX_IMPORT_BYTES = 268_435_456L
+// 绝对硬上限；实际生效上限由模块 config/font-import-limit.conf 决定（设置页滑块）。
+private const val MAX_IMPORT_BYTES = 536_870_912L
 internal val FONT_IMPORT_ARCHIVE_EXTENSIONS = setOf("zip", "mtz")
 internal val FONT_IMPORT_EXTENSIONS = setOf("ttf", "otf", "ttc", "woff", "woff2") + FONT_IMPORT_ARCHIVE_EXTENSIONS
 
@@ -464,7 +465,7 @@ internal suspend fun copyUriWithLimit(context: android.content.Context, uri: Uri
                 val count = input.read(buffer)
                 if (count < 0) break
                 total += count
-                require(total <= MAX_IMPORT_BYTES) { "文件超过 256 MB 限制" }
+                require(total <= MAX_IMPORT_BYTES) { "文件超过 512 MB 硬上限" }
                 digest?.update(buffer, 0, count)
                 output.write(buffer, 0, count)
             }

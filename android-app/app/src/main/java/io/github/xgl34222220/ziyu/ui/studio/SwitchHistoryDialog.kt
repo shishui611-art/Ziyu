@@ -45,7 +45,7 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-private const val SWITCH_HISTORY_TOOL = "/data/adb/modules/ziyu/system/bin/ziyu-history"
+private const val SWITCH_HISTORY_TOOL = "/data/adb/modules/ziyu/common/app_bridge.sh"
 
 internal data class SwitchHistoryEntry(
     val id: String,
@@ -68,7 +68,7 @@ internal data class SwitchHistoryEntry(
 }
 
 internal suspend fun recordSuccessfulMixHistory() {
-    RootShell.exec("sh ${RootShell.quote(SWITCH_HISTORY_TOOL)} record-mix", timeoutMs = 12_000L)
+    RootShell.exec("sh ${RootShell.quote(SWITCH_HISTORY_TOOL)} switch_history record-mix", timeoutMs = 12_000L)
 }
 
 internal fun parseSwitchHistory(raw: String): List<SwitchHistoryEntry> {
@@ -114,7 +114,7 @@ internal fun SwitchHistoryDialog(
     fun refresh() {
         scope.launch {
             loading = true
-            val result = RootShell.exec("sh ${RootShell.quote(SWITCH_HISTORY_TOOL)} list", timeoutMs = 12_000L)
+            val result = RootShell.exec("sh ${RootShell.quote(SWITCH_HISTORY_TOOL)} switch_history list", timeoutMs = 12_000L)
             entries = if (result.code == 0) runCatching { parseSwitchHistory(result.stdout) }.getOrDefault(emptyList()) else emptyList()
             error = if (result.code == 0) "" else result.stderr.ifBlank { "无法读取切换历史" }
             loading = false
@@ -163,7 +163,7 @@ internal fun SwitchHistoryDialog(
                                             scope.launch {
                                                 busyId = entry.id; message = ""; error = ""
                                                 val result = RootShell.exec(
-                                                    "sh ${RootShell.quote(SWITCH_HISTORY_TOOL)} restore ${RootShell.quote(entry.id)}",
+                                                    "sh ${RootShell.quote(SWITCH_HISTORY_TOOL)} switch_history restore ${RootShell.quote(entry.id)}",
                                                     timeoutMs = 25_000L,
                                                 )
                                                 val root = runCatching {

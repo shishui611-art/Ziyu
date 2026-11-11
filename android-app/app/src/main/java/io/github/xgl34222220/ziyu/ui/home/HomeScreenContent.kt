@@ -79,11 +79,31 @@ internal fun HomeCurrentFont(state: HomeUiState, actions: HomeActions) {
 @Composable
 internal fun HomeStatsRow(state: HomeUiState, actions: HomeActions) {
     val texts=LocalAppearanceSettings.current.customTexts
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        HomeStatTile(resolveThemeText(texts,ThemeTextKey.STAT_FONT),state.currentFont,false,actions.viewCurrentFont,Modifier.weight(1f).fillMaxHeight())
-        val count=state.libraryCount?.toString() ?: if(state.libraryCountLoading)"读取中…" else "未读取"
-        val label=resolveThemeText(texts,ThemeTextKey.STAT_LIBRARY)+if(state.libraryCount!=null && state.libraryCountStale)" · 上次记录" else ""
-        HomeStatTile(label,count,true,actions.openFontLibrary,Modifier.weight(1f).fillMaxHeight())
+    Column(Modifier.fillMaxWidth(), verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            HomeStatTile(resolveThemeText(texts,ThemeTextKey.STAT_FONT),state.currentFont,false,actions.viewCurrentFont,Modifier.weight(1f).fillMaxHeight())
+            val count=state.libraryCount?.toString() ?: if(state.libraryCountLoading)"读取中…" else "未读取"
+            val label=resolveThemeText(texts,ThemeTextKey.STAT_LIBRARY)+if(state.libraryCount!=null && state.libraryCountStale)" · 上次记录" else ""
+            HomeStatTile(label,count,true,actions.openFontLibrary,Modifier.weight(1f).fillMaxHeight())
+        }
+        // 槽位覆盖：与自定义字体切换模块一致，分别显示中文与数字槽位数量。
+        if (state.slotTotal > 0) {
+            val palette=LocalZiyuPaletteTokens.current
+            ZiyuCard(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),
+                colors=CardDefaults.cardColors(containerColor=palette.cardBackground,contentColor=palette.textPrimary)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=14.dp),
+                    verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                        ZiyuText("槽位覆盖",fontWeight=FontWeight.SemiBold,maxLines=1)
+                        ZiyuText("中文 ${state.slotCjk} · 数字 ${state.slotDigit} · 英文 ${(state.slotTotal - state.slotCjk - state.slotDigit).coerceAtLeast(0)}" +
+                            if (state.slotRom.isNotBlank()) " · ${state.slotRom}" else "",
+                            color=palette.textSecondary,style=MaterialTheme.typography.bodySmall,
+                            maxLines=1,overflow=TextOverflow.Ellipsis)
+                    }
+                    ZiyuText(state.slotTotal.toString(),fontSize=22.sp,fontWeight=FontWeight.SemiBold,maxLines=1)
+                }
+            }
+        }
     }
 }
 
@@ -254,7 +274,7 @@ internal fun nextStepFor(state: HomeUiState, actions: HomeActions): HomeNextStep
     state.rebootRequired -> HomeNextStep(
         if (state.temporaryRootMode) "立即软重启" else "立即重启",
         Icons.Rounded.RestartAlt, actions.reboot,
-        if (state.temporaryRootMode) "通过内置脚本请求 KernelSU 软重启，完成后返回查看挂载验证" else "执行一次完整重启后应用全局字体并自动验证",
+        if (state.temporaryRootMode) "通过 KernelSU 软重启验证字体，不完整重启" else "执行一次完整重启后应用全局字体并自动验证",
     )
     state.error.isNotBlank() -> HomeNextStep("查看问题", Icons.Rounded.Warning, actions.openLogs, "打开任务中心查看错误原因与诊断信息")
     state.currentFont.contains("系统") -> HomeNextStep("打开字体库", Icons.Rounded.FontDownload, actions.openFontLibrary)

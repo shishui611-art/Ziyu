@@ -6,6 +6,8 @@ One affine transform is used for every replaced glyph of a target face.
 """
 from __future__ import annotations
 
+from ziyu_limits import limit_bytes as _limit_bytes
+
 import argparse
 import hashlib
 import json
@@ -20,11 +22,16 @@ SCHEMA = 'ziyu-font-clipping-v1'
 
 
 def enabled():
+    if os.environ.get('ZIYU_FONT_CLIP_FORCE_OFF') == '1':
+        return False
     return os.environ.get('ZIYU_FONT_CLIP_ENABLED') == '1'
 
 
 def prepare_donor(source, digests=None, progress=None):
     """Measure variable geometry once; never instantiate or discard its axes."""
+    # 彩色字体（COLR/CBDT/sbix/SVG）不支持防裁切时由调用方自动跳过，而不是报错。
+    if os.environ.get('ZIYU_FONT_CLIP_FORCE_OFF') == '1':
+        return Path(source), None
     from fontTools.ttLib import TTFont, TTCollection
     from font_digest_cache import FontDigestCache, file_identity
 
@@ -34,7 +41,7 @@ def prepare_donor(source, digests=None, progress=None):
     if source.is_symlink():
         raise ValueError('防裁切来源不能是符号链接')
     before = file_identity(source.stat())
-    if not 12 <= before[2] <= 128 * 1024 * 1024:
+    if not 12 <= before[2] <= _limit_bytes():
         raise ValueError('防裁切来源字体大小无效')
     with source.open('rb') as stream:
         if stream.read(4) == b'ttcf':

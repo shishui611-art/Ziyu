@@ -17,10 +17,11 @@ type init_module >/dev/null 2>&1 && init_module
 type ensure_public_storage >/dev/null 2>&1 && ensure_public_storage
 mkdir -p "$MODDIR/config" "$MODDIR/logs" "$MODDIR/system/fonts" 2>/dev/null || true
 
-# 每次启动静默校正原生 App 后端脚本权限。
+# 每次启动静默校正原生 App 后端脚本权限。common 顶层文件一次批量 chmod，
+# 避免在 zygote 启动前为每个文件各执行一次 chmod 进程。
 chmod 0755 "$MODDIR" "$MODDIR/common" 2>/dev/null || true
 chmod 0755 "$MODDIR/customize.sh" "$MODDIR/post-fs-data.sh" "$MODDIR/service.sh" "$MODDIR/uninstall.sh" "$MODDIR/action.sh" 2>/dev/null || true
-find "$MODDIR/common" -maxdepth 1 -type f -exec chmod 0755 {} \; 2>/dev/null || true
+chmod 0755 "$MODDIR/common"/* 2>/dev/null || true
 chmod 0644 "$MODDIR/common/font_instance.py" "$MODDIR/common/composite_font.py" \
     "$MODDIR/common/font_axis_info.py" "$MODDIR/common/font_config_overlay.py" \
     "$MODDIR/common/font_name_normalize.py" "$MODDIR/common/font_metrics_normalize.py" \
