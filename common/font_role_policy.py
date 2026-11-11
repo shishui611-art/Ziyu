@@ -26,6 +26,23 @@ def is_clock_slot(name: str, slot: dict | None = None) -> bool:
     return bool(VENDOR_CLOCK.fullmatch(name)) or any(word in label for word in ('clock', 'mitype', 'lockscreen', 'lock-screen', 'numeral'))
 
 
+def keep_lockscreen(module: Path) -> bool:
+    """是否保留厂商锁屏时钟/数字字体（默认保留，不替换）。
+
+    默认 True：ColorOS 等厂商的时钟数字字体宽度是专门调的，换掉会让锁屏/桌面
+    时钟排版错位。用户在「字体工具 → 保留锁屏时钟字体」关掉时不保留。
+    """
+    conf = module / 'config/tools/keep-lockscreen.conf'
+    try:
+        for line in conf.read_text(encoding='utf-8', errors='replace').splitlines():
+            if line.startswith('enabled='):
+                value = line.split('=', 1)[1].strip().lower()
+                return value not in ('0', 'off', 'false', 'no')
+    except OSError:
+        pass
+    return True
+
+
 def is_code_monospace(name: str, slot: dict | None = None) -> bool:
     names = families(slot)
     # An explicit code-family assignment wins even for an OEM clock filename.
@@ -63,7 +80,7 @@ def assert_isolated(module: Path, stage: Path) -> None:
             raise ValueError('字体暂存目录包含指向外部的链接')
 
 
-def protected_aliases(stage: Path, data: dict) -> list[Path]:
+def protected_aliases(stage: Path, data: dict, keep_clock: bool = True) -> list[Path]:
     result = []
     for root in sorted(stage.glob('*/fonts')):
         if not root.is_dir() or root.is_symlink():
@@ -72,7 +89,9 @@ def protected_aliases(stage: Path, data: dict) -> list[Path]:
             if path.suffix.lower() not in ('.ttf', '.otf', '.ttc', '.otc'):
                 continue
             logical = '/' + path.relative_to(stage).as_posix()
-            if is_code_monospace(path.name, slot_for(data, logical)) or VENDOR_CLOCK.fullmatch(path.name):
+            if is_code_monospace(path.name, slot_for(data, logical)):
+                result.append(path)
+            elif keep_clock and VENDOR_CLOCK.fullmatch(path.name):
                 result.append(path)
     return result
 
@@ -105,7 +124,7 @@ def cleanup(module: Path, stage: Path) -> dict:
             data = {}
     except (OSError, ValueError):
         data = {}
-    aliases = protected_aliases(stage, data)
+    aliases = protected_aliases(stage, data, keep_lockscreen(module))
     rules = load_overrides(module / 'config/font-slot-overrides.json')
     if restricted(rules):
         from font_role_shadow import _classification

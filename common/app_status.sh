@@ -513,9 +513,20 @@ EOF_ZIYU_BOOT_GUARD_STATUS
                 count_cjk=*) _slot_cjk=${_slot_line#*=} ;;
                 count_digit=*) _slot_digit=${_slot_line#*=} ;;
                 count_latin=*) _slot_latin=${_slot_line#*=} ;;
+                count_lang=*) _slot_lang=${_slot_line#*=} ;;
             esac
         done < "$_slot_cache"
-        _slot_total=$((_slot_cjk + _slot_digit + _slot_latin))
+        # 总数以「实际已发布的负载字体文件数」为准：这就是元模块真正注入的槽位数，
+        # 保证主页显示与挂载结果一致；负载还没发布时才退回探测口径。
+        _slot_payload=0
+        for _slot_pf in "$MODDIR/system/fonts"/*.ttf "$MODDIR/system/fonts"/*.otf; do
+            [ -f "$_slot_pf" ] && _slot_payload=$((_slot_payload + 1))
+        done
+        if [ "${_slot_payload:-0}" -gt 0 ]; then
+            _slot_total=$_slot_payload
+        else
+            _slot_total=$((_slot_cjk + _slot_digit + _slot_latin + _slot_lang))
+        fi
         type ziyu_slot_rom >/dev/null 2>&1 && _slot_rom=$(ziyu_slot_rom "$MODDIR")
     elif [ -s "$MODDIR/config/slot-coverage.conf" ]; then
         while IFS= read -r _slot_line || [ -n "$_slot_line" ]; do

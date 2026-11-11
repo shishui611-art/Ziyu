@@ -762,14 +762,6 @@ internal fun ZiyuAppShell(
         CombinationResultDialogs(viewModel)
 
         pendingApply?.let { font ->
-            val current = comparisonSource(viewModel.snapshot, viewModel.fonts, font)
-            if (current != null && current.id != font.id && font.valid) {
-                io.github.xgl34222220.ziyu.ui.library.FontABCompareScreen(current, font,
-                    onDismiss = { pendingApply = null }, onConfirm = {
-                        pendingApply = null
-                        viewModel.applyFont(font.id)
-                    })
-            } else {
             FontActionDialogRoute(
                 style = appearance.uiStyle,
                 kind = FontActionKind.APPLY,
@@ -784,7 +776,6 @@ internal fun ZiyuAppShell(
                     viewModel.applyFont(font.id)
                 },
             )
-            }
         }
 
         pendingDelete?.let { font ->

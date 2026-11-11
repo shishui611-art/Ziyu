@@ -748,7 +748,6 @@ private fun SafetyPage(model: SystemCenterViewModel, style: UiStyle) {
     val m = model.maintenance
     var confirmRestore by remember { mutableStateOf(false) }
     pageList {
-        item { SlotLanguageCard() }
         item {
             SettingCard("LSPosed 网页字体") {
                 Text("在 LSPosed 中启用字域、选择应用，再重新打开应用。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)

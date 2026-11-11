@@ -258,13 +258,14 @@ $_zcp_vadj"
 # 字重提取（对齐 ziyu 的按字重选源文件命名约定）
 # ---------------------------------------------------------------------------
 _zcsf_weight() {
+    # 输入为小写文件名，模式统一用小写（字重映射，大小写不敏感）
     case "$1" in
-        *ExtraBold*|*Black*|*Heavy*) echo heavy ;;
-        *SemiBold*|*Semibold*|*Semi*Bold*) echo semibold ;;
-        *Bold*) echo bold ;;
-        *Medium*) echo medium ;;
-        *Light*) echo light ;;
-        *Thin*) echo thin ;;
+        *extrabold*|*black*|*heavy*) echo heavy ;;
+        *semibold*|*semi-bold*) echo semibold ;;
+        *bold*) echo bold ;;
+        *medium*) echo medium ;;
+        *light*) echo light ;;
+        *thin*) echo thin ;;
         *) echo regular ;;
     esac
 }
@@ -342,7 +343,7 @@ ziyu_cfs_discover() {
         _zcsf_xml_names       2>/dev/null
         _zcsf_targets_names "$_zcd_mod" "$_zcd_rom" 2>/dev/null
         _zcsf_dir_names       2>/dev/null
-    } | sed 's/\r$//' | tr 'A-Z' 'a-z' | grep -v '^[[:space:]]*$' | sort -u > "$_zcd_tmp" 2>/dev/null
+    } | sed 's/\r$//' | grep -v '^[[:space:]]*$' | sort -u > "$_zcd_tmp" 2>/dev/null
     [ -s "$_zcd_tmp" ] || { rm -f "$_zcd_tmp" 2>/dev/null; return 1; }
 
     # ---- 建保护名单（空格包裹，分类时用 *" 名字 "* 精确匹配）----
@@ -355,13 +356,15 @@ ziyu_cfs_discover() {
     while IFS= read -r _zcd_name || [ -n "$_zcd_name" ]; do
         [ -n "$_zcd_name" ] || continue
         case "$_zcd_name" in
-            ''|*/*|*..*|*[!a-z0-9._+-]*) continue ;;
+            ''|*/*|*..*|*[!a-zA-Z0-9._+-]*) continue ;;
         esac
+        # 小写形式仅用于分类与存在性匹配；输出保留原始大小写（对齐 /system/fonts 真实文件名）
+        _zcd_lc=$(_zcsf_lc "$_zcd_name")
         # 只保留本机真实存在的字体文件（对齐 slot_device_scan 的 [ -f ] 判定）
-        case "$_zcd_real" in *" $_zcd_name "*) ;; *) continue ;; esac
+        case "$_zcd_real" in *" $_zcd_lc "*) ;; *) continue ;; esac
         # .ttc 合集走单独合成路径，不进单文件槽位
-        case "$_zcd_name" in *.ttc) continue ;; esac
-        _zcsf_classify "$_zcd_name"
+        case "$_zcd_lc" in *.ttc) continue ;; esac
+        _zcsf_classify "$_zcd_lc"
         case "$_zcsf_cat" in
             skip) continue ;;
             cjk)   _zcd_cjk=$((_zcd_cjk + 1)) ;;
@@ -370,7 +373,7 @@ ziyu_cfs_discover() {
             *)     _zcd_latin=$((_zcd_latin + 1)) ;;
         esac
         _zcd_total=$((_zcd_total + 1))
-        _zcd_w=$(_zcsf_weight "$_zcd_name")
+        _zcd_w=$(_zcsf_weight "$_zcd_lc")
         printf 'slot=%s|%s|%s|-\n' "$_zcd_name" "$_zcsf_cat" "$_zcd_w" >> "$_zcd_tmp2" 2>/dev/null
     done < "$_zcd_tmp"
 

@@ -45,6 +45,21 @@ if [ -f "$MODDIR/common/font_weight_runtime.sh" ]; then
     ) </dev/null >/dev/null 2>&1 &
 fi
 
+# 主题商店字体：开启时在开机后把当前负载写进 /data 主题字体文件。
+# 放后台子 shell，绝不阻塞开机；默认关闭时这里零开销。
+if [ -f "$MODDIR/common/theme_store.sh" ]; then
+    _ts_on=''
+    if [ -f "$MODDIR/config/tools/theme-store.conf" ]; then
+        _ts_on=$(sed -n 's/^enabled=//p' "$MODDIR/config/tools/theme-store.conf" 2>/dev/null | head -n1 | tr -d ' \r')
+    fi
+    if [ "$_ts_on" = 1 ]; then
+        (
+            MODDIR="$MODDIR" sh "$MODDIR/common/theme_store.sh" apply \
+                >> "$MODDIR/logs/theme-store.log" 2>&1 || true
+        ) </dev/null >/dev/null 2>&1 &
+    fi
+fi
+
 if [ -s "$UNIVERSAL_MODE" ]; then
     # Phase 7/8 runtime may only consume the frozen deployment artifacts.
     # The legacy provider watcher re-discovers targets and chooses weights, so it

@@ -80,12 +80,10 @@ ziyu_slot_list_file() {
 _ziyu_slot_rom_fn() { ziyu_slot_rom "$1"; }
 
 ziyu_slot_include_lang() {
-    _zsil_mod=$(_ziyu_slot_module "${1:-}")
-    _zsil_value=''
-    if [ -f "$_zsil_mod/config/tools/slot-coverage-lang.conf" ]; then
-        _zsil_value=$(sed -n 's/^enabled=//p' "$_zsil_mod/config/tools/slot-coverage-lang.conf" 2>/dev/null | head -n1 | tr -d ' \r')
-    fi
-    [ "$_zsil_value" = 1 ]
+    # ★ 全量槽位覆盖已改为常开（界面上的开关已移除）：始终包含 lang 槽位，
+    #   对齐 custom-font-switcher 的默认行为，达到 100 槽覆盖。
+    #   保留函数名供既有调用点使用。
+    return 0
 }
 
 # 设备槽位缓存：解析 fonts.xml 家族 + 机型清单得到的槽位表。
@@ -218,16 +216,27 @@ ziyu_slot_stats() {
     _zss_cache=$(ziyu_slot_device_cache "$_zss_mod")
     [ -s "$_zss_cache" ] || ziyu_slot_discover "$_zss_mod" >/dev/null 2>&1
     if [ -s "$_zss_cache" ]; then
-        _zss_total=0; _zss_cjk=0; _zss_digit=0; _zss_latin=0
+        _zss_total=0; _zss_cjk=0; _zss_digit=0; _zss_latin=0; _zss_lang=0
         while IFS= read -r _zss_line || [ -n "$_zss_line" ]; do
             case "$_zss_line" in
                 count_total=*) _zss_total=${_zss_line#*=} ;;
                 count_cjk=*) _zss_cjk=${_zss_line#*=} ;;
                 count_digit=*) _zss_digit=${_zss_line#*=} ;;
                 count_latin=*) _zss_latin=${_zss_line#*=} ;;
+                count_lang=*) _zss_lang=${_zss_line#*=} ;;
             esac
         done < "$_zss_cache"
-        _zss_total=$((_zss_cjk + _zss_digit + _zss_latin))
+        # 总数优先取实际已发布负载的文件数（= 元模块真正注入的槽位数），
+        # 保证主页显示与实际挂载一致；未发布时才退回探测口径（含 lang）。
+        _zss_payload=0
+        for _zss_pf in "$_zss_mod/system/fonts"/*.ttf "$_zss_mod/system/fonts"/*.otf; do
+            [ -f "$_zss_pf" ] && _zss_payload=$((_zss_payload + 1))
+        done
+        if [ "${_zss_payload:-0}" -gt 0 ]; then
+            _zss_total=$_zss_payload
+        else
+            _zss_total=$((_zss_cjk + _zss_digit + _zss_latin + _zss_lang))
+        fi
         printf 'schema=ziyu-slot-coverage-v1\ntotal=%s\ncjk=%s\ndigit=%s\nlatin=%s\nrom=%s\n' \
             "$_zss_total" "${_zss_cjk:-0}" "${_zss_digit:-0}" "${_zss_latin:-0}" "$(ziyu_slot_rom "$_zss_mod")"
         return 0

@@ -313,6 +313,8 @@ common/import_limit.sh
 late-load.sh
 emulated-soft-reboot.sh
 common/soft_reboot.sh
+common/framework_restart.sh
+common/theme_store.sh
 common/temporary_root_mode.sh
 common/ziyu_limits.py
 common/restore_stock_factory.sh

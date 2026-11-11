@@ -63,6 +63,56 @@ if [ "${1:-}" = soft_reboot ]; then
     [ -f "$MODDIR/common/soft_reboot.sh" ] || { printf '{"status":"error","message":"软重启组件不可用"}\n'; exit 1; }
     exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
 fi
+# 立即软重启：只重启 Android 框架（zygote/system_server），不重新走模块挂载阶段。
+if [ "${1:-}" = framework_restart ]; then
+    [ -f "$MODDIR/common/framework_restart.sh" ] || { printf '{"status":"error","message":"立即软重启组件不可用"}\n'; exit 1; }
+    exec sh "$MODDIR/common/framework_restart.sh" "${2:-request}"
+fi
+# 保留锁屏时钟字体：默认开启（不替换厂商时钟/数字字体）。
+if [ "${1:-}" = keep_lockscreen ]; then
+    _kl_conf="$MODDIR/config/tools/keep-lockscreen.conf"
+    _kl_value=1
+    [ -f "$_kl_conf" ] && _kl_value=$(sed -n 's/^enabled=//p' "$_kl_conf" 2>/dev/null | head -n1 | tr -d ' \r')
+    case "${2:-get}" in
+        set)
+            case "${3:-}" in off|0|false) _kl_value=0 ;; *) _kl_value=1 ;; esac
+            mkdir -p "$MODDIR/config/tools" 2>/dev/null
+            printf 'enabled=%s\n' "$_kl_value" > "$_kl_conf"
+            printf '[%s] keep_lockscreen=%s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_kl_value" \
+                >> "$MODDIR/logs/slot-coverage.log" 2>/dev/null
+            ;;
+    esac
+    printf 'enabled=%s\n' "${_kl_value:-1}"
+    exit 0
+fi
+# 主题商店字体：把当前字体写进 /data 上的主题字体文件（默认关闭）。
+if [ "${1:-}" = theme_store ]; then
+    _ts_conf="$MODDIR/config/tools/theme-store.conf"
+    case "${2:-status}" in
+        get|set)
+            _ts_value=0
+            [ -f "$_ts_conf" ] && _ts_value=$(sed -n 's/^enabled=//p' "$_ts_conf" 2>/dev/null | head -n1 | tr -d ' \r')
+            if [ "${2:-}" = set ]; then
+                case "${3:-}" in on|1|true) _ts_value=1 ;; *) _ts_value=0 ;; esac
+                mkdir -p "$MODDIR/config/tools" 2>/dev/null
+                printf 'enabled=%s\n' "$_ts_value" > "$_ts_conf"
+                # 打开即立即生效；关闭即还原原件，避免把用户主题字体留在替换状态。
+                if [ "$_ts_value" = 1 ]; then
+                    sh "$MODDIR/common/theme_store.sh" apply
+                else
+                    sh "$MODDIR/common/theme_store.sh" restore
+                fi
+                exit $?
+            fi
+            printf 'enabled=%s\n' "${_ts_value:-0}"
+            exit 0
+            ;;
+        *)
+            [ -f "$MODDIR/common/theme_store.sh" ] || { printf '{"status":"error","message":"主题商店组件不可用"}\n'; exit 1; }
+            exec sh "$MODDIR/common/theme_store.sh" "${2:-status}"
+            ;;
+    esac
+fi
 if [ "${1:-}" = temporary_root ]; then
     [ -f "$MODDIR/common/temporary_root_mode.sh" ] && . "$MODDIR/common/temporary_root_mode.sh"
     case "${2:-get}" in
