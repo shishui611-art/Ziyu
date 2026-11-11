@@ -294,6 +294,7 @@ common/stock_font_link_evidence.py
 licenses/Ziyu-stock-font-link-evidence.json
 common/mount_manager_backend.sh
 common/slot_coverage.sh
+common/slot_discovery_cfs.sh
 common/ziyu_live.sh
 common/slot_targets/aosp.list
 common/slot_targets/coloros.list

@@ -98,6 +98,13 @@ ziyu_slot_device_cache() {
 ziyu_slot_discover() (
     _zsdi_mod=$(_ziyu_slot_module "${1:-}")
     _zsdi_out="$(ziyu_slot_device_cache "$_zsdi_mod")"
+    # ★ 全覆盖纯 shell 探测优先（移植自 custom-font-switcher 的槽位探测，classifier=3）；
+    #   失败/缺失再回退 Python 保守版（device_slot_discovery.py，classifier=2）。
+    _zsdi_cfs="$_zsdi_mod/common/slot_discovery_cfs.sh"
+    if [ -f "$_zsdi_cfs" ]; then
+        . "$_zsdi_cfs"
+        ziyu_cfs_discover "$_zsdi_mod" && return 0
+    fi
     _zsdi_py="$_zsdi_mod/common/device_slot_discovery.py"
     _zsdi_python="$_zsdi_mod/common/python/bin/ziyu-python"
     if [ ! -x "$_zsdi_python" ] || [ ! -f "$_zsdi_py" ]; then

@@ -1,5 +1,12 @@
 # 字域更新日志
 
+## v1.5.42 · 2026-11-11（本地 Debug）
+
+- 槽位探测对齐 custom-font-switcher 口径：新增 `common/slot_discovery_cfs.sh` 纯 shell 全覆盖探测（≥32KB 过滤、衬线/等宽/手写跳过、protect/vadj 保护），设备实测 100 槽与对方模块 device.list 逐名一致。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
 ## v1.5.41 · 2026-11-10（本地 Debug）
 
 - 新增槽位定位工具：`slot-coverage-limit.conf` 的 limit 二分扩展数量；`slot-coverage.log` 记录每个扩展槽位。

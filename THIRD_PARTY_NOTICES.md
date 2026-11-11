@@ -200,3 +200,7 @@ v1.5.4 新增 `common/font_script_support.py`、`common/font_default_restore.py`
 ## 设备槽位发现（v1.5.24）
 
 - `common/device_slot_discovery.py` 为本项目独立实现：解析设备 `fonts.xml` 家族/字重/语言并合并 `common/slot_targets/*.list` 机型清单，生成本机槽位表。仅参考 `custom-font-switcher` 的“设备槽位发现”思路，未复制其 `slots.sh` 代码；沿用本仓库 GPL-3.0-only 授权。
+
+## 全覆盖槽位探测（纯 shell 移植）
+
+- `common/slot_discovery_cfs.sh` 为本项目独立实现的纯 shell 全覆盖槽位探测：合并「`fonts.xml` 家族 + `slot_targets` 机型清单 + 字体目录扫描」来源，按角色分类（cjk/digit/latin/lang）并应用保护名单（`protect.list` / 粗细调节族 / emoji·符号·兜底）。探测思路对齐 `ayss2188/custom-font-switcher` v1.5.3 的 `slots.sh`（`slot_device_scan` / `_role_set` / `slot_skip_list`），脚本代码为本项目重写，未复制对方源码；沿用本仓库 GPL-3.0-only 授权。
