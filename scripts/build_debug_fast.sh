@@ -56,7 +56,7 @@ APP_SHA256=$(sha256sum "$STAGE/bundled/Ziyu-App.apk" | awk '{print $1}')
 chmod 0644 "$STAGE/bundled/Ziyu-App.apk" "$STAGE/bundled/app.prop"
 
 find "$STAGE" -type f -name '*.log' -delete
-find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} \; 2>/dev/null || true
 find "$STAGE" -type f -name '*.pyc' -delete
 rm -rf "$STAGE/webroot" "$STAGE/logs" "$STAGE/backup" "$STAGE/config/recovery"
 rm -f "$STAGE/config/webui_font_list.json" "$STAGE/config/webui_font_list.key" \
@@ -74,9 +74,9 @@ rm -f "$STAGE/common/stability.sh" "$STAGE/common/fonts_xml_template.sh" \
 
 sh "$ROOT/scripts/prune_python_runtime.sh" "$STAGE"
 
-find "$STAGE/common" -maxdepth 1 -type f -exec chmod 0755 {} +
+find "$STAGE/common" -maxdepth 1 -type f -exec chmod 0755 {} \;
 chmod 0755 "$STAGE"/*.sh "$STAGE/system/bin/ziyud" "$STAGE/common/python/bin/ziyu-python"
-find "$STAGE/system/fonts" -type f -exec chmod 0644 {} + 2>/dev/null || true
+find "$STAGE/system/fonts" -type f -exec chmod 0644 {} \; 2>/dev/null || true
 
 test ! -e "$STAGE/webroot"
 test -s "$STAGE/bundled/Ziyu-App.apk"
