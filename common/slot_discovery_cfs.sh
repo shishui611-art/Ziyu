@@ -41,37 +41,160 @@ _zcsf_isnum() { case "${1:-}" in ''|*[!0-9]*) return 1 ;; esac; return 0; }
 # ---------------------------------------------------------------------------
 # 目标 ROM：优先配置，其次系统属性，最后回退 coloros（对齐 slot_coverage.sh 口径）
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 识别目标 ROM（决定读哪份 slot_targets 清单）
+#
+# 移植自 custom-font-switcher 的 detect_rom 判定原则：
+#   ① 厂商专属属性才算「强证据」；AOSP 通用属性（ro.product.*）只算「弱证据」
+#   ② 强证据命中 → 直接认定（小米额外要求实证，见下）
+#   ③ 只有弱证据（品牌）→ 必须再有厂商目录/专有字体实证
+#   ④ 都不满足 → aosp
+#
+# 为什么要这么严：类原生/GSI/移植包会残留厂商属性（ro.miui.* 之类），
+# 只看一个属性就认定会把类原生认成 HyperOS，进而读到错误的槽位清单，
+# 结果就是"部分槽位没换"。品牌属性证明不了 ROM（小米机器刷类原生也报 xiaomi）。
+# ---------------------------------------------------------------------------
+_zcsf_has_dir() {
+    for _zhd_d in "$@"; do
+        [ -e "$_zhd_d" ] && return 0
+    done
+    return 1
+}
+
+# 小米/红米/POCO 专有字体：真 HyperOS 有几十个，类原生 0 个 —— 最干净的实证
+_zcsf_xm_font() {
+    _zxf_dirs="$(_zcsf_font_dirs 2>/dev/null)"
+    for _zxf_d in $_zxf_dirs; do
+        [ -d "$_zxf_d" ] || continue
+        for _zxf_f in "$_zxf_d"/*.ttf "$_zxf_d"/*.otf "$_zxf_d"/*.ttc; do
+            [ -f "$_zxf_f" ] || continue
+            case "${_zxf_f##*/}" in
+                MiSans*|MiLanPro*|MiHaus*|MiClock*|Mitype*) return 0 ;;
+            esac
+        done
+    done
+    return 1
+}
+
 _zcsf_rom() {
     _zcr_mod="$1"
-    _zcr_rom=''
+    # 手动指定优先
     if [ -f "$_zcr_mod/config/slot_coverage_rom.conf" ]; then
-        _zcr_rom=$(sed -n 's/^rom=//p' "$_zcr_mod/config/slot_coverage_rom.conf" 2>/dev/null | head -n1 | tr -d ' \r')
-    fi
-    if [ -z "$_zcr_rom" ]; then
-        case "$(getprop ro.build.version.oplusrom 2>/dev/null)$(getprop ro.build.version.opporom 2>/dev/null)" in
-            '') ;;
-            *) _zcr_rom=coloros ;;
+        _zcr_ov=$(sed -n 's/^rom=//p' "$_zcr_mod/config/slot_coverage_rom.conf" 2>/dev/null | head -n1 | tr -d ' \r')
+        case "$_zcr_ov" in
+            auto|'') ;;
+            *) printf '%s' "$_zcr_ov"; return 0 ;;
         esac
     fi
-    if [ -z "$_zcr_rom" ]; then
-        case "$(getprop ro.miui.ui.version.name 2>/dev/null)" in
-            '') ;;
-            *) _zcr_rom=hyperos ;;
-        esac
+    _zcr_brand="$(getprop ro.product.brand 2>/dev/null)$(getprop ro.product.manufacturer 2>/dev/null)"
+    _zcr_disp="$(getprop ro.build.display.id 2>/dev/null)"
+
+    # ---- 1. 澎湃OS / HyperOS / MIUI ----
+    # 小米这一家必须双证据：强属性 + (品牌 或 厂商目录 或 专有字体)
+    _zcr_strong=''
+    for _zcr_k in ro.mi.os.version.name ro.miui.ui.version.code ro.miui.ui.version.name; do
+        _zcr_v=$(getprop "$_zcr_k" 2>/dev/null)
+        [ -n "$_zcr_v" ] && { _zcr_strong=1; break; }
+    done
+    _zcr_xbrand=''
+    case "$_zcr_brand" in
+        *[Xx]iaomi*|*[Rr]edmi*|*[Pp][Oo][Cc][Oo]*) _zcr_xbrand=1 ;;
+    esac
+    if [ -n "$_zcr_xbrand" ]; then
+        _zcsf_xm_font && { printf 'hyperos'; return 0; }
+        [ -n "$_zcr_strong" ] && { printf 'hyperos'; return 0; }
     fi
-    if [ -z "$_zcr_rom" ]; then
-        case "$(getprop ro.vivo.os.version 2>/dev/null)$(getprop ro.vivo.os.build.display.id 2>/dev/null)" in
-            '') ;;
-            *) _zcr_rom=originos ;;
-        esac
+    if [ -n "$_zcr_strong" ] && [ -z "$_zcr_xbrand" ] && \
+       { _zcsf_has_dir /system_ext/priv-app/MiuiSystemUI /system/framework/miui-framework.jar || _zcsf_xm_font; }; then
+        printf 'hyperos'; return 0
     fi
-    if [ -z "$_zcr_rom" ]; then
-        case "$(getprop ro.build.display.id 2>/dev/null)" in
-            *Flyme*|*flyme*) _zcr_rom=flyme ;;
-        esac
+    # 属性全读不到时的兜底：靠厂商目录实证，宁可认成 hyperos 也别漏
+    if [ -z "$_zcr_brand" ] && \
+       _zcsf_has_dir /product/etc/mi_fonts_customization.xml /system_ext/etc/hyper_fonts.xml /mi_ext; then
+        printf 'hyperos'; return 0
     fi
-    [ -n "$_zcr_rom" ] || _zcr_rom=coloros
-    printf '%s' "$_zcr_rom"
+
+    # ---- 2. ColorOS / OPPO / 一加 / realme ----
+    for _zcr_k in ro.build.version.oplusrom ro.oplus.version ro.build.version.oplusrom.display; do
+        _zcr_v=$(getprop "$_zcr_k" 2>/dev/null)
+        [ -n "$_zcr_v" ] && { printf 'coloros'; return 0; }
+    done
+    case "$_zcr_brand" in
+        *[Oo][Pp][Pp][Oo]*|*[Oo]ne[Pp]lus*|*[Rr]ealme*)
+            _zcsf_has_dir /system_ext/oplus /my_product /my_stock && { printf 'coloros'; return 0; } ;;
+    esac
+    _zcsf_has_dir /system_ext/oplus /my_product && { printf 'coloros'; return 0; }
+
+    # ---- 3. OriginOS / vivo / iQOO ----
+    case "$(getprop ro.vivo.os.name 2>/dev/null)$(getprop ro.vivo.product.version 2>/dev/null)" in
+        *[Oo]rigin[Oo][Ss]*|*[Ff]untouch*) printf 'originos'; return 0 ;;
+    esac
+    case "$_zcr_brand" in
+        *vivo*|*VIVO*|*iQOO*|*iqoo*)
+            _zcsf_has_dir /system_ext/etc/vivo /vendor/etc/vivo /system/etc/vivo /data/vivo && { printf 'originos'; return 0; } ;;
+    esac
+
+    # ---- 4. Flyme / 魅族 ----
+    case "$_zcr_disp" in
+        *Flyme*|*flyme*) printf 'flyme'; return 0 ;;
+    esac
+    [ -n "$(getprop ro.flyme.version 2>/dev/null)" ] && { printf 'flyme'; return 0; }
+    case "$_zcr_brand" in
+        *Meizu*|*MEIZU*|*meizu*)
+            _zcsf_has_dir /system/etc/flyme /system/flyme /data/customizecenter && { printf 'flyme'; return 0; } ;;
+    esac
+
+    # ---- 5. 荣耀 MagicOS（先于华为：荣耀属性里也带 hw 字样）----
+    case "$(getprop ro.build.version.magic 2>/dev/null)$(getprop ro.honor.build.version 2>/dev/null)" in
+        '') ;;
+        *) printf 'honor'; return 0 ;;
+    esac
+    case "$_zcr_brand" in
+        *HONOR*|*honor*)
+            _zcsf_has_dir /system/etc/honor /system_ext/etc/honor /product/etc/honor && { printf 'honor'; return 0; } ;;
+    esac
+
+    # ---- 6. 华为 EMUI / HarmonyOS ----
+    case "$(getprop ro.build.version.emui 2>/dev/null)$(getprop ro.build.hw_emui_api_level 2>/dev/null)$(getprop ro.huawei.build.version 2>/dev/null)" in
+        '') ;;
+        *) printf 'huawei'; return 0 ;;
+    esac
+    case "$_zcr_brand" in
+        *HUAWEI*|*huawei*)
+            _zcsf_has_dir /system/etc/huawei /system_ext/etc/huawei /hw_product && { printf 'huawei'; return 0; } ;;
+    esac
+
+    # ---- 7. 红魔 / 努比亚 / 中兴 ----
+    case "$(getprop ro.build.version.redmagic 2>/dev/null)" in
+        '') ;;
+        *) printf 'redmagic'; return 0 ;;
+    esac
+    case "$_zcr_disp" in
+        *RedMagicOS*|*RedMagic*|*MyOS*|*NubiaOS*|*ZTEOS*) printf 'redmagic'; return 0 ;;
+    esac
+    case "$_zcr_brand" in
+        *REDMAGIC*|*RedMagic*|*nubia*|*Nubia*|*ZTE*) printf 'redmagic'; return 0 ;;
+    esac
+
+    # ---- 8. 三星 One UI ----
+    case "$(getprop ro.build.version.oneui 2>/dev/null)$(getprop ro.build.version.sem 2>/dev/null)$(getprop ro.config.knox 2>/dev/null)" in
+        '') ;;
+        *) printf 'oneui'; return 0 ;;
+    esac
+    case "$_zcr_brand" in
+        *samsung*|*SAMSUNG*)
+            _zcsf_has_dir /system/etc/floating_feature.xml /system/etc/samsung /system/samsung && { printf 'oneui'; return 0; } ;;
+    esac
+
+    # ---- 9. Nothing OS ----
+    [ -n "$(getprop ro.nothing.build.version 2>/dev/null)" ] && { printf 'nothing'; return 0; }
+    case "$_zcr_brand" in
+        *Nothing*|*nothing*)
+            _zcsf_has_dir /system/etc/nothing /system_ext/etc/nothing && { printf 'nothing'; return 0; } ;;
+    esac
+
+    # ---- 10. 兜底 ----
+    printf 'aosp'
 }
 
 # ---------------------------------------------------------------------------

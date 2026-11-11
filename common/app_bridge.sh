@@ -44,10 +44,6 @@ if [ "${1:-}" = diagnostic_capture ]; then
     shift
     exec sh "$MODDIR/common/diagnostic_capture.sh" "$@"
 fi
-if [ "${1:-}" = live ]; then
-    shift
-    exec sh "$MODDIR/common/ziyu_live.sh" "$@"
-fi
 if [ "${1:-}" = slot_stats ]; then
     . "$MODDIR/common/slot_coverage.sh" || exit 1
     ziyu_slot_stats "$MODDIR"
@@ -64,10 +60,6 @@ if [ "${1:-}" = soft_reboot ]; then
     exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
 fi
 # 立即软重启：只重启 Android 框架（zygote/system_server），不重新走模块挂载阶段。
-if [ "${1:-}" = framework_restart ]; then
-    [ -f "$MODDIR/common/framework_restart.sh" ] || { printf '{"status":"error","message":"立即软重启组件不可用"}\n'; exit 1; }
-    exec sh "$MODDIR/common/framework_restart.sh" "${2:-request}"
-fi
 # 保留锁屏时钟字体：默认开启（不替换厂商时钟/数字字体）。
 if [ "${1:-}" = keep_lockscreen ]; then
     _kl_conf="$MODDIR/config/tools/keep-lockscreen.conf"

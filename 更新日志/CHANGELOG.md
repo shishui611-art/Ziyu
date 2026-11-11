@@ -1,5 +1,15 @@
 # 字域更新日志
 
+## v1.5.45 · 2026-11-11（本地 Debug）
+
+- 修复安装失败：安装器解压 zip 不保留可执行位，`customize.sh` 与 `adb_storage.sh` 现会补 python 运行时权限；安装阶段数据目录初始化失败只提示、不再 abort（开机阶段会再执行一次）。
+- 修复字体一直不生效：本模块目录内无主的 `skip_mount` / `skip_mountify` 被误判为「外部标记」，导致 post-fs-data 跳过整个挂载阶段、连续多次开机「启动证据不足」。现改为认领为本模块所有，由挂载后端决定保留或释放。
+- 移除「立即生效」与「框架软重启」：临时 Root 页只保留内核软重启（向 KernelSU 发 soft-reboot 请求），并删除 `common/ziyu_live.sh`、`common/framework_restart.sh`、根目录 `live.sh`。
+- 补全机型识别：HyperOS/ColorOS/OriginOS/Flyme/荣耀/华为/红魔/三星 One UI/Nothing/AOSP，小米判定要求双证据，兜底改为 aosp。
+- 完成本地 Debug 编译与包完整性检查；未安装、刷入或重启手机。
+
+# 字域更新日志
+
 ## v1.5.44 · 2026-11-11（本地 Debug）
 
 - 修复槽位覆盖塌缩：探测加入原厂清单（`device_font_inventory.json`）兜底，并在结果异常偏小时拒绝覆盖旧缓存，避免「条目坏 → 探测少 → 负载小」的自增强退化。

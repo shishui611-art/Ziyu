@@ -144,7 +144,15 @@ ziyu_apatch_hook_install "$MODPATH" || {
 . "$MODPATH/common/font_preload_helper.sh" || abort '缺少旧组件清理脚本'
 ziyu_preload_helper_remove || abort '旧字体预加载组件清理标记失败'
 . "$MODPATH/common/adb_storage.sh" || abort '缺少数据目录迁移脚本'
-ziyu_adb_storage "$MODPATH" install || abort '字域数据目录初始化失败'
+# 安装器解压 zip 时常不保留可执行位，先补 python 运行时权限再初始化数据目录。
+[ ! -f "$MODPATH/common/python/bin/ziyu-python" ] || \
+    chmod 0755 "$MODPATH/common/python/bin/ziyu-python" 2>/dev/null || true
+if ! ziyu_adb_storage "$MODPATH" install; then
+    # 数据目录迁移不是装模块的前提：开机阶段还会再执行一次（真机日志里开机均为 complete）。
+    # 这里只提示不中断，避免管理器把整个安装判成
+    # "Error: Failed to install module script"。
+    ui_print '• 数据目录初始化将在首次开机时完成（安装环境未能执行迁移组件）'
+fi
 [ ! -f "$MODPATH/config/identity-migration-full-reboot.conf" ] || ui_print '• 数据目录升级：请完整重启一次，旧挂载目录在重启后自动清理'
 ziyu_identity_finish "$MODPATH" "$_lc_real_old_mod" || {
     abort 'ziyu 标识迁移未完成，请保留原模块并导出安装日志'

@@ -295,7 +295,6 @@ licenses/Ziyu-stock-font-link-evidence.json
 common/mount_manager_backend.sh
 common/slot_coverage.sh
 common/slot_discovery_cfs.sh
-common/ziyu_live.sh
 common/slot_targets/aosp.list
 common/slot_targets/coloros.list
 common/slot_targets/flyme.list
@@ -307,13 +306,11 @@ common/slot_targets/originos.list
 common/slot_targets/protect.list
 common/slot_targets/redmagic.list
 common/slot_targets/samsung.list
-live.sh
 common/device_slot_discovery.py
 common/import_limit.sh
 late-load.sh
 emulated-soft-reboot.sh
 common/soft_reboot.sh
-common/framework_restart.sh
 common/theme_store.sh
 common/temporary_root_mode.sh
 common/ziyu_limits.py

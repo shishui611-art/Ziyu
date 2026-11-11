@@ -89,7 +89,7 @@ internal fun TemporaryRootCard() {
                 }
             }
             ZiyuText(
-                "内核软重启会重新走模块加载与挂载阶段，耗时较长；只想让系统重读字体用下面的框架软重启。",
+                "内核软重启会向 KernelSU 发送 soft-reboot 请求，重新走模块加载与挂载阶段；耗时较长，完成后字体生效。",
                 style = MaterialTheme.typography.bodySmall,
             )
             if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall)
@@ -97,86 +97,7 @@ internal fun TemporaryRootCard() {
     }
 }
 
-/** 临时 Root 立即生效：不重启把当前负载挂到 init 命名空间。 */
-@Composable
-internal fun LiveApplyCard() {
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    fun run(action: String, label: String) {
-        if (busy) return
-        busy = true
-        scope.launch {
-            val result = RootShell.exec(
-                "sh /data/adb/modules/ziyu/common/app_bridge.sh live $action",
-                timeoutMs = 120_000L,
-            )
-            message = result.stdout.trim().ifBlank {
-                result.stderr.trim().ifBlank { "$label 未返回结果（退出码 ${result.code}）" }
-            }.take(400)
-            busy = false
-        }
-    }
-    SettingCard("临时 Root 立即生效") {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ZiyuText(
-                "不重启，把当前字体立即挂到系统命名空间；已打开的应用可能需要重新打开。",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZiyuButton(onClick = { run("mount", "立即生效") }, enabled = !busy) {
-                    ZiyuText("立即生效")
-                }
-                ZiyuOutlinedButton(onClick = { run("unmount", "撤销") }, enabled = !busy) {
-                    ZiyuText("撤销")
-                }
-                ZiyuOutlinedButton(onClick = { run("status", "状态") }, enabled = !busy) {
-                    ZiyuText("状态")
-                }
-            }
-            if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-/** 立即软重启：只重启 Android 框架，让系统重新读取字体（比完整软重启快）。 */
-@Composable
-internal fun FrameworkRestartCard() {
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    fun restart() {
-        if (busy) return
-        busy = true
-        message = "正在通知框架重启…"
-        scope.launch {
-            val result = RootShell.exec(
-                "sh /data/adb/modules/ziyu/common/app_bridge.sh framework_restart request",
-                timeoutMs = 30_000L,
-            )
-            message = result.stdout.trim().ifBlank {
-                result.stderr.trim().ifBlank { "未返回结果（退出码 ${result.code}）" }
-            }.take(300)
-            busy = false
-        }
-    }
-    SettingCard("框架软重启") {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ZiyuText(
-                "先把当前字体挂到系统，再只重启 Android 框架让它重新读取；不重新执行开机挂载阶段。屏幕会黑一下，约 30~60 秒回到锁屏，之后不用再完整重启。",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZiyuButton(onClick = { restart() }, enabled = !busy) {
-                    ZiyuText("框架软重启")
-                }
-            }
-            if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-/** 临时 Root：模式开关、软重启与立即生效。 */
+/** 临时 Root：模式开关与内核软重启。 */
 @Composable
 internal fun TempRootPage() {
     Column(
@@ -184,7 +105,5 @@ internal fun TempRootPage() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         TemporaryRootCard()
-        FrameworkRestartCard()
-        LiveApplyCard()
     }
 }

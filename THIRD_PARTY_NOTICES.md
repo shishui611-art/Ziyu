@@ -193,8 +193,8 @@ v1.5.4 新增 `common/font_script_support.py`、`common/font_default_restore.py`
 
 ## 槽位清单与临时 Root 流程参考（v1.5.22）
 
-- 槽位文件名清单（`common/slot_targets/*.list`）来自 `ayss2188/custom-font-switcher` v1.5.1.3（作者：暗影双生，模块 id `custom_font_switcher`）。该仓库未声明开源许可证；本项目只把这些清单当作“某 ROM 存在哪些字体槽位”的设备事实数据使用，不复制其脚本实现，槽位匹配、覆盖扩展与临时 Root 挂载脚本（`common/slot_coverage.sh`、`common/ziyu_live.sh`）均为字域独立实现，沿用本仓库 GPL-3.0-only。
-- 临时 Root 立即生效流程参考其 `live.sh` 的“通过 nsenter 进入 init 挂载命名空间”思路，未复制代码；字域实现见 `common/ziyu_live.sh`，入口保持在模块根目录 `live.sh`，与对方模块的入口位置一致。
+- 槽位文件名清单（`common/slot_targets/*.list`）来自 `ayss2188/custom-font-switcher` v1.5.1.3（作者：暗影双生，模块 id `custom_font_switcher`）。该仓库未声明开源许可证；本项目只把这些清单当作“某 ROM 存在哪些字体槽位”的设备事实数据使用，不复制其脚本实现，槽位匹配与覆盖扩展脚本（`common/slot_coverage.sh`）均为字域独立实现，沿用本仓库 GPL-3.0-only。
+- 早期版本曾参考其 `live.sh` 的「通过 nsenter 进入 init 挂载命名空间」思路实现过「立即生效」流程；该功能与「框架软重启」已在 v1.5.45 一并移除，临时 Root 仅保留向 KernelSU 申请软重启。
 - 若后续需要直接复用对方脚本代码，须先取得作者授权并在本文件补充许可证记录。
 
 ## 设备槽位发现（v1.5.24）

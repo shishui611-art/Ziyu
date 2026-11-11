@@ -33,9 +33,29 @@ _ziyu_slot_module() {
     printf '%s' "$_zsm_mod"
 }
 
-# 目标 ROM：优先读配置，其次按系统属性猜测，最后回退 coloros。
+# 目标 ROM：优先配置，其次完整机型识别（slot_discovery_cfs.sh 的多证据判定），
+# 最后回退 coloros。
 ziyu_slot_rom() {
     _zsr_mod=$(_ziyu_slot_module "${1:-}")
+    # 手动指定优先
+    if [ -f "$_zsr_mod/config/slot_coverage_rom.conf" ]; then
+        _zsr_ov=$(sed -n 's/^rom=//p' "$_zsr_mod/config/slot_coverage_rom.conf" 2>/dev/null | head -n1 | tr -d ' \r')
+        case "$_zsr_ov" in
+            auto|'') ;;
+            *) printf '%s' "$_zsr_ov"; return 0 ;;
+        esac
+    fi
+    # 用多证据识别（覆盖 hyperos/coloros/originos/flyme/honor/huawei/redmagic/oneui/nothing/aosp）
+    if [ -f "$_zsr_mod/common/slot_discovery_cfs.sh" ]; then
+        . "$_zsr_mod/common/slot_discovery_cfs.sh" 2>/dev/null
+        if type _zcsf_rom >/dev/null 2>&1; then
+            _zsr_rom=$(_zcsf_rom "$_zsr_mod" 2>/dev/null)
+            if [ -n "$_zsr_rom" ]; then
+                printf '%s' "$_zsr_rom"
+                return 0
+            fi
+        fi
+    fi
     _zsr_rom=''
     if [ -f "$_zsr_mod/config/slot_coverage_rom.conf" ]; then
         _zsr_rom=$(sed -n 's/^rom=//p' "$_zsr_mod/config/slot_coverage_rom.conf" 2>/dev/null | head -n1 | tr -d ' \r')
