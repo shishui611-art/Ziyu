@@ -447,6 +447,26 @@ EOF_TASK_SELECTION
         _font_effect_state=unverified
     fi
 
+    # 框架软重启（先实时挂载、再只重启框架）已经让本次启动用上新字体，
+    # 不再提示"需要完整重启"。只改界面提示：下次真正重启后 boot_id 变化，
+    # 标记自然失效，待启动负载仍按正常流程在开机时提交持久化。
+    if [ -s "$MODDIR/config/live-restart.conf" ] && [ "$_mount_state" != failed ]; then
+        _lrr_boot=''; _lrr_font=''
+        while IFS= read -r _lrr_line || [ -n "$_lrr_line" ]; do
+            case "$_lrr_line" in
+                boot_id=*) _lrr_boot=${_lrr_line#*=} ;;
+                font=*) _lrr_font=${_lrr_line#*=} ;;
+            esac
+        done < "$MODDIR/config/live-restart.conf"
+        _lrr_now=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+        if [ -n "$_lrr_boot" ] && [ "$_lrr_boot" = "$_lrr_now" ] && \
+           [ -n "$_lrr_font" ] && [ "$_lrr_font" = "$_active" ]; then
+            _reboot_required=false
+            _effective_active="$_active"
+            _font_effect_state=live
+        fi
+    fi
+
     # Guard status is read-only. A blocked current boot must not inherit a
     # previous generation's verified result from the backend/activation files.
     _boot_guard_status=''
@@ -516,13 +536,26 @@ EOF_ZIYU_BOOT_GUARD_STATUS
                 count_lang=*) _slot_lang=${_slot_line#*=} ;;
             esac
         done < "$_slot_cache"
-        # 总数以「实际已发布的负载字体文件数」为准：这就是元模块真正注入的槽位数，
-        # 保证主页显示与挂载结果一致；负载还没发布时才退回探测口径。
+        # 总数以「实际生效的槽位数」为准，保证主页与挂载结果一致：
+        #   ① 现场挂载（框架软重启/立即生效）按槽位计划挂的槽位数
+        #   ② 否则取已发布的负载字体文件数（元模块注入的槽位数）
+        #   ③ 都没发布时才退回探测口径
         _slot_payload=0
         for _slot_pf in "$MODDIR/system/fonts"/*.ttf "$MODDIR/system/fonts"/*.otf; do
             [ -f "$_slot_pf" ] && _slot_payload=$((_slot_payload + 1))
         done
-        if [ "${_slot_payload:-0}" -gt 0 ]; then
+        _slot_live=0
+        if [ -s "$MODDIR/config/live-mount.conf" ]; then
+            _slot_live_boot=$(sed -n 's/^boot=//p' "$MODDIR/config/live-mount.conf" 2>/dev/null | head -n1 | tr -d '\r')
+            _slot_now_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
+            if [ -n "$_slot_live_boot" ] && [ "$_slot_live_boot" = "$_slot_now_boot" ]; then
+                _slot_live=$(sed -n 's/^mounted=//p' "$MODDIR/config/live-mount.conf" 2>/dev/null | head -n1 | tr -dc '0-9')
+            fi
+        fi
+        case "${_slot_live:-}" in ''|*[!0-9]*) _slot_live=0 ;; esac
+        if [ "${_slot_live:-0}" -gt "${_slot_payload:-0}" ]; then
+            _slot_total=$_slot_live
+        elif [ "${_slot_payload:-0}" -gt 0 ]; then
             _slot_total=$_slot_payload
         else
             _slot_total=$((_slot_cjk + _slot_digit + _slot_latin + _slot_lang))

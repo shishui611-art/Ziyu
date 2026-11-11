@@ -73,7 +73,7 @@ internal fun TemporaryRootCard() {
         }
     }
     LaunchedEffect(Unit) { refresh() }
-    SettingCard("临时 Root / 软重启") {
+    SettingCard("临时 Root / 内核软重启") {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ZiyuText(
                 if (enabled) "临时 Root 模式：字体切换后用 KernelSU 软重启验证，不完整重启。"
@@ -85,9 +85,13 @@ internal fun TemporaryRootCard() {
                     ZiyuText(if (enabled) "关闭临时 Root" else "开启临时 Root")
                 }
                 ZiyuButton(onClick = { softReboot() }, enabled = !busy) {
-                    ZiyuText("软重启")
+                    ZiyuText("内核软重启")
                 }
             }
+            ZiyuText(
+                "内核软重启会重新走模块加载与挂载阶段，耗时较长；只想让系统重读字体用下面的框架软重启。",
+                style = MaterialTheme.typography.bodySmall,
+            )
             if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -156,15 +160,15 @@ internal fun FrameworkRestartCard() {
             busy = false
         }
     }
-    SettingCard("立即软重启") {
+    SettingCard("框架软重启") {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ZiyuText(
-                "只重启 Android 框架，让系统重新读取字体；不重新执行模块挂载阶段。屏幕会黑一下，约 30~60 秒回到锁屏。",
+                "先把当前字体挂到系统，再只重启 Android 框架让它重新读取；不重新执行开机挂载阶段。屏幕会黑一下，约 30~60 秒回到锁屏，之后不用再完整重启。",
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZiyuButton(onClick = { restart() }, enabled = !busy) {
-                    ZiyuText("立即软重启")
+                    ZiyuText("框架软重启")
                 }
             }
             if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall)

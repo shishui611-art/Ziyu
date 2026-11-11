@@ -1048,6 +1048,14 @@ switch_font() {
                     return 1
                 }
             fi
+            # 槽位覆盖：把已选字体扩展到目标 ROM 的完整槽位清单。
+            # 这条路径（物理兼容/legacy safe-switch）原来不调用扩展，导致负载永远只有
+            # 核心十几个文件，而 provider 发布路径有扩展 —— 两条路径覆盖范围不一致。
+            if [ -f "$MODDIR/common/slot_coverage.sh" ] && [ -d "$SYSTEM_FONTS_DIR" ]; then
+                progress 78 '正在补齐完整字体槽位'
+                . "$MODDIR/common/slot_coverage.sh"
+                ziyu_slot_coverage_expand "$MODDIR" "$SYSTEM_FONTS_DIR" "$SYSTEM_FONTS_DIR" || true
+            fi
             safe_switch_sources_unchanged || {
                 safe_error '生成期间源字体或字重文件已变化，请重新切换'; return 1;
             }

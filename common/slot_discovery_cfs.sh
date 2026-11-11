@@ -179,6 +179,17 @@ _zcsf_targets_names() {
 }
 
 # ---------------------------------------------------------------------------
+# 原厂字体清单里的槽位名（device_font_inventory.json 的 slots 逻辑路径）。
+# 用途：NoMount / 元模块注入期间 /system/fonts 的目录条目可能暂时不一致
+# （readdir 有名字、stat 打不开），只看当前目录会把覆盖范围误判成极少几个。
+_zcsf_inventory_names() {
+    _zinv_mod="$1"
+    _zinv_f="$_zinv_mod/config/device_font_inventory.json"
+    [ -s "$_zinv_f" ] || return 0
+    grep -oE '"/[A-Za-z_]+/fonts/[A-Za-z0-9._+-]+"' "$_zinv_f" 2>/dev/null \
+        | sed 's#^.*/##; s#"$##' | sort -u
+}
+
 # 目录扫描（未过滤）：本机所有真实字体文件，用于"文件是否存在"判定
 # ---------------------------------------------------------------------------
 _zcsf_dir_names_all() {
@@ -335,14 +346,19 @@ ziyu_cfs_discover() {
         fi
     fi
 
-    # ---- 真实字体文件（未过滤目录扫描）→ 用于过滤 XML/清单里本机不存在的名字 ----
-    _zcd_real=" $( _zcsf_dir_names_all 2>/dev/null | sed 's/\r$//' | tr 'A-Z' 'a-z' | sort -u | tr '\n' ' ') "
+    # ---- 真实字体文件（当前目录 ∪ 原厂清单）→ 过滤 XML/清单里本机不存在的名字 ----
+    # 原厂清单是必需的兜底：注入期间目录条目会短暂不一致，只看目录会把覆盖范围
+    # 误判成十几个，再经发布扩成"只有十几个槽位"的负载，形成自增强的退化。
+    _zcd_real=" $( {
+        _zcsf_dir_names_all 2>/dev/null
+        _zcsf_inventory_names "$_zcd_mod" 2>/dev/null
+    } | sed 's/\r$//' | tr 'A-Z' 'a-z' | sort -u | tr '\n' ' ') "
     # ---- 收集候选文件名（XML + 清单 + 目录，与 slot_device_scan 同源）----
     _zcd_tmp="${TMPDIR:-/data/local/tmp}/.ziyu.cfs.slots.$$"
     {
         _zcsf_xml_names       2>/dev/null
         _zcsf_targets_names "$_zcd_mod" "$_zcd_rom" 2>/dev/null
-        _zcsf_dir_names       2>/dev/null
+        _zcsf_dir_names "$_zcd_mod" 2>/dev/null
     } | sed 's/\r$//' | grep -v '^[[:space:]]*$' | sort -u > "$_zcd_tmp" 2>/dev/null
     [ -s "$_zcd_tmp" ] || { rm -f "$_zcd_tmp" 2>/dev/null; return 1; }
 
@@ -378,6 +394,21 @@ ziyu_cfs_discover() {
     done < "$_zcd_tmp"
 
     [ "$_zcd_total" -gt 0 ] 2>/dev/null || { rm -f "$_zcd_tmp" "$_zcd_tmp2" 2>/dev/null; return 1; }
+
+    # 健全性守卫：绝不用一个灾难性的小结果覆盖正常缓存。
+    # 触发场景（真机）：注入/发布过程中目录条目短暂不一致 → 只识别到十几个真实文件
+    # → 覆盖成极少槽位 → 发布时扩展计划为空 → 负载更小，越滚越少。
+    if [ "$_zcd_total" -lt 25 ]; then
+        _zcd_prev=0
+        if [ -s "$_zcd_out" ]; then
+            _zcd_prev=$(sed -n 's/^count_total=//p' "$_zcd_out" 2>/dev/null | head -n1 | tr -dc '0-9')
+        fi
+        case "$_zcd_prev" in ''|*[!0-9]*) _zcd_prev=0 ;; esac
+        if [ "$_zcd_prev" -ge 50 ]; then
+            rm -f "$_zcd_tmp" "$_zcd_tmp2" 2>/dev/null
+            return 0
+        fi
+    fi
 
     # ---- 写缓存（tmp + mv，避免半成品）----
     mkdir -p "$_zcd_mod/config" 2>/dev/null
