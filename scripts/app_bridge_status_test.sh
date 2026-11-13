@@ -87,7 +87,7 @@ printf 'state=verified\nmode=mount-verified\nreason=\nactiveFont=OldFont\n' \
     >"$CONFIG/device-font-load-verification.conf"
 assert_status unknown pending stale-verification
 
-touch "$CONFIG/text_reboot_required.conf"
+printf 'font=DemoFont\n' > "$CONFIG/text_reboot_required.conf"
 assert_status unknown pending-reboot ''
 
 # A valid prepared transaction remains pending even if a prior service version
@@ -117,7 +117,7 @@ printf 'grade=FAIL\nstate=fail\nmode=universal-runtime\nreason=coverage-digits-m
     >"$CONFIG/universal-font-runtime-verification.conf"
 printf 'state=staged\ntargetFont=OldFont\ntargetMode=legacy\nreason=runtime-verification-failed\n' \
     >"$CONFIG/universal-font-rollback.conf"
-touch "$CONFIG/text_reboot_required.conf"
+printf 'font=UniversalFont\n' > "$CONFIG/text_reboot_required.conf"
 assert_status unknown rollback-pending coverage-digits-missing
 _output=$(MODDIR="$MODULE" sh "$ROOT/common/app_bridge.sh" status)
 printf '%s' "$_output" | python3 -c '
