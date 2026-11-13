@@ -7,17 +7,17 @@ _zso_module() { printf '%s\n' "${1:-${MODDIR:-${MODULE_DIR:-/data/adb/modules/Zi
 ziyu_skip_migrate_legacy_ownership() {
     _zso_module_path=$(_zso_module "${1:-}")
     _zso_legacy="$_zso_module_path/config/self-mount-owned"
-    # 这些标记位于**本模块自己的目录**里，只可能是字域（历史版本或当前挂载后端）
-    # 自己写的，没有第三方会在别人的模块目录里创建 skip_mount。
+    # 旧版字域生成的 skip_mount / skip_mountify 是空文件。仅迁移空标记；
+    # 带内容的标记按用户明确设置处理，不能认领后在启动时自动删除。
     #
     # 真机踩到的坑：旧版自挂载时代留下的 skip_mount 没有归属标记，被判定成
     # "foreign-skip-mount" → post-fs-data 直接跳过整个挂载阶段 → 字体永远不生效，
     # 而且每次开机都会累积一次"启动证据不足"。所以这里把无主标记认领为字域所有，
     # 后续由挂载后端决定保留还是释放（`ziyu_skip_marker_release`）。
-    if [ -e "$_zso_module_path/skip_mount" ] && [ ! -e "$_zso_module_path/.ziyu_skip_mount_owned" ]; then
+    if [ -e "$_zso_module_path/skip_mount" ] && [ ! -s "$_zso_module_path/skip_mount" ] && [ ! -e "$_zso_module_path/.ziyu_skip_mount_owned" ]; then
         : > "$_zso_module_path/.ziyu_skip_mount_owned" 2>/dev/null || return 1
     fi
-    if [ -e "$_zso_module_path/skip_mountify" ] && [ ! -e "$_zso_module_path/.ziyu_skip_mountify_owned" ]; then
+    if [ -e "$_zso_module_path/skip_mountify" ] && [ ! -s "$_zso_module_path/skip_mountify" ] && [ ! -e "$_zso_module_path/.ziyu_skip_mountify_owned" ]; then
         : > "$_zso_module_path/.ziyu_skip_mountify_owned" 2>/dev/null || return 1
     fi
     rm -f "$_zso_legacy" 2>/dev/null || return 1
