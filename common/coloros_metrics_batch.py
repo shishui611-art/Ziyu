@@ -196,6 +196,25 @@ def build(module: Path, stage: Path) -> dict:
             slot = indexed.get(logical)
             with source.open('rb') as stream:
                 signature = stream.read(4)
+            # Resolve a synthetic compatibility alias before the generic
+            # collection branch below. Otherwise the alias is treated as an
+            # independent TTC and its verified canonical relationship is lost.
+            canonical_name = {
+                'SysFont-Hans-Regular.ttf': 'SysSans-Hans-Regular.ttf',
+                'SysFont-Hant-Regular.ttf': 'SysSans-Hant-Regular.ttf',
+            }.get(source.name)
+            if slot is None and canonical_name:
+                canonical = root / canonical_name
+                canonical_logical = (logical_root / canonical_name).as_posix()
+                if (eligible_slot(indexed.get(canonical_logical), canonical_logical, digits_enabled)
+                        and canonical.is_file() and source.samefile(canonical)):
+                    with canonical.open('rb') as stream:
+                        is_collection = stream.read(4) == b'ttcf'
+                    if is_collection and (not font_clipping_compat.enabled() or not profile_collection(canonical)['variable']):
+                        report['reason'] = 'collection-alias-preserved-with-canonical'
+                        continue
+                    compatibility_aliases.append((source, canonical, report, file_identity(source.stat())))
+                    continue
             if signature == b'ttcf' and eligible_slot(slot or {'path': logical}, logical, digits_enabled):
                 profile = profile_collection(source)
                 if not profile['variable']:
@@ -208,30 +227,6 @@ def build(module: Path, stage: Path) -> dict:
                         if profile['face'] != 0:
                             key = file_identity(source.stat())
                             collection_jobs.setdefault(key, []).append((source, report))
-                    continue
-            # These legacy names may be synthesized on newer ColorOS ROMs.
-            # Never give a synthetic alias a different frame from its real OEM
-            # slot when both were generated from the exact same donor inode.
-            canonical_name = {
-                'SysFont-Hans-Regular.ttf': 'SysSans-Hans-Regular.ttf',
-                'SysFont-Hant-Regular.ttf': 'SysSans-Hant-Regular.ttf',
-            }.get(source.name)
-            if slot is None and canonical_name:
-                canonical = root / canonical_name
-                canonical_logical = (logical_root / canonical_name).as_posix()
-                if (eligible_slot(indexed.get(canonical_logical), canonical_logical, digits_enabled)
-                        and canonical.is_file() and source.samefile(canonical)):
-                    # A TTC is intentionally preserved byte-for-byte because
-                    # rewriting one face would discard its other faces. When
-                    # this synthetic alias is already the same file, keep that
-                    # verified relationship instead of requiring a rewritten
-                    # canonical output that must not exist for collections.
-                    with canonical.open('rb') as stream:
-                        is_collection = stream.read(4) == b'ttcf'
-                    if is_collection and (not font_clipping_compat.enabled() or not profile_collection(canonical)['variable']):
-                        report['reason'] = 'collection-alias-preserved-with-canonical'
-                        continue
-                    compatibility_aliases.append((source, canonical, report, file_identity(source.stat())))
                     continue
             if not eligible_slot(slot, logical, digits_enabled):
                 report['reason'] = 'missing-or-ineligible-stock-slot'
