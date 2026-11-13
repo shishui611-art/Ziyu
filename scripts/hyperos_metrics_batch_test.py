@@ -184,6 +184,9 @@ class HyperOSMetricsTest(unittest.TestCase):
     def test_zero_and_shallow_stock_descent_do_not_trigger_generic_fallback(self):
         for descent in (0, -1, -20):
             with self.subTest(descent=descent):
+                # Each value represents a fresh ROM slot. Do not let the prior
+                # generated alias be mistaken for a stock clock font to keep.
+                (self.fonts / 'MiClock.otf').unlink(missing_ok=True)
                 self.inventory({'/system/fonts/MiClock.otf': slot(descent=descent, head=(100, 700))})
                 result = batch.build(self.module, self.stage, ['MiClock.otf'])
                 self.assertEqual(result['fallbackSlots'], 0)
