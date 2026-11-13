@@ -18,5 +18,5 @@
 ## 发布验证
 
 - ColorOS OnePlus PLK110 上的苹方只读诊断确认第 0 面为 PingFang HK Regular，缺少 U+8FDC；第 2 面 PingFang SC Regular 包含该字。修复后的手机显示尚未验收。
-- 本地 Debug 编译、签名、模块 ZIP 完整性、包名与版本、模块清单和 ZIP 内 APK SHA-256 核对通过。正式版以本次 GitHub Actions 正式签名及发布成品为准。
+- 本机 Release APK 使用既有正式证书签名；模块 ZIP 完整性、包名与版本、模块清单和 ZIP 内 APK SHA-256 核对通过。正式版以 GitHub Actions 正式签名及发布成品为准。
 - 本次发布需由工作流执行源码检查与 Android 检查。完整手机字库覆盖与显示验收仍待完成，固定基准为 `coolapk-53620096-r1`，SHA-256 为 `e45b90d6244268251d69d9b95d0ae5f36df4b0174b8b6dce280236be2db30bd2`。

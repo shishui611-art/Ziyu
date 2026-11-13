@@ -140,7 +140,7 @@ while IFS= read -r payload || [ -n "$payload" ]; do
   test -e "$ROOT/$payload"
 done < "$PAYLOAD_MANIFEST"
 find "$ROOT/common" -maxdepth 1 -type f -printf 'common/%f\n' | sort > /tmp/ziyu-common-files.txt
-grep '^common/' "$PAYLOAD_MANIFEST" | grep -v '^common/font_preload_module$' | grep -v '^common/python$' | grep -v '^common/legacy_v14_4$' | sort > /tmp/ziyu-manifest-common.txt
+grep -E '^common/[^/]+$' "$PAYLOAD_MANIFEST" | grep -v '^common/font_preload_module$' | grep -v '^common/python$' | grep -v '^common/legacy_v14_4$' | sort > /tmp/ziyu-manifest-common.txt
 cmp -s /tmp/ziyu-common-files.txt /tmp/ziyu-manifest-common.txt
 
 # 活跃运行时代码不得再出现历史开发版本头、WebUI 函数或未使用的报告脚本。
