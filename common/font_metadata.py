@@ -188,6 +188,7 @@ def inspect(path: Path) -> dict[str, Any]:
             "faceCount": count,
             "collection": count > 1,
             "applicationLanguages": application['scriptLanguages'],
+            "applicationMode": application['applicationMode'],
             "faces": [inspect_face(path, file_hash, index) for index in range(count)],
         },
     }

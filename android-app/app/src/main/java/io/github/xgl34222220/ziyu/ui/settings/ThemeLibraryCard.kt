@@ -4,10 +4,10 @@ import android.graphics.ImageDecoder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as rowItems
@@ -66,7 +66,31 @@ internal fun ThemeLibraryCard(settings: AppearanceSettings) {
             style=MaterialTheme.typography.bodySmall,maxLines=1,overflow=TextOverflow.Ellipsis)
         ZiyuButton(onClick={open=true}) { ZiyuText("打开主题商店") }
     }
-    if(open) ThemeLibrarySheet(settings) { open=false }
+    if(open) ThemeStoreColors(settings) { ThemeLibrarySheet(settings) { open=false } }
+}
+
+private val LocalThemeStoreDark = staticCompositionLocalOf { false }
+
+@Composable
+private fun ThemeStoreColors(settings: AppearanceSettings, content: @Composable () -> Unit) {
+    val dark = when(settings.themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val ink = if(dark) Color.White else Color.Black
+    val background = if(dark) Color(0xFF111318) else Color(0xFFFAFAFA)
+    val surface = if(dark) Color(0xFF24272D) else Color(0xFFF0F0F0)
+    val palette = LocalZiyuPaletteTokens.current.copy(pageBackground=background,
+        cardBackground=surface,elevatedCardBackground=surface,textPrimary=ink,textSecondary=ink,textTertiary=ink)
+    val colors = MaterialTheme.colorScheme.copy(background=background,surface=background,
+        surfaceContainer=surface,surfaceContainerHigh=surface,surfaceContainerHighest=surface,
+        onBackground=ink,onSurface=ink,onSurfaceVariant=ink,onSecondaryContainer=ink,
+        secondaryContainer=surface,onPrimaryContainer=ink,primaryContainer=surface)
+    CompositionLocalProvider(LocalThemeStoreDark provides dark,LocalZiyuPaletteTokens provides palette,
+        LocalContentColor provides ink,LocalZiyuContentColor provides ink) {
+        MaterialTheme(colorScheme=colors,content=content)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -279,12 +303,14 @@ private fun ThemeStoreChip(label: String,selected: Boolean,onClick:()->Unit) {
 @Composable
 private fun ThemeStorePreviewCard(theme: StoreTheme,model: ThemeLibraryViewModel,source: ThemeSource,compact: Boolean,enabled: Boolean,
                                   onDetails:()->Unit,onDownload:()->Unit,onAspect:(Float)->Unit) {
+    val ink=if(LocalThemeStoreDark.current)Color.White else Color.Black
+    val scrim=if(LocalThemeStoreDark.current)Color.Black else Color.White
     val fontScale=LocalConfiguration.current.fontScale.coerceAtLeast(1f)
     Box(Modifier.fillMaxWidth().heightIn(min=(200*fontScale).dp).aspectRatio(if(compact).65f else 1.65f)
         .clip(RoundedCornerShape(26.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
         .clickable(enabled=enabled,role=Role.Button,onClick=onDetails)) {
         RemoteThemeImage(model,source,theme.preview.ifBlank { theme.screenshots.firstOrNull().orEmpty() },Modifier.matchParentSize(),ContentScale.Crop,onAspect)
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(.30f to Color.Transparent,.66f to Color.Black.copy(alpha=.32f),1f to Color.Black.copy(alpha=.88f))))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(.30f to Color.Transparent,.66f to scrim.copy(alpha=.55f),1f to scrim.copy(alpha=.95f))))
         Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(10.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             FlowRow(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                 theme.heat?.let { ThemeStoreMetric(Icons.Rounded.FlashOn,it,"热度") }
@@ -298,17 +324,17 @@ private fun ThemeStorePreviewCard(theme: StoreTheme,model: ThemeLibraryViewModel
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,
             horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                ZiyuText(theme.name,color=Color.White,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
+                ZiyuText(theme.name,color=ink,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
                 val date=theme.updated.substringBefore('T').replace('-','/')
                 ZiyuText(listOf(theme.author.ifBlank { "未署名" },date).filter { it.isNotBlank() }.joinToString(" · "),
-                    color=Color.White.copy(alpha=.9f),style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    color=ink,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
             }
             if(compact) ZiyuIconButton(onClick=onDownload,enabled=enabled && theme.format in 1..4,
-                colors=IconButtonDefaults.iconButtonColors(containerColor=Color.White.copy(alpha=.25f),contentColor=Color.White)) {
+                colors=IconButtonDefaults.iconButtonColors(containerColor=scrim.copy(alpha=.85f),contentColor=ink)) {
                 ZiyuIcon(Icons.Rounded.FileDownload,"下载 ${theme.name}")
             } else ZiyuButton(onClick=onDownload,enabled=enabled && theme.format in 1..4,
-                colors=ButtonDefaults.buttonColors(containerColor=Color.White.copy(alpha=.22f),contentColor=Color.White),
-                border=BorderStroke(1.dp,Color.White.copy(alpha=.4f)),shape=RoundedCornerShape(24.dp)) {
+                colors=ButtonDefaults.buttonColors(containerColor=scrim.copy(alpha=.85f),contentColor=ink),
+                border=BorderStroke(1.dp,ink.copy(alpha=.4f)),shape=RoundedCornerShape(24.dp)) {
                 ZiyuIcon(Icons.Rounded.FileDownload,null,Modifier.size(20.dp));Spacer(Modifier.width(6.dp));ZiyuText("下载")
             }
         }
@@ -317,11 +343,13 @@ private fun ThemeStorePreviewCard(theme: StoreTheme,model: ThemeLibraryViewModel
 
 @Composable
 private fun ThemeStoreMetric(icon: ImageVector,value: Long,label: String) {
-    Row(Modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha=.48f)).padding(horizontal=8.dp,vertical=5.dp),
+    val ink=if(LocalThemeStoreDark.current)Color.White else Color.Black
+    val background=if(LocalThemeStoreDark.current)Color.Black else Color.White
+    Row(Modifier.clip(RoundedCornerShape(16.dp)).background(background.copy(alpha=.85f)).padding(horizontal=8.dp,vertical=5.dp),
         horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically) {
-        ZiyuIcon(icon,label,Modifier.size(14.dp),tint=Color.White)
+        ZiyuIcon(icon,label,Modifier.size(14.dp),tint=ink)
         val text=if(value>=1000)String.format(java.util.Locale.ROOT,"%.1fk",value/1000.0) else value.toString()
-        ZiyuText(text,color=Color.White,style=MaterialTheme.typography.labelSmall,maxLines=1)
+        ZiyuText(text,color=ink,style=MaterialTheme.typography.labelSmall,maxLines=1)
     }
 }
 

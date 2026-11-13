@@ -13,7 +13,6 @@ LEGACY_MODE="$MODDIR/config/font_runtime_legacy_v14_4.conf"
 V4_SERVICE="$MODDIR/.ziyu-runtime/core/service.sh"
 mkdir -p "$MODDIR/logs" 2>/dev/null || true
 
-
 # User storage changes are committed only after a complete kernel reboot.
 # Migration owns its advisory lock; source data remains available on failure.
 (
@@ -52,9 +51,15 @@ if [ -f "$MODDIR/common/theme_store.sh" ]; then
     if [ -f "$MODDIR/config/tools/theme-store.conf" ]; then
         _ts_on=$(sed -n 's/^enabled=//p' "$MODDIR/config/tools/theme-store.conf" 2>/dev/null | head -n1 | tr -d ' \r')
     fi
-    if [ "$_ts_on" = 1 ]; then
+    if [ "$_ts_on" = 1 ] || [ -e /data/adb/ziyu/theme-store/pending ] || \
+       [ -e /data/adb/ziyu/theme-store/journal.json ] || \
+       [ -s "$MODDIR/.ziyu-state/theme-backup/manifest.txt" ] || \
+       [ -s "$MODDIR/.ziyu-state/theme-store.state" ]; then
         (
-            MODDIR="$MODDIR" sh "$MODDIR/common/theme_store.sh" apply \
+            # Do not mistake a new pending selection for the current generation.
+            [ ! -s "$MODDIR/config/font-payload-next.conf" ] && \
+                [ ! -s "$MODDIR/config/universal-font-next.conf" ] || exit 0
+            MODDIR="$MODDIR" sh "$MODDIR/common/theme_store.sh" sync \
                 >> "$MODDIR/logs/theme-store.log" 2>&1 || true
         ) </dev/null >/dev/null 2>&1 &
     fi

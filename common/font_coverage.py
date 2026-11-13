@@ -124,9 +124,10 @@ def inspect(path: Path) -> dict[str, object]:
     for index, cmap in enumerate(faces):
         languages = script_languages(cmap)
         declared = [language for language in facts[index][1] if language in languages]
-        # A JP/KR regional family may also contain complete simplified Chinese;
-        # its declared language still wins over accidental global eligibility.
-        languages = declared or ([] if safe else languages)
+        # Coverage, not an inherited family name, determines the application
+        # route. Complete Chinese/mixed fonts must retain the global publisher
+        # and its per-role combination processing even if named CJK JP/KR.
+        languages = [] if safe else (declared or languages)
         scripts.append((len(languages), len(cmap), -index, languages))
     _, _, script_index, languages = max(scripts, default=(0, 0, 0, []))
     return {
@@ -138,6 +139,7 @@ def inspect(path: Path) -> dict[str, object]:
         "coverage": percentages,
         "scriptLanguages": languages,
         "scriptFace": -script_index,
+        "applicationMode": "global" if safe else "fallback",
         "message": (
             f"字形覆盖通过：核心汉字 {han_count} 个"
             if safe

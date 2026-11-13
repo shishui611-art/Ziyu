@@ -4,7 +4,7 @@ import sys
 import zipfile
 
 stage, out = sys.argv[1], sys.argv[2]
-exec_dirs = {"system/bin", "common/python/bin", "meta", "scripts"}
+exec_dirs = {"system/bin", "common/python/bin", "common/pid-wrap", "meta", "scripts"}
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
     for root, dirs, files in os.walk(stage):
         dirs.sort()

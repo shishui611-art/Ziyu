@@ -54,7 +54,7 @@ ziyu_manager_backend_apply() {
             # 下次开机 NoMount/管理器扫描不到字域字体规则，回到原厂文件。
             if [ -f "$_zmb_m/common/restore_stock_factory.sh" ]; then
                 MODDIR="$_zmb_m" MODULE_DIR="$_zmb_m" \
-                    sh "$_zmb_m/common/restore_stock_factory.sh" "$_zmb_m" >/dev/null 2>&1 || :
+                    sh "$_zmb_m/common/restore_stock_factory.sh" "$_zmb_m" >/dev/null 2>&1 || return 1
             fi
             rm -f "$(_zmb_receipt "$_zmb_m")" 2>/dev/null || true
             _zmb_log 'default font: published font trees cleared, receipt retracted' "$_zmb_m"

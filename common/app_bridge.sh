@@ -11,6 +11,18 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 export MODDIR
+if [ "${1:-}" = app_reads ]; then
+    [ "$(id -u 2>/dev/null)" = 0 ] || { printf '{"status":"error","message":"Root 尚未授权"}\n'; exit 1; }
+    [ "$#" -le 2 ] || exit 2
+    case "${2:-settings}" in settings|logs) ;; *) exit 2 ;; esac
+    PYROOT="$MODDIR/common/python"
+    PYBIN="$PYROOT/bin/ziyu-python"
+    [ -x "$PYBIN" ] && [ -f "$MODDIR/common/app_read_batch.py" ] || exit 127
+    export MODULE_DIR="$MODDIR" PYTHONHOME="$PYROOT"
+    export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
+    export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    exec "$PYBIN" "$MODDIR/common/app_read_batch.py" "$MODDIR" "${2:-settings}"
+fi
 if [ "${1:-}" = app_coverage ]; then
     [ "$(id -u 2>/dev/null)" = 0 ] || { printf '{"status":"error","message":"Root 尚未授权"}\n'; exit 1; }
     PYROOT="$MODDIR/common/python"
@@ -59,7 +71,6 @@ if [ "${1:-}" = soft_reboot ]; then
     [ -f "$MODDIR/common/soft_reboot.sh" ] || { printf '{"status":"error","message":"软重启组件不可用"}\n'; exit 1; }
     exec sh "$MODDIR/common/soft_reboot.sh" "${2:-request}"
 fi
-# 立即软重启：只重启 Android 框架（zygote/system_server），不重新走模块挂载阶段。
 # 保留锁屏时钟字体：默认开启（不替换厂商时钟/数字字体）。
 if [ "${1:-}" = keep_lockscreen ]; then
     _kl_conf="$MODDIR/config/tools/keep-lockscreen.conf"
@@ -68,8 +79,9 @@ if [ "${1:-}" = keep_lockscreen ]; then
     case "${2:-get}" in
         set)
             case "${3:-}" in off|0|false) _kl_value=0 ;; *) _kl_value=1 ;; esac
-            mkdir -p "$MODDIR/config/tools" 2>/dev/null
-            printf 'enabled=%s\n' "$_kl_value" > "$_kl_conf"
+            mkdir -p "$MODDIR/config/tools" 2>/dev/null || exit 1
+            printf 'enabled=%s\n' "$_kl_value" > "$_kl_conf.tmp.$$" &&
+                mv -f "$_kl_conf.tmp.$$" "$_kl_conf" || exit 1
             printf '[%s] keep_lockscreen=%s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$_kl_value" \
                 >> "$MODDIR/logs/slot-coverage.log" 2>/dev/null
             ;;
@@ -79,31 +91,8 @@ if [ "${1:-}" = keep_lockscreen ]; then
 fi
 # 主题商店字体：把当前字体写进 /data 上的主题字体文件（默认关闭）。
 if [ "${1:-}" = theme_store ]; then
-    _ts_conf="$MODDIR/config/tools/theme-store.conf"
-    case "${2:-status}" in
-        get|set)
-            _ts_value=0
-            [ -f "$_ts_conf" ] && _ts_value=$(sed -n 's/^enabled=//p' "$_ts_conf" 2>/dev/null | head -n1 | tr -d ' \r')
-            if [ "${2:-}" = set ]; then
-                case "${3:-}" in on|1|true) _ts_value=1 ;; *) _ts_value=0 ;; esac
-                mkdir -p "$MODDIR/config/tools" 2>/dev/null
-                printf 'enabled=%s\n' "$_ts_value" > "$_ts_conf"
-                # 打开即立即生效；关闭即还原原件，避免把用户主题字体留在替换状态。
-                if [ "$_ts_value" = 1 ]; then
-                    sh "$MODDIR/common/theme_store.sh" apply
-                else
-                    sh "$MODDIR/common/theme_store.sh" restore
-                fi
-                exit $?
-            fi
-            printf 'enabled=%s\n' "${_ts_value:-0}"
-            exit 0
-            ;;
-        *)
-            [ -f "$MODDIR/common/theme_store.sh" ] || { printf '{"status":"error","message":"主题商店组件不可用"}\n'; exit 1; }
-            exec sh "$MODDIR/common/theme_store.sh" "${2:-status}"
-            ;;
-    esac
+    [ -f "$MODDIR/common/theme_store.sh" ] || { printf '{"status":"error","message":"主题字体处理组件不可用"}\n'; exit 1; }
+    exec sh "$MODDIR/common/theme_store.sh" "${2:-status}" "${3:-}"
 fi
 if [ "${1:-}" = temporary_root ]; then
     [ -f "$MODDIR/common/temporary_root_mode.sh" ] && . "$MODDIR/common/temporary_root_mode.sh"
@@ -111,8 +100,10 @@ if [ "${1:-}" = temporary_root ]; then
         set)
             _tr_want=false
             case "${3:-}" in true|1|on) _tr_want=true ;; esac
-            mkdir -p "$MODDIR/config/tools" 2>/dev/null || true
-            printf 'enabled=%s\n' "$_tr_want" > "$MODDIR/config/tools/temporary-root-mode.conf"
+            mkdir -p "$MODDIR/config/tools" 2>/dev/null || exit 1
+            _tr_conf="$MODDIR/config/tools/temporary-root-mode.conf"
+            printf 'enabled=%s\n' "$_tr_want" > "$_tr_conf.tmp.$$" &&
+                mv -f "$_tr_conf.tmp.$$" "$_tr_conf" || exit 1
             ;;
     esac
     if type ziyu_temporary_root_mode >/dev/null 2>&1 && ziyu_temporary_root_mode "$MODDIR"; then
@@ -388,13 +379,6 @@ case "${1:-status}" in
     display_typography)
         shift
         exec sh "$MODDIR/common/display_typography.sh" "$@"
-        ;;
-    app_reads)
-        [ -x "$PYBIN" ] && [ -f "$MODDIR/common/app_read_batch.py" ] || exit 127
-        export MODDIR MODULE_DIR="$MODDIR" PYTHONHOME="$PYROOT"
-        export PYTHONPATH="$PYROOT/lib/python3.14:$PYROOT/lib/python3.14/site-packages"
-        export LD_LIBRARY_PATH="$PYROOT/lib:$PYROOT/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-        "$PYBIN" "$MODDIR/common/app_read_batch.py" "$MODDIR" "${2:-settings}"
         ;;
     action_cancel) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" cancel "${2:-}" "${3:-}" ;;
     action_undo) MODDIR="$MODDIR" sh "$MODDIR/common/action_control.sh" undo ;;

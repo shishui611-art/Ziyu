@@ -8,7 +8,7 @@ MODULE="$TMP/module"
 CONFIG="$MODULE/config"
 mkdir -p "$CONFIG" "$MODULE/common" "$TMP/bin"
 # Status is a dedicated helper with a Root boundary; simulate that boundary here.
-for helper in app_status.sh root_manager_detection.sh mount_backend_state.sh mount_backend_details.sh legacy_identity.sh font_boot_state.sh font_live_state.sh; do
+for helper in app_status.sh root_manager_detection.sh mount_backend_state.sh mount_backend_details.sh legacy_identity.sh font_boot_state.sh font_live_state.sh temporary_root_mode.sh; do
     cp "$ROOT/common/$helper" "$MODULE/common/"
 done
 printf '#!/bin/sh\nprintf "0\\n"\n' > "$TMP/bin/id"
@@ -48,6 +48,20 @@ assert data["mountFailure"] == sys.argv[1], data
 
 printf 'default\n' >"$CONFIG/active_font.conf"
 assert_status default system ''
+
+printf 'font=default\nbootId=boot-old\n' > "$CONFIG/text_reboot_required.conf"
+cat > "$CONFIG/device-font-load-verification.conf" <<'EOF_STOCK_VERIFIED'
+state=not-applicable
+activeFont=default
+bootId=boot-current
+EOF_STOCK_VERIFIED
+_output=$(ZIYU_TEST_BOOT_ID=boot-current MODDIR="$MODULE" sh "$ROOT/common/app_bridge.sh" status)
+printf '%s' "$_output" | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; assert d["rebootRequired"] is False, d'
+test ! -e "$CONFIG/text_reboot_required.conf"
+
+printf 'boot_id=boot-current\nstate=ppid-reset-failed\nreason=test\n' > "$CONFIG/temporary-root-soft-reboot.conf"
+_output=$(ZIYU_TEST_BOOT_ID=boot-current MODDIR="$MODULE" sh "$ROOT/common/app_bridge.sh" status)
+printf '%s' "$_output" | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; assert d["softRebootState"] == "failed", d'
 
 printf 'DemoFont\n' >"$CONFIG/active_font.conf"
 printf 'state=failed\nbackend=rollback\nfailed=oplus_product/fonts\n' >"$CONFIG/self-mount.conf"

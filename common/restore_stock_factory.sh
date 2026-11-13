@@ -11,6 +11,16 @@ _log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo unk
 
 _log "restore requested"
 
+# Theme fonts are real /data files. Restore them before deleting any payload or
+# rollback state; a failure keeps both recovery data and the current selection.
+if [ -f "$MODDIR/common/theme_store.sh" ]; then
+    MODDIR="$MODDIR" sh "$MODDIR/common/theme_store.sh" restore-disable >> "$LOG" 2>&1 || {
+        _log 'theme restore incomplete; retained backups and font payload'
+        printf 'status=error\nreason=theme-restore-incomplete\n'
+        exit 1
+    }
+fi
+
 # 1. 退出热挂载/自挂载（有脚本才执行）。
 [ -f "$MODDIR/common/font_live_switch.sh" ] && \
     MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/font_live_switch.sh" retire >> "$LOG" 2>&1

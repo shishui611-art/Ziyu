@@ -85,6 +85,7 @@ fun HomeRoute(
     state: HomeUiState,
     actions: HomeActions,
 ) {
+    ModuleVersionNotice(state)
     var trustState by remember { mutableStateOf(DeviceTrustState()) }
     var showTrustDetails by remember { mutableStateOf(false) }
     var showCurrentFont by remember { mutableStateOf(false) }
@@ -96,12 +97,11 @@ fun HomeRoute(
     var stockScanBusy by remember { mutableStateOf(false) }
     var stockScanMessage by remember { mutableStateOf("") }
     var stockScanError by remember { mutableStateOf(false) }
-    var showTemporaryRootGuide by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val visibleActions = actions.copy(
         viewCurrentFont = { showCurrentFont = true },
         mountSettings = { actions.mountSettings(); showMountSettings = true },
-        reboot = if (state.temporaryRootMode) ({ showTemporaryRootGuide = true }) else actions.reboot,
+        reboot = actions.reboot,
     )
 
     LaunchedEffect(state.typographyVisible, state.currentFontId, state.currentFontRevision, state.loading) {
@@ -306,24 +306,6 @@ fun HomeRoute(
             },
             onReboot = visibleActions.reboot,
             onDismiss = { showAcceptanceGuide = false },
-        )
-    }
-    if (showTemporaryRootGuide) {
-        AlertDialog(
-            onDismissRequest = { showTemporaryRootGuide = false },
-            title = { Text("KernelSU 软重启") },
-            text = { Text("下一步确认本机可用的重启方式，再由你选择是否执行。重启完成后回到字域，查看本次挂载和字体加载验证结果。") },
-            confirmButton = {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ZiyuButton(onClick = { showTemporaryRootGuide = false; actions.reboot() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("继续选择重启方式")
-                    }
-                    ZiyuOutlinedButton(onClick = { showTemporaryRootGuide = false }, modifier = Modifier.fillMaxWidth()) {
-                        Text("稍后")
-                    }
-                }
-            },
-            dismissButton = null,
         )
     }
 }

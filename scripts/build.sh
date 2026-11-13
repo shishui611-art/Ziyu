@@ -16,6 +16,7 @@ EXPECTED_VERSION_CODE="$ZIYU_APP_VERSION_CODE"
 MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-13631488}"
 
 python3 "$ROOT/scripts/build_font_instance.py" --verify
+python3 "$ROOT/scripts/build_pid_wrap.py" --verify
 python3 "$ROOT/scripts/rebrand_cli.py" --verify
 if [ -n "${ZIYU_SOURCE_CHECK_RECEIPT:-}" ]; then
   # The required CI source job already ran the complete suite on these inputs.

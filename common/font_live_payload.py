@@ -104,12 +104,12 @@ def copy_label(source, destination):
             raise ValueError('generation SELinux label mismatch')
 
 
-def prepare(source, cache, boot, temporary):
-    source, cache, temporary = map(Path, (source, cache, temporary))
-    if source.is_symlink() or not source.is_dir() or cache.is_symlink() or temporary.exists():
-        raise ValueError('unsafe generation directory')
-    cache.mkdir(parents=True, exist_ok=True)
+def scan_payload(source):
+    source = Path(source)
+    if source.is_symlink() or not source.is_dir():
+        raise ValueError('unsafe payload directory')
     entries, hashes, needed, directories = [], {}, 0, []
+    pinned = {}
     digest = hashlib.sha256()
     for directory, subdirs, files in os.walk(source, followlinks=False):
         directories.append((Path(directory), Path(directory).relative_to(source)))
@@ -117,41 +117,68 @@ def prepare(source, cache, boot, temporary):
         if any((Path(directory) / name).is_symlink() for name in subdirs):
             raise ValueError('payload directory symlink')
         for name in sorted(files):
-            if Path(directory) == source and name.startswith('.ziyu-'):
+            # Keep role/exclusion reports and all runtime metadata. Only the
+            # queue marker added after sealing and the cache receipt are local
+            # transaction bookkeeping, not part of the immutable font payload.
+            if Path(directory) == source and name in ('.ziyu-next-transaction.conf', '.generation.conf'):
                 continue
             path = Path(directory) / name
             info = path.lstat()
             if not stat.S_ISREG(info.st_mode):
                 raise ValueError('payload contains non-regular file')
+            before = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
             identity = info.st_dev, info.st_ino
+            if identity in pinned and pinned[identity] != before:
+                raise ValueError('prepared payload alias changed')
+            pinned[identity] = before
             if identity not in hashes:
                 with path.open('rb') as stream:
                     hashes[identity] = hashlib.file_digest(stream, 'sha256').digest()
                 needed += info.st_size
+            after = path.lstat()
+            if before != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                raise ValueError('prepared payload changed during hashing')
             relative = path.relative_to(source)
             digest.update(str(relative).encode() + b'\0' + hashes[identity])
             entries.append((path, relative, identity))
     if not entries:
         raise ValueError('empty generation')
-    generation = cache / ('generation-' + digest.hexdigest())
+    for path, _relative, key in entries:
+        current = path.lstat()
+        if pinned[key] != (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns):
+            raise ValueError('prepared payload changed before sealing')
+    return entries, hashes, needed, directories, digest.hexdigest()
+
+
+def verify_generation(generation, source, entries, hashes):
+    verified = {}
+    for _, relative, identity in entries:
+        path = generation / relative
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('generation file changed')
+        if label(path) != label(source / relative):
+            raise ValueError('generation SELinux label changed')
+        info = path.stat()
+        stored_identity = (info.st_dev, info.st_ino, info.st_size,
+                           info.st_mtime_ns, info.st_ctime_ns)
+        if stored_identity not in verified:
+            with path.open('rb') as stream:
+                verified[stored_identity] = hashlib.file_digest(stream, 'sha256').digest()
+        if verified[stored_identity] != hashes[identity]:
+            raise ValueError('generation content changed')
+
+
+def prepare(source, cache, boot, temporary):
+    source, cache, temporary = map(Path, (source, cache, temporary))
+    if source.is_symlink() or not source.is_dir() or cache.is_symlink() or temporary.exists():
+        raise ValueError('unsafe generation directory')
+    cache.mkdir(parents=True, exist_ok=True)
+    entries, hashes, needed, directories, digest = scan_payload(source)
+    generation = cache / ('generation-' + digest)
     if generation.exists():
         if generation.is_symlink() or values(generation / '.generation.conf').get('boot_id') != boot:
             raise ValueError('generation identity mismatch')
-        verified = {}
-        for _, relative, identity in entries:
-            path = generation / relative
-            if path.is_symlink() or not path.is_file():
-                raise ValueError('generation file changed')
-            if label(path) != label(source / relative):
-                raise ValueError('generation SELinux label changed')
-            info = path.stat()
-            stored_identity = (info.st_dev, info.st_ino, info.st_size,
-                               info.st_mtime_ns, info.st_ctime_ns)
-            if stored_identity not in verified:
-                with path.open('rb') as stream:
-                    verified[stored_identity] = hashlib.file_digest(stream, 'sha256').digest()
-            if verified[stored_identity] != hashes[identity]:
-                raise ValueError('generation content changed')
+        verify_generation(generation, source, entries, hashes)
         return generation
     # Current-boot generations and mirror files may still be mmap'ed by apps.
     # Never reclaim or overwrite them to make room for a hot switch.
@@ -175,8 +202,9 @@ def prepare(source, cache, boot, temporary):
                 os.chmod(destination, 0o644)
                 copy_label(path, destination)
                 copied[identity] = destination
-        conf(temporary / '.generation.conf', dict(boot_id=boot, digest=digest.hexdigest(), bytes=needed))
+        conf(temporary / '.generation.conf', dict(boot_id=boot, digest=digest, bytes=needed))
         os.chmod(temporary / '.generation.conf', 0o644)
+        verify_generation(temporary, source, entries, hashes)
         os.rename(temporary, generation)
     finally:
         if temporary.exists():
@@ -233,6 +261,8 @@ def transaction(module, action, *args):
         backend = values(config / 'mount-backend.conf')
         backend.update(active_backend='self', verification='partial' if state == 'partial' else 'passed',
                        last_error='', boot_id=boot, stage='live',
+                       payload_font=font,
+                       payload_manifest_sha256=hashlib.sha256((config / 'font-payload-manifest.conf').read_bytes()).hexdigest(),
                        active_self_backend=values(config / 'self-mount.conf').get('backend', 'unknown'),
                        mount_warning=values(config / 'font-apply-result.conf').get('warning', ''))
         conf(config / 'mount-backend.conf', backend)
@@ -317,6 +347,8 @@ if __name__ == '__main__':
             os.set_inheritable(descriptor, True)
             os.environ['ZIYU_LIVE_LOCK_FD'] = str(descriptor)
             os.execvp(sys.argv[3], sys.argv[3:])
+        elif sys.argv[1] == 'digest':
+            print(scan_payload(sys.argv[2])[-1])
         elif sys.argv[1] == 'prepare':
             print(prepare(*sys.argv[2:]))
         else:

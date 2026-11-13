@@ -61,4 +61,23 @@ EOF_PENDING
 MODDIR="$MODULE" sh "$MODULE/common/font_boot_state.sh" reconcile-rebuild
 test ! -e "$CONFIG/font-payload-rebuild-pending.conf"
 
+# Restoring stock has no custom payload boot file. A current-boot stock result
+# clears the older reboot prompt, while a marker from this boot stays visible.
+printf 'default\n' > "$CONFIG/active_font.conf"
+printf 'font=default\nbootId=boot-b\n' > "$CONFIG/text_reboot_required.conf"
+cat > "$CONFIG/device-font-load-verification.conf" <<'EOF_STOCK_VERIFY'
+state=not-applicable
+activeFont=default
+bootId=boot-c
+EOF_STOCK_VERIFY
+MODDIR="$MODULE" ZIYU_TEST_BOOT_ID=boot-c sh "$MODULE/common/font_boot_state.sh" reconcile
+test ! -e "$CONFIG/text_reboot_required.conf"
+
+printf 'font=default\nbootId=boot-c\n' > "$CONFIG/text_reboot_required.conf"
+if MODDIR="$MODULE" ZIYU_TEST_BOOT_ID=boot-c sh "$MODULE/common/font_boot_state.sh" reconcile; then
+    echo 'same-boot stock marker was consumed' >&2
+    exit 1
+fi
+test -s "$CONFIG/text_reboot_required.conf"
+
 echo 'Font reboot state converges once across a complete boot.'

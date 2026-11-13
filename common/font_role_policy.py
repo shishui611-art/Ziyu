@@ -23,7 +23,9 @@ def families(slot: dict | None) -> list[str]:
 
 def is_clock_slot(name: str, slot: dict | None = None) -> bool:
     label = ' '.join([name.lower(), *families(slot)])
-    return bool(VENDOR_CLOCK.fullmatch(name)) or any(word in label for word in ('clock', 'mitype', 'lockscreen', 'lock-screen', 'numeral'))
+    return (bool(VENDOR_CLOCK.fullmatch(name))
+            or any(word in label for word in ('clock', 'mitype', 'lockscreen', 'lock-screen', 'numeral', 'digit', 'dincondensed', 'dinpro', 'osans-solid'))
+            or bool(re.search(r'(?:^|[-_. ])(?:num|number)(?:[-_. ]|$)', label)))
 
 
 def keep_lockscreen(module: Path) -> bool:
@@ -91,7 +93,7 @@ def protected_aliases(stage: Path, data: dict, keep_clock: bool = True) -> list[
             logical = '/' + path.relative_to(stage).as_posix()
             if is_code_monospace(path.name, slot_for(data, logical)):
                 result.append(path)
-            elif keep_clock and VENDOR_CLOCK.fullmatch(path.name):
+            elif keep_clock and is_clock_slot(path.name, slot_for(data, logical)):
                 result.append(path)
     return result
 

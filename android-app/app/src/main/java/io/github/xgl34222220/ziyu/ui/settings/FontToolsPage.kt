@@ -20,6 +20,11 @@ import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
 import io.github.xgl34222220.ziyu.ui.design.ZiyuText
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+
+private fun themeStoreReply(output: String): JSONObject? = runCatching {
+    JSONObject(output.lineSequence().map(String::trim).last { it.startsWith("{") })
+}.getOrNull()
 
 /** 保留锁屏时钟字体：避免换字体后锁屏/桌面时钟排版错位。 */
 @Composable
@@ -37,12 +42,15 @@ internal fun KeepLockscreenCard() {
                 "sh /data/adb/modules/ziyu/common/app_bridge.sh keep_lockscreen set ${if (value) "on" else "off"}",
                 timeoutMs = 8_000L,
             )
-            enabled = result.stdout.contains("enabled=1")
+            val actual = result.stdout.lineSequence().map(String::trim).firstOrNull {
+                it == "enabled=1" || it == "enabled=0"
+            }
             busy = false
-            message = if (enabled) {
-                "已保留时钟字体。重新应用字体后生效。"
+            message = if (result.code != 0 || actual == null) {
+                "设置未保存，请重试。"
             } else {
-                "时钟数字也会一起换。重新应用字体后生效。"
+                enabled = actual == "enabled=1"
+                "已保存，重新应用字体后生效。"
             }
         }
     }
@@ -75,6 +83,7 @@ internal fun KeepLockscreenCard() {
 @Composable
 internal fun ThemeStoreCard() {
     var enabled by remember { mutableStateOf(false) }
+    var pendingRestore by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
@@ -87,13 +96,23 @@ internal fun ThemeStoreCard() {
                 "sh /data/adb/modules/ziyu/common/app_bridge.sh theme_store set ${if (value) "on" else "off"}",
                 timeoutMs = 120_000L,
             )
-            enabled = value
+            val reply = themeStoreReply(result.stdout)
+            val data = reply?.optJSONObject("data")
+            if (data?.has("pending") == true) pendingRestore = data.optInt("pending", 0) > 0
+            val success = result.code == 0 && reply?.optString("status") == "ok" &&
+                (data?.optInt("failed", 0) ?: 0) == 0
+            if (data?.has("enabled") == true && !data.isNull("enabled")) {
+                enabled = data.optBoolean("enabled", enabled)
+            } else if (success) {
+                enabled = value // Compatibility with the previous module's reply.
+            }
             busy = false
-            message = if (value) {
-                val count = Regex("\"replaced\":(\\d+)").find(result.stdout)?.groupValues?.get(1)
-                "已写入主题字体${count?.let { "（$it 个文件）" } ?: ""}。主题商店里的选择会失效。"
-            } else {
-                "已还原主题字体原件。"
+            message = reply?.optString("message").orEmpty().ifBlank {
+                data?.optString("message").orEmpty()
+            }.ifBlank {
+                if (success) {
+                    if (value) "主题字体已更新。" else "主题字体已还原。"
+                } else "处理未完成，请重试或导出日志。"
             }
         }
     }
@@ -102,19 +121,26 @@ internal fun ThemeStoreCard() {
             "sh /data/adb/modules/ziyu/common/app_bridge.sh theme_store get",
             timeoutMs = 8_000L,
         )
-        enabled = result.stdout.contains("enabled=1")
+        val reply = themeStoreReply(result.stdout)
+        if (result.code == 0 && reply?.optString("status") == "ok") {
+            enabled = reply.optJSONObject("data")?.optBoolean("enabled", false) ?: false
+            pendingRestore = (reply.optJSONObject("data")?.optInt("backed_up", 0) ?: 0) > 0
+        } else if (result.code == 0 && result.stdout.lineSequence().any { it.trim() == "enabled=1" || it.trim() == "enabled=0" }) {
+            enabled = result.stdout.lineSequence().any { it.trim() == "enabled=1" }
+        } else {
+            message = reply?.optString("message").orEmpty().ifBlank { "状态未读取，请重试或导出日志。" }
+        }
         loaded = true
     }
     SettingCard("主题商店字体") {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ZiyuText(
-                if (enabled) "设置里的字体样式已跟随字域，主题商店里的选择会失效。"
-                else "只换系统字体。开启后连「设置 → 字体样式」里选的那份也换成你的字体。",
+                "替换主题中选用的字体，替换前会备份。",
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZiyuOutlinedButton(onClick = { apply(!enabled) }, enabled = loaded && !busy) {
-                    ZiyuText(if (enabled) "还原主题字体" else "同时替换主题字体")
+                ZiyuOutlinedButton(onClick = { apply(!(enabled || pendingRestore)) }, enabled = loaded && !busy) {
+                    ZiyuText(if (enabled || pendingRestore) "还原主题字体" else "同时替换主题字体")
                 }
             }
             if (message.isNotBlank()) ZiyuText(message, style = MaterialTheme.typography.bodySmall)

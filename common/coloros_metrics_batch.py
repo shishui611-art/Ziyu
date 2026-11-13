@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import sys
 import tempfile
 import time
@@ -20,6 +21,9 @@ from font_inventory_scan import _is_ui_family
 from fontTools.ttLib import TTCollection
 from font_metrics_io import FontMetricsIO
 from font_digest_cache import file_identity, FontDigestCache
+from font_coverage import CJK_COMMON, count_core_han
+from font_face_weight import weight_distance
+from font_source_profile import _italic, _weight
 from font_parallel import run_batches
 from font_slot_compat import SlotCompat
 from composite_collection_build import identity as donor_identity
@@ -74,6 +78,54 @@ def write_report(stage: Path, slots: list[dict]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def collection_profile(path: Path) -> dict:
+    """Choose the best Chinese face while preserving the source style and weight."""
+    collection = TTCollection(path, lazy=True)
+    try:
+        fonts = collection.fonts
+        if any('fvar' in font for font in fonts):
+            return {'variable': True}
+        weight, italic = _weight(fonts[0]), _italic(fonts[0], '')
+        scores = []
+        for index, font in enumerate(fonts):
+            cmap = font.getBestCmap() or {}
+            scores.append((_italic(font, '') == italic, count_core_han(cmap), -weight_distance(font, weight),
+                           sum(cp in cmap for cp in CJK_COMMON), -index))
+        selected = -max(scores)[-1]
+        return {'variable': False, 'face': selected, 'faces': len(fonts)}
+    finally:
+        collection.close()
+
+
+def write_collection_default(source: Path, output: Path, profile: dict) -> None:
+    """Swap TTC directory offsets, preserving every SFNT table byte and face."""
+    count, selected = profile['faces'], profile['face']
+    header_size = 12 + 4 * count
+    with source.open('rb') as stream:
+        header = bytearray(stream.read(header_size))
+    if len(header) != header_size or struct.unpack_from('>I', header, 8)[0] != count:
+        raise ValueError('字体集合目录在生成期间发生变化')
+    offsets = list(struct.unpack_from(f'>{count}I', header, 12))
+    offsets[0], offsets[selected] = offsets[selected], offsets[0]
+    struct.pack_into(f'>{count}I', header, 12, *offsets)
+    with source.open('rb') as original, output.open('wb') as target:
+        original.seek(header_size)
+        target.write(header)
+        shutil.copyfileobj(original, target, length=1024 * 1024)
+    # Check the rewritten directory and all untouched bytes without decoding or
+    # recompiling outlines, layout, variation selectors or the other faces.
+    with source.open('rb') as original, output.open('rb') as target:
+        original.seek(header_size)
+        if target.read(header_size) != header:
+            raise ValueError('字体集合默认面目录校验失败')
+        while True:
+            expected = original.read(1024 * 1024)
+            if target.read(1024 * 1024) != expected:
+                raise ValueError('字体集合原始数据校验失败')
+            if not expected:
+                break
+
+
 class _BatchProgress:
     """Publish real phase/counter updates to the existing switch task guard."""
     def __init__(self):
@@ -117,15 +169,17 @@ def build(module: Path, stage: Path) -> dict:
     reports = []
     compatibility_aliases = []
     collection_kinds = {}
+    collection_jobs = {}
+    # Explicit nonzero XML indices retain their original meaning. This default
+    # selection applies to aliases which Android loads at face zero.
+    indexed_collections = {ref.get('resolvedPath')
+                           for ref in inventory.get('xmlGraph', {}).get('refs', [])
+                           if ref.get('index', 0) != 0}
 
-    def variable_collection(path):
+    def profile_collection(path):
         key = file_identity(path.stat())
         if key not in collection_kinds:
-            fonts = TTCollection(path, lazy=True)
-            try:
-                collection_kinds[key] = any('fvar' in font for font in fonts.fonts)
-            finally:
-                fonts.close()
+            collection_kinds[key] = collection_profile(path)
         return collection_kinds[key]
 
     for partition, logical_root in LOGICAL_FONT_ROOTS:
@@ -140,6 +194,21 @@ def build(module: Path, stage: Path) -> dict:
             report = {'slot': logical, 'metricsSource': 'preserved'}
             reports.append(report)
             slot = indexed.get(logical)
+            with source.open('rb') as stream:
+                signature = stream.read(4)
+            if signature == b'ttcf' and eligible_slot(slot or {'path': logical}, logical, digits_enabled):
+                profile = profile_collection(source)
+                if not profile['variable']:
+                    report.update(reason='collection-metrics-preserved',
+                                  collectionFaceCount=profile['faces'])
+                    if logical in indexed_collections or (slot or {}).get('faceIndex', 0) != 0:
+                        report['collectionDefaultReason'] = 'explicit-face-indices-preserved'
+                    else:
+                        report.update(collectionSourceFace=profile['face'], collectionDefaultFace=0)
+                        if profile['face'] != 0:
+                            key = file_identity(source.stat())
+                            collection_jobs.setdefault(key, []).append((source, report))
+                    continue
             # These legacy names may be synthesized on newer ColorOS ROMs.
             # Never give a synthetic alias a different frame from its real OEM
             # slot when both were generated from the exact same donor inode.
@@ -159,7 +228,7 @@ def build(module: Path, stage: Path) -> dict:
                     # canonical output that must not exist for collections.
                     with canonical.open('rb') as stream:
                         is_collection = stream.read(4) == b'ttcf'
-                    if is_collection and (not font_clipping_compat.enabled() or not variable_collection(canonical)):
+                    if is_collection and (not font_clipping_compat.enabled() or not profile_collection(canonical)['variable']):
                         report['reason'] = 'collection-alias-preserved-with-canonical'
                         continue
                     compatibility_aliases.append((source, canonical, report, file_identity(source.stat())))
@@ -171,9 +240,7 @@ def build(module: Path, stage: Path) -> dict:
             if contract[-1] != 'stock':
                 report['reason'] = 'invalid-stock-metrics'
                 continue
-            with source.open('rb') as stream:
-                signature = stream.read(4)
-            if signature == b'ttcf' and (not font_clipping_compat.enabled() or not variable_collection(source)):
+            if signature == b'ttcf' and (not font_clipping_compat.enabled() or not profile_collection(source)['variable']):
                 # A collection may be addressed at a nonzero face index by ROM
                 # XML. The single-face writer must not silently discard faces.
                 report['reason'] = 'collection-metrics-preserved'
@@ -193,6 +260,14 @@ def build(module: Path, stage: Path) -> dict:
     header_only = False
     progress = _BatchProgress()
     try:
+        for index, (expected, aliases) in enumerate(collection_jobs.items()):
+            source = aliases[0][0]
+            output = outputs / f'collection-default-{index}.font'
+            write_collection_default(source, output, collection_kinds[expected])
+            for alias, report in aliases:
+                identities[alias] = expected
+                prepared.append((output, alias))
+                report['collectionDefaultChanged'] = True
         # Pin every source/contract result before replacing any hard-linked alias.
         # Reading a later source after an earlier replacement can change its
         # frame or weight, especially when the same basename spans partitions.
@@ -404,6 +479,7 @@ def build(module: Path, stage: Path) -> dict:
     finally:
         shutil.rmtree(outputs, ignore_errors=True)
     return {'mapped': len(jobs), 'generated': len(groups),
+            'collectionDefaultSlots': sum(len(aliases) for aliases in collection_jobs.values()),
             'preservedSlots': len(reports) - len(jobs) - len(compatibility_aliases),
             'compatibilityAliasSlots': len(compatibility_aliases),
             'stockContractSlots': sum(r.get('slotCompatibility') == 'stock-contract-preserved' for r in reports),

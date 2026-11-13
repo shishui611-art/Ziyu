@@ -99,13 +99,6 @@ ziyu_slot_list_file() {
 # 兼容旧函数名（避免调用点重复夹带参数）。
 _ziyu_slot_rom_fn() { ziyu_slot_rom "$1"; }
 
-ziyu_slot_include_lang() {
-    # ★ 全量槽位覆盖已改为常开（界面上的开关已移除）：始终包含 lang 槽位，
-    #   对齐 custom-font-switcher 的默认行为，达到 100 槽覆盖。
-    #   保留函数名供既有调用点使用。
-    return 0
-}
-
 # 设备槽位缓存：解析 fonts.xml 家族 + 机型清单得到的槽位表。
 # 缓存文件由 device_slot_discovery.py 生成，fonts.xml/清单更新后自动重建。
 ziyu_slot_device_cache() {
@@ -116,7 +109,7 @@ ziyu_slot_device_cache() {
 ziyu_slot_discover() (
     _zsdi_mod=$(_ziyu_slot_module "${1:-}")
     _zsdi_out="$(ziyu_slot_device_cache "$_zsdi_mod")"
-    # ★ 全覆盖纯 shell 探测优先（移植自 custom-font-switcher 的槽位探测，classifier=3）；
+    # ★ 全覆盖纯 shell 探测优先（移植自 custom-font-switcher 的槽位探测，classifier=4）；
     #   失败/缺失再回退 Python 保守版（device_slot_discovery.py，classifier=2）。
     _zsdi_cfs="$_zsdi_mod/common/slot_discovery_cfs.sh"
     if [ -f "$_zsdi_cfs" ]; then
@@ -301,80 +294,67 @@ EOF
         "$_zss_total" "$_zss_cjk" "$_zss_digit" "$_zss_latin" "$(ziyu_slot_rom "$_zss_mod")"
 }
 
-ziyu_slot_coverage_plan() {
+_ziyu_slot_coverage_candidates() {
     _zscp_mod=$(_ziyu_slot_module "${1:-}")
     _zscp_fonts="${2:-}"
     [ -d "$_zscp_fonts" ] || return 1
-    _zscp_include_lang=0
-    ziyu_slot_include_lang "$_zscp_mod" && _zscp_include_lang=1
     ziyu_slot_collect_sources "$_zscp_fonts" || return 1
-    # 优先用设备槽位发现结果（fonts.xml 家族 + 机型清单），覆盖更接近对方模块的口径。
+    # Discover broadly, then restrict replacements to core Latin/CJK/digit
+    # aliases. The ROM target list is supplemental inventory; its section
+    # labels must not cap the device's actual core slots.
     ziyu_slot_discover "$_zscp_mod" >/dev/null 2>&1 || true
     _zscp_cache=$(ziyu_slot_device_cache "$_zscp_mod")
-    if [ -s "$_zscp_cache" ]; then
-        _zscp_target_root="${3:-${ZIYU_SLOT_TARGET_ROOT:-/system/fonts}}"
-        while IFS= read -r _zscp_line || [ -n "$_zscp_line" ]; do
-            case "$_zscp_line" in slot=*) ;; *) continue ;; esac
-            # Android mksh 对 ${var%%|*} 的竖线模式解析不可靠，统一用 IFS 拆字段。
-            _zscp_entry=${_zscp_line#slot=}
-            IFS='|' read -r _zscp_name _zscp_cat _zscp_weight _zscp_family <<EOF
-$_zscp_entry
-EOF
-            [ -n "$_zscp_name" ] || continue
-            [ "$_zscp_cat" = lang ] && [ "$_zscp_include_lang" != 1 ] && continue
-            case "$_zscp_name" in */*|*..*|*[!A-Za-z0-9._+-]*) continue ;; esac
-            # 安全槽位过滤：TTC 合集、Emoji/彩色/时钟等特殊字形槽位不扩展。
-            case "$_zscp_name" in *.ttc|*.TTC) continue ;; esac
-            _zscp_lname=$(printf '%s' "$_zscp_name" | tr 'A-Z' 'a-z')
-            case "$_zscp_lname" in *emoji*|*color*|*clock*) continue ;; esac
-            [ -e "$_zscp_target_root/$_zscp_name" ] || continue
-            _zscp_src=''
-            case "$_zscp_weight" in
-                heavy) [ -n "$_zcp_heavy" ] && _zscp_src=$_zcp_heavy ;;
-                semibold) [ -n "$_zcp_semibold" ] && _zscp_src=$_zcp_semibold ;;
-                bold) [ -n "$_zcp_bold" ] && _zscp_src=$_zcp_bold ;;
-                medium) [ -n "$_zcp_medium" ] && _zscp_src=$_zcp_medium ;;
-                light) [ -n "$_zcp_light" ] && _zscp_src=$_zcp_light ;;
-                thin) [ -n "$_zcp_thin" ] && _zscp_src=$_zcp_thin ;;
-            esac
-            [ -n "$_zscp_src" ] || _zscp_src=$_zcp_base
-            [ -n "$_zscp_src" ] || continue
-            printf '%s|%s\n' "$_zscp_src" "$_zscp_name"
-        done < "$_zscp_cache"
-        return 0
-    fi
-    _zscp_list=$(ziyu_slot_list_file "$_zscp_mod") || return 1
-    _zscp_section='main'
-    _zscp_planned=0
+    [ -s "$_zscp_cache" ] || return 0
     _zscp_target_root="${3:-${ZIYU_SLOT_TARGET_ROOT:-/system/fonts}}"
     while IFS= read -r _zscp_line || [ -n "$_zscp_line" ]; do
-        _ziyu_slot_trim "$_zscp_line"
-        _zscp_line="$_ziyu_slot_trimmed"
-        case "$_zscp_line" in
-            ''|\#*) continue ;;
-            '['*']')
-                _zscp_section=${_zscp_line#\[}
-                _zscp_section=${_zscp_section%\]}
-                continue
-                ;;
-        esac
-        case "$_zscp_line" in
+        case "$_zscp_line" in slot=*) ;; *) continue ;; esac
+        _zscp_entry=${_zscp_line#slot=}
+        IFS='|' read -r _zscp_name _zscp_category _zscp_weight _zscp_family <<EOF
+$_zscp_entry
+EOF
+        case "$_zscp_category" in cjk|latin|digit) ;; *) continue ;; esac
+        case "$_zscp_name" in
             */*|*..*|*[!A-Za-z0-9._+-]*) continue ;;
+            *.ttc|*.TTC) continue ;;
         esac
-        [ "$_zscp_section" = lang ] && [ "$_zscp_include_lang" != 1 ] && continue
-        case "$_zscp_line" in *.ttc|*.TTC) continue ;; esac
-        _zscp_lname=$(printf '%s' "$_zscp_line" | tr 'A-Z' 'a-z')
-        case "$_zscp_lname" in *emoji*|*color*|*clock*) continue ;; esac
-        [ -e "$_zscp_target_root/$_zscp_line" ] || continue
-        _zscp_src=$(ziyu_slot_pick_source "$_zscp_line") || continue
-        printf '%s|%s\n' "$_zscp_src" "$_zscp_line"
-        _zscp_planned=$((_zscp_planned + 1))
-    done < "$_zscp_list"
+        _zscp_lname=$(printf '%s' "$_zscp_name" | tr 'A-Z' 'a-z')
+        case "$_zscp_lname" in
+            *emoji*|*color*|*fallback*|*symbol*|*icon*|*serif*|*mono*|*cursive*|*casual*|*script*|*math*|*music*|*material*|*braille*|*dingbat*) continue ;;
+        esac
+        [ -e "$_zscp_target_root/$_zscp_name" ] || continue
+        if [ -n "${4:-}" ] && [ -e "$4/$_zscp_name" ]; then continue; fi
+        _zscp_src=$(ziyu_slot_pick_source "$_zscp_name") || continue
+        printf '%s|%s\n' "$_zscp_src" "$_zscp_name"
+    done < "$_zscp_cache"
     return 0
 }
 
-# 发布阶段把覆盖计划落到 staging 字体树：缺哪个槽位就用硬链接补上。
-# 槽位覆盖扩展总开关：默认开启安全槽位扩展（跳过 TTC/Emoji/彩色/时钟/其它语种），
+# Only proven aliases reach the publisher. Reuse one Python process/profile
+# cache for the whole plan; never instance variable sources or redraw outlines.
+ziyu_slot_coverage_plan() (
+    _zsg_module=$(_ziyu_slot_module "${1:-}")
+    _zsg_pyroot="$_zsg_module/common/python"
+    _zsg_guard="$_zsg_module/common/font_expansion_guard.py"
+    _zsg_python="$_zsg_pyroot/bin/ziyu-python"
+    mkdir -p "$_zsg_module/logs" 2>/dev/null
+    if [ ! -x "$_zsg_python" ] || [ ! -f "$_zsg_guard" ]; then
+        printf '[SLOT-COVERAGE] guard unavailable; retaining stock aliases\n' >> "$_zsg_module/logs/slot-coverage.log"
+        return 0
+    fi
+    _zsg_plan=$(_ziyu_slot_coverage_candidates "$@") || return 1
+    [ -n "$_zsg_plan" ] || return 0
+    PYTHONHOME="$_zsg_pyroot" \
+    ZIYU_SLOT_PREPARE_STOCK="${ZIYU_SLOT_PREPARE_STOCK:-0}" \
+    PYTHONPATH="$_zsg_module/common:$_zsg_pyroot/lib/python3.14:$_zsg_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_zsg_pyroot/lib:$_zsg_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_zsg_python" "$_zsg_guard" "$_zsg_module" "${3:-${ZIYU_SLOT_TARGET_ROOT:-/system/fonts}}" \
+        2>> "$_zsg_module/logs/slot-coverage.log" <<EOF
+$_zsg_plan
+EOF
+)
+
+# 发布阶段把必要且核验通过的扩展槽位落到 staging 字体树：优先硬链接补齐。
+# TTC、Emoji、彩色和默认保留的锁屏时钟不扩展。
 # 显式 enabled=0 可整体关闭。
 ziyu_slot_coverage_enabled() {
     _zsce_mod=$(_ziyu_slot_module "${1:-}")
@@ -400,16 +380,17 @@ ziyu_slot_coverage_expand() {
     [ -s "$_zsce_limit_conf" ] && _zsce_limit=$(sed -n 's/^limit=//p' "$_zsce_limit_conf" 2>/dev/null | head -n1 | tr -d ' \r')
     case "$_zsce_limit" in ''|*[!0-9]*) _zsce_limit='' ;; esac
     _zsce_log="$_zsce_mod/logs/slot-coverage.log"
-    _zsce_plan=$(ziyu_slot_coverage_plan "$_zsce_mod" "$_zsce_payload_fonts" 2>/dev/null) || return 0
+    _zsce_plan=$(ziyu_slot_coverage_plan "$_zsce_mod" "$_zsce_payload_fonts" \
+        "${ZIYU_SLOT_TARGET_ROOT:-/system/fonts}" "$_zsce_stage_fonts" 2>/dev/null) || return 1
     [ -n "$_zsce_plan" ] || return 0
     while IFS='|' read -r _zsce_src _zsce_slot; do
         [ -n "$_zsce_src" ] && [ -n "$_zsce_slot" ] || continue
         [ -f "$_zsce_src" ] || continue
         case "$_zsce_slot" in *.ttc|*.TTC) continue ;; esac
-        case "$(printf '%s' "$_zsce_slot" | tr 'A-Z' 'a-z')" in *emoji*|*color*|*clock*) continue ;; esac
+        case "$(printf '%s' "$_zsce_slot" | tr 'A-Z' 'a-z')" in *emoji*|*color*|*symbol*|*icon*|*serif*|*mono*|*cursive*|*casual*|*script*|*math*|*music*|*material*|*braille*|*dingbat*) continue ;; esac
         [ -e "$_zsce_stage_fonts/$_zsce_slot" ] && continue
         ln -f "$_zsce_src" "$_zsce_stage_fonts/$_zsce_slot" 2>/dev/null || \
-            cp -f "$_zsce_src" "$_zsce_stage_fonts/$_zsce_slot" 2>/dev/null || continue
+            cp -f "$_zsce_src" "$_zsce_stage_fonts/$_zsce_slot" 2>/dev/null || return 1
         _zsce_added=$((_zsce_added + 1))
         printf '[SLOT-COVERAGE] add=%s\n' "$_zsce_slot" >> "$_zsce_log" 2>/dev/null || true
         [ -n "$_zsce_limit" ] && [ "$_zsce_added" -ge "$_zsce_limit" ] && break
@@ -418,17 +399,16 @@ $_zsce_plan
 EOF
     if [ "$_zsce_added" -gt 0 ]; then
         _zsce_total=0; _zsce_cjk=0; _zsce_digit=0; _zsce_latin=0
-        while IFS='|' read -r _zsce_src2 _zsce_slot2; do
-            [ -n "$_zsce_slot2" ] || continue
+        for _zsce_src2 in "$_zsce_stage_fonts"/*.ttf "$_zsce_stage_fonts"/*.otf; do
+            [ -f "$_zsce_src2" ] || continue
+            _zsce_slot2=${_zsce_src2##*/}
             _zsce_total=$((_zsce_total + 1))
             case "$(ziyu_slot_classify "$_zsce_slot2")" in
                 cjk) _zsce_cjk=$((_zsce_cjk + 1)) ;;
                 digit) _zsce_digit=$((_zsce_digit + 1)) ;;
                 *) _zsce_latin=$((_zsce_latin + 1)) ;;
             esac
-        done <<EOF
-$_zsce_plan
-EOF
+        done
         _zsce_boot=''
         IFS= read -r _zsce_boot < /proc/sys/kernel/random/boot_id 2>/dev/null || _zsce_boot=''
         mkdir -p "$_zsce_mod/config" "$_zsce_mod/logs" 2>/dev/null

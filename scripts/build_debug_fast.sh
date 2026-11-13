@@ -34,6 +34,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE" "$OUT"
 PAYLOAD_MANIFEST="$ROOT/scripts/module_payload_manifest.txt"
 python3 "$ROOT/scripts/build_font_instance.py" --verify
+python3 "$ROOT/scripts/build_pid_wrap.py" --verify
 python3 "$ROOT/scripts/rebrand_cli.py" --verify
 test -s "$PAYLOAD_MANIFEST"
 while IFS= read -r path || [ -n "$path" ]; do

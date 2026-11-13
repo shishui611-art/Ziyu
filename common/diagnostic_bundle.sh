@@ -146,6 +146,10 @@ _diag_dump_once() {
         _diag_emit_file 'NoMount native boot log' /data/adb/nomount/nomount.log 160
         _diag_emit_file 'provider publication receipt' "$MODDIR/.ziyu-state/provider-published.conf"
         _diag_emit_file 'provider reload check' "$MODDIR/config/provider-reload-check.conf"
+        _diag_emit_file 'soft reboot cycle' "$MODDIR/config/temporary-root-soft-reboot.conf"
+        _diag_emit_file 'soft reboot PID result' "$MODDIR/config/pid-wrap-last.conf"
+        _diag_emit_file 'NoMount reload plan' "$MODDIR/.ziyu-state/nomount-provider-reload.plan"
+        _diag_emit_file 'soft reboot log' "$MODDIR/logs/soft-reboot.log" 100
         _diag_emit_file 'provider reload start plan' "$MODDIR/.ziyu-state/provider-reload.started"
         _diag_emit_file 'Mountify scanned modules' '/dev/mountify_logs/modules' 160
         _diag_emit_file 'Mountify mount list' '/dev/mountify_logs/mountify_mount_list' 160

@@ -133,8 +133,8 @@ _ziyu_capture_lower_dir() {
     }
     # Android toybox parses "private", while util-linux also has --make-private.
     # A propagation change ignores the source/type at the kernel boundary.
-    _ziyu_mount_observe lower-private _ziyu_mount_cmd -o private "$_lscld_lower" || \
-        _ziyu_mount_observe lower-private-util-linux _ziyu_mount_cmd --make-private "$_lscld_lower" || return 1
+    _ziyu_mount_observe lower-private _ziyu_mount_cmd -o private none "$_lscld_lower" || \
+        _ziyu_mount_observe lower-private-util-linux _ziyu_mount_cmd --make-private none "$_lscld_lower" || return 1
     awk -v target="$_lscld_lower" '$5==target {found=1; for(i=7;i<=NF && $i!="-";i++) if ($i ~ /^(shared|master|propagate_from):/) bad=1} END {exit !(found && !bad)}' \
         "${ZIYU_SELF_MOUNTINFO:-/proc/self/mountinfo}" || {
             _ziyu_self_log "lower 挂载传播隔离未通过验证：$_lscld_lower"

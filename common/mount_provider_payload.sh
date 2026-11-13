@@ -183,7 +183,7 @@ ziyu_provider_payload_publish() (
     # 尚不存在的槽位，硬链接到已发布字体，几乎不增加启动耗时。
     if [ -f "$_zpp_module/common/slot_coverage.sh" ] && [ -d "$_zpp_stage/system/fonts" ]; then
         . "$_zpp_module/common/slot_coverage.sh"
-        ziyu_slot_coverage_expand "$_zpp_module" "$_zpp_stage/system/fonts" "$_zpp_payload/system/fonts" || true
+        ziyu_slot_coverage_expand "$_zpp_module" "$_zpp_stage/system/fonts" "$_zpp_payload/system/fonts" || return 1
     fi
     chmod -R u=rwX,go=rX "$_zpp_stage" || return 1
     chmod 0755 "$_zpp_stage/system/bin/ziyu" "$_zpp_stage/system/bin/ziyud" \

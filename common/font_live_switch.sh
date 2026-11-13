@@ -72,7 +72,12 @@ live_recover() {
     REC_OLD_WORK=$(ziyu_live_value "$LIVE_JOURNAL" old_work)
     case "$REC_SOURCE" in "$MODDIR/.ziyu-payload"|"$MODDIR/.ziyu-state/cache/live/$BOOT/"generation-*) ;; *) return 1 ;; esac
     case "$REC_SOURCE" in *'/../'*|*'/./'*) return 1 ;; esac
-    [ -d "$REC_SOURCE" ] && [ -n "$REC_FONT" ] && [ "$REC_FONT" != default ] || return 1
+    [ -d "$REC_SOURCE" ] && [ -n "$REC_FONT" ] || return 1
+    if [ "$REC_FONT" = default ]; then
+        live_detach "$REC_NEW_WORK" && live_python "$LIVE_PY" "$MODDIR" restore &&
+            live_python "$LIVE_PY" "$MODDIR" finish
+        return $?
+    fi
     live_log "正在恢复上一套字体：$REC_FONT"
     live_detach "$REC_NEW_WORK" || return 1
     # Old detach can have been interrupted before mounting the new payload.
@@ -88,98 +93,6 @@ live_recover() {
     live_python "$LIVE_PY" "$MODDIR" finish || return 1
     live_log "上一套字体挂载恢复并通过校验：$REC_FONT；新选择仍保留在重启队列"
 }
-live_apply() {
-    live_recover || return 1
-    BACKEND="$MODDIR/config/mount-backend.conf"
-    case "$(ziyu_live_value "$BACKEND" schema)" in
-        ziyu-mount-backend-v1|ziyu-mount-backend-v2|ziyu-mount-backend-v3) ;;
-        *) live_defer backend-schema-invalid; return 3 ;;
-    esac
-    [ "$(ziyu_live_value "$BACKEND" boot_id)" = "$BOOT" ] || { live_defer backend-from-different-boot; return 3; }
-    [ "$(ziyu_live_value "$BACKEND" selected_backend)" = self ] && \
-        [ "$(ziyu_live_value "$BACKEND" active_backend)" = self ] || { live_defer selected-backend-does-not-support-live-update; return 3; }
-    case "$(ziyu_live_value "$BACKEND" verification)" in passed|partial) ;; *) live_defer current-mount-not-verified; return 3 ;; esac
-    [ "$(ziyu_live_value "$BACKEND" selected_self_backend)" != nomount ] && \
-        [ "$(ziyu_live_value "$BACKEND" active_self_backend)" != nomount ] || { live_defer nomount-runtime-update-unavailable; return 3; }
-    [ "$(ziyu_live_value "$BACKEND" backend_conflict)" != 1 ] || { live_defer backend-conflict; return 3; }
-    [ ! -e "$MODDIR/disable" ] && [ ! -e "$MODDIR/remove" ] || { live_defer module-disabled; return 3; }
-    [ ! -s "$MODDIR/config/universal-font-runtime.conf" ] || { live_defer universal-runtime-requires-reboot; return 3; }
-    MODE=$(ziyu_live_value "$BACKEND" preferred_backend)
-    case "$MODE" in magic|overlayfs|self_mount) ;; *) live_defer explicit-self-preference-required; return 3 ;; esac
-    PREF=$(ziyu_live_value "$MODDIR/config/mount-backend-preference.conf" preferred_backend)
-    [ -n "$PREF" ] || PREF=$(ziyu_live_value "$MODDIR/config/mount-backend-preference.conf" preference)
-    [ -z "$PREF" ] || [ "$PREF" = "$MODE" ] || { live_defer mount-preference-changed-reboot-required; return 3; }
-    . "$MODDIR/common/skip_mount_ownership.sh" || return 1
-    ziyu_foreign_skip_mount_present "$MODDIR" && { live_defer foreign-skip-mount; return 3; }
-    NEXT="$MODDIR/config/font-payload-next.conf"
-    FONT=$(ziyu_live_value "$NEXT" font)
-    REQUEST=$(ziyu_live_value "$NEXT" requestId)
-    [ -n "$FONT" ] && [ -n "$REQUEST" ] && [ "$(ziyu_live_value "$NEXT" state)" = prepared ] || return 1
-    [ "$FONT" != default ] || { live_defer restoring-default-requires-reboot; return 3; }
-    OLD_SOURCE="$MODDIR/.ziyu-payload"
-    OLD_WORK=/data/adb/ziyu/self-mount
-    OLD_FONT=$(ziyu_live_value "$MODDIR/config/font-payload-activated.conf" font)
-    if [ -z "$OLD_FONT" ]; then
-        case "$(ziyu_live_value "$MODDIR/config/device-font-load-verification.conf" state)" in
-            verified|partial) OLD_FONT=$(ziyu_live_value "$MODDIR/config/device-font-load-verification.conf" activeFont) ;;
-        esac
-    fi
-    if ziyu_live_current; then
-        OLD_SOURCE=$_zlc_source; OLD_WORK=$_zlc_root; OLD_FONT=$_zlc_font
-    fi
-    [ -n "$OLD_FONT" ] || OLD_FONT=$(ziyu_live_value "$MODDIR/config/font-payload-activated.conf" font)
-    [ -n "$OLD_FONT" ] && [ "$OLD_FONT" != default ] && [ -s "$OLD_WORK/mounts.list" ] || { live_defer previous-font-route-unavailable; return 3; }
-    if grep -q '\.xml|' "$MODDIR/config/font-payload-manifest.conf" 2>/dev/null; then
-        live_defer previous-xml-runtime-requires-reboot; return 3
-    fi
-    if ! ( ZIYU_SELF_MOUNT_STATE_ROOT="$OLD_WORK"; export ZIYU_SELF_MOUNT_STATE_ROOT
-           . "$MODDIR/common/mount_compat.sh" || exit 1
-           _ziyu_atomic_partial_fonts_enabled && ZIYU_PARTIAL_FONT_MOUNT=1
-           export ZIYU_PARTIAL_FONT_MOUNT
-           _ziyu_atomic_verify_manifest "$MODDIR/config/self-mount-required.conf" ); then
-        live_defer previous-mount-readback-failed; return 3
-    fi
-    live_log "正在建立独立字体代：$FONT；挂载方式=$MODE"
-    CACHE="$MODDIR/.ziyu-state/cache/live/$BOOT"
-    SOURCE=$(live_python "$LIVE_PY" prepare "$MODDIR/.ziyu-payload-next" "$CACHE" "$BOOT" "$CACHE/.prepare.$$" 2>> "$LIVE_LOG") || { live_defer immutable-generation-prepare-failed; return 3; }
-    WORK="/data/adb/ziyu/live-mount/$BOOT.$$.apply"
-    [ ! -e "$WORK" ] || { live_defer working-directory-already-exists; return 3; }
-    # Boot may already need an ext4 loop layer on casefold F2FS. Check the
-    # long-path helper before detaching that working font.
-    if [ -n "$(find "$OLD_WORK/work" -maxdepth 1 -name 'overlay-*.img' -type f -print -quit 2>/dev/null)" ]; then
-        ( . "$MODDIR/common/mount_overlay_layer.sh" &&
-          _ziyu_overlay_select_loop_mounter ) || {
-            live_defer ext4-loop-long-path-helper-unavailable; return 3
-        }
-    fi
-    live_python "$LIVE_PY" "$MODDIR" begin "$OLD_SOURCE" "$OLD_FONT" "$OLD_WORK" "$SOURCE" "$FONT" "$WORK" "$MODE" "$BOOT" "$REQUEST" || return 1
-    printf 'boot_id=%s\nstate=mounting\nfont=%s\nrequest_id=%s\n' "$BOOT" "$FONT" "$REQUEST" > "$MODDIR/config/font-live-attempt.conf"
-    trap 'live_log "热切换中断，正在回滚"; live_recover; exit 1' HUP INT TERM
-    if live_detach "$OLD_WORK" && live_mount "$SOURCE" "$FONT" "$WORK" "$MODE" >> "$LIVE_LOG" 2>&1 && \
-       live_python "$LIVE_PY" "$MODDIR" record "$SOURCE" "$FONT" "$WORK" "$BOOT" "$REQUEST" && \
-       live_python "$LIVE_PY" "$MODDIR" proof "$FONT" "$BOOT"; then
-        live_python "$LIVE_PY" "$MODDIR" finish || return 1
-        trap - HUP INT TERM
-        rm -f "$MODDIR/config/text_reboot_required.conf" || return 1
-        UI_CACHE=unknown
-        if [ -f "$MODDIR/common/font_ui_cache.py" ]; then
-            UI_CACHE=$(live_python "$MODDIR/common/font_ui_cache.py" "$MODDIR" 2>> "$LIVE_LOG")
-        fi
-        case "$UI_CACHE" in stale|current-mappings) ;; *) UI_CACHE=unknown ;; esac
-        printf 'boot_id=%s\nstate=mounted\nfont=%s\nrequest_id=%s\nui_cache_state=%s\n' "$BOOT" "$FONT" "$REQUEST" "$UI_CACHE" > "$MODDIR/config/font-live-attempt.conf"
-        if [ "$UI_CACHE" = stale ]; then
-            live_log 'WARN 字体文件已热挂载；SystemUI 仍映射旧字体，完整重启后刷新系统界面'
-        fi
-        live_log "字体已热挂载且 PID 1 路由校验通过：$FONT；部分已打开界面可能仍使用字体缓存"
-        return 0
-    fi
-    trap - HUP INT TERM
-    if live_recover; then live_defer hot-mount-failed-previous-font-restored; return 3; fi
-    live_log 'ERROR 热切换失败，上一套字体恢复未确认；请导出诊断日志'
-    printf 'boot_id=%s\nstate=failed\nreason=hot-mount-and-recovery-unconfirmed\nfont=%s\nrequest_id=%s\n' "$BOOT" "$FONT" "$REQUEST" > "$MODDIR/config/font-live-attempt.conf"
-    return 1
-}
-
 BOOT=$(ziyu_current_boot_id) || exit 1
 ACTION="${1:-apply}"
 case "$ACTION" in apply|recover|retire) ;; *) exit 2 ;; esac

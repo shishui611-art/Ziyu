@@ -35,6 +35,20 @@ _sr_detect() {
         break
     done
     [ -n "$_sr_ksud" ] || _sr_error '本机 ksud 未提供 soft-reboot 命令，请使用支持软重启的 KernelSU 管理器。'
+    [ -s "$MODDIR/emulated-soft-reboot.sh" ] && \
+        [ -s "$MODDIR/common/soft_reboot_finish.sh" ] && \
+        [ -s "$MODDIR/common/soft_reboot_verify.sh" ] && \
+        [ -s "$MODDIR/common/pid_reload.sh" ] || \
+        _sr_error '内核软重启的 PPID 重置组件不完整，请更新字域模块。'
+    case "$(getprop ro.product.cpu.abi 2>/dev/null)" in
+        arm64-v8a) _sr_pid_abi=arm64 ;;
+        armeabi*) _sr_pid_abi=arm ;;
+        x86_64) _sr_pid_abi=x86_64 ;;
+        x86) _sr_pid_abi=x86 ;;
+        *) _sr_error '当前设备架构缺少 PPID 重置支持。' ;;
+    esac
+    [ -x "$MODDIR/common/pid-wrap/pid_wrap_$_sr_pid_abi" ] || \
+        _sr_error '当前设备的 PPID 重置工具不可用，请更新字域模块。'
 }
 
 case "${1:-request}" in
@@ -63,14 +77,21 @@ case "${1:-request}" in
             case "$(ziyu_boot_ota_state "$MODDIR")" in
                 pending) _sr_ota_recover=1 ;;
                 complete)
-                    case "$(ziyu_boot_ota_status "$MODDIR")" in
-                        *next_generation_ready=1*) ;;
-                        *) _sr_ota_recover=1 ;;
-                    esac
+                    _sr_font=''
+                    IFS= read -r _sr_font < "$MODDIR/config/active_font.conf" 2>/dev/null || _sr_font=''
+                    if [ -n "$_sr_font" ] && [ "$_sr_font" != default ]; then
+                        case "$(ziyu_boot_ota_status "$MODDIR")" in
+                            *next_generation_ready=1*) ;;
+                            *) _sr_ota_recover=1 ;;
+                        esac
+                    fi
                     ;;
             esac
         fi
         if [ "$_sr_ota_recover" = 1 ]; then
+            [ -f "$MODDIR/common/boot_ota_recover_task.sh" ] && \
+                [ -f "$MODDIR/common/background_task.sh" ] || \
+                _sr_error '字体恢复组件缺失，尚未请求软重启，请更新模块。'
             printf '[%s] [SOFT-REBOOT] deferred: recovering OTA baseline and payload before reboot\n' \
                 "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE" 2>/dev/null
             if [ -f "$MODDIR/common/boot_ota_recover_task.sh" ] && \
@@ -106,7 +127,7 @@ case "${1:-request}" in
         _sr_rc=$?
         printf '[%s] [SOFT-REBOOT] request returned rc=%s; mount verification follows reload\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$_sr_rc" >> "$LOG_FILE"
         [ "$_sr_rc" -eq 0 ] || _sr_error "KernelSU 软重启请求失败（返回码 $_sr_rc），请查看 logs/soft-reboot.log。"
-        printf '{"status":"ok","data":{"requested":true,"message":"已请求 KernelSU 软重启，完成后返回字域查看挂载验证。"}}\n'
+        printf '{"status":"ok","data":{"requested":true,"message":"已请求 KernelSU 内核软重启；启动后会核验字体挂载和 PPID 重置。"}}\n'
         ;;
     *) _sr_error '用法：soft_reboot.sh [request|status]' ;;
 esac

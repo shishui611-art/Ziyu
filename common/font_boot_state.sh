@@ -117,6 +117,20 @@ ziyu_text_reboot_reconcile() {
     # Never clear a marker using the previous font that is still mounted in this boot.
     [ -n "$_lfbs_marker_boot" ] && [ "$_lfbs_marker_boot" = "$_lfbs_current_boot" ] && return 2
 
+    # Restoring the stock font has no custom payload boot transaction to confirm.
+    # A current-boot not-applicable record is the expected proof for that path.
+    _lfbs_active=$(head -n1 "$_lfbs_config/active_font.conf" 2>/dev/null | tr -d '\r\n')
+    _lfbs_verify="$_lfbs_config/device-font-load-verification.conf"
+    if [ "$_lfbs_active" = default ] && [ -n "$_lfbs_marker_boot" ] && \
+       [ "$_lfbs_marker_boot" != "$_lfbs_current_boot" ] && \
+       [ "$(_lfbs_value "$_lfbs_verify" bootId)" = "$_lfbs_current_boot" ] && \
+       [ "$(_lfbs_value "$_lfbs_verify" activeFont)" = default ] && \
+       [ "$(_lfbs_value "$_lfbs_verify" state)" = not-applicable ]; then
+        rm -f "$_lfbs_marker" "$_lfbs_config/font-mount-verify-failures" \
+            "$_lfbs_config/font-boot-inconclusive.conf" 2>/dev/null || true
+        return 0
+    fi
+
     ziyu_font_rebuild_marker_reconcile >/dev/null 2>&1 || true
     _lfbs_boot_state=$(_lfbs_value "$_lfbs_config/font-payload-boot.conf" state)
     case "$_lfbs_boot_state" in booting|confirmed) ;; *) return 2 ;; esac

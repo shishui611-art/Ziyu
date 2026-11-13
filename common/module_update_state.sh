@@ -74,6 +74,7 @@ ziyu_update_config_is_volatile() {
         app_install_manual|font-payload-rebuild-pending.conf|font-payload-reapply-notified.conf|font-boot-failures|\
         font-payload-quarantine.conf|apatch-pre-mount.conf|mount_compat.conf|self-mount.conf|\
         self-mount-required.conf|device-font-load-verification.conf|font-ui-cache.json|provider-reload-check.conf|\
+        temporary-root-soft-reboot.conf|pid-wrap-last.conf|\
         device-font-cache-pending.conf|device-font-cache-failures.conf|\
         device-font-engine.conf|device-font-installed.conf|device-font-dynamic-mount.conf|\
         device-font-load-verification.json|device-font-manager-dump.txt|\

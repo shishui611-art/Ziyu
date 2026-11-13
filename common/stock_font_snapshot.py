@@ -62,6 +62,8 @@ def resolve(logical: str, module: Path | None = None, digest_cache=None) -> Path
     entry = data.get('files', {}).get(logical)
     if not isinstance(entry, dict):
         return None
+    if not routing_links_match(entry.get('routingLinks', {})):
+        return None
     digest = entry.get('sha256', '')
     if not isinstance(digest, str) or len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
         return None
@@ -89,7 +91,19 @@ def resolve(logical: str, module: Path | None = None, digest_cache=None) -> Path
         return None
 
 
-def capture(module: Path) -> dict:
+def routing_links_match(links):
+    if not isinstance(links, dict) or len(links) > 40:
+        return False
+    try:
+        return all(isinstance(name, str) and isinstance(target, str)
+                   and Path(name).parent in inventory.DATA_FONT_LINK_ROOTS
+                   and os.readlink(name) == target
+                   for name, target in links.items())
+    except OSError:
+        return False
+
+
+def capture(module: Path, *, requested_paths=None, views=None) -> dict:
     build, fingerprint, _ = build_identity()
     if build == 'unknown' or not fingerprint:
         return {'state': 'deferred', 'reason': 'unknown-build'}
@@ -97,9 +111,20 @@ def capture(module: Path) -> dict:
     if root.is_symlink() or (root / 'files').is_symlink():
         raise ValueError('原厂快照目录包含外部链接')
     existing = load(module)
+    existing = dict(existing, files={name: entry for name, entry in existing.get('files', {}).items()
+                                    if routing_links_match(entry.get('routingLinks', {}))})
     current = inventory._load_json(module / 'config/device_font_inventory.json') or {}
     requested = set()
-    if current.get('buildKey') == build:
+    if requested_paths is not None:
+        requested.update(requested_paths)
+        # Repair missing/corrupt saved content only for this requested batch.
+        # resolve() still verifies the build, path, size and SHA-256 contract.
+        saved = dict(existing.get('files', {}))
+        for logical in requested:
+            if resolve(logical, module) is None:
+                saved.pop(logical, None)
+        existing = dict(existing, files=saved)
+    elif current.get('buildKey') == build:
         requested.update(current.get('slots', {}))
         for node in current.get('xmlGraph', {}).get('refs', []):
             if isinstance(node, dict):
@@ -114,8 +139,9 @@ def capture(module: Path) -> dict:
         return {'state': 'reused', 'count': len(existing['files'])}
     # Reused snapshots do not need to import the font compiler and its graph.
     # Keep the original source/build/hash checks for any actual capture/use.
-    from universal_font_compiler import _stock_views
-    views = _stock_views()
+    if views is None:
+        from universal_font_compiler import _stock_views
+        views = _stock_views()
     if not views:
         return {'state': 'deferred', 'reason': 'no-verified-stock-view',
                 'retained': len(existing.get('files', {}))}
@@ -127,7 +153,14 @@ def capture(module: Path) -> dict:
     warnings = []
     for roots in views:
         for font_root in roots:
-            for actual in walk(font_root.actual, depth=4, limit=8192):
+            if requested_paths is None:
+                candidates = walk(font_root.actual, depth=4, limit=8192)
+            else:
+                # Open named font paths, never walk the block partition.
+                candidates = (font_root.actual / Path(name).relative_to(font_root.logical)
+                              for name in sorted(requested)
+                              if Path(name).is_relative_to(font_root.logical))
+            for actual in candidates:
                 if actual.suffix.lower() not in inventory.FONT_EXTENSIONS:
                     continue
                 logical = str(font_root.logical / actual.relative_to(font_root.actual))
@@ -136,12 +169,19 @@ def capture(module: Path) -> dict:
                 if logical in files:
                     continue
                 try:
-                    source = inventory._stock_font_path(font_root, actual, roots, preserve_namespace=True)
+                    routing_links = {}
+                    source = inventory._stock_font_path(font_root, actual, roots,
+                                                        preserve_namespace=True,
+                                                        routing_links=routing_links)
                     before = identity(source)
                     if before[2] <= 0 or before[2] > MAX_FILE:
                         raise ValueError('原厂字体大小超出快照限制')
                     if before in copied:
-                        files[logical] = copied[before]
+                        if not routing_links_match(routing_links):
+                            raise ValueError('厂商字体路由在复制期间发生变化')
+                        files[logical] = dict(copied[before])
+                        if routing_links:
+                            files[logical]['routingLinks'] = routing_links
                         continue
                     if used + before[2] > MAX_BYTES:
                         raise ValueError('原厂快照达到空间上限')
@@ -155,20 +195,26 @@ def capture(module: Path) -> dict:
                                 out.write(chunk)
                             out.flush()
                             os.fsync(out.fileno())
-                        if identity(source) != before or temporary.stat().st_size != before[2]:
+                        if (identity(source) != before or temporary.stat().st_size != before[2]
+                                or not routing_links_match(routing_links)):
                             raise ValueError('原厂字体在复制期间发生变化')
                         sha = digest.hexdigest()
                         destination = root / 'files' / (sha + '.font')
                         temporary.chmod(0o444)
                         os.replace(temporary, destination)
                         entry = {'sha256': sha, 'size': before[2]}
-                        files[logical] = copied[before] = entry
+                        copied[before] = entry
+                        files[logical] = dict(entry)
+                        if routing_links:
+                            files[logical]['routingLinks'] = routing_links
                         used += before[2]
                     finally:
                         temporary.unlink(missing_ok=True)
                 except (OSError, ValueError, inventory.InventoryError) as error:
                     warnings.append(f'{logical}: {error}')
     state = 'complete' if files and not warnings and (not requested or requested.issubset(files)) else 'partial'
+    if inventory.current_build_key()[0] != build:
+        raise ValueError('获取原厂字体期间系统版本发生变化')
     inventory._atomic_write(root / 'manifest.json', {
         'schema': SCHEMA, 'buildKey': build, 'buildFingerprint': fingerprint,
         'state': state, 'capturedAt': int(time.time()), 'files': files,
@@ -180,6 +226,49 @@ def capture(module: Path) -> dict:
             path.unlink()
     return {'state': state, 'count': len(files), 'newCopies': len(copied),
             'bytes': used, 'missing': len(requested - files.keys())}
+
+
+def ensure_expansion(module: Path, logicals, *, allow_partial=False) -> dict:
+    """Save only missing expansion originals during a locked font preparation.
+
+    No boot hook calls this. A separate read-only EROFS device view bypasses
+    NoMount inode redirection; live /system font bytes are never a fallback.
+    The owned mounts are private and closed before the expansion plan is used.
+    """
+    from stock_readonly_view import StockReadonlyView
+
+    requested = set(logicals)
+    if not requested or len(requested) > 2048:
+        raise ValueError('原厂字体扩展范围无效')
+    for logical in requested:
+        path = Path(logical)
+        if (not path.is_absolute() or '..' in path.parts
+                or not any(path.parent == root for _partition, root in inventory.LOGICAL_FONT_ROOTS)
+                or path.suffix.lower() not in {'.ttf', '.otf', '.ttc', '.otc'}):
+            raise ValueError('原厂字体扩展路径无效')
+    missing = {name for name in requested if resolve(name, module) is None}
+    if not missing:
+        return {'state': 'reused', 'count': len(requested)}
+    view = StockReadonlyView()
+    try:
+        roots = []
+        # Include other font partitions to resolve stock cross-partition links
+        # inside the same independent ROM view, never back through live paths.
+        for partition, logical in inventory.LOGICAL_FONT_ROOTS:
+            actual = view.pick(logical)
+            if actual is not None:
+                roots.append(inventory.FontRoot(partition, logical, actual))
+        result = capture(module, requested_paths=requested, views=[roots])
+    finally:
+        view.close()
+    unavailable = [name for name in requested if resolve(name, module) is None]
+    if unavailable:
+        if not allow_partial:
+            raise ValueError(f'原厂字体资料未能补齐（{len(unavailable)} 处），当前字体保持不变')
+        # Callers that can safely leave individual slots unchanged may use the
+        # verified subset; never treat a missing original as verified.
+        return {**result, 'state': 'partial', 'unavailable': len(unavailable)}
+    return result
 
 
 if __name__ == '__main__':

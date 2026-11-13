@@ -77,6 +77,9 @@ if ! ziyu_private_install_migrate "$MODPATH"; then
 fi
 # Some root managers extract regular files without retaining ZIP executable bits.
 [ ! -f "$MODPATH/common/font-native-instance" ] || chmod 0755 "$MODPATH/common/font-native-instance" 2>/dev/null || true
+for _pid_binary in "$MODPATH/common/pid-wrap"/pid_wrap_*; do
+    [ ! -f "$_pid_binary" ] || chmod 0755 "$_pid_binary" || abort '无法准备软重启组件。'
+done
 # Establish the build baseline during a module upgrade, before a guard-owned
 # stale disable token can prevent the new boot hook from running at all.
 if [ -f "$MODPATH/common/boot_ota_guard.sh" ]; then
@@ -152,6 +155,29 @@ if ! ziyu_adb_storage "$MODPATH" install; then
     # 这里只提示不中断，避免管理器把整个安装判成
     # "Error: Failed to install module script"。
     ui_print '• 数据目录初始化将在首次开机时完成（安装环境未能执行迁移组件）'
+fi
+# Older releases kept theme recovery inside the removable module. Preserve it
+# before the manager replaces that directory; migration never writes theme fonts.
+if [ "$_lc_real_old_mod" != "$MODPATH" ] && \
+   { [ -s "$_lc_real_old_mod/.ziyu-state/theme-backup/manifest.txt" ] || \
+     [ -s "$_lc_real_old_mod/.ziyu-state/theme-store.state" ]; }; then
+    _ts_install_py="$MODPATH/common/python"
+    PYTHONHOME="$_ts_install_py" \
+    PYTHONPATH="$MODPATH/common:$_ts_install_py/lib/python3.14:$_ts_install_py/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_ts_install_py/lib:$_ts_install_py/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_ts_install_py/bin/ziyu-python" "$MODPATH/common/theme_store.py" \
+        "$_lc_real_old_mod" aosp migrate >> "$MODPATH/logs/theme-store.log" 2>&1 || {
+        abort '主题字体备份未能安全迁移，更新已停止；请保留原模块并导出日志'
+        return 1 2>/dev/null || exit 1
+    }
+fi
+if [ "$_lc_real_old_mod" != "$MODPATH" ]; then
+    mkdir -p "$MODPATH/config/tools" || abort '无法创建字体工具配置目录'
+    for _ts_pref in theme-store.conf keep-lockscreen.conf; do
+        if [ -f "$_lc_real_old_mod/config/tools/$_ts_pref" ] && [ ! -L "$_lc_real_old_mod/config/tools/$_ts_pref" ]; then
+            cp -p "$_lc_real_old_mod/config/tools/$_ts_pref" "$MODPATH/config/tools/$_ts_pref" || abort '字体工具设置迁移失败'
+        fi
+    done
 fi
 [ ! -f "$MODPATH/config/identity-migration-full-reboot.conf" ] || ui_print '• 数据目录升级：请完整重启一次，旧挂载目录在重启后自动清理'
 ziyu_identity_finish "$MODPATH" "$_lc_real_old_mod" || {

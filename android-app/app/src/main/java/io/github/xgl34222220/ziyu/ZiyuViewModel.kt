@@ -60,6 +60,7 @@ internal data class ModuleSnapshot(
     val slotCjk: Int = 0,
     val slotDigit: Int = 0,
     val slotRom: String = "",
+    val softRebootState: String = "",
     val temporaryRootMode: Boolean = false,
     val error: String = "",
 ) {
@@ -503,7 +504,8 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun refreshReadExtras() {
-        viewModelScope.launch {
+        auxiliaryReadJob?.takeIf { it.isActive }?.let { return }
+        auxiliaryReadJob = viewModelScope.launch {
             val loaded = mountPreferenceMutex.withLock {
                 val reads = readAuxiliaryBatch("settings") ?: return@withLock false
                 applyActionStatusResult(reads.getValue("action"))
@@ -539,6 +541,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     private var cachedFingerprint: String = ""
     private var fontRequestJob: Job? = null
     private var refreshJob: Job? = null
+    private var auxiliaryReadJob: Job? = null
     // A module status read that started before a font switch committed must not
     // overwrite the new selection when it lands afterwards; only the newest read
     // is allowed to publish into `snapshot`.
@@ -1346,14 +1349,59 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    var rebootError by mutableStateOf("")
+        private set
+    fun dismissRebootError() { rebootError = "" }
+
     var rebootChoiceVisible by mutableStateOf(false)
         private set
     var rebootChoiceMessage by mutableStateOf("")
         private set
+    var rebootChoiceMode by mutableStateOf("reboot")
+        private set
+    var rebootChoiceFinal by mutableStateOf(false)
+        private set
+    val rebootChoiceLabel: String get() = when (rebootChoiceMode) {
+        "soft" -> "内核软重启"
+        else -> "普通重启"
+    }
 
     fun rebootDevice() {
+        if (snapshot.temporaryRootMode) showRestartOptions() else chooseRestart("reboot")
+    }
+
+    var rebootOptionsVisible by mutableStateOf(false)
+        private set
+
+    fun showRestartOptions() {
+        if (rebootRequestJob?.isActive == true || rebootChoiceVisible || rebootOptionsVisible) return
+        rebootOptionsVisible = true
+    }
+
+    fun dismissRestartOptions() {
+        rebootOptionsVisible = false
+    }
+
+    fun chooseRestartFromOptions(mode: String) {
+        if (!rebootOptionsVisible || mode !in setOf("reboot", "soft")) return
+        rebootOptionsVisible = false
+        rebootChoiceMode = mode
+        rebootChoiceFinal = true
+        rebootChoiceMessage = when (mode) {
+            "soft" -> "内核软重启会重新加载模块和字体，并核对重启后的 PPID。请先保存其他应用中的内容。"
+            else -> "手机将完整重启，启动后自动核验字体。请先保存其他应用中的内容。"
+        }
+        rebootChoiceVisible = true
+    }
+    fun chooseRestart(mode: String) {
+        if (mode !in setOf("reboot", "soft")) return
         if (rebootRequestJob?.isActive == true || rebootChoiceVisible) return
-        rebootChoiceMessage = "字体在重启后生效。重启会中断当前应用，请先保存工作。"
+        rebootChoiceMode = mode
+        rebootChoiceFinal = false
+        rebootChoiceMessage = when (mode) {
+            "soft" -> "重新加载模块和字体，请先保存其他应用中的内容。"
+            else -> "重启手机，请先保存其他应用中的内容。"
+        }
         rebootChoiceVisible = true
     }
     fun dismissRebootChoice() {
@@ -1361,6 +1409,11 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
     }
     fun confirmReboot() {
         if (!rebootChoiceVisible) return
+        if (!rebootChoiceFinal) {
+            rebootChoiceFinal = true
+            rebootChoiceMessage = "其他应用将关闭，请确认已保存内容。"
+            return
+        }
         dismissRebootChoice()
         requestDeviceReboot()
     }
@@ -1370,13 +1423,22 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
         // Complete reboot is deliberately independent from font-task busy state. A stale worker
         // flag used to make the button look dead for tens of seconds even though reboot itself is
         // immediate. The shell bridge backgrounds the reboot command, so use a short request timeout.
-        operationMessage = "正在请求完整重启…"
+        val mode = rebootChoiceMode
+        operationMessage = "正在请求${rebootChoiceLabel}…"
         rebootRequestJob = viewModelScope.launch {
-            val result = RootShell.exec("sh ${RootShell.quote(bridge)} reboot", timeoutMs = 4_000L)
+            val command = when (mode) {
+                "soft" -> "soft_reboot request"
+                else -> "reboot"
+            }
+            val result = RootShell.exec("sh ${RootShell.quote(bridge)} $command", timeoutMs = if (mode == "reboot") 4_000L else 60_000L)
             val response = runCatching { firstJson(result.stdout) }.getOrNull()
             if (result.code != 0 || response?.optString("status") == "error") {
                 operationMessage = response?.optString("message")?.takeIf { it.isNotBlank() }
                     ?: result.stderr.ifBlank { "重启请求失败" }
+                rebootError = operationMessage
+            } else if (mode != "reboot") {
+                operationMessage = response?.optJSONObject("data")?.optString("message")?.takeIf { it.isNotBlank() }
+                    ?: "已请求软重启，完成后请检查字体。"
             }
         }
     }
@@ -1539,7 +1601,10 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
             // state separately, including a reboot completed during polling.
             // Accept fresh verification and real rollback results unchanged.
             refreshFontRuntime()
-            if (rebootRequired && CombinationCompletion.shouldRestart(result.optString("state"), restartAfter) && !reused) scheduleConfirmedRestart()
+            if (rebootRequired && !reused &&
+                (snapshot.temporaryRootMode || CombinationCompletion.shouldRestart(result.optString("state"), restartAfter))) {
+                scheduleConfirmedRestart()
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
@@ -1762,6 +1827,7 @@ internal class ZiyuViewModel(application: Application) : AndroidViewModel(applic
                 slotCjk = data.optInt("slotCjk", 0),
                 slotDigit = data.optInt("slotDigit", 0),
                 slotRom = data.optString("slotRom", ""),
+                softRebootState = data.optString("softRebootState", ""),
                 temporaryRootMode = data.optBoolean("temporaryRootMode", false),
             )
         } catch (error: Exception) {

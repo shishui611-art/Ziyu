@@ -1199,6 +1199,7 @@ def _compile_face_task(task, recordings, outline_cache, donor=None):
                 codepoint_filter = script_filter(task['scriptScope'], task.get('regionalHan', False))
             details = ({'mode': 'retained-not-selected', 'replaced': {}, 'targetStylePreserved': True}
                        if task.get('scriptRetain') else replace_face(font, donor, recordings, preserve_unsafe=True,
+                                   require_cjk=task.get('scriptScope') != ['fallback'],
                                    outline_cache=outline_cache, native_source=task['donor'],
                                    expand_bounds=True, codepoint_filter=codepoint_filter,
                                    preserve_dependencies=bool(codepoint_filter)))

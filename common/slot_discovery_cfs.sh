@@ -436,7 +436,7 @@ _zcsf_classify() {
     esac
     # 其它文字（各语种 Noto / 阿拉伯 / 希伯来 / 泰 / 天城 / 缅 / 藏 …）
     case "$_zcsf_n" in
-        *arab*|*hebr*|*thai*|*deva*|*beng*|*taml*|*telu*|*gujr*|*guru*|*knda*|*mlym*|*orya*|*odia*|*sinh*|*khmr*|*khmer*|*laoo*|*lao[-_.]*|*mymr*|*myanmar*|*geor*|*armn*|*ethi*|*tibt*|*tibetan*|*cherokee*|*naskh*|*nastaliq*|*kufi*|*nko*|*yi[-_.]*|*tifinagh*|*adlam*|*bamum*|*vai*|*syriac*|*mongolian*|*javanese*|*balinese*|*lepcha*|*grantha*|*modi*|*newa*|*kaithi*|*bhaiksuki*|*marchen*|*soyombo*|*medefaidrin*|*anatolian*|*cuneiform*|*egyptian*|*linear*|*coptic*|*ogham*|*runic*|*tai[-_.]*|*tamil*|*telugu*|*kannada*|*malayalam*|*gujarati*|*bengali*|*devanagari*|*sinhala*|*ethiopic*|*georgian*|*armenian*|*arabic*|*hebrew*)
+        *arab*|*hebr*|*thai*|*deva*|*beng*|*taml*|*telu*|*gujr*|*guru*|*gurmukhi*|*knda*|*mlym*|*orya*|*oriya*|*odia*|*sinh*|*khmr*|*khmer*|*laoo*|*lao[-_.]*|*mymr*|*myanmar*|*geor*|*armn*|*ethi*|*tibt*|*tibetan*|*cherokee*|*naskh*|*nastaliq*|*kufi*|*nko*|*yi[-_.]*|*tifinagh*|*adlam*|*bamum*|*vai*|*syriac*|*mongolian*|*javanese*|*balinese*|*lepcha*|*grantha*|*modi*|*newa*|*kaithi*|*bhaiksuki*|*marchen*|*soyombo*|*medefaidrin*|*anatolian*|*cuneiform*|*egyptian*|*linear*|*coptic*|*ogham*|*runic*|*tai[-_.]*|*taitham*|*tai-tham*|*canadianaboriginal*|*hentaigana*|*tamil*|*telugu*|*kannada*|*malayalam*|*gujarati*|*bengali*|*devanagari*|*sinhala*|*ethiopic*|*georgian*|*armenian*|*arabic*|*hebrew*)
             _zcsf_cat=lang; return 0 ;;
     esac
     _zcsf_cat=latin
@@ -445,7 +445,7 @@ _zcsf_classify() {
 
 # ---------------------------------------------------------------------------
 # 主入口：ziyu_cfs_discover <模块目录>
-#   生成/刷新 config/device-slots.list（格式与 device_slot_discovery.py 一致，classifier=3）
+#   生成/刷新 config/device-slots.list（格式与 device_slot_discovery.py 一致，classifier=4）
 #   0=成功（缓存已是最新，或本次已重建）；1=失败（调用方回退 Python 版）
 # ---------------------------------------------------------------------------
 ziyu_cfs_discover() {
@@ -457,7 +457,7 @@ ziyu_cfs_discover() {
     # ---- 指纹：模块版本 + 本脚本 mtime + targets mtime + XML mtime ----
     _zcd_rom=$(_zcsf_rom "$_zcd_mod")
     _zcd_self="$_zcd_mod/common/slot_discovery_cfs.sh"
-    _zcd_key="cfs3|$_zcd_ver|$(stat -c '%Y' "$_zcd_self" 2>/dev/null)"
+    _zcd_key="cfs4|$_zcd_ver|$(stat -c '%Y' "$_zcd_self" 2>/dev/null)"
     _zcd_tlist="$_zcd_mod/common/slot_targets/$_zcd_rom.list"
     [ -s "$_zcd_tlist" ] && _zcd_key="$_zcd_key|$(stat -c '%Y-%s' "$_zcd_tlist" 2>/dev/null)"
     for _zcd_x in $(_zcsf_xml_files); do
@@ -538,7 +538,7 @@ ziyu_cfs_discover() {
     _zcd_out_tmp="$_zcd_out.tmp.$$"
     {
         printf 'schema=ziyu-device-slots-v1\n'
-        printf 'classifier=3\n'
+        printf 'classifier=4\n'
         printf 'module_version=%s\n' "$_zcd_ver"
         printf 'xml_roots=%s\n' "$(_zcsf_xml_files | grep -c .)"
         printf 'fingerprint=%s\n' "$_zcd_key"

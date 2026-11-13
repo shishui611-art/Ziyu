@@ -1,0 +1,10 @@
+{
+  "name": "Ziyu theme font recovery and alias coverage guard",
+  "version": "1.5.46",
+  "date": "2026-11-11",
+  "license": "GPL-3.0-only",
+  "origin": "Original implementation in this repository; no upstream script code or font copied",
+  "files": ["common/theme_store.py", "common/font_expansion_guard.py"],
+  "dependencies": ["Existing bundled CPython standard library", "Existing bundled FontTools", "Existing stock-font snapshot and digest helpers"],
+  "scope": "Journaled OEM theme font writes and restoration; read-only cmap, UVS, variable-axis and layout coverage checks; no font instancing or outline rebuilding"
+}

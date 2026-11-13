@@ -5,9 +5,17 @@
 set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
+# Restore external theme files before removing the module that owns recovery.
+# Backups live under /data/adb/ziyu and survive even if a manager ignores failure.
+if [ -f "$MODDIR/common/theme_store.sh" ]; then
+    MODDIR="$MODDIR" sh "$MODDIR/common/theme_store.sh" restore-disable || {
+        echo '字域：主题字体未全部还原，备份已保留，请重试后再卸载。' >&2
+        exit 1
+    }
+fi
 # 卸载前强制清掉已发布字体树/槽位扩展，确保回到原厂字体，不依赖后续清理步骤。
 if [ -f "$MODDIR/common/restore_stock_factory.sh" ]; then
-    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/restore_stock_factory.sh" "$MODDIR" >/dev/null 2>&1 || true
+    MODDIR="$MODDIR" MODULE_DIR="$MODDIR" sh "$MODDIR/common/restore_stock_factory.sh" "$MODDIR" >/dev/null 2>&1 || exit 1
 fi
 if [ -f "$MODDIR/common/boot_ota_guard.sh" ]; then
     _boot_guard_cleanup=$(MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \

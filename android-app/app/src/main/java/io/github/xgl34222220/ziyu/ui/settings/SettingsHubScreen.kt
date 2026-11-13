@@ -177,7 +177,7 @@ internal enum class SettingsSection(
     GOOGLE("Google 字体兼容", "英文或数字恢复默认时使用", Icons.Rounded.Build, .96f),
     STORAGE("文件与配置位置", "管理字体文件与 DPI 配置", Icons.Rounded.Backup, 1.08f),
     TOOLS("字体工具", "导入上限与槽位范围", Icons.Rounded.Build, .96f),
-    TEMP_ROOT("临时 Root", "软重启与立即生效", Icons.Rounded.RestartAlt, .96f),
+    TEMP_ROOT("临时 Root", "软重启与字体加载", Icons.Rounded.RestartAlt, .96f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
     UPDATE("模块更新", "GitHub 正式版模块与更新说明", Icons.Rounded.SystemUpdate, 1.03f),
 }
@@ -359,62 +359,30 @@ internal fun SettingsHome(
         item { SettingsSectionLabel("管理与维护") }
         item {
             SettingsGroup {
-                SettingsNavigationRow(
-                    section = SettingsSection.NOTIFICATIONS,
-                    onClick = { onOpenSection(SettingsSection.NOTIFICATIONS) },
+                val sections = listOf(
+                    SettingsSection.TEMP_ROOT,
+                    SettingsSection.CLIPPING,
+                    SettingsSection.FONT_RULES,
+                    SettingsSection.NOTIFICATIONS,
+                    SettingsSection.BACKUP,
+                    SettingsSection.UPDATE,
+                    SettingsSection.BOOT_SAFETY,
+                    SettingsSection.SAFETY,
+                    SettingsSection.GOOGLE,
+                    SettingsSection.APP_COVERAGE,
+                    SettingsSection.TOOLS,
+                    SettingsSection.STORAGE,
                 )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.SAFETY,
-                    onClick = { onOpenSection(SettingsSection.SAFETY) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(section = SettingsSection.CLIPPING, onClick = { onOpenSection(SettingsSection.CLIPPING) })
-                SettingsDivider()
-                SettingsNavigationRow(section = SettingsSection.FONT_RULES, onClick = { onOpenSection(SettingsSection.FONT_RULES) })
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.BOOT_SAFETY,
-                    onClick = { onOpenSection(SettingsSection.BOOT_SAFETY) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.APP_COVERAGE,
-                    onClick = { onOpenSection(SettingsSection.APP_COVERAGE) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.GOOGLE,
-                    onClick = { onOpenSection(SettingsSection.GOOGLE) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.STORAGE,
-                    onClick = { onOpenSection(SettingsSection.STORAGE) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.TOOLS,
-                    onClick = { onOpenSection(SettingsSection.TOOLS) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.TEMP_ROOT,
-                    onClick = { onOpenSection(SettingsSection.TEMP_ROOT) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.BACKUP,
-                    onClick = { onOpenSection(SettingsSection.BACKUP) },
-                )
-                SettingsDivider()
-                SettingsNavigationRow(
-                    section = SettingsSection.UPDATE,
-                    subtitle = model.updateInfo.version.takeIf { model.updateInfo.hasUpdate }
-                        ?.let { "新版本 $it 可用" }
-                        ?: SettingsSection.UPDATE.description,
-                    onClick = { onOpenSection(SettingsSection.UPDATE) },
-                )
+                sections.forEachIndexed { index, section ->
+                    if (index > 0) SettingsDivider()
+                    SettingsNavigationRow(
+                        section = section,
+                        subtitle = if (section == SettingsSection.UPDATE && model.updateInfo.hasUpdate) {
+                            "新版本 ${model.updateInfo.version} 可用"
+                        } else section.description,
+                        onClick = { onOpenSection(section) },
+                    )
+                }
             }
         }
     }

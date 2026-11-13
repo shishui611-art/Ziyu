@@ -10,6 +10,8 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -38,15 +40,24 @@ import io.github.xgl34222220.ziyu.ui.theme.*
 
 /** Shared business sections; the three page shells decide their order and presentation. */
 internal val HomeUiState.hasTaskNotice: Boolean
-    get() = taskRunning || rebootRequired || error.isNotBlank() || romCheckMessage.isNotBlank()
+    get() = taskRunning || mountFailed || softRebootState == "failed" || rebootRequired || error.isNotBlank() || romCheckMessage.isNotBlank()
 
 @Composable
 internal fun HomePageHeader(loading: Boolean, actions: HomeActions) {
     val palette=LocalZiyuPaletteTokens.current
+    var restartMenu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(bottom=4.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min=48.dp),horizontalArrangement=Arrangement.End,verticalAlignment=Alignment.CenterVertically) {
             ZiyuHeaderAction(Icons.Rounded.Description, "任务中心", actions.openLogs, Color.Transparent, contentColor=palette.textPrimary)
-            ZiyuHeaderAction(Icons.Rounded.Refresh, "刷新", actions.refresh, Color.Transparent, loading=loading, contentColor=palette.textPrimary)
+            Box {
+                ZiyuHeaderAction(Icons.Rounded.Refresh, "刷新与重启", { restartMenu=true }, Color.Transparent, contentColor=palette.textPrimary)
+                DropdownMenu(expanded=restartMenu,onDismissRequest={restartMenu=false}) {
+                    DropdownMenuItem(text={ZiyuText("刷新状态", color=palette.textPrimary)},onClick={restartMenu=false;actions.refresh()},enabled=!loading)
+                    listOf("reboot" to "普通重启", "soft" to "内核软重启").forEach { (mode,label) ->
+                        DropdownMenuItem(text={ZiyuText(label, color=palette.textPrimary)},onClick={restartMenu=false;actions.restart(mode)})
+                    }
+                }
+            }
         }
         ZiyuText(themeText("字域"),Modifier.padding(top=16.dp,bottom=12.dp),color=palette.textPrimary,fontSize=40.sp,lineHeight=48.sp,
             fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Ellipsis)
@@ -64,6 +75,8 @@ internal fun HomeCurrentFont(state: HomeUiState, actions: HomeActions) {
         !state.moduleInstalled -> "未连接模块"
         !state.rootGranted -> "等待 Root 授权"
         state.taskRunning -> "正在应用"
+        state.mountFailed -> "挂载失败，请联系开发者"
+        state.softRebootState == "failed" -> "PPID 重置失败"
         state.rebootRequired -> "重启后生效"
         state.error.isNotBlank() -> "状态待更新"
         !state.mountHealthy -> "待验证"
@@ -124,7 +137,8 @@ private fun HomeStatTile(title: String,value: String,number: Boolean,onClick: ()
 internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
     val scheme = MaterialTheme.colorScheme
     val palette = LocalZiyuPaletteTokens.current
-    val failed = state.error.isNotBlank() && !state.taskRunning
+    val softRebootFailed = state.softRebootState == "failed"
+    val failed = (state.mountFailed || state.error.isNotBlank() || softRebootFailed) && !state.taskRunning
     val romNotice = state.romCheckMessage.isNotBlank() && !state.taskRunning && !state.rebootRequired && !failed
     ZiyuSurface(
         onClick = actions.openLogs,
@@ -143,7 +157,7 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                     tint = if (failed) scheme.error else scheme.primary,
                 )
                 ZiyuText(
-                    if (romNotice) "系统字体基准核验" else if (state.rebootRequired && !state.taskRunning) "重启后生效" else state.taskTitle,
+                    if (state.mountFailed && !state.taskRunning) "挂载失败，请联系开发者" else if (softRebootFailed) "内核软重启的 PPID 重置失败" else if (romNotice) "系统字体基准核验" else if (state.rebootRequired && !state.taskRunning) "重启后生效" else state.taskTitle,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
@@ -151,7 +165,7 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                 ZiyuGlyph(Icons.Rounded.ChevronRight, null, ZiyuIconTokens.TrailingGlyph)
             }
             ZiyuText(
-                if (failed) state.error else if (romNotice) state.romCheckMessage else nextStepFor(state, actions).description,
+                if (softRebootFailed) "PPID 重置未通过核验，请查看软重启日志并使用普通重启。" else if (failed) state.error.ifBlank { state.taskMessage } else if (romNotice) state.romCheckMessage else nextStepFor(state, actions).description,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (state.taskRunning) ZiyuLinearProgressIndicator(
@@ -271,10 +285,11 @@ internal data class HomeNextStep(
 internal fun nextStepFor(state: HomeUiState, actions: HomeActions): HomeNextStep = when {
     !state.moduleInstalled || !state.rootGranted -> HomeNextStep("重新检查", Icons.Rounded.Refresh, actions.refresh, "安装模块并授予 Root 权限后才能应用全局字体")
     state.taskRunning -> HomeNextStep("查看任务", Icons.Rounded.Description, actions.openLogs, state.taskMessage.ifBlank { "可以离开 App，后台任务会继续运行" })
+    state.mountFailed || state.softRebootState == "failed" -> HomeNextStep("查看日志", Icons.Rounded.Warning, actions.openLogs, state.taskMessage)
     state.rebootRequired -> HomeNextStep(
-        if (state.temporaryRootMode) "立即软重启" else "立即重启",
+        if (state.temporaryRootMode) "选择重启方式" else "立即重启",
         Icons.Rounded.RestartAlt, actions.reboot,
-        if (state.temporaryRootMode) "通过 KernelSU 软重启验证字体，不完整重启" else "执行一次完整重启后应用全局字体并自动验证",
+        if (state.temporaryRootMode) "选择普通重启或内核软重启" else "执行一次完整重启后应用全局字体并自动验证",
     )
     state.error.isNotBlank() -> HomeNextStep("查看问题", Icons.Rounded.Warning, actions.openLogs, "打开任务中心查看错误原因与诊断信息")
     state.currentFont.contains("系统") -> HomeNextStep("打开字体库", Icons.Rounded.FontDownload, actions.openFontLibrary)

@@ -482,8 +482,12 @@ def _font_root_names(root: FontRoot) -> tuple[Path, ...]:
     return (root.logical, *aliases.get(root.logical, ()))
 
 
+DATA_FONT_LINK_ROOTS = frozenset({Path('/data/format_unclear/font')})
+
+
 def _stock_font_path(root: FontRoot, actual: Path, roots: Iterable[FontRoot],
-                     *, preserve_namespace: bool = False) -> Path:
+                     *, preserve_namespace: bool = False,
+                     routing_links: dict[str, str] | None = None) -> Path:
     """Resolve each font link inside the selected stock views, never the live ROM.
 
     A stock /system/fonts directory can contain absolute links to /product/fonts.
@@ -526,7 +530,21 @@ def _stock_font_path(root: FontRoot, actual: Path, roots: Iterable[FontRoot],
                 continue
             break
         else:
-            raise InventoryError(f"原厂字体链接离开已验证的字体分区：{logical}")
+            # ColorOS routes some ROM aliases through data symlinks back into
+            # system fonts. Read only the link here. The next hop must still
+            # resolve to a regular file in a selected stock view.
+            if routing_links is None or logical.parent not in DATA_FONT_LINK_ROOTS:
+                raise InventoryError(f"原厂字体链接离开已验证的字体分区：{logical}")
+            try:
+                if not stat.S_ISLNK(logical.lstat().st_mode):
+                    raise InventoryError(f"厂商字体路由不是符号链接：{logical}")
+                link = os.readlink(logical)
+            except OSError as error:
+                raise InventoryError(f"无法读取厂商字体路由：{logical}") from error
+            routing_links[str(logical)] = link
+            target = Path(link)
+            logical = lexical(target if target.is_absolute() else logical.parent / target)
+            continue
         if not parts:
             raise InventoryError("原厂字体路径指向目录")
         physical = stock_root
@@ -545,6 +563,10 @@ def _stock_font_path(root: FontRoot, actual: Path, roots: Iterable[FontRoot],
             if index == len(parts) - 1:
                 if not stat.S_ISREG(mode):
                     raise InventoryError("原厂字体不是普通文件")
+                if routing_links is not None:
+                    for name, target in routing_links.items():
+                        if os.readlink(name) != target:
+                            raise InventoryError("厂商字体路由在读取期间发生变化")
                 return physical
             if not stat.S_ISDIR(mode):
                 raise InventoryError("原厂字体路径包含非目录节点")

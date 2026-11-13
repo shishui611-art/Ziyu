@@ -120,9 +120,9 @@ internal fun FontDetailsDialogRoute(
     val previewText = when (previewMode) {
         FontPreviewMode.Mixed -> customPreviewText.ifBlank {
             when {
+                font.supportsCjk -> "花间一壶酒\nZiyu Aa 0123456789"
                 deepMetadata?.applicationLanguages?.contains("japanese") == true -> "ひらがな カタカナ\n日本語のフォント"
                 deepMetadata?.applicationLanguages?.contains("korean") == true -> "가나다라마바사\n한글 글꼴 미리보기"
-                font.supportsCjk -> "花间一壶酒\nZiyu Aa 0123456789"
                 else -> "Ziyu Typeface\nAa 0123456789"
             }
         }
@@ -334,11 +334,8 @@ internal fun FontDetailsDialogRoute(
             }
 
             Spacer(Modifier.height(18.dp))
-            if (deepMetadata?.applicationLanguages?.isNotEmpty() == true) {
-                val labels = deepMetadata!!.applicationLanguages.mapNotNull {
-                    when (it) { "japanese" -> "日文"; "korean" -> "韩文"; else -> null }
-                }.joinToString("、")
-                Text(if (font.variable) "日韩可变字体暂不支持缺字补齐。" else "应用$labels，其他文字使用系统字体；需完整重启。", color = secondaryText, fontSize = 12.sp)
+            if (deepMetadata?.applicationMode == "fallback") {
+                Text(if (font.variable) "这款可变字体暂不支持缺字补齐。" else "替换支持的文字，缺字保留系统字体。", color = secondaryText, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
             }
             Button(

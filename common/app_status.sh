@@ -89,6 +89,7 @@ mount_engine() {
         fi
         ziyu_mount_backend_details
         _backend_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD"
+        [ "$_backend_selected" != manager ] || _backend_label='管理器挂载'
         if [ "$_backend_verify" = failed ]; then
             case "$_backend_selected" in self) _backend_label='自挂载' ;; esac
             case "$_backend_error" in
@@ -138,6 +139,13 @@ select_task_file() {
 
 # Percent-encode only framing characters. No eval, JSON engine or external process.
 status_value() {
+    # Most fields have no framing characters. Emit them in one write instead
+    # of running a shell loop and printf for every byte of a Chinese name.
+    case "$1" in
+        *'%'*|*"$_APP_BRIDGE_CR"*|*'
+'*) ;;
+        *) printf '%s' "$1"; return ;;
+    esac
     _asv_rest=$1
     while [ -n "$_asv_rest" ]; do
         _asv_char=${_asv_rest%"${_asv_rest#?}"}
@@ -159,9 +167,9 @@ status_field() {
 }
 
 status_emit() {
-    [ "$#" -eq 33 ] || { printf '{"status":"error","message":"模块状态字段不完整"}\n'; return 1; }
+    [ "$#" -eq 34 ] || { printf '{"status":"error","message":"模块状态字段不完整"}\n'; return 1; }
     if [ "$_AS_FORMAT" = json ]; then
-    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskFont":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s","temporaryRootMode":%s,"slotTotal":%s,"slotCjk":%s,"slotDigit":%s,"slotRom":"%s"}}\n' \
+    printf '{"status":"ok","data":{"root":true,"installed":%s,"version":"%s","versionCode":%s,"active":"%s","effectiveActive":"%s","fontEffectState":"%s","verificationState":"%s","verificationGrade":"%s","verificationMode":"%s","verificationReason":"%s","mountState":"%s","mountFailure":"%s","cutoverState":"%s","cutoverDecision":"%s","rollbackState":"%s","rollbackPending":%s,"rollbackTargetFont":"%s","rollbackTargetMode":"%s","taskType":"%s","taskId":"%s","taskFont":"%s","taskState":"%s","taskMessage":"%s","taskProgress":%s,"rebootRequired":%s,"rootManager":"%s","mountEngine":"%s","moduleDir":"%s","temporaryRootMode":%s,"softRebootState":"%s","slotTotal":%s,"slotCjk":%s,"slotDigit":%s,"slotRom":"%s"}}\n' \
         "$_installed" "$(json_escape "$_version")" "${_version_code:-0}" "$(json_escape "$_active")" \
         "$(json_escape "$_effective_active")" "$(json_escape "$_font_effect_state")" \
         "$(json_escape "$_verification_state")" "$(json_escape "$_verification_grade")" "$(json_escape "$_verification_mode")" \
@@ -171,7 +179,7 @@ status_emit() {
         "$(json_escape "$_task_type")" "$(json_escape "$_task_id")" "$(json_escape "$_task_font")" "$(json_escape "$_task_state")" \
         "$(json_escape "$_task_message")" "$_task_progress" "$_reboot_required" \
         "$(json_escape "$(root_manager)")" "$(json_escape "$(mount_engine)")" "$(json_escape "$MODDIR")" \
-        "$_temporary_root" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$(json_escape "$_slot_rom")"
+        "$_temporary_root" "$(json_escape "$_soft_reboot_state")" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$(json_escape "$_slot_rom")"
         return $?
     fi
     printf 'schema=ziyu-app-status-v1\nstatus=ok\nroot=true\n'
@@ -204,11 +212,12 @@ status_emit() {
     status_field mountEngine "$1"; shift
     status_field moduleDir "$1"; shift
     status_field temporaryRootMode "$1"; shift
+    status_field softRebootState "$1"; shift
     status_field slotTotal "$1"; shift
     status_field slotCjk "$1"; shift
     status_field slotDigit "$1"; shift
     status_field slotRom "$1"; shift
-    printf 'field_count=34\ncomplete=ziyu-app-status-v1\n'
+    printf 'field_count=35\ncomplete=ziyu-app-status-v1\n'
 }
 
 status_json() {
@@ -368,7 +377,14 @@ EOF_TASK_SELECTION
     [ -n "$_task_message" ] || _task_message='暂无后台任务'
 
     _reboot_required=false
-    [ -f "$TEXT_REBOOT_REQUIRED" ] && _reboot_required=true
+    if [ -s "$TEXT_REBOOT_REQUIRED" ]; then
+        _reboot_marker_boot=$(read_prop "$TEXT_REBOOT_REQUIRED" bootId)
+        _status_boot_id=$(_lfbs_boot_id)
+        if [ -z "$_reboot_marker_boot" ] || [ "$_status_boot_id" = unknown ] || \
+           [ "$_reboot_marker_boot" = "$_status_boot_id" ]; then
+            _reboot_required=true
+        fi
+    fi
     _physical_pending=false
     if type ziyu_pending_physical >/dev/null 2>&1 && ziyu_pending_physical "$MODDIR"; then
         _physical_pending=true
@@ -392,7 +408,12 @@ EOF_TASK_SELECTION
         fi
     elif [ -e "$MODDIR/config/font-live-transaction.conf" ]; then
         _font_effect_state=failed
+        _mount_state=failed
+        _mount_failure=live-transaction-recovery-required
+        _verification_state=failed
+        _verification_grade=FAILED
         _verification_reason=live-transaction-recovery-required
+        _reboot_required=false
     elif [ "$_physical_pending" = true ]; then
         _font_effect_state=pending-reboot
         _verification_state=pending; _verification_grade=PENDING
@@ -498,45 +519,44 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         esac
     fi
 
-    # 槽位覆盖统计：优先设备槽位发现缓存（fonts.xml + 机型清单），否则读发布记录。
+    # Status only observes published files and cached roles. Slot discovery and
+    # ROM/source fingerprinting belong to preparation or an explicit refresh.
     _temporary_root=false
-    type temporary_root_mode >/dev/null 2>&1 && temporary_root_mode && _temporary_root=true
-    _slot_total=0; _slot_cjk=0; _slot_digit=0; _slot_latin=0; _slot_rom=''
-    _slot_cache="$MODDIR/config/device-slots.list"
-    if [ -f "$MODDIR/common/slot_coverage.sh" ]; then
-        . "$MODDIR/common/slot_coverage.sh" 2>/dev/null
-        type ziyu_slot_discover >/dev/null 2>&1 && ziyu_slot_discover "$MODDIR" >/dev/null 2>&1
+    type ziyu_temporary_root_mode >/dev/null 2>&1 && ziyu_temporary_root_mode "$MODDIR" && _temporary_root=true
+    _soft_reboot_state=''
+    _soft_reboot_file="$MODDIR/config/temporary-root-soft-reboot.conf"
+    if [ "$(read_prop "$_soft_reboot_file" boot_id)" = "$(_lfbs_boot_id)" ]; then
+        case "$(read_prop "$_soft_reboot_file" state)" in
+            reload-prepared|ppid-reset-failed)
+                MODDIR="$MODDIR" sh "$MODDIR/common/soft_reboot_verify.sh" reconcile >/dev/null 2>&1 || true ;;
+        esac
+        case "$(read_prop "$_soft_reboot_file" state)" in
+            ppid-reset-verified) _soft_reboot_state=verified ;;
+            ppid-reset-failed) _soft_reboot_state=failed ;;
+            reload-prepared) _soft_reboot_state=pending ;;
+        esac
     fi
+    _slot_total=0; _slot_cjk=0; _slot_digit=0; _slot_rom=''
+    _slot_cache="$MODDIR/config/device-slots.list"
+    _slot_root="$MODDIR/system/fonts"
+    if type ziyu_live_current >/dev/null 2>&1 && ziyu_live_current; then
+        _slot_root="$_zlc_source/system/fonts"
+    fi
+    for _slot_pf in "$_slot_root"/*.ttf "$_slot_root"/*.otf; do
+        [ -f "$_slot_pf" ] && _slot_total=$((_slot_total + 1))
+    done
     if [ -s "$_slot_cache" ]; then
         while IFS= read -r _slot_line || [ -n "$_slot_line" ]; do
+            _slot_line=${_slot_line%"$_APP_BRIDGE_CR"}
             case "$_slot_line" in
                 count_cjk=*) _slot_cjk=${_slot_line#*=} ;;
                 count_digit=*) _slot_digit=${_slot_line#*=} ;;
-                count_latin=*) _slot_latin=${_slot_line#*=} ;;
-                count_lang=*) _slot_lang=${_slot_line#*=} ;;
             esac
         done < "$_slot_cache"
-        # 总数取已发布的负载字体文件数（= 元模块实际注入的槽位数），
-        # 保证主页显示与挂载结果一致；负载还没发布时才退回探测口径。
-        _slot_payload=0
-        for _slot_pf in "$MODDIR/system/fonts"/*.ttf "$MODDIR/system/fonts"/*.otf; do
-            [ -f "$_slot_pf" ] && _slot_payload=$((_slot_payload + 1))
-        done
-        if [ "${_slot_payload:-0}" -gt 0 ]; then
-            _slot_total=$_slot_payload
-        else
-            _slot_total=$((_slot_cjk + _slot_digit + _slot_latin + _slot_lang))
-        fi
-        type ziyu_slot_rom >/dev/null 2>&1 && _slot_rom=$(ziyu_slot_rom "$MODDIR")
-    elif [ -s "$MODDIR/config/slot-coverage.conf" ]; then
-        while IFS= read -r _slot_line || [ -n "$_slot_line" ]; do
-            case "$_slot_line" in
-                total=*) _slot_total=${_slot_line#*=} ;;
-                cjk=*) _slot_cjk=${_slot_line#*=} ;;
-                digit=*) _slot_digit=${_slot_line#*=} ;;
-                rom=*) _slot_rom=${_slot_line#*=} ;;
-            esac
-        done < "$MODDIR/config/slot-coverage.conf"
+    fi
+    # A previous font's coverage summary is not evidence for this payload.
+    if [ "$(read_prop "$MODDIR/config/slot-coverage.conf" font)" = "$_active" ]; then
+        _slot_rom=$(read_prop "$MODDIR/config/slot-coverage.conf" rom)
     fi
     case "$_slot_total" in ''|*[!0-9]*) _slot_total=0 ;; esac
     case "$_slot_cjk" in ''|*[!0-9]*) _slot_cjk=0 ;; esac
@@ -545,6 +565,7 @@ EOF_ZIYU_BOOT_GUARD_STATUS
 
     # 后端已确认挂载/验证通过时，字体效果就是 verified；否则会一直显示“待本次启动验证”。
     if [ "$_mount_state" = mounted ] && [ "$_verification_state" = verified ] &&
+       [ "$_reboot_required" = false ] && [ "$_rollback_pending" = false ] &&
        [ "$_active" != default ] && [ -n "$_active" ]; then
         _effective_active=$_active
         _font_effect_state=verified
@@ -560,7 +581,7 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         "$_task_type" "$_task_id" "$_task_font" "$_task_state" \
         "$_task_message" "$_task_progress" "$_reboot_required" \
         "$(root_manager)" "$(mount_engine)" "$MODDIR" \
-        "$_temporary_root" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$_slot_rom"
+        "$_temporary_root" "$_soft_reboot_state" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$_slot_rom"
 }
 
 case "$(read_prop "$MODDIR/module.prop" id)" in

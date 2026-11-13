@@ -158,6 +158,13 @@ safe_mapper_identity() {
                          "$MODDIR/common/font_scan_profile.py" \
                          "$MODDIR/common/hyperos_physical_policy.py" \
                          "$MODDIR/common/font_role_policy.py" \
+                         "$MODDIR/common/font_expansion_guard.py" \
+                         "$MODDIR/common/slot_coverage.sh" \
+                         "$MODDIR/common/slot_discovery_cfs.sh" \
+                         "$MODDIR/config/tools/keep-lockscreen.conf" \
+                         "$MODDIR/config/tools/slot-coverage-enabled.conf" \
+                         "$MODDIR/config/slot-coverage-enabled.conf" \
+                         "$MODDIR/config/tools/slot-coverage-limit.conf" \
                          "$MODDIR/common/font_slot_overrides.py" \
                          "$MODDIR/common/font_slot_weight.py" \
                          "$MODDIR/common/font_slot_coverage.py" \
@@ -181,9 +188,12 @@ safe_mapper_identity() {
                          "$MODDIR/common/composite_collection_build.sh" \
                          "$MODDIR/common/composite_collection_contract.py" \
                          "$MODDIR/common/stock_font_snapshot.py" \
+                         "$MODDIR/common/stock_readonly_view.py" \
+                         "$MODDIR/common/font_live_payload.py" \
                          "$MODDIR/common/font_source_profile.py" \
                          "$MODDIR/common/font_inventory.py" \
                          "$MODDIR/common/font_coverage.py" \
+                         "$MODDIR/common/font_face_weight.py" \
                          "$MODDIR/common/legacy_v14_4/composite_font.py" \
                          "$MODDIR/common/legacy_v14_4/font_switch_safe.sh" \
                          "$CONFIG_DIR/coloros_slot_groups.conf"; do
@@ -251,7 +261,7 @@ safe_validation_restore() {
     [ "$(read_state_value "$_svr_conf" valid)" = true ] || return 1
     [ "$(read_state_value "$_svr_conf" identity)" = "$_svr_identity" ] || return 1
     FONT_APPLY_MODE=$(read_state_value "$_svr_conf" applyMode)
-    case "$FONT_APPLY_MODE" in global|japanese|korean|japanese,korean) ;; *) return 1 ;; esac
+    case "$FONT_APPLY_MODE" in global|fallback) ;; *) return 1 ;; esac
     return 0
 }
 
@@ -608,7 +618,7 @@ validate_global() {
             return 1
         fi
         case "$_script_mode" in
-            japanese|korean|japanese,korean)
+            fallback)
                 FONT_APPLY_MODE=$_script_mode
                 safe_validation_store "$_file" >/dev/null 2>&1 || true
                 return 0 ;;
@@ -826,10 +836,18 @@ resolve_previous_state() {
 prepare_next_payload() {
     _font="$1"; _previous="$2"; _previous_legacy="$3"
     _next_tmp="$MODDIR/.ziyu-state/tmp/next-state.$$"
+    _next_pyroot="$MODDIR/common/python"
+    _next_digest=$(PYTHONHOME="$_next_pyroot" \
+        PYTHONPATH="$_next_pyroot/lib/python3.14:$_next_pyroot/lib/python3.14/site-packages" \
+        LD_LIBRARY_PATH="$_next_pyroot/lib:$_next_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_next_pyroot/bin/ziyu-python" "$MODDIR/common/font_live_payload.py" digest "$STAGE_PAYLOAD") || return 1
+    case "$_next_digest" in ''|*[!0-9a-f]*) return 1 ;; esac
+    [ "${#_next_digest}" = 64 ] || return 1
     _next_request="${ZIYU_MIX_REQUEST_ID:-${ZIYU_TASK_SCOPE_TASK:-${ZIYU_SWITCH_TASK_ID:-}}}"
     [ -n "$_next_request" ] || _next_request="$(cat /proc/sys/kernel/random/boot_id)-$$-$(date +%s)"
     {
         printf 'state=prepared\n'
+        printf 'payloadDigest=%s\n' "$_next_digest"
         printf 'font=%s\n' "$_font"
         printf 'previousFont=%s\n' "$_previous"
         printf 'taskId=%s\n' "${ZIYU_TASK_SCOPE_TASK:-${ZIYU_SWITCH_TASK_ID:-}}"
@@ -1004,16 +1022,17 @@ switch_font() {
         SYSTEM_FONTS_DIR="$STAGE_PAYLOAD/system/fonts"
         export PAYLOAD_ROOT SYSTEM_FONTS_DIR
         if [ "$FONT_APPLY_MODE" != global ]; then
-            # Scoped output must never pass through a whole-face ROM mapper.
+            # Incomplete static donors use OEM faces with supported text
+            # replaced and missing characters retained, never a whole-face map.
             # Reuse only a cache whose proof is independently checked below.
             if safe_switch_cache_restore "$_source" "$_font" && stage_script_fonts validate; then
                 _collection_cache_hit=true
-                progress 80 '已复用日韩字体缓存'
+                progress 80 '已复用字体缓存'
             else
                 stage_clear_text_payload || { safe_error '无法清理字体暂存区'; return 1; }
-                progress 48 '正在适配日韩字体并保留原厂缺字'
+                progress 48 '正在替换文字并保留缺字'
                 if ! stage_script_fonts build; then
-                    safe_error '日韩字体适配失败，当前字体保持不变；请查看日志'
+                    safe_error '字体适配失败，当前字体保持不变；请查看日志'
                     return 1
                 fi
             fi
@@ -1048,16 +1067,17 @@ switch_font() {
                     return 1
                 }
             fi
-            # 槽位覆盖：把已选字体扩展到目标 ROM 的完整槽位清单。
-            # 这条路径（物理兼容/legacy safe-switch）原来不调用扩展，导致负载永远只有
-            # 核心十几个文件，而 provider 发布路径有扩展 —— 两条路径覆盖范围不一致。
-            if [ -f "$MODDIR/common/slot_coverage.sh" ] && [ -d "$SYSTEM_FONTS_DIR" ]; then
-                progress 78 '正在补齐完整字体槽位'
-                . "$MODDIR/common/slot_coverage.sh"
-                ziyu_slot_coverage_expand "$MODDIR" "$SYSTEM_FONTS_DIR" "$SYSTEM_FONTS_DIR" || true
-            fi
             safe_switch_sources_unchanged || {
                 safe_error '生成期间源字体或字重文件已变化，请重新切换'; return 1;
+            }
+        fi
+        # Recheck missing aliases even when the core generation came from cache.
+        # Snapshot preparation remains in this locked apply phase, never boot.
+        if [ "$FONT_APPLY_MODE" = global ] && [ -f "$MODDIR/common/slot_coverage.sh" ] && [ -d "$SYSTEM_FONTS_DIR" ]; then
+            progress 82 '正在核对字体槽位'
+            . "$MODDIR/common/slot_coverage.sh"
+            ZIYU_SLOT_PREPARE_STOCK=1 ziyu_slot_coverage_expand "$MODDIR" "$SYSTEM_FONTS_DIR" "$SYSTEM_FONTS_DIR" || {
+                safe_error '字体扩展核验失败，当前字体保持不变'; return 1;
             }
         fi
         progress 86 '正在校验下一启动字体负载'
@@ -1136,6 +1156,11 @@ switch_font() {
 
     if [ "$_font" = default ]; then
         stage_default_fonts verify || { safe_error '仍有字体覆盖残留，本次没有提交恢复'; return 1; }
+        if [ -f "$MODDIR/common/theme_store.sh" ]; then
+            MODDIR="$MODDIR" sh "$MODDIR/common/theme_store.sh" restore-disable >> "$LOG_FILE" 2>&1 || {
+                safe_error '部分主题字体未还原，备份已保留，请重试或导出日志'; return 1;
+            }
+        fi
     fi
     progress 94 '正在提交下一启动字体负载'
     prepare_next_payload "$_active_label" "$PREVIOUS_FONT" "$PREVIOUS_LEGACY" || {

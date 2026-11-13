@@ -4,6 +4,24 @@ set +e
 MODDIR="${0%/*}"
 MODULE_DIR="$MODDIR"
 mkdir -p "$MODDIR/logs" || exit 1
+# Userspace reboot keeps boot_id and old font routes. Resume the manager's
+# cleanup hook now, after Android stopped and before any payload activation.
+_sr_stage="$MODDIR/config/temporary-root-soft-reboot.conf"
+_sr_boot=''; _sr_saved=''; _sr_state=''
+IFS= read -r _sr_boot < /proc/sys/kernel/random/boot_id
+if [ -s "$_sr_stage" ]; then
+    while IFS='=' read -r _sr_key _sr_value; do
+        case "$_sr_key" in boot_id) _sr_saved=$_sr_value ;; state) _sr_state=$_sr_value ;; esac
+    done < "$_sr_stage"
+    if [ "$_sr_saved" = "$_sr_boot" ]; then
+        case "$_sr_state" in
+            cleanup-pending|nomount-cleanup-pending|failed)
+                MODDIR="$MODDIR" ZIYU_KSU_POST_STOP_RELOAD=1 \
+                    sh "$MODDIR/emulated-soft-reboot.sh" >> "$MODDIR/logs/soft-reboot.log" 2>&1 || exit 1
+                ;;
+        esac
+    fi
+fi
 # 开机阶段进程计数与耗时诊断：只读 /proc 并使用内建运算，不额外派生进程。
 if [ -f "$MODDIR/common/boot_profile.sh" ]; then
     . "$MODDIR/common/boot_profile.sh"
@@ -43,7 +61,7 @@ if [ -z "$_pf_active" ] || [ "$_pf_active" = default ]; then
     if [ -d "$MODDIR/system/fonts" ] || [ -d "$MODDIR/product/fonts" ] || [ -d "$MODDIR/system_ext/fonts" ]; then
         if [ -f "$MODDIR/common/restore_stock_factory.sh" ]; then
             MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
-                sh "$MODDIR/common/restore_stock_factory.sh" "$MODDIR" >/dev/null 2>&1 || true
+                sh "$MODDIR/common/restore_stock_factory.sh" "$MODDIR" >/dev/null 2>&1 || exit 1
         fi
     fi
 fi

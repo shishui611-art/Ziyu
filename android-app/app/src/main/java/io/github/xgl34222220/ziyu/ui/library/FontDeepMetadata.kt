@@ -13,6 +13,7 @@ internal data class FontDeepMetadata(
     val error: String = "",
     val languages: Set<String> = emptySet(),
     val applicationLanguages: List<String> = emptyList(),
+    val applicationMode: String = "",
 )
 
 internal suspend fun loadFontDeepMetadata(font: FontItem): FontDeepMetadata {
@@ -106,6 +107,7 @@ internal fun formatFontDeepMetadata(data: JSONObject, fallbackName: String): Fon
     }
     val application = data.optJSONArray("applicationLanguages")
     return FontDeepMetadata(title = title, text = text, languages = languages,
+        applicationMode = data.optString("applicationMode"),
         applicationLanguages = List(application?.length() ?: 0) { application!!.optString(it) })
 }
 

@@ -204,3 +204,11 @@ v1.5.4 新增 `common/font_script_support.py`、`common/font_default_restore.py`
 ## 全覆盖槽位探测（纯 shell 移植）
 
 - `common/slot_discovery_cfs.sh` 为本项目独立实现的纯 shell 全覆盖槽位探测：合并「`fonts.xml` 家族 + `slot_targets` 机型清单 + 字体目录扫描」来源，按角色分类（cjk/digit/latin/lang）并应用保护名单（`protect.list` / 粗细调节族 / emoji·符号·兜底）。探测思路对齐 `ayss2188/custom-font-switcher` v1.5.3 的 `slots.sh`（`slot_device_scan` / `_role_set` / `slot_skip_list`），脚本代码为本项目重写，未复制对方源码；沿用本仓库 GPL-3.0-only 授权。
+
+## 主题字体恢复与扩展字库检查（v1.5.46）
+
+`common/theme_store.py`、`common/font_expansion_guard.py` 为本仓库原创 GPL-3.0-only 代码，复用已有 CPython、FontTools、原厂快照及摘要工具；没有引入第三方字体、额外依赖或原生二进制。来源和运行文件记录见 `licenses/Ziyu-theme-font-recovery.json`；已加入模块打包清单。
+
+## 软重启 PID 适配（v1.5.46）
+
+`native/pid-wrap/pid_wrap.c` 参考 youfeng11/soft_restart_fix v1.2.2 的 PID 回绕方案，固定提交 `a6748afcbed704a0e85089fed868381e8b4a5e4e`，采用 Apache-2.0。保留许可证于 `licenses/soft_restart_fix-APACHE-2.0.txt`，来源和改动见 `licenses/Ziyu-soft-reboot-pid.json`。本地 NDK 构建记录随运行文件交付。没有引入上游无界 fallback 或另建可见模块。

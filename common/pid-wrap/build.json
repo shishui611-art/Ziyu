@@ -1,0 +1,10 @@
+{
+  "sourceSha256": "eff8b0035f0607057c6ae2db43f94feb95705bd758c3931c061f3dac2a1b72a6",
+  "builderSha256": "28460b823f2f77bb5ec0b28dc76122c073732ab04a94e93fbaf0ec97b493911b",
+  "binaries": {
+    "pid_wrap_arm64": "f9ca51620b24bdc7bc854f4d6abbb6eb7fa0f5b31c65ca105fab788006731fbd",
+    "pid_wrap_arm": "9c91fead8a6b75ef324cd7674e8734e58f4a01a4cab9f9d3b5622681459f79f1",
+    "pid_wrap_x86_64": "c25451a124874b2fab527d42ce6375064fa75d5f7250821e96f85da526fb0743",
+    "pid_wrap_x86": "3f01bc63620da4a83bb3598192951a38b48a325096aebc47f5e90366cbb6f4e7"
+  }
+}

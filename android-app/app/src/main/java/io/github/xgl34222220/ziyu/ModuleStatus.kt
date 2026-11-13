@@ -10,7 +10,8 @@ internal object ModuleStatus {
     private val strings = setOf("version", "active", "effectiveActive", "fontEffectState", "verificationState",
         "verificationGrade", "verificationMode", "verificationReason", "mountState", "mountFailure", "cutoverState",
         "cutoverDecision", "rollbackState", "rollbackTargetFont", "rollbackTargetMode", "taskType", "taskId",
-        "taskFont", "taskState", "taskMessage", "rootManager", "mountEngine", "moduleDir", "slotRom")
+        "taskFont", "taskState", "taskMessage", "rootManager", "mountEngine", "moduleDir", "slotRom",
+        "softRebootState")
 
     suspend fun read(): ShellResult = RootShell.exec(
         "if [ -r /data/adb/modules/ziyu/common/app_status.sh ]; then " +

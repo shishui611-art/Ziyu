@@ -8,12 +8,14 @@ import io.github.xgl34222220.ziyu.DisplayTypographyState
 data class HomeUiState(
     val loading: Boolean = false,
     val version: String = "检测中…",
+    val versionCode: Int = 0,
     val currentFont: String = "系统默认字体",
     val rootGranted: Boolean = false,
     val rootManager: String = "未授权",
     val moduleInstalled: Boolean = false,
     val mountEngine: String = "未知",
     val mountHealthy: Boolean = false,
+    val mountFailed: Boolean = false,
     val taskRunning: Boolean = false,
     val taskTitle: String = "字体引擎等待中",
     val taskMessage: String = "暂无后台字体任务",
@@ -36,6 +38,7 @@ data class HomeUiState(
     val slotCjk: Int = 0,
     val slotDigit: Int = 0,
     val slotRom: String = "",
+    val softRebootState: String = "",
     val temporaryRootMode: Boolean = false,
     val typographyVisible: Boolean = false,
     val typography: DisplayTypographyState = DisplayTypographyState(),
@@ -51,6 +54,7 @@ data class HomeActions(
     val openSettings: () -> Unit = {},
     val restoreDefault: () -> Unit,
     val reboot: () -> Unit,
+    val restart: (String) -> Unit = {},
     val mountSettings: () -> Unit = {},
     val setMountBackend: (String) -> Unit = {},
     val dismissMountBackendRebootPrompt: () -> Unit = {},
@@ -67,15 +71,19 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
     return HomeUiState(
         loading = loading,
         version = if (!installed && error.isNotBlank()) "未连接" else version,
+        versionCode = versionCode,
         currentFont = effectiveLabel,
         currentFontId = activeFont,
         rootGranted = rootGranted,
         rootManager = rootManager,
         moduleInstalled = installed,
-        mountEngine = mountEngine.replace("洛书", "字域"),
+        mountEngine = mountEngine.replace("洛书", "字域")
+            .replace("Root 管理器自动挂载 · 模块树由 Root 管理器在开机阶段自动挂载", "管理器挂载")
+            .replace("Root 管理器自动挂载", "管理器挂载"),
         mountHealthy = rootGranted && installed && error.isBlank() && !detailsPending && !effectFailed && mountState != "failed" &&
             (mountState in setOf("mounted", "partial") || (activeFont in setOf("", "default") && mountState in setOf("idle", "not-applicable"))),
         taskRunning = running,
+        mountFailed = effectFailed || mountState == "failed",
         taskTitle = when {
             error.isNotBlank() -> if (installed && rootGranted) "模块状态未更新" else "模块未连接"
             detailsPending -> "模块已连接，正在读取详细状态"
@@ -109,6 +117,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
         slotCjk = slotCjk,
         slotDigit = slotDigit,
         slotRom = slotRom,
+        softRebootState = softRebootState,
         temporaryRootMode = temporaryRootMode,
         error = error,
     )

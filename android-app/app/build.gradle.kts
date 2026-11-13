@@ -146,10 +146,16 @@ android {
     }
 
     packaging {
+        // Dependency AARs also carry their Apache-2.0 licence/notice text under
+        // META-INF/<group>/<artifact>/. The shipped module already distributes
+        // those texts once in licenses/ and THIRD_PARTY_NOTICES.md, so the App
+        // keeps only runtime entries instead of a second nested copy.
         resources.excludes += setOf(
             "/META-INF/{AL2.0,LGPL2.1}",
             "/META-INF/LICENSE*",
-            "/META-INF/NOTICE*"
+            "/META-INF/NOTICE*",
+            "/META-INF/**/LICENSE.txt",
+            "/META-INF/**/NOTICE.txt",
         )
     }
 }

@@ -1,0 +1,10 @@
+{
+  "component": "Ziyu bounded soft-reboot PID preparation",
+  "license": "Apache-2.0",
+  "reference": "https://github.com/youfeng11/soft_restart_fix",
+  "referenceCommit": "a6748afcbed704a0e85089fed868381e8b4a5e4e",
+  "referenceVersion": "1.2.2",
+  "source": "native/pid-wrap/pid_wrap.c",
+  "changes": "Reimplemented in C with bounded fork/wait, independent restoration watchdog and readback. No unbounded fallback, CPU pinning, module.prop mutation or seccomp/PPID spoofing.",
+  "binaries": "Built locally with Android NDK; hashes and source/recipe hashes in common/pid-wrap/build.json"
+}

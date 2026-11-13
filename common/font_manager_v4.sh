@@ -291,6 +291,13 @@ switch_font() {
     fi
     ziyu_switch_perf_mark validation
 
+    if [ "$_font_id" = default ] && [ -f "$MODULE_DIR/common/theme_store.sh" ]; then
+        MODDIR="$MODULE_DIR" sh "$MODULE_DIR/common/theme_store.sh" restore-disable || {
+            echo '错误：主题字体未全部还原，备份已保留，请重试' >&2
+            return 5
+        }
+    fi
+
     if [ "$_font_id" != default ] && [ -f "$MODULE_DIR/common/device_font_template.sh" ]; then
         MODDIR="$MODULE_DIR" MODULE_DIR="$MODULE_DIR" \
             sh "$MODULE_DIR/common/device_font_template.sh" ensure >/dev/null 2>&1

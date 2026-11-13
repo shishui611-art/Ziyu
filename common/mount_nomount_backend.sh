@@ -132,6 +132,86 @@ _lnm_rule_state() {
     case "$_lnm_state" in present|absent|exact|conflict) printf '%s\n' "$_lnm_state" ;; *) return 1 ;; esac
 }
 
+ziyu_nomount_reload_window_ready() {
+    # Only a KernelSU reload callback after stop may mutate provider-owned rules.
+    [ "${ZIYU_KSU_POST_STOP_RELOAD:-0}" = 1 ] || return 1
+    . "${MODDIR:-/data/adb/modules/ziyu}/common/soft_reboot_window.sh" || return 1
+    ziyu_soft_reboot_window_ready
+}
+
+ziyu_nomount_provider_reload_cleanup() (
+    _lnm_module=$(_lnm_module "$1")
+    ziyu_nomount_reload_window_ready || return 1
+    . "$_lnm_module/common/font_switch_lock.sh" || return 1
+    if [ -n "${ZIYU_LIVE_OWNER_PID:-}" ]; then
+        # An inherited font transaction may already own the switch lock. Validate
+        # both identities instead of deadlocking or accepting a boolean bypass.
+        [ "$(ziyu_font_lock_pid "$_lnm_module/.font_switch.lock")" = "$ZIYU_LIVE_OWNER_PID" ] &&
+        [ "$(ziyu_font_lock_boot_id "$_lnm_module/.font_switch.lock")" = "$(ziyu_current_boot_id)" ] &&
+        [ "$(ziyu_font_lock_starttime "$_lnm_module/.font_switch.lock")" = "$(ziyu_process_starttime "$ZIYU_LIVE_OWNER_PID")" ] &&
+        [ "$(readlink "/proc/self/fd/${ZIYU_LIVE_LOCK_FD:-invalid}")" = "$_lnm_module/.ziyu-state/tmp/font-live.lock" ] || return 1
+    else
+        ziyu_font_lock_acquire "$_lnm_module/.font_switch.lock" "$$" || return 1
+        trap 'ziyu_font_lock_release "$_lnm_module/.font_switch.lock" "$$" >/dev/null 2>&1' EXIT
+    fi
+    _lnm_cli_path=$(_lnm_cli "$_lnm_module") || return 1
+    _lnm_setup_cli "$_lnm_cli_path" || return 1
+    mkdir -p "$_lnm_module/.ziyu-state" || return 1
+    _lnm_reload_plan="$_lnm_module/.ziyu-state/nomount-provider-reload.plan"
+    _lnm_reload_json=$(_lnm_list_json "$_lnm_cli_path") || return 1
+    printf '%s\n' "$_lnm_reload_json" | _lnm_json_parse "$_lnm_module" \
+        owned-plan-v2 "$_lnm_module" > "$_lnm_reload_plan.tmp.$$" || return 1
+    # Validate every pair before the first delete. Only published module trees
+    # on Android partitions are eligible; never unlink unrelated/global rules.
+    while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
+        [ -n "$_lnm_rt" ] || continue
+        case "$_lnm_rt" in /system/*|/system_ext/*|/product/*|/vendor/*|/odm/*|/oem/*|/my_*/*|/oplus_*/*|/mi_ext/*|/cust/*|/hw_product/*) ;; *) return 1 ;; esac
+        _lnm_rel=${_lnm_rt#/}
+        case "$_lnm_rs" in
+            "$_lnm_module/$_lnm_rel"|"$_lnm_module/.ziyu-payload/$_lnm_rel"|"$_lnm_module/system/$_lnm_rel"|"$_lnm_module/.ziyu-payload/system/$_lnm_rel") ;;
+            *) return 1 ;;
+        esac
+        case "$_lnm_rscope" in public|private) ;; *) return 1 ;; esac
+    done < "$_lnm_reload_plan.tmp.$$"
+    mv -f "$_lnm_reload_plan.tmp.$$" "$_lnm_reload_plan" || return 1
+    _lnm_reload_bad=0
+    while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
+        [ -n "$_lnm_rt" ] || continue
+        _lnm_before=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_rt" "$_lnm_rs") || { _lnm_reload_bad=1; break; }
+        case "$_lnm_before" in
+            absent) continue ;;
+            exact) ;;
+            *) _lnm_reload_bad=1; break ;;
+        esac
+        _lnm_mutate "$_lnm_cli_path" del "$_lnm_rt" >> "$_lnm_module/logs/mount-backend.log" 2>&1 || { _lnm_reload_bad=1; break; }
+        _lnm_after=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" target "$_lnm_rt") || { _lnm_reload_bad=1; break; }
+        [ "$_lnm_after" = absent ] || { _lnm_reload_bad=1; break; }
+    done < "$_lnm_reload_plan"
+    if [ "$_lnm_reload_bad" = 0 ]; then
+        _lnm_after=$(ziyu_nomount_module_rules_state "$_lnm_module") || _lnm_reload_bad=1
+        [ "$_lnm_after" = absent ] || _lnm_reload_bad=1
+    fi
+    if [ "$_lnm_reload_bad" != 0 ]; then
+        # Retain the old generation and restore each deleted pair, preserving
+        # Suite's public/private metadata. Conflicts are never overwritten.
+        _lnm_rollback_bad=0
+        while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
+            [ -n "$_lnm_rt" ] || continue
+            _lnm_before=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_rt" "$_lnm_rs") || { _lnm_rollback_bad=1; continue; }
+            case "$_lnm_before" in
+                exact) continue ;;
+                absent) _lnm_mutate "$_lnm_cli_path" add "$_lnm_rt" "$_lnm_rs" "$_lnm_rscope" >> "$_lnm_module/logs/mount-backend.log" 2>&1 || _lnm_rollback_bad=1 ;;
+                *) _lnm_rollback_bad=1; continue ;;
+            esac
+            [ "$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_rt" "$_lnm_rs")" = exact ] || _lnm_rollback_bad=1
+        done < "$_lnm_reload_plan"
+        _lnm_log "$_lnm_module" "provider reload failed; rollback_failed=$_lnm_rollback_bad; plan preserved"
+        return 1
+    fi
+    rm -f "$_lnm_reload_plan" "$_lnm_module/.ziyu-state/nomount-rules.current" || return 1
+    _lnm_log "$_lnm_module" 'owned provider rules removed and read back; manager will republish'
+)
+
 ziyu_nomount_module_rules_state() {
     _lnm_module=$(_lnm_module "${1:-}")
     _lnm_cli_path=$(_lnm_cli) || return 2

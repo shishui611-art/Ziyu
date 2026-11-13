@@ -277,6 +277,7 @@ internal fun ZiyuAppShell(
             openSettings = { navigate(AppPage.Settings) },
             restoreDefault = { restoreDefault = true },
             reboot = viewModel::rebootDevice,
+            restart = viewModel::chooseRestart,
             mountSettings = viewModel::loadMountPreferences,
             setMountBackend = viewModel::setMountPreference,
             dismissMountBackendRebootPrompt = viewModel::dismissMountBackendRebootPrompt,
