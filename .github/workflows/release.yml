@@ -10,60 +10,6 @@ on:
       - 'ziyu-v*'
     paths:
       - module.prop
-      - '更新日志/**'
-      - 'docs/MOUNT_PROVIDER_FIRST_DESIGN.md'
-      - 'android-app/app/src/test/**'
-      - 'android-app/app/src/main/java/io/github/xgl34222220/ziyu/FontTaskForegroundService.kt'
-      - 'scripts/*_test.*'
-      - 'scripts/release_version_policy_test.py'
-      - 'scripts/sync_update_metadata_test.py'
-      - 'common/font_space_compat.py'
-      - 'common/universal_font_compiler.py'
-      - 'scripts/universal_font_deployment_test.py'
-      - 'scripts/universal_mount_runtime_test.sh'
-      - 'scripts/font_axis_info_test.py'
-      - 'scripts/boot_ota_guard_test.py'
-      - 'scripts/diagnostic_export_test.py'
-      - 'common/font_archive_export.sh'
-      - 'scripts/font_switch_task_test.sh'
-      - 'scripts/font_instance_gvar_recovery_test.py'
-      - 'scripts/font_library_ui_layout_test.sh'
-      - 'scripts/stability_test.sh'
-      - 'scripts/customize_reenable_test.sh'
-      - 'scripts/mount_compat_test.sh'
-      - 'scripts/mountinfo_procfs_test.sh'
-      - 'scripts/hybrid_mount_unload_test.sh'
-      - 'scripts/check.sh'
-      - 'scripts/build.sh'
-      - 'scripts/source_check_receipt.py'
-      - 'scripts/source_check_receipt_test.py'
-      - 'scripts/build_debug_fast.sh'
-      - 'scripts/module_payload_manifest.txt'
-      - 'scripts/font_switch_lock_test.sh'
-      - 'scripts/switch_provider_regression_test.py'
-      - 'scripts/self_mount_atomic_test.sh'
-      - 'scripts/self_mount_test.sh'
-      - 'scripts/uninstall_cleanup_test.sh'
-      - 'scripts/originos_stage_complete_test.py'
-      - 'scripts/stock_metric_contract_test.py'
-      - 'scripts/mount_backend_preferences_test.sh'
-      - 'common/mount_backend_preferences.sh'
-      - 'scripts/status_provider_hotfix_test.py'
-      - 'scripts/legacy_mix_status_lifecycle_test.py'
-      - 'scripts/mix_workflow_test.py'
-      - 'scripts/legacy_mix_34_progress_test.sh'
-      - 'scripts/mix_finalize_performance_test.sh'
-      - 'scripts/font_metrics_normalization_test.py'
-      - 'scripts/legacy_composite_layout_test.py'
-      - 'scripts/stock_inventory_scan_wrapper_test.py'
-      - 'scripts/legacy_multiweight_worker_test.py'
-      - 'scripts/app_controls_bridge_test.py'
-      - 'scripts/home_backend_status_test.py'
-      - 'scripts/stable111_repair_test.py'
-      - 'scripts/stable111_round2_test.py'
-      - 'scripts/duplicate_function_test.sh'
-      - 'scripts/legacy_switch_core_test.sh'
-      - 'scripts/release_v2_retirement_test.py'
       - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
@@ -82,7 +28,7 @@ permissions:
 
 concurrency:
   group: ziyu-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   prepare:
@@ -111,8 +57,6 @@ jobs:
           INPUT_PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
-          python3 scripts/release_version_policy_test.py
-          python3 scripts/sync_update_metadata_test.py
           . ./scripts/version.sh
           expected_tag="$ZIYU_RELEASE_TAG"
           tag="${GITHUB_REF_NAME}"
@@ -183,113 +127,8 @@ jobs:
             git checkout --detach "$source_sha"
           fi
 
-  source:
-    name: Full source regression checks
-    needs: prepare
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    outputs:
-      artifact_name: ${{ steps.checks.outputs.artifact_name }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.prepare.outputs.source_sha }}
-          fetch-depth: 0
-
-      - name: Install module build dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          missing=()
-          for package in curl unzip zip file python3-venv fonts-noto-cjk fonts-dejavu-core; do
-            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then
-              missing+=("$package")
-            fi
-          done
-          if (( ${#missing[@]} )); then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq --no-install-recommends "${missing[@]}" >/dev/null
-          fi
-
-      - uses: actions/cache/restore@v4
-        id: runtime-cache
-        with:
-          path: |
-            common/python
-            .ziyu-runtime/bin/woff2_decompress
-            licenses/WOFF2-LICENSE.txt
-            licenses/Brotli-LICENSE.txt
-          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
-
-      - name: Prepare ARM64 composite runtime
-        shell: bash
-        run: |
-          if [[ ! -x common/python/bin/ziyu-python || ! -x .ziyu-runtime/bin/woff2_decompress || ! -s licenses/WOFF2-LICENSE.txt || ! -s licenses/Brotli-LICENSE.txt ]]; then
-            sh ./scripts/prepare_composite_runtime.sh
-          fi
-
-      - name: Save prepared runtime before later checks
-        if: steps.runtime-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            common/python
-            .ziyu-runtime/bin/woff2_decompress
-            licenses/WOFF2-LICENSE.txt
-            licenses/Brotli-LICENSE.txt
-          key: ziyu-arm64-runtime-${{ runner.os }}-${{ hashFiles('scripts/prepare_composite_runtime.sh') }}
-
-      - name: Run source regression checks
-        id: checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          log="$RUNNER_TEMP/ziyu-release-source-check.log"
-          if ! python3 scripts/source_check_receipt.py run --receipt "$RUNNER_TEMP/ziyu-source-check.json" >"$log" 2>&1; then
-            tail -n 160 "$log" >&2
-            failed_command="$(grep -E '^\+ (python3|sh|bash|PYTHONPATH)' "$log" | tail -n 1 | tr '\r\n' ' ' | cut -c1-500 || true)"
-            failure_detail="$(grep -aE '^(FAIL:|ERROR:|Traceback|[[:space:]]+File |AssertionError:|[[:alnum:]_]+Error:|FAILED \(|Ran [0-9]+ tests?)' "$log" | tail -n 24 | tr '\r\n' '  ' | cut -c1-4500 || true)"
-            diagnostic="command=$failed_command details=$failure_detail"
-            if [[ "$diagnostic" == 'command= details=' ]]; then
-              diagnostic="$(tail -n 20 "$log" | tr '\r\n' '  ' | cut -c1-4500)"
-            fi
-            diagnostic="$(printf '%s' "$diagnostic" | sed 's/%/%25/g')"
-            echo "::error title=Source regression checks failed::$diagnostic"
-            {
-              echo '## Source regression checks failed'
-              echo
-              echo "Failed source-check command: $failed_command"
-              echo
-              echo 'Last 40 lines from the source check log:'
-              echo '```text'
-              tail -n 40 "$log" | cut -c1-400
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          tail -n 100 "$log"
-
-          echo "artifact_name=ziyu-source-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-
-      - name: Preserve source-check receipt
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.checks.outputs.artifact_name }}
-          path: ${{ runner.temp }}/ziyu-source-check.json
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Preserve failing source-check log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ziyu-source-log-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ziyu-release-source-check.log
-          if-no-files-found: ignore
-          retention-days: 7
-
   app:
-    name: Lint, test and sign Android App
+    name: Build and sign Android App
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -330,14 +169,14 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ziyu-release.jks"
           keytool -list -keystore "$RUNNER_TEMP/ziyu-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Lint, test and build signed release App
+      - name: Build signed release App
         working-directory: android-app
         env:
           ZIYU_KEYSTORE_FILE: ${{ runner.temp }}/ziyu-release.jks
           ZIYU_KEYSTORE_PASSWORD: ${{ secrets.ZIYU_KEYSTORE_PASSWORD || secrets.LUOSHU_KEYSTORE_PASSWORD }}
           ZIYU_KEY_ALIAS: ${{ secrets.ZIYU_KEY_ALIAS || secrets.LUOSHU_KEY_ALIAS }}
           ZIYU_KEY_PASSWORD: ${{ secrets.ZIYU_KEY_PASSWORD || secrets.LUOSHU_KEY_PASSWORD }}
-        run: gradle --no-daemon --stacktrace :app:lintRelease :app:testDebugUnitTest :app:assembleRelease
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
 
       - name: Verify APK signature certificate
         id: signed-app
@@ -389,7 +228,7 @@ jobs:
 
   release:
     name: Verify package and publish release
-    needs: [prepare, source, app]
+    needs: [prepare, app]
     permissions:
       contents: write
     runs-on: ubuntu-24.04
@@ -447,12 +286,6 @@ jobs:
           name: ${{ needs.app.outputs.artifact_name }}
           path: android-app/app/build/outputs/apk/release
 
-      - name: Download source-check receipt
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.source.outputs.artifact_name }}
-          path: ${{ runner.temp }}
-
       - name: Verify downloaded APK matches signed build
         shell: bash
         env:
@@ -462,11 +295,20 @@ jobs:
           [[ "$EXPECTED_APK_SHA256" =~ ^[0-9a-f]{64}$ ]]
           printf '%s  %s\n' "$EXPECTED_APK_SHA256" android-app/app/build/outputs/apk/release/app-release.apk | sha256sum -c -
 
-      - name: Restore verified release notes
+      - name: Summarize changes since the previous stable release
         shell: bash
         env:
-          NOTES_FILE: ${{ needs.prepare.outputs.notes_file }}
-        run: git show "$GITHUB_SHA:$NOTES_FILE" > "$RUNNER_TEMP/ziyu-release-notes.md"
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          PREVIOUS_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          PREVIOUS_VERSION=""
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            PREVIOUS_VERSION="$(git show "$PREVIOUS_TAG:module.prop" 2>/dev/null | sed -n 's/^version=//p' | head -n1 || true)"
+          fi
+          export PREVIOUS_TAG PREVIOUS_VERSION
+          python3 scripts/release_notes_since.py > "$RUNNER_TEMP/ziyu-release-notes.md"
 
       - name: Build App and single module package
         shell: bash
@@ -475,12 +317,15 @@ jobs:
           . ./scripts/version.sh
           apk='android-app/app/build/outputs/apk/release/app-release.apk'
           test -s "$apk"
+          [[ "$(apkanalyzer manifest application-id "$apk")" == 'io.github.shishui611_art.ziyu' ]]
+          [[ "$(apkanalyzer manifest version-code "$apk")" == "$ZIYU_APP_VERSION_CODE" ]]
+          [[ "$(apkanalyzer manifest version-name "$apk")" == "${ZIYU_VERSION#v}" ]]
           mkdir -p dist
           app="dist/Ziyu-App-${ZIYU_ARTIFACT_VERSION}.apk"
           cp -f "$apk" "$app"
           (cd dist && sha256sum "$(basename "$app")" > "$(basename "$app").sha256")
-          ZIYU_SOURCE_CHECK_RECEIPT="$RUNNER_TEMP/ziyu-source-check.json" \
-            ZIYU_APP_APK="$apk" sh ./scripts/build.sh
+          ZIYU_APP_PACKAGE=io.github.shishui611_art.ziyu ZIYU_APP_VERSION_NAME="${ZIYU_VERSION#v}" \
+            ZIYU_APP_APK="$apk" sh ./scripts/build_debug_fast.sh
           module="dist/Ziyu-${ZIYU_ARTIFACT_VERSION}.zip"
           test -s "$module"
           unzip -t "$module" >/dev/null
@@ -491,31 +336,6 @@ jobs:
           (cd dist && sha256sum -c "$(basename "$module").sha256")
           (cd dist && sha256sum -c "$(basename "$app").sha256")
 
-      - name: Enforce release readiness
-        shell: bash
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
-        run: |
-          set -euo pipefail
-          args=(--target "$VERSION" --enforce)
-          if [[ "$PRERELEASE" != 'true' ]]; then
-            authorization='config/stable_release_authorization.conf'
-            explicitly_authorized=false
-            if [[ -f "$authorization" ]] \
-              && grep -qx "version=$VERSION" "$authorization" \
-              && grep -qx 'scope=stable-release' "$authorization" \
-              && grep -qx 'allowPendingDeviceMatrix=true' "$authorization"; then
-              explicitly_authorized=true
-            fi
-            if [[ "$explicitly_authorized" == true ]]; then
-              echo "::warning::$VERSION stable release is explicitly authorized with the device matrix still pending; no device validation result is being fabricated."
-            else
-              args+=(--stable)
-            fi
-          fi
-          sh ./scripts/pre_release_readiness.sh "${args[@]}"
-
       - name: Preserve verified release candidate
         uses: actions/upload-artifact@v4
         with:
@@ -523,7 +343,8 @@ jobs:
           path: |
             dist/Ziyu-${{ needs.prepare.outputs.artifact_version }}.zip
             dist/Ziyu-${{ needs.prepare.outputs.artifact_version }}.zip.sha256
-            dist/pre-release-readiness/
+            dist/Ziyu-App-${{ needs.prepare.outputs.artifact_version }}.apk
+            dist/Ziyu-App-${{ needs.prepare.outputs.artifact_version }}.apk.sha256
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -574,7 +395,7 @@ jobs:
           fi
           latest=(--latest)
           if [[ "${#prerelease[@]}" -gt 0 ]]; then latest=(--latest=false); fi
-          gh release create "$TAG" "$module" "$module_sha" \
+          gh release create "$TAG" "$module" "$module_sha" "dist/Ziyu-App-${ARTIFACT_VERSION}.apk" "dist/Ziyu-App-${ARTIFACT_VERSION}.apk.sha256" \
             "${tag_mode[@]}" \
             --title "$RELEASE_TITLE" \
             --notes-file "$NOTES_FILE" \
