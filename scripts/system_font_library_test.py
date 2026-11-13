@@ -71,7 +71,8 @@ class SystemFontLibraryTest(unittest.TestCase):
     def test_lower_stock_multiweight_roles_and_repeat_import(self):
         self.fonts()
         original = {p.name: hashlib.sha256(p.read_bytes()).digest() for p in self.stock.iterdir()}
-        report = library.import_system_fonts(self.module, self.out)
+        with patch.dict(os.environ, {'ZIYU_SYSTEM_FONT_ALL_WEIGHTS': '1'}):
+            report = library.import_system_fonts(self.module, self.out)
         self.assertEqual(report['status'], 'ok')
         self.assertEqual(len(report['data']['fonts']), 3)
         self.assertTrue((self.out / 'SystemDefaultCjk-Bold.ttf').is_file())
@@ -81,7 +82,8 @@ class SystemFontLibraryTest(unittest.TestCase):
             self.assertEqual(f['name'].getBestFamilyName(), 'Clock')
         self.assertEqual(original, {p.name: hashlib.sha256(p.read_bytes()).digest() for p in self.stock.iterdir()})
         (self.stock / 'NotoSC-Bold.ttf').unlink()
-        library.import_system_fonts(self.module, self.out)
+        with patch.dict(os.environ, {'ZIYU_SYSTEM_FONT_ALL_WEIGHTS': '1'}):
+            library.import_system_fonts(self.module, self.out)
         self.assertFalse((self.out / 'SystemDefaultCjk-Bold.ttf').exists())
         self.assertIn('name=系统默认 · 中文', (self.out / 'SystemDefaultCjk.conf').read_text())
 
