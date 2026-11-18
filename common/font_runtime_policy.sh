@@ -272,9 +272,10 @@ _lfrp_alias_existing_targets() {
 # fallback and prevents an old full-font switch from leaking tofu-producing aliases
 # into a later partial-font switch.
 clear_managed_text_fonts() {
+    . "${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/emoji_payload.sh" || return 1
     _lfrp_root=$(_lfrp_payload_root)
     for _lfrp_part in $(_lfrp_partitions); do
-        rm -rf "$_lfrp_root/$_lfrp_part/fonts" 2>/dev/null || true
+        ziyu_clear_text_fonts "$_lfrp_root/$_lfrp_part/fonts" || return 1
     done
     mkdir -p "$_lfrp_root/system/fonts" 2>/dev/null || true
     rm -f "$(_lfrp_target_manifest)" 2>/dev/null || true

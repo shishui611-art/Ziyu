@@ -1641,6 +1641,11 @@ def build_payload(module, payload, source, request, task_workspace, mix_config):
         shutil.rmtree(proof_root)
 
     targets = _inventory_targets(module)
+    if targets:
+        # Targeted snapshots taken by other preparation stages may contain only
+        # individual fonts. Complete this collection batch from the independent
+        # read-only ROM view before resolving or replacing any collection.
+        stock_font_snapshot.ensure_expansion(module, targets)
     total_stock = 0
     report = {'schema': 'composite-collection-payload-v1', 'requestId': request,
               'mixRequestId': mix['mixRequestId'], 'result': 'PASS',

@@ -18,6 +18,10 @@ import subprocess
 import tempfile
 
 
+class StockViewIntegrityError(RuntimeError):
+    """An owned view or its cleanup could not be proven safe."""
+
+
 class StockReadonlyView:
     def __init__(self):
         self.libc = None
@@ -40,15 +44,15 @@ class StockReadonlyView:
         if libc.unshare(0x00020000) != 0:
             raise OSError(ctypes.get_errno(), 'stock scan requires a private mount namespace')
         if before == os.readlink('/proc/self/ns/mnt'):
-            raise OSError('stock scan namespace did not change')
+            raise StockViewIntegrityError('stock scan namespace did not change')
         if libc.mount(None, b'/', None, 16384 | (1 << 18), None) != 0:
             raise OSError(ctypes.get_errno(), 'cannot isolate stock scan mount propagation')
-        self.libc = libc
         parent = Path('/data/adb/ziyu/stock-readonly')
         parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if parent.is_symlink():
-            raise OSError('stock view parent must not be a link')
+            raise StockViewIntegrityError('stock view parent must not be a link')
         self.base = Path(tempfile.mkdtemp(prefix=f'{os.getpid()}-', dir=parent))
+        self.libc = libc
 
     def pick(self, logical: Path) -> Path | None:
         """Accept only the current PID 1 read-only EROFS block source."""
@@ -83,12 +87,13 @@ class StockReadonlyView:
         if key not in self.views:
             self._isolate()
             target = self.base / f'view-{len(self.owned)}'
-            target.mkdir(mode=0o700)
             result = subprocess.run(['losetup', '-f', '-r', '-s', str(device)],
                                     capture_output=True, text=True, timeout=8)
             loop = result.stdout.strip()
-            if result.returncode or not re.fullmatch(r'/dev/(?:block/)?loop[0-9]+', loop):
-                raise OSError('cannot create an owned read-only loop view')
+            if result.returncode:
+                raise OSError('cannot create an owned read-only loop view: ' + result.stderr.strip())
+            if not re.fullmatch(r'/dev/(?:block/)?loop[0-9]+', loop):
+                raise StockViewIntegrityError('cannot identify the created read-only loop view')
             loop_fd = os.open(loop, os.O_RDONLY | os.O_CLOEXEC)
             record = {'target': target, 'fd': loop_fd, 'mounted': False}
             self.owned.append(record)
@@ -96,20 +101,23 @@ class StockReadonlyView:
             fcntl.ioctl(loop_fd, 0x4C05, status, True)  # LOOP_GET_STATUS64
             flags = struct.unpack_from('<I', status, 52)[0]
             if not flags & 1 or struct.unpack_from('<Q', status, 16)[0] != info.st_rdev:
-                raise OSError('loop backing device or read-only flag did not match')
+                raise StockViewIntegrityError('loop backing device or read-only flag did not match')
             # Automatic cleanup also covers supervisor termination / hard crashes.
             struct.pack_into('<I', status, 52, flags | 4)
             fcntl.ioctl(loop_fd, 0x4C04, status)  # LOOP_SET_STATUS64
+            # Create the mountpoint only after the owned loop is registered and
+            # AUTOCLEAR is set. A failed losetup leaves no untracked directory.
+            target.mkdir(mode=0o700)
             if self.libc.mount(os.fsencode(loop), os.fsencode(target), b'erofs', 1, None) != 0:
                 raise OSError(ctypes.get_errno(), 'cannot mount read-only stock view')
             record['mounted'] = True
             if target.stat().st_dev == info.st_rdev:
-                raise OSError('stock view reused the redirected device')
+                raise StockViewIntegrityError('stock view reused the redirected device')
             self.views[key] = target
         selected = self.views[key] / relative
         # Parent links must not escape into the active redirected namespace.
         if not selected.resolve().is_relative_to(self.views[key]):
-            raise OSError('stock view directory escapes its verified filesystem')
+            raise StockViewIntegrityError('stock view directory escapes its verified filesystem')
         return selected if selected.is_dir() else None
 
     def close(self):
@@ -130,4 +138,4 @@ class StockReadonlyView:
             except OSError as error:
                 failures.append(str(error))
         if failures:
-            raise OSError('; '.join(failures))
+            raise StockViewIntegrityError('; '.join(failures))

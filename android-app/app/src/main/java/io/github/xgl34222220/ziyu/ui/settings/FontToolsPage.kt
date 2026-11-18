@@ -150,12 +150,14 @@ internal fun ThemeStoreCard() {
 
 /** 字体工具：导入上限、锁屏时钟、主题商店字体等进阶设置集中在这里。 */
 @Composable
-internal fun FontToolsPage() {
+internal fun FontToolsPage(libraryTools: @Composable () -> Unit = {}) {
     Column(
         Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        SettingCard("字体库工具") { libraryTools() }
         FontImportLimitCard()
+        EmojiToolsCard()
         KeepLockscreenCard()
         ThemeStoreCard()
     }

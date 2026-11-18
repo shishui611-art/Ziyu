@@ -22,7 +22,12 @@ _sr_detect() {
     _sr_manager=$(ziyu_detect_root_manager)
     case "$_sr_manager" in
         KernelSU|SukiSU\ Ultra) ;;
-        *) _sr_error '当前未确认是 KernelSU 系列管理器，无法请求 KernelSU 软重启。' ;;
+        FinaSU)
+            . "$MODDIR/common/finasu_mount.sh" || _sr_error 'FinaSU 挂载检查组件不可用。'
+            ziyu_finasu_soft_reboot_supported || \
+                _sr_error '当前 FinaSU 挂载方式无法确认支持软重启，请使用普通重启。'
+            ;;
+        *) _sr_error '当前 Root 管理器无法通过字域软重启，请使用普通重启。' ;;
     esac
     _sr_ksud=''
     # Only installed daemon paths; never use another module's bundled binary.
@@ -121,13 +126,13 @@ case "${1:-request}" in
             printf '{"status":"ok","data":{"requested":true,"deferred":true,"message":"系统更新后正在重新核验原厂字体并重新准备字体，完成后会自动软重启。"}}\n'
             exit 0
         fi
-        printf '[%s] [SOFT-REBOOT] requesting daemon=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$_sr_ksud" >> "$LOG_FILE" || _sr_error '无法写入软重启日志。'
+        printf '[%s] [SOFT-REBOOT] requesting manager=%s daemon=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$_sr_manager" "$_sr_ksud" >> "$LOG_FILE" || _sr_error '无法写入软重启日志。'
         # Do not run emulated-soft-reboot.sh here: provider hooks must run first.
         "$_sr_ksud" soft-reboot >> "$LOG_FILE" 2>&1
         _sr_rc=$?
         printf '[%s] [SOFT-REBOOT] request returned rc=%s; mount verification follows reload\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$_sr_rc" >> "$LOG_FILE"
-        [ "$_sr_rc" -eq 0 ] || _sr_error "KernelSU 软重启请求失败（返回码 $_sr_rc），请查看 logs/soft-reboot.log。"
-        printf '{"status":"ok","data":{"requested":true,"message":"已请求 KernelSU 内核软重启；启动后会核验字体挂载和 PPID 重置。"}}\n'
+        [ "$_sr_rc" -eq 0 ] || _sr_error "$_sr_manager 软重启请求失败（返回码 $_sr_rc），请查看 logs/soft-reboot.log。"
+        printf '{"status":"ok","data":{"requested":true,"message":"已提交软重启请求，启动后将核验字体。"}}\n'
         ;;
     *) _sr_error '用法：soft_reboot.sh [request|status]' ;;
 esac

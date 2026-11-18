@@ -23,6 +23,8 @@ internal enum class FontLibrarySort(val label: String) {
 
 @Immutable
 internal data class FontLibraryUiState(
+    val pageActive: Boolean = true,
+    val indexReady: Boolean = false,
     val loading: Boolean = false,
     val operationBusy: Boolean = false,
     val deletionInProgress: Boolean = false,
@@ -54,9 +56,9 @@ internal data class FontLibraryActions(
     val restoreDefault: () -> Unit,
     val importSystemFonts: () -> Unit = {},
     val details: (FontItem) -> Unit = {},
+    val openMenu: (FontItem) -> Unit = {},
     val setFilter: (FontLibraryFilter) -> Unit = {},
     val setSort: (FontLibrarySort) -> Unit = {},
-    val editPreviewText: () -> Unit = {},
     val preview: (FontItem) -> Unit = {},
 )
 
@@ -109,7 +111,7 @@ internal fun FontLibraryUiState.forDisplay(
     )
 }
 
-internal fun ZiyuViewModel.toFontLibraryUiState(): FontLibraryUiState {
+internal fun ZiyuViewModel.toFontLibraryUiState(pageActive: Boolean = true): FontLibraryUiState {
     val allFonts = fonts.filterNot { it.id in pendingFontDeletionIds }
     val visibleFonts = filteredFonts.filterNot { it.id in pendingFontDeletionIds }
     val deletionNotice = fontTaskNotification?.takeIf { it.kind == "delete" && it.message == operationMessage }
@@ -117,6 +119,8 @@ internal fun ZiyuViewModel.toFontLibraryUiState(): FontLibraryUiState {
         snapshot.taskType == "switch" && snapshot.taskState == "failed" && it.isNotBlank()
     }.orEmpty()
     return FontLibraryUiState(
+        pageActive = pageActive,
+        indexReady = fontIndexKnown,
         loading = fontLoading || fontRefreshing,
         operationBusy = operationBusy || mixState.busy,
         deletionInProgress = fontDeletionInProgress,

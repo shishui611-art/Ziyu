@@ -151,6 +151,7 @@ safe_mapper_identity() {
                          "$MODDIR/common/coloros_stage_complete.sh" \
                          "$MODDIR/common/hyperos_metrics_batch.py" \
                          "$MODDIR/common/font_metrics_io.py" \
+                         "$MODDIR/common/font_ui_width.py" \
                          "$MODDIR/common/font_parallel.py" \
                          "$MODDIR/common/font_metrics_normalize.py" \
                          "$MODDIR/common/coloros_metrics_batch.py" \
@@ -835,6 +836,7 @@ resolve_previous_state() {
 
 prepare_next_payload() {
     _font="$1"; _previous="$2"; _previous_legacy="$3"
+    _next_carry="${4:-}"
     _next_tmp="$MODDIR/.ziyu-state/tmp/next-state.$$"
     _next_pyroot="$MODDIR/common/python"
     _next_digest=$(PYTHONHOME="$_next_pyroot" \
@@ -854,9 +856,16 @@ prepare_next_payload() {
         printf 'requestId=%s\n' "$_next_request"
         printf 'previousLegacy=%s\n' "$_previous_legacy"
         printf 'time=%s\n' "$(date +%s 2>/dev/null || echo 0)"
+        if [ -n "$_next_carry" ] && [ -f "$_next_carry" ]; then
+            for _next_key in cjk latin digit mixName publicRoot compositeHash; do
+                _next_value=$(read_state_value "$_next_carry" "$_next_key")
+                [ -z "$_next_value" ] || printf '%s=%s\n' "$_next_key" "$_next_value"
+            done
+        fi
     } > "$_next_tmp" || return 1
     ziyu_next_transaction_begin "$MODDIR" "$STAGE_PAYLOAD" "$_next_tmp" || return 1
     STAGE_PAYLOAD="$MODDIR/.ziyu-state/tmp/.ziyu-payload-stage.committed.$$"
+    emoji_tool publish-request >> "$LOG_FILE" 2>&1 || return 1
     # Supersede Universal only after the new payload and rollback snapshot exist.
     rm -f "$CONFIG_DIR/universal-font-next.conf" || return 1
     {
@@ -874,9 +883,12 @@ cancel_next_payload() {
 
 write_runtime_state() {
     _font="$1"
-    _tmp_active="${ACTIVE_FONT_CONF}.tmp.$$"
-    printf '%s\n' "$_font" > "$_tmp_active" 2>/dev/null && mv -f "$_tmp_active" "$ACTIVE_FONT_CONF" 2>/dev/null || return 1
-    chmod 0644 "$ACTIVE_FONT_CONF" 2>/dev/null || true
+    _runtime_component="${2:-text}"
+    if [ "$_runtime_component" = text ]; then
+        _tmp_active="${ACTIVE_FONT_CONF}.tmp.$$"
+        printf '%s\n' "$_font" > "$_tmp_active" 2>/dev/null && mv -f "$_tmp_active" "$ACTIVE_FONT_CONF" 2>/dev/null || return 1
+        chmod 0644 "$ACTIVE_FONT_CONF" 2>/dev/null || true
+    fi
     _boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
     {
         printf 'font=%s\n' "$_font"
@@ -886,6 +898,7 @@ write_runtime_state() {
     } > "$TEXT_REBOOT_REQUIRED.tmp.$$" 2>/dev/null &&
         mv -f "$TEXT_REBOOT_REQUIRED.tmp.$$" "$TEXT_REBOOT_REQUIRED" 2>/dev/null || return 1
     chmod 0644 "$TEXT_REBOOT_REQUIRED" 2>/dev/null || true
+    [ "$_runtime_component" = text ] || return 0
 
     rm -f "$CONFIG_DIR/font-payload-rebuild-pending.conf" \
           "$CONFIG_DIR/font-payload-reapply-notified.conf" \
@@ -897,6 +910,63 @@ write_runtime_state() {
           "$CONFIG_DIR/native_font_index.json" "$CONFIG_DIR/native_font_index.key" \
           "$CONFIG_DIR/webui_font_list.json" "$CONFIG_DIR/webui_font_list.key" 2>/dev/null || true
     return 0
+}
+
+emoji_tool() {
+    _emoji_pyroot="$MODDIR/common/python"
+    PYTHONHOME="$_emoji_pyroot" \
+    PYTHONPATH="$MODDIR/common:$_emoji_pyroot/lib/python3.14:$_emoji_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_emoji_pyroot/lib:$_emoji_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_emoji_pyroot/bin/ziyu-python" "$MODDIR/common/emoji_manager.py" "$MODDIR" "$@"
+}
+
+switch_emoji() {
+    _emoji_selection="$1"
+    case "$_emoji_selection" in
+        default) ;;
+        ''|*[!0-9a-f]*) safe_error 'Emoji 标识无效'; return 1 ;;
+        *) [ "${#_emoji_selection}" -eq 64 ] || { safe_error 'Emoji 标识无效'; return 1; } ;;
+    esac
+    lock_acquire default || return 1
+    ziyu_next_transaction_recover "$MODDIR" || { safe_error '上一字体事务恢复未完成'; return 1; }
+    ZIYU_LIVE_OWNER_PID="$$" sh "$MODDIR/common/font_live_switch.sh" recover >> "$LOG_FILE" 2>&1 || {
+        safe_error '上一字体切换恢复未完成'; return 1;
+    }
+    resolve_previous_state
+    _emoji_text=$(head -n1 "$ACTIVE_FONT_CONF" 2>/dev/null | tr -d '\r\n')
+    [ -n "$_emoji_text" ] || _emoji_text=default
+    [ ! -s "$CONFIG_DIR/universal-font-next.conf" ] && [ ! -s "$CONFIG_DIR/universal-font-runtime.conf" ] || {
+        safe_error '请先重新应用文字字体，再设置 Emoji'; return 1;
+    }
+    if [ "$_emoji_text" != default ] && \
+       [ "$(read_state_value "$SCHEMA_STATE" schema)" != legacy-physical-safe-v1 ]; then
+        safe_error '当前文字字体来自旧版，请先重新应用文字字体'; return 1
+    fi
+    cleanup_stage
+    mkdir -p "$STAGE_PAYLOAD" || { safe_error '无法创建 Emoji 暂存目录'; return 1; }
+    emoji_tool clone "$STAGE_PAYLOAD" >> "$LOG_FILE" 2>&1 || { safe_error '无法读取现有字体负载，请导出日志'; return 1; }
+    if [ "$_emoji_text" = default ]; then
+        stage_default_fonts prepare && stage_default_fonts verify || {
+            safe_error '默认文字字体负载清理未完成，请导出日志'; return 1;
+        }
+    fi
+    # Keep the detailed import/source/target failure visible to the App.
+    _emoji_reply=$(emoji_tool stage "$STAGE_PAYLOAD" "$_emoji_selection")
+    _emoji_rc=$?
+    printf '%s\n' "$_emoji_reply" >> "$LOG_FILE"
+    if [ "$_emoji_rc" -ne 0 ]; then printf '%s\n' "$_emoji_reply"; return 1; fi
+    if ! prepare_next_payload "$_emoji_text" "$PREVIOUS_FONT" "$PREVIOUS_LEGACY" "$NEXT_STATE"; then
+        safe_error 'Emoji 提交失败，上一份字体选择已保留'; return 1
+    fi
+    if ! write_runtime_state "$_emoji_text" emoji; then
+        cancel_next_payload || { safe_error 'Emoji 状态保存与回滚失败，请导出日志'; return 1; }
+        safe_error 'Emoji 状态保存失败，已恢复上一份字体选择'; return 1
+    fi
+    if ! ziyu_next_transaction_commit "$MODDIR"; then
+        cancel_next_payload || { safe_error 'Emoji 提交与回滚失败，请导出日志'; return 1; }
+        safe_error 'Emoji 提交失败，已恢复上一份字体选择'; return 1
+    fi
+    printf '{"status":"ok","data":{"rebootRequired":true,"message":"Emoji 已准备，完整重启后生效"}}\n'
 }
 
 # Compatibility endpoints for the 1.1.1 App. Importing/opening a font must not
@@ -1162,6 +1232,10 @@ switch_font() {
             }
         fi
     fi
+    _emoji_reply=$(emoji_tool inherit "$STAGE_PAYLOAD")
+    _emoji_rc=$?
+    printf '%s\n' "$_emoji_reply" >> "$LOG_FILE"
+    if [ "$_emoji_rc" -ne 0 ]; then printf '%s\n' "$_emoji_reply"; return 1; fi
     progress 94 '正在提交下一启动字体负载'
     prepare_next_payload "$_active_label" "$PREVIOUS_FONT" "$PREVIOUS_LEGACY" || {
         safe_error '下一启动字体负载提交失败，当前启动字体未被改动'
@@ -1201,6 +1275,7 @@ case "${1:-}" in
     action)
         case "${2:-}" in
             switch) switch_font "${3:-}"; exit $? ;;
+            emoji) switch_emoji "${3:-}"; exit $? ;;
             prewarm) prewarm_font "${3:-}"; exit $? ;;
             prewarm-start) prewarm_start "${3:-}"; exit $? ;;
             *) safe_error '安全切换核心只接管字体应用/预热动作'; exit 2 ;;

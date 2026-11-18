@@ -176,7 +176,7 @@ internal enum class SettingsSection(
     APP_COVERAGE("检查应用字体", "字体没变化时，查找原因", Icons.Rounded.Search, .98f),
     GOOGLE("Google 字体兼容", "英文或数字恢复默认时使用", Icons.Rounded.Build, .96f),
     STORAGE("文件与配置位置", "管理字体文件与 DPI 配置", Icons.Rounded.Backup, 1.08f),
-    TOOLS("字体工具", "导入上限与槽位范围", Icons.Rounded.Build, .96f),
+    TOOLS("字体工具", "预览、导出与字体库整理", Icons.Rounded.Build, .96f),
     TEMP_ROOT("临时 Root", "软重启与字体加载", Icons.Rounded.RestartAlt, .96f),
     BACKUP("备份与恢复", "完整备份字域数据和组合方案", Icons.Rounded.Backup, 1.08f),
     UPDATE("模块更新", "GitHub 正式版模块与更新说明", Icons.Rounded.SystemUpdate, 1.03f),
@@ -196,8 +196,9 @@ internal fun AppearanceSettingsRoute(
     fontLoading: Boolean = false,
     onLoadFonts: () -> Unit = {},
     onOpenFontLibrary: () -> Unit = {},
+    fontLibraryTools: @Composable () -> Unit = {},
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary, fontLibraryTools)
 }
 
 @Composable
@@ -214,6 +215,7 @@ internal fun SettingsHubRoute(
     fontLoading: Boolean,
     onLoadFonts: () -> Unit,
     onOpenFontLibrary: () -> Unit,
+    fontLibraryTools: @Composable () -> Unit,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -234,7 +236,7 @@ internal fun SettingsHubRoute(
         sectionName = item.name
         if (item == SettingsSection.SAFETY) model.refreshHealth()
         if (item == SettingsSection.UPDATE) model.checkUpdate()
-        if (item == SettingsSection.CLIPPING) onLoadFonts()
+        if (item == SettingsSection.CLIPPING || item == SettingsSection.TOOLS) onLoadFonts()
     }
 
     val transition = updateTransition(section, label = "settingsDetailTransition")
@@ -299,7 +301,7 @@ internal fun SettingsHubRoute(
                             item { UserStorageCard() }
                             item { DisplayConfigStorageCard() }
                         }
-                        SettingsSection.TOOLS -> pageList { item { FontToolsPage() } }
+                        SettingsSection.TOOLS -> pageList { item { FontToolsPage(fontLibraryTools) } }
                         SettingsSection.TEMP_ROOT -> pageList { item { TempRootPage() } }
                         SettingsSection.BACKUP -> pageList { item { FullBackupCard(settings, actions) } }
                         SettingsSection.UPDATE -> UpdatePage(model)

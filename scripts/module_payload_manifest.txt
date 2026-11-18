@@ -2,6 +2,10 @@
 # Standard partition payloads are migrated into .ziyu-payload during installation.
 # Root-manager hooks stay at module root; internal cores and compatibility layers live under .ziyu-runtime.
 common/app_bridge.sh
+common/emoji_manager.py
+common/emoji_manager.sh
+common/emoji_payload.sh
+licenses/Ziyu-emoji-management.json
 common/app_status.sh
 common/module_connection_diagnostic.sh
 common/ziyu_health.sh
@@ -24,6 +28,8 @@ common/task_scope.sh
 common/task_scope.py
 common/coloros_global.sh
 common/coloros_metrics_batch.py
+common/font_ui_width.py
+licenses/Ziyu-ui-width-fit.json
 common/coloros_stage_complete.sh
 common/font_cache_identity.py
 common/font_digest_cache.py

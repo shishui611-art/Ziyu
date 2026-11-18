@@ -4,6 +4,7 @@
 # Ziyu keeps config/ and its selected boot mount backend; live trees stay immutable.
 set +e
 . "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/emoji_payload.sh"
 
 _lnt_files() {
     printf '%s\n' font-payload-next.conf active_font.conf text_reboot_required.conf \
@@ -11,7 +12,7 @@ _lnt_files() {
         device-font-engine.conf device-font-installed.conf device-font-dynamic-mount.conf \
         device-font-load-verification.json device-font-load-verification.conf \
         font-payload-rebuild-pending.conf font-payload-reapply-notified.conf device-font-cache-pending.conf \
-        mix-commit.conf universal-font-next.conf
+        mix-commit.conf universal-font-next.conf emoji-selection.json
 }
 
 _lnt_setup() {
@@ -92,6 +93,11 @@ _lnt_validate_snapshot() {
     _lnt_expected=0
     for _lnt_name in $(_lnt_files); do
         _lnt_present=$(sed -n "s/^${_lnt_name}=//p" "$_lnt_dir/presence.conf")
+        if [ -z "$_lnt_present" ] && [ "$_lnt_name" = emoji-selection.json ]; then
+            # Transactions created before independent Emoji selection have no
+            # snapshot entry for this new record. Its previous state is absent.
+            continue
+        fi
         case "$_lnt_present" in
             true) [ -f "$_lnt_dir/files/$_lnt_name" ] && [ ! -L "$_lnt_dir/files/$_lnt_name" ] || return 1 ;;
             false) ;;
@@ -159,7 +165,7 @@ _lnt_boot_adopted() {
             [ "$(_lnt_file_value "$_lnt_marker" schema)" = ziyu-next-payload-v1 ] && \
             [ "$(_lnt_file_value "$_lnt_marker" font)" = default ] && \
             [ "$(_lnt_file_value "$_lnt_marker" requestId)" = "$_lnt_adopt_request" ] && \
-            [ ! -e "$_lnt_config/font_runtime_legacy_v14_4.conf" ]
+            { [ ! -e "$_lnt_config/font_runtime_legacy_v14_4.conf" ] || ziyu_payload_has_emoji "$_lnt_module/.ziyu-payload"; }
     else
         _lnt_activated="$_lnt_config/font-payload-activated.conf"
         [ "$(_lnt_file_value "$_lnt_activated" font)" = "$_lnt_adopt_font" ] && \

@@ -7,9 +7,10 @@ set +e
 type _lfrp_payload_root >/dev/null 2>&1 || return 0 2>/dev/null || exit 0
 
 clear_managed_text_fonts() {
+    . "${ZIYU_REAL_MODDIR:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/emoji_payload.sh" || return 1
     _lfrc_root=$(_lfrp_payload_root)
     for _lfrc_part in $(_lfrp_partitions); do
-        rm -rf "$_lfrc_root/$_lfrc_part/fonts" 2>/dev/null || true
+        ziyu_clear_text_fonts "$_lfrc_root/$_lfrc_part/fonts" || return 1
         _lfrc_etc="$_lfrc_root/$_lfrc_part/etc"
         [ -d "$_lfrc_etc" ] || continue
         for _lfrc_xml in "$_lfrc_etc"/*.xml; do

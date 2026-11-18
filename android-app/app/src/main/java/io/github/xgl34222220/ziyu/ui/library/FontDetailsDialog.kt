@@ -85,6 +85,7 @@ internal fun FontDetailsDialogRoute(
     onApply: () -> Unit,
     customPreviewText: String = "",
     onGlyphPreview: () -> Unit = {},
+    onDelete: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val tokens = LocalZiyuPaletteTokens.current
@@ -159,8 +160,6 @@ internal fun FontDetailsDialogRoute(
                         fontSize = 24.sp,
                         lineHeight = 29.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(6.dp))
                     FontStateBadge(
@@ -211,6 +210,7 @@ internal fun FontDetailsDialogRoute(
                 }
             }
 
+            Spacer(Modifier.height(12.dp))
             Button(onClick = onGlyphPreview, enabled = font.valid, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Icon(Icons.Rounded.Visibility, null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
@@ -338,6 +338,15 @@ internal fun FontDetailsDialogRoute(
                 Text(if (font.variable) "这款可变字体暂不支持缺字补齐。" else "替换支持的文字，缺字保留系统字体。", color = secondaryText, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
             }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                FontTtfExportButton(font = font, enabled = font.valid && !busy)
+                Spacer(Modifier.weight(1f))
+                io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton(
+                    onClick = onDelete,
+                    enabled = !busy && !(active && pending),
+                ) { Text("删除", color = scheme.error) }
+            }
+            Spacer(Modifier.height(12.dp))
             Button(
                 onClick = onApply,
                 enabled = font.valid && !busy,

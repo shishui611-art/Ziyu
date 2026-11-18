@@ -15,7 +15,7 @@ SIZE_REPORT="$OUT/Ziyu-${ZIYU_ARTIFACT_VERSION}-size.txt"
 APP_APK="${ZIYU_APP_APK:-}"
 ALLOW_DEBUG_APP="${ZIYU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE="$ZIYU_APP_VERSION_CODE"
-MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-13631488}"
+MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-14680064}"
 
 [ -s "$APP_APK" ] || { echo 'ZIYU_APP_APK is required.' >&2; exit 65; }
 APP_PACKAGE="${ZIYU_APP_PACKAGE:-}"
@@ -60,6 +60,8 @@ find "$STAGE" -type f -name '*.log' -delete
 find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} \; 2>/dev/null || true
 find "$STAGE" -type f -name '*.pyc' -delete
 rm -rf "$STAGE/webroot" "$STAGE/logs" "$STAGE/backup" "$STAGE/config/recovery"
+rm -rf "$STAGE/config/emoji-library"
+rm -f "$STAGE/config/emoji-selection.json" "$STAGE/config/module-update-boot.conf"
 rm -f "$STAGE/config/webui_font_list.json" "$STAGE/config/webui_font_list.key" \
   "$STAGE/config/native_font_index.json" "$STAGE/config/native_font_index.key" \
   "$STAGE/config/recent_fonts.conf" "$STAGE/config/previous_font.conf" \
@@ -88,7 +90,7 @@ grep -Eq '^sha256=[0-9a-f]{64}$' "$STAGE/bundled/app.prop"
 
 for forbidden in \
   更新日志 docs README.md \
-  webroot config/active_emoji.conf config/emoji_task.conf config/emoji_reboot_required.conf \
+  webroot config/active_emoji.conf config/emoji_task.conf config/emoji_reboot_required.conf config/emoji-selection.json config/module-update-boot.conf \
   system/fonts/NotoColorEmoji.ttf system/fonts/NotoColorEmojiLegacy.ttf \
   common/stability.sh common/fonts_xml_template.sh common/play_font_bridge common/wechat_xweb_bridge common/volume_key.sh common/legacy_data_fonts_cleanup.sh; do
   [ ! -e "$STAGE/$forbidden" ] || { echo "forbidden payload: $forbidden" >&2; exit 88; }

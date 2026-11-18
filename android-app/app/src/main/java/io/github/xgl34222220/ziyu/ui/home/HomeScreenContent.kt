@@ -40,7 +40,8 @@ import io.github.xgl34222220.ziyu.ui.theme.*
 
 /** Shared business sections; the three page shells decide their order and presentation. */
 internal val HomeUiState.hasTaskNotice: Boolean
-    get() = taskRunning || mountFailed || softRebootState == "failed" || rebootRequired || error.isNotBlank() || romCheckMessage.isNotBlank()
+    get() = taskRunning || mountFailed || softRebootState in setOf("failed", "cleanup-failed") ||
+        rebootRequired || error.isNotBlank() || romCheckMessage.isNotBlank()
 
 @Composable
 internal fun HomePageHeader(loading: Boolean, actions: HomeActions) {
@@ -77,6 +78,7 @@ internal fun HomeCurrentFont(state: HomeUiState, actions: HomeActions) {
         state.taskRunning -> "正在应用"
         state.mountFailed -> "挂载失败，请联系开发者"
         state.softRebootState == "failed" -> "PPID 重置失败"
+        state.softRebootState == "cleanup-failed" -> "软重启未完成"
         state.rebootRequired -> "重启后生效"
         state.error.isNotBlank() -> "状态待更新"
         !state.mountHealthy -> "待验证"
@@ -137,8 +139,9 @@ private fun HomeStatTile(title: String,value: String,number: Boolean,onClick: ()
 internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
     val scheme = MaterialTheme.colorScheme
     val palette = LocalZiyuPaletteTokens.current
-    val softRebootFailed = state.softRebootState == "failed"
-    val failed = (state.mountFailed || state.error.isNotBlank() || softRebootFailed) && !state.taskRunning
+    val ppidResetFailed = state.softRebootState == "failed" && !state.taskRunning
+    val softReloadFailed = state.softRebootState == "cleanup-failed" && !state.taskRunning
+    val failed = (state.mountFailed || state.error.isNotBlank() || ppidResetFailed || softReloadFailed) && !state.taskRunning
     val romNotice = state.romCheckMessage.isNotBlank() && !state.taskRunning && !state.rebootRequired && !failed
     ZiyuSurface(
         onClick = actions.openLogs,
@@ -157,7 +160,14 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                     tint = if (failed) scheme.error else scheme.primary,
                 )
                 ZiyuText(
-                    if (state.mountFailed && !state.taskRunning) "挂载失败，请联系开发者" else if (softRebootFailed) "内核软重启的 PPID 重置失败" else if (romNotice) "系统字体基准核验" else if (state.rebootRequired && !state.taskRunning) "重启后生效" else state.taskTitle,
+                    when {
+                        state.mountFailed && !state.taskRunning -> "挂载失败，请联系开发者"
+                        ppidResetFailed -> "内核软重启的 PPID 重置失败"
+                        softReloadFailed -> "软重启未完成"
+                        romNotice -> "系统字体基准核验"
+                        state.rebootRequired && !state.taskRunning -> "重启后生效"
+                        else -> state.taskTitle
+                    },
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
@@ -165,7 +175,13 @@ internal fun HomeTaskNotice(state: HomeUiState, actions: HomeActions) {
                 ZiyuGlyph(Icons.Rounded.ChevronRight, null, ZiyuIconTokens.TrailingGlyph)
             }
             ZiyuText(
-                if (softRebootFailed) "PPID 重置未通过核验，请查看软重启日志并使用普通重启。" else if (failed) state.error.ifBlank { state.taskMessage } else if (romNotice) state.romCheckMessage else nextStepFor(state, actions).description,
+                when {
+                    ppidResetFailed -> "PPID 重置未通过核验，请查看软重启日志并使用普通重启。"
+                    softReloadFailed -> nextStepFor(state, actions).description
+                    failed -> state.error.ifBlank { state.taskMessage }
+                    romNotice -> state.romCheckMessage
+                    else -> nextStepFor(state, actions).description
+                },
                 style = MaterialTheme.typography.bodySmall,
             )
             if (state.taskRunning) ZiyuLinearProgressIndicator(
@@ -286,10 +302,14 @@ internal fun nextStepFor(state: HomeUiState, actions: HomeActions): HomeNextStep
     !state.moduleInstalled || !state.rootGranted -> HomeNextStep("重新检查", Icons.Rounded.Refresh, actions.refresh, "安装模块并授予 Root 权限后才能应用全局字体")
     state.taskRunning -> HomeNextStep("查看任务", Icons.Rounded.Description, actions.openLogs, state.taskMessage.ifBlank { "可以离开 App，后台任务会继续运行" })
     state.mountFailed || state.softRebootState == "failed" -> HomeNextStep("查看日志", Icons.Rounded.Warning, actions.openLogs, state.taskMessage)
+    state.softRebootState == "cleanup-failed" -> HomeNextStep(
+        "普通重启", Icons.Rounded.RestartAlt, { actions.restart("reboot") }, "字体未能在软重启时重新挂载，建议普通重启。",
+    )
     state.rebootRequired -> HomeNextStep(
-        if (state.temporaryRootMode) "选择重启方式" else "立即重启",
+        if (state.temporaryRootMode || state.rootManager == "FinaSU") "选择重启方式" else "立即重启",
         Icons.Rounded.RestartAlt, actions.reboot,
-        if (state.temporaryRootMode) "选择普通重启或内核软重启" else "执行一次完整重启后应用全局字体并自动验证",
+        if (state.temporaryRootMode || state.rootManager == "FinaSU") "重启后应用字体并核验"
+        else "执行一次完整重启后应用全局字体并自动验证",
     )
     state.error.isNotBlank() -> HomeNextStep("查看问题", Icons.Rounded.Warning, actions.openLogs, "打开任务中心查看错误原因与诊断信息")
     state.currentFont.contains("系统") -> HomeNextStep("打开字体库", Icons.Rounded.FontDownload, actions.openFontLibrary)

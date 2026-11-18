@@ -1,0 +1,10 @@
+{
+  "name": "Ziyu OEM UI numeral width fitting",
+  "version": "1.5.81",
+  "date": "2026-11-15",
+  "license": "GPL-3.0-only",
+  "origin": "Original implementation in this repository",
+  "files": ["common/font_ui_width.py"],
+  "dependencies": ["Existing bundled FontTools and CPython", "Existing verified stock snapshots and private read-only EROFS views", "Existing FontMetricsIO"],
+  "scope": "Header-only scaling for oversized ColorOS Latin UI numeral advances. All original outline, shaping, color and variation data tables are byte-verified and preserved."
+}

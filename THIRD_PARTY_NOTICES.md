@@ -1,5 +1,17 @@
 # 第三方组件与许可证
 
+v1.5.82 的文字与 Emoji 独立选择、隔离准备及记录回滚继续使用字域原创 GPL-3.0-only 实现，登记于 [Ziyu-emoji-management.json](licenses/Ziyu-emoji-management.json)。复用既有运行时、FontTools 和事务组件。
+
+## v1.5.81 系统数字宽度适配
+
+`common/font_ui_width.py` 为字域原创 GPL-3.0-only 运行文件，复用现有 FontTools、FontMetricsIO、原厂快照与隔离只读字体视图。通过字体单位比例适配过宽的系统英文与数字显示，逐表校验原字形、排版、彩色数据及全部变化表。来源记录见 [Ziyu-ui-width-fit.json](licenses/Ziyu-ui-width-fit.json)，许可证见 [Ziyu-GPL-3.0.txt](licenses/Ziyu-GPL-3.0.txt)。
+
+## v1.5.80 Emoji 管理
+
+`common/emoji_manager.py`、`common/emoji_manager.sh`、`common/emoji_payload.sh` 与 `EmojiToolsCard.kt` 为字域原创 GPL-3.0-only 代码，来源记录见 [Ziyu-emoji-management.json](licenses/Ziyu-emoji-management.json)，许可证见 [Ziyu-GPL-3.0.txt](licenses/Ziyu-GPL-3.0.txt)。复用已打包的 CPython、FontTools 及字域事务与挂载组件。Emoji 字体由用户导入，原始字体表和字节保留。
+
+兼容方案调研参考 [KernelSU-iOS-Emoji](https://github.com/dtingley11/KernelSU-iOS-Emoji/tree/66992fb3dfe616c0ca1e42fd44852264b1fb7dc0) 与 [Magisk-iOS-Emoji](https://github.com/Keinta15/Magisk-iOS-Emoji/tree/1cb26ca66facc6f31aae7aefd55a85f7b0159ba7)。本次代码由字域自行实现，外部模块脚本与字体资源均由其原项目单独提供。
+
 ## v1.4.100 SukiSU-Ultra 主题选择性移植
 
 固定上游 [`075ac81f1dfe58b3f59c665a1b07fda8b975015f`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/075ac81f1dfe58b3f59c665a1b07fda8b975015f)，来源文件和 blob 记录于 [`licenses/SukiSU-Ultra-theme-port.json`](licenses/SukiSU-Ultra-theme-port.json)。`ThemePackageCrypto.kt`、`AppearanceOverlayColors.kt`、语义颜色/浅深合并和背景矩阵/锐化设计按上游 GPL-3.0-or-later 适配；字域修改包名、JSON 边界、三种原生主题桥、像素采样、缓存与不支持设备回退。完整 GPL 文本继续保存在 [`licenses/SukiSU-Ultra-GPL-3.0.txt`](licenses/SukiSU-Ultra-GPL-3.0.txt)，字域改动按 GPL-3.0-only 提供。

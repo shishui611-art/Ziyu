@@ -1,21 +1,16 @@
 package io.github.xgl34222220.ziyu.ui.library
 
-import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
 import android.view.Gravity
-import androidx.compose.animation.AnimatedVisibility
+import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,39 +19,22 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Sort
-import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material.icons.rounded.Visibility
-import io.github.xgl34222220.ziyu.ui.design.ZiyuButton as Button
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard as Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ButtonDefaults
-import io.github.xgl34222220.ziyu.ui.design.ZiyuDropdownMenu as DropdownMenu
-import io.github.xgl34222220.ziyu.ui.design.ZiyuDropdownMenuItem as DropdownMenuItem
-import io.github.xgl34222220.ziyu.ui.design.ZiyuFilledTonalButton as FilledTonalButton
-import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon as Icon
-import io.github.xgl34222220.ziyu.ui.design.ZiyuIconButton as IconButton
-import io.github.xgl34222220.ziyu.ui.design.ZiyuLinearProgressIndicator as LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import io.github.xgl34222220.ziyu.ui.design.ZiyuSurface as Surface
-import io.github.xgl34222220.ziyu.ui.design.ZiyuText as Text
-import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton as TextButton
-import io.github.xgl34222220.ziyu.ui.design.ZiyuTextField as TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,444 +43,354 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.NativeFontPreview
-import io.github.xgl34222220.ziyu.ui.font.fontCombinationSourceSummary
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog
+import io.github.xgl34222220.ziyu.ui.design.ZiyuCheckbox
+import io.github.xgl34222220.ziyu.ui.design.ZiyuDropdownMenu
+import io.github.xgl34222220.ziyu.ui.design.ZiyuDropdownMenuItem
+import io.github.xgl34222220.ziyu.ui.design.ZiyuIcon
+import io.github.xgl34222220.ziyu.ui.design.ZiyuIconButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuLinearProgressIndicator
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSearchIconSlot
+import io.github.xgl34222220.ziyu.ui.design.ZiyuSurface
+import io.github.xgl34222220.ziyu.ui.design.ZiyuText
+import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuTextField
 import io.github.xgl34222220.ziyu.ui.theme.LocalDockContentPadding
+import io.github.xgl34222220.ziyu.ui.theme.LocalUiStyle
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuPaletteTokens
 import io.github.xgl34222220.ziyu.ui.theme.LocalZiyuThemeTokens
+import io.github.xgl34222220.ziyu.ui.theme.ZiyuCard
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuHeaderAction
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuLoadingSkeleton
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuMotionTokens
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuSectionHeading
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuSegmentedTabs
 import io.github.xgl34222220.ziyu.ui.theme.ZiyuTopBar
 
-private val fontLibraryFilterLabels = FontLibraryFilter.entries.map { filter ->
-    when (filter) {
-        FontLibraryFilter.ALL -> "全部"
-        FontLibraryFilter.FAVORITE -> "收藏"
-        FontLibraryFilter.COMBINATION -> "组合"
-        FontLibraryFilter.VARIABLE -> "可变"
-        FontLibraryFilter.MULTI_WEIGHT -> "多字重"
-        FontLibraryFilter.CONFLICT -> "冲突"
-        FontLibraryFilter.INVALID -> "异常"
-    }
-}
+private val fontLibraryFilterLabels = listOf("全部", "收藏", "组合", "可变", "多字重", "冲突", "异常")
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun FontLibraryPageContent(
-    style: UiStyle,
     state: FontLibraryUiState,
     actions: FontLibraryActions,
-    tools: @Composable () -> Unit,
+    importAction: @Composable () -> Unit,
 ) {
     val tokens = LocalZiyuPaletteTokens.current
     val layout = LocalZiyuThemeTokens.current.layout
-    val scheme = MaterialTheme.colorScheme
-    val cardColor = tokens.cardBackground
-    val elevatedColor = tokens.elevatedCardBackground
-    val textPrimary = tokens.textPrimary
-    val textSecondary = tokens.textSecondary
-    var showTools by rememberSaveable { mutableStateOf(false) }
+    val style = LocalUiStyle.current
+    val fontScale = LocalDensity.current.fontScale.coerceIn(1f, 1.6f)
+    val context = LocalContext.current.applicationContext
+    val layoutPreferences = remember(context) { context.getSharedPreferences("font-library-layout-v1", Context.MODE_PRIVATE) }
+    var columns by rememberSaveable { mutableStateOf(layoutPreferences.getInt("columns", 0).coerceIn(0, 4)) }
+    var showColumns by remember { mutableStateOf(false) }
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var deletingIds by remember { mutableStateOf(listOf<String>()) }
     var showSort by remember { mutableStateOf(false) }
-    val filtered = state.query.isNotBlank() || state.filter != FontLibraryFilter.ALL
+    val canSelect = !state.operationBusy || state.deletionInProgress
+    val visibleIds = state.fonts.map { it.id }
 
-    LazyColumn(
+    LaunchedEffect(state.allFonts) {
+        val availableIds = state.allFonts.map { it.id }.toSet()
+        selectedIds = selectedIds.filter { it in availableIds }
+    }
+    BackHandler(enabled = selecting && state.pageActive) {
+        selecting = false
+        selectedIds = emptyList()
+    }
+
+    LazyVerticalGrid(
+        columns = if (columns == 0) GridCells.Adaptive(140.dp * fontScale) else GridCells.Fixed(columns),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = layout.pageHorizontal,
             end = layout.pageHorizontal,
             bottom = maxOf(LocalDockContentPadding.current, layout.dockSafeBottom),
         ),
-        verticalArrangement = Arrangement.spacedBy(layout.itemGap),
+        verticalArrangement = Arrangement.spacedBy(maxOf(layout.itemGap, 16.dp)),
+        horizontalArrangement = Arrangement.spacedBy(maxOf(layout.itemGap, 16.dp)),
     ) {
-        item(key = "header") {
-            ZiyuTopBar(title = "字体库") {
-                ZiyuHeaderAction(
-                    icon = Icons.Rounded.Refresh,
-                    contentDescription = "刷新字体库",
-                    onClick = actions.refresh,
-                    enabled = !state.loading && !state.operationBusy,
-                    loading = state.loading,
-                    containerColor = elevatedColor,
-                )
-            }
-        }
-        item(key = "search") {
-            TextField(
-                value = state.query,
-                onValueChange = actions.setQuery,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
-                leadingIcon = {
-                    ZiyuSearchIconSlot { Icon(Icons.Rounded.Search, contentDescription = null) }
-                },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { actions.setQuery("") }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "清空搜索")
+        item(key = "library_header", span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ZiyuTopBar(title = "字体库") {
+                    ZiyuHeaderAction(
+                        icon = Icons.Rounded.Refresh,
+                        contentDescription = "刷新字体库",
+                        onClick = actions.refresh,
+                        enabled = !state.loading && !state.operationBusy,
+                        loading = state.loading,
+                        containerColor = if (style == UiStyle.MATERIAL) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = .84f) else Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                ZiyuTextField(
+                    value = state.query,
+                    onValueChange = actions.setQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(20.dp),
+                    leadingIcon = { ZiyuSearchIconSlot { ZiyuIcon(Icons.Rounded.Search, null) } },
+                    trailingIcon = {
+                        if (state.query.isNotEmpty()) {
+                            ZiyuIconButton(onClick = { actions.setQuery("") }) {
+                                ZiyuIcon(Icons.Rounded.Close, "清空搜索")
+                            }
                         }
-                    }
-                },
-                placeholder = { Text("搜索你的字体") },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = elevatedColor,
-                    unfocusedContainerColor = elevatedColor,
-                    disabledContainerColor = elevatedColor,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                ),
-            )
-        }
-        item(key = "filters") {
-            ZiyuSegmentedTabs(
-                labels = fontLibraryFilterLabels,
-                selectedIndex = FontLibraryFilter.entries.indexOf(state.filter),
-                onSelected = { FontLibraryFilter.entries.getOrNull(it)?.let(actions.setFilter) },
-            )
-        }
-        item(key = "preview_text") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = actions.editPreviewText) { Text("预览文字") }
-            }
-        }
-        item(key = "collection_heading") {
-            Column {
-                ZiyuSectionHeading(
-                    title = if (filtered) "筛选结果" else "本地字体",
-                    subtitle = "${state.visibleCount} 款字体 · ${state.validCount} 款可用",
+                    },
+                    placeholder = { ZiyuText("搜索字体") },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = tokens.elevatedCardBackground,
+                        unfocusedContainerColor = tokens.elevatedCardBackground,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
                 )
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box {
-                        TextButton(onClick = { showSort = true }) {
-                            Icon(Icons.Rounded.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(state.sort.label, fontSize = 12.sp)
-                            Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+                ZiyuSegmentedTabs(
+                    labels = fontLibraryFilterLabels,
+                    selectedIndex = FontLibraryFilter.entries.indexOf(state.filter),
+                    onSelected = { FontLibraryFilter.entries.getOrNull(it)?.let(actions.setFilter) },
+                )
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ZiyuText(
+                        if (state.deletionInProgress) "${state.pendingDeletionIds.size} 款正在后台删除"
+                        else "${state.visibleCount} 款字体",
+                        color = tokens.textSecondary,
+                        fontSize = 12.sp,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box {
+                            ZiyuTextButton(onClick = { showColumns = true }) {
+                                ZiyuText(if (columns == 0) "自动列数" else "每行 $columns 列", fontSize = 12.sp)
+                                ZiyuIcon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(18.dp))
+                            }
+                            ZiyuDropdownMenu(expanded = showColumns, onDismissRequest = { showColumns = false }) {
+                                (0..4).forEach { option ->
+                                    ZiyuDropdownMenuItem(
+                                        text = { ZiyuText(if (option == 0) "自动" else "每行 $option 列") },
+                                        trailingIcon = { if (columns == option) ZiyuIcon(Icons.Rounded.Check, "已选择") },
+                                        onClick = {
+                                            columns = option
+                                            layoutPreferences.edit().putInt("columns", option).apply()
+                                            showColumns = false
+                                        },
+                                    )
+                                }
+                            }
                         }
-                        DropdownMenu(expanded = showSort, onDismissRequest = { showSort = false }) {
-                            FontLibrarySort.entries.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option.label) },
-                                    trailingIcon = {
-                                        if (state.sort == option) Icon(Icons.Rounded.Check, contentDescription = "已选择")
-                                    },
-                                    onClick = { actions.setSort(option); showSort = false },
-                                )
+                        Box {
+                            ZiyuTextButton(onClick = { showSort = true }) {
+                                ZiyuText(state.sort.label, fontSize = 12.sp)
+                                ZiyuIcon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(18.dp))
+                            }
+                            ZiyuDropdownMenu(expanded = showSort, onDismissRequest = { showSort = false }) {
+                                FontLibrarySort.entries.forEach { option ->
+                                    ZiyuDropdownMenuItem(
+                                        text = { ZiyuText(option.label) },
+                                        trailingIcon = {
+                                            if (state.sort == option) ZiyuIcon(Icons.Rounded.Check, "已选择")
+                                        },
+                                        onClick = { actions.setSort(option); showSort = false },
+                                    )
+                                }
                             }
                         }
                     }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { showTools = !showTools }) {
-                        Text(if (showTools) "收起管理" else "导入与管理", fontSize = 12.sp)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            if (showTools) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
+                }
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (selecting) {
+                        val allVisibleSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
+                        ZiyuText("已选 ${selectedIds.size} 款", modifier = Modifier.align(Alignment.CenterVertically))
+                        ZiyuTextButton(
+                            onClick = {
+                                selectedIds = if (allVisibleSelected) selectedIds - visibleIds.toSet()
+                                else (selectedIds + visibleIds).distinct()
+                            },
+                            enabled = visibleIds.isNotEmpty(),
+                        ) { ZiyuText(if (allVisibleSelected) "取消全选" else "全选") }
+                        ZiyuTextButton(
+                            onClick = { deletingIds = selectedIds.toList() },
+                            enabled = selectedIds.isNotEmpty() && canSelect,
+                        ) { ZiyuText("删除", color = MaterialTheme.colorScheme.error) }
+                        ZiyuTextButton(onClick = { selecting = false; selectedIds = emptyList() }) { ZiyuText("取消") }
+                    } else {
+                        Box(Modifier.width(148.dp * fontScale)) { importAction() }
+                        ZiyuTextButton(
+                            onClick = { selecting = true },
+                            enabled = state.allFonts.isNotEmpty() && canSelect,
+                        ) { ZiyuText("批量选择") }
                     }
                 }
             }
         }
-        item(key = "tools") {
-            AnimatedVisibility(
-                visible = showTools,
-                enter = fadeIn(tween(ZiyuMotionTokens.Fast)) +
-                    expandVertically(tween(ZiyuMotionTokens.Normal, easing = FastOutSlowInEasing)) +
-                    slideInVertically(tween(ZiyuMotionTokens.Normal, easing = FastOutSlowInEasing)) { it / 6 },
-                exit = fadeOut(tween(140)) +
-                    shrinkVertically(tween(170, easing = FastOutSlowInEasing)),
-            ) {
-                tools()
+        if (state.loading || (state.operationBusy && !state.deletionInProgress)) {
+            item(key = "progress", span = { GridItemSpan(maxLineSpan) }) {
+                ZiyuLinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
             }
         }
-        if (state.loading) {
-            item(key = "loading") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ZiyuLoadingSkeleton(
-                        modifier = Modifier.fillMaxWidth(.42f).height(14.dp),
-                    )
-                    ZiyuLoadingSkeleton(
-                        modifier = Modifier.fillMaxWidth().height(5.dp),
-                        shape = RoundedCornerShape(999.dp),
-                    )
-                }
-            }
-        } else if (state.operationBusy && !state.deletionInProgress) {
-            item(key = "loading") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("正在处理字体，请稍候…", color = textSecondary, fontSize = 13.sp)
-                    LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
-                }
-            }
+        if (state.error.isNotBlank()) {
+            item(key = "error", span = { GridItemSpan(maxLineSpan) }) { NoticeCard(state.error, error = true) }
         }
-        if (state.error.isNotBlank()) item(key = "error") { NoticeCard(state.error, error = true) }
         if (state.operationMessage.isNotBlank()) {
-            item(key = "operation") { NoticeCard(state.operationMessage, error = false) }
-        }
-        item(key = "system_font") {
-            CompactSystemFontRow(
-                active = state.activeFontId == "default", pending = state.activeFontPending, busy = state.operationBusy,
-                cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
-                onRestore = actions.restoreDefault,
-                onImport = actions.importSystemFonts,
-            )
+            item(key = "operation", span = { GridItemSpan(maxLineSpan) }) { NoticeCard(state.operationMessage, error = false) }
         }
         if (!state.loading && state.fonts.isEmpty()) {
-            item(key = "empty") {
-                Card(
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(containerColor = cardColor),
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Surface(shape = RoundedCornerShape(22.dp), color = scheme.primary.copy(alpha = .08f)) {
-                            Icon(
-                                if (filtered) Icons.Rounded.Search else Icons.Rounded.FontDownload,
-                                contentDescription = null, tint = scheme.primary,
-                                modifier = Modifier.padding(18.dp).size(30.dp),
-                            )
-                        }
-                        Text(
-                            if (filtered) "没有找到匹配的字体" else "从第一款字体开始",
-                            color = textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center,
-                        )
-                        Text(
-                            if (filtered) "试试其他关键词，或清除筛选条件。" else "导入喜欢的字体，在这里预览、整理和应用。",
-                            color = textSecondary, fontSize = 13.sp, lineHeight = 20.sp,
-                            textAlign = TextAlign.Center,
-                        )
-                        FilledTonalButton(onClick = {
-                            if (filtered) { actions.setQuery(""); actions.setFilter(FontLibraryFilter.ALL) }
-                            else showTools = true
-                        }) { Text(if (filtered) "清除筛选" else "打开导入与管理") }
-                    }
-                }
+            item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                ZiyuText(
+                    when {
+                        state.deletionInProgress -> "其余字体正在后台删除"
+                        state.query.isNotBlank() || state.filter != FontLibraryFilter.ALL -> "没有找到匹配的字体"
+                        else -> "点击导入，添加喜欢的字体"
+                    },
+                    modifier = Modifier.padding(vertical = 28.dp),
+                    color = tokens.textSecondary,
+                )
             }
         }
-        items(state.fonts, key = { "font:${it.id}" }, contentType = { "font" }) { font ->
+        items(state.fonts, key = { it.id }, contentType = { "font" }) { font ->
             LibraryFontCard(
-                font = font, active = state.activeFontId == font.id, pending = state.activeFontPending, busy = state.operationBusy,
-                cardColor = cardColor, textPrimary = textPrimary, textSecondary = textSecondary,
-                onDetails = { actions.details(font) }, onApply = { actions.apply(font) },
-                onPreview = { actions.preview(font) },
-                onDelete = { actions.delete(font) }, style = style, previewText = state.previewText,
+                font = font,
+                previewText = state.previewText,
+                selecting = selecting,
+                selected = font.id in selectedIds,
+                onClick = {
+                    if (selecting) {
+                        selectedIds = if (font.id in selectedIds) selectedIds - font.id else selectedIds + font.id
+                    } else actions.openMenu(font)
+                },
             )
         }
     }
-}
 
-@Composable
-private fun CompactSystemFontRow(
-    active: Boolean, pending: Boolean, busy: Boolean, cardColor: Color,
-    textPrimary: Color, textSecondary: Color, onRestore: () -> Unit, onImport: () -> Unit,
-) {
-    val layout = LocalZiyuThemeTokens.current.layout
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(layout.compactPadding), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .08f)) {
-                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                    Text("Aa", color = MaterialTheme.colorScheme.primary, fontSize = 21.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("系统默认", color = textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("恢复手机原有字体", color = textSecondary, fontSize = 12.sp, lineHeight = 18.sp)
-            }
-            Spacer(Modifier.width(8.dp))
-            if (active) StatusPill(if (pending) "待重启" else "使用中")
-            else FilledTonalButton(
-                onClick = onRestore, enabled = !busy,
-                modifier = Modifier.heightIn(min = 44.dp), shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-            ) { Text("恢复", fontSize = 13.sp) }
-        }
-        Row(Modifier.fillMaxWidth().padding(PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 12.dp)), verticalAlignment = Alignment.CenterVertically) {
-            Text("系统字体可添加为组合素材", color = textSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            FilledTonalButton(
-                onClick = onImport, enabled = !busy,
-                modifier = Modifier.heightIn(min = 40.dp), shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            ) { Text("添加系统字体", fontSize = 13.sp) }
-        }
-
-    }
-}
-
-@Composable
-private fun LibraryFontCard(
-    font: FontItem, active: Boolean, pending: Boolean, busy: Boolean, cardColor: Color,
-    textPrimary: Color, textSecondary: Color,
-    onDetails: () -> Unit, onApply: () -> Unit, onDelete: () -> Unit, onPreview: () -> Unit,
-    style: UiStyle, previewText: String,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val layout = LocalZiyuThemeTokens.current.layout
-    Card(
-        onClick = onDetails,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (font.valid) cardColor else scheme.errorContainer.copy(alpha = .34f),
-        ),
-        border = if (font.valid) null else BorderStroke(.75.dp, scheme.error.copy(alpha = .40f)),
-    ) {
-        Column(Modifier.padding(layout.compactPadding), verticalArrangement = Arrangement.spacedBy(layout.itemGap)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        font.name, color = textPrimary, style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        fontMetadataSummary(font),
-                        color = textSecondary,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (active) StatusPill(if (pending) "待重启" else "使用中")
-            }
-            if (font.combination) {
-                Text(
-                    fontCombinationSourceSummary(font),
-                    color = textSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (font.valid) {
-                Surface(
-                    onClick = onPreview,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = scheme.primary.copy(alpha = if (active) .12f else .08f),
-                    border = BorderStroke(1.dp, scheme.primary.copy(alpha = .40f)),
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
-                        NativeFontPreview(
-                            font = font,
-                            text = previewText.ifBlank { if (font.supportsCjk) "山海有相逢 Aa 0123" else "Hello, Ziyu 0123" },
-                            modifier = Modifier.fillMaxWidth().height(60.dp),
-                            textSizeSp = 23f, gravity = Gravity.CENTER_VERTICAL, maxLines = 1,
-                        )
-                    }
-                }
-                FilledTonalButton(
-                    onClick = onPreview,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.Rounded.Visibility, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("字库预览", fontWeight = FontWeight.SemiBold)
-                }
-            } else if (font.error.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Warning, contentDescription = null, tint = scheme.error, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(font.error, color = scheme.error, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End,
-            ) {
-                FontTtfExportButton(font = font, enabled = font.valid && !busy)
-                Spacer(Modifier.width(8.dp))
-                val deleteEnabled = !busy && !active
-                Button(
-                    onClick = onDelete,
-                    enabled = deleteEnabled,
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = scheme.errorContainer,
-                        contentColor = scheme.onErrorContainer,
-                    ),
-                ) {
-                    Icon(Icons.Rounded.Delete, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("删除", fontSize = 13.sp)
-                }
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = onApply,
-                    enabled = font.valid && !busy,
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 0.dp,
-                        pressedElevation = 0.dp,
-                        focusedElevation = 0.dp,
-                        hoveredElevation = 0.dp,
-                        disabledElevation = 0.dp,
-                    ),
-                ) {
-                    Text(if (active) "重新应用" else "应用字体", fontSize = 13.sp)
-                }
-            }
-        }
-    }
-}
-
-private fun fontMetadataSummary(font: FontItem): String {
-    val weight = when {
-        font.variable -> "可变字重"
-        font.weights.size > 1 -> "${font.weights.size} 档字重"
-        else -> "单字重"
-    }
-    return listOf(
-        font.format,
-        font.size,
-        weight,
-        if (font.supportsCjk) "中文 / 拉丁" else "拉丁",
-    ).filter { it.isNotBlank() }.joinToString(" · ")
-}
-
-@Composable
-private fun NoticeCard(message: String, error: Boolean) {
-    val scheme = MaterialTheme.colorScheme
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = if (error) scheme.errorContainer else scheme.primaryContainer,
-    ) {
-        Text(
-            message, modifier = Modifier.fillMaxWidth().padding(16.dp),
-            color = if (error) scheme.onErrorContainer else scheme.onPrimaryContainer,
-            fontSize = 13.sp, lineHeight = 20.sp,
+    if (deletingIds.isNotEmpty()) {
+        val includesActive = state.activeFontId in deletingIds
+        val pendingActive = includesActive && state.activeFontPending
+        ZiyuAlertDialog(
+            onDismissRequest = { deletingIds = emptyList() },
+            title = { ZiyuText("删除 ${deletingIds.size} 款字体？") },
+            text = {
+                ZiyuText(buildString {
+                    append("字体及相关文件将被永久删除。")
+                    if (pendingActive) append(" 当前字体正在等待重启，请完成重启后再删除。")
+                    else if (includesActive) append(" 正在使用的字体会先恢复为系统默认字体。")
+                })
+            },
+            confirmButton = {
+                ZiyuTextButton(
+                    onClick = {
+                        val confirmed = deletingIds.toSet()
+                        deletingIds = emptyList()
+                        selectedIds = emptyList()
+                        selecting = false
+                        actions.deleteMany(confirmed)
+                    },
+                    enabled = canSelect && !pendingActive,
+                ) { ZiyuText("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { ZiyuTextButton(onClick = { deletingIds = emptyList() }) { ZiyuText("取消") } },
         )
     }
 }
 
 @Composable
-private fun StatusPill(text: String) {
+private fun LibraryFontCard(
+    font: FontItem,
+    previewText: String,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
     val scheme = MaterialTheme.colorScheme
-    Surface(shape = RoundedCornerShape(12.dp), color = scheme.primary.copy(alpha = .10f)) {
-        Row(Modifier.padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Check, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(3.dp))
-            Text(text, color = scheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    val tokens = LocalZiyuPaletteTokens.current
+    ZiyuCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = tokens.cardBackground),
+        border = BorderStroke(if (selected) 2.dp else .5.dp, if (selected) scheme.primary else scheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val compact = maxWidth < 124.dp
+                val narrow = maxWidth < 84.dp
+                val sample = when {
+                    font.supportsCjk && narrow -> "山海\nAa12"
+                    font.supportsCjk && compact -> "山海相逢\nAa 012"
+                    font.supportsCjk -> "山海有相逢\nAa 012345"
+                    compact -> "Ziyu\nAa12"
+                    else -> "Hello Ziyu\nAa 012345"
+                }
+                val previewHeight = (maxWidth * .95f).coerceIn(88.dp, 146.dp)
+                ZiyuSurface(color = scheme.primary.copy(alpha = .07f)) {
+                    if (font.valid) {
+                        NativeFontPreview(
+                            font = font,
+                            text = previewText.ifBlank { sample },
+                            modifier = Modifier.fillMaxWidth().height(previewHeight).padding(horizontal = 10.dp, vertical = 12.dp),
+                            textSizeSp = when {
+                                narrow -> 14f
+                                compact -> 16f
+                                else -> 21f
+                            },
+                            gravity = Gravity.CENTER,
+                            maxLines = 3,
+                            color = tokens.textPrimary,
+                        )
+                    } else {
+                        Box(Modifier.fillMaxWidth().height(previewHeight), contentAlignment = Alignment.Center) {
+                            ZiyuText("预览不可用", color = tokens.textSecondary, fontSize = 13.sp)
+                        }
+                    }
+                }
+                if (selecting) {
+                    ZiyuCheckbox(
+                        checked = selected,
+                        onCheckedChange = { onClick() },
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
+                }
+            }
+            ZiyuText(
+                font.name,
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp).heightIn(min = 42.dp),
+                color = tokens.textPrimary,
+                fontSize = 14.sp,
+                lineHeight = 21.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!selecting) {
+                ZiyuTextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                    ZiyuText("选择操作", fontSize = 13.sp)
+                }
+            } else Spacer(Modifier.height(12.dp))
         }
+    }
+}
+
+@Composable
+private fun NoticeCard(message: String, error: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    ZiyuSurface(
+        shape = RoundedCornerShape(20.dp),
+        color = if (error) scheme.errorContainer else scheme.primaryContainer,
+    ) {
+        ZiyuText(
+            message,
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            color = if (error) scheme.onErrorContainer else scheme.onPrimaryContainer,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+        )
     }
 }

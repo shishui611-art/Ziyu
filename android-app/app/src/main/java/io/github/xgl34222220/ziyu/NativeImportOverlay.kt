@@ -58,6 +58,8 @@ internal fun NativeImportOverlay(
     style: UiStyle,
     modifier: Modifier = Modifier,
     embedded: Boolean = false,
+    filePreview: Boolean = false,
+    active: Boolean = true,
 ) {
     val importViewModel = rememberNativeImportViewModel()
     val state = importViewModel.state
@@ -68,8 +70,8 @@ internal fun NativeImportOverlay(
         expanded = embedded || state.busy || state.paused
     }
 
-    LaunchedEffect(state.refreshToken) {
-        if (state.refreshToken > 0L) viewModel.refreshFonts(force = true)
+    LaunchedEffect(state.refreshToken, active) {
+        if (active && state.refreshToken > 0L) viewModel.refreshFonts(force = true)
     }
 
     val launcher = rememberLauncherForActivityResult(
@@ -77,7 +79,7 @@ internal fun NativeImportOverlay(
     ) { uris ->
         if (uris.isNotEmpty()) previewUris = ArrayList(uris.take(32).map { it.toString() })
     }
-    previewUris?.let { selection ->
+    previewUris?.takeIf { active }?.let { selection ->
         NativeImportFontPreview(selection.map { android.net.Uri.parse(it) }, enabled = !state.busy && !state.paused,
             onCancel = { previewUris = null }, onImport = { chosen ->
                 previewUris = null
@@ -85,7 +87,7 @@ internal fun NativeImportOverlay(
             })
     }
 
-    val importEnabled = viewModel.snapshot.installed &&
+    val importEnabled = active && viewModel.snapshot.installed &&
         !viewModel.operationBusy &&
         !viewModel.mixState.busy &&
         (!state.busy || state.paused)
@@ -97,35 +99,22 @@ internal fun NativeImportOverlay(
         }
     }
 
-    if (embedded) {
-        val tokens = LocalZiyuPaletteTokens.current
-        Surface(
-            modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            color = if (style == UiStyle.MIUIX) tokens.cardBackground else MaterialTheme.colorScheme.surfaceContainerLow,
-            shadowElevation = if (style == UiStyle.MIUIX) 2.dp else 1.dp,
-            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .48f)),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FontMetadataInspector(
-                    viewModel = viewModel,
-                    style = style,
-                )
-                ImportActionButton(
-                    style = style,
-                    state = state,
-                    expanded = true,
-                    enabled = importEnabled,
-                    onImport = onImport,
-                    modifier = Modifier.weight(1f),
-                    embedded = true,
-                )
-            }
-        }
+    if (filePreview) {
+        io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton(
+            onClick = { launcher.launch(arrayOf("*/*")) },
+            enabled = importEnabled && !state.paused,
+            modifier = modifier,
+        ) { Text("预览字体文件") }
+    } else if (embedded) {
+        ImportActionButton(
+            style = style,
+            state = state,
+            expanded = true,
+            enabled = importEnabled,
+            onImport = onImport,
+            modifier = modifier,
+            embedded = true,
+        )
     } else {
         Row(
             modifier = modifier.fillMaxWidth(),
@@ -142,7 +131,7 @@ internal fun NativeImportOverlay(
         }
     }
 
-    if (state.resultVisible) {
+    if (active && state.resultVisible) {
         ImportResultDialog(
             state = state,
             onDismiss = importViewModel::dismissResult,

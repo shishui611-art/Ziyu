@@ -139,6 +139,7 @@ import io.github.xgl34222220.ziyu.ui.home.HomeRoute
 import io.github.xgl34222220.ziyu.ui.home.toHomeUiState
 import io.github.xgl34222220.ziyu.ui.library.FontLibraryActions
 import io.github.xgl34222220.ziyu.ui.library.FontLibraryRoute
+import io.github.xgl34222220.ziyu.ui.library.FontLibraryTools
 import io.github.xgl34222220.ziyu.ui.library.toFontLibraryUiState
 import io.github.xgl34222220.ziyu.ui.logs.LogsActions
 import io.github.xgl34222220.ziyu.ui.logs.LogsRoute
@@ -490,6 +491,7 @@ internal fun ZiyuAppShell(
                             style = appearance.uiStyle,
                             state = viewModel.snapshot.toHomeUiState().copy(
                                 mountPreferences = viewModel.mountPreferences,
+                                mountPreferencePending = viewModel.mountPreferencePending,
                                 mountBackendPreference = viewModel.mountBackendPreference,
                                 mountBackendRebootPrompt = viewModel.mountBackendRebootPrompt,
                                 mountPreferenceSaving = viewModel.mountPreferenceSaving,
@@ -515,7 +517,7 @@ internal fun ZiyuAppShell(
                     CompositionLocalProvider(LocalDockContentPadding provides dockContentPadding) {
                         FontLibraryRoute(
                             style = appearance.uiStyle,
-                            state = viewModel.toFontLibraryUiState(),
+                            state = viewModel.toFontLibraryUiState(pageActive = page == AppPage.Library),
                             actions = libraryActions,
                             topActions = {
                                 NativeImportOverlay(
@@ -523,6 +525,7 @@ internal fun ZiyuAppShell(
                                     style = appearance.uiStyle,
                                     modifier = Modifier.fillMaxWidth(),
                                     embedded = true,
+                                    active = page == AppPage.Library,
                                 )
                             },
                         )
@@ -583,6 +586,26 @@ internal fun ZiyuAppShell(
                             },
                             onDetailChanged = { settingsDetailVisible = it },
                             onOpenFontLibrary = { navigate(AppPage.Library) },
+                            fontLibraryTools = {
+                                FontLibraryTools(
+                                    style = appearance.uiStyle,
+                                    state = viewModel.toFontLibraryUiState(pageActive = page == AppPage.Settings),
+                                    actions = libraryActions,
+                                    fileTools = {
+                                        NativeImportOverlay(
+                                            viewModel = viewModel,
+                                            style = appearance.uiStyle,
+                                            filePreview = true,
+                                            active = page == AppPage.Settings,
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text("分析已导入字体", modifier = Modifier.weight(1f))
+                                            FontMetadataInspector(viewModel, appearance.uiStyle)
+                                        }
+                                    },
+                                )
+                            },
                         )
                     }
                 }
@@ -783,7 +806,10 @@ internal fun ZiyuAppShell(
             FontActionDialogRoute(
                 style = appearance.uiStyle,
                 kind = FontActionKind.DELETE,
-                message = "确定删除「${font.name}」吗？字体文件和相关缓存将一并移除。",
+                message = buildString {
+                    append("确定删除「${font.name}」吗？字体文件和相关缓存将永久移除。")
+                    if (viewModel.snapshot.activeFont == font.id) append(" 正在使用的字体会先恢复为系统默认字体。")
+                },
                 onDismiss = { pendingDelete = null },
                 onConfirm = {
                     pendingDelete = null

@@ -99,10 +99,15 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             fi
         fi
         mountEngine=unknown
-        if [ -f "${'$'}MOD/common/mount_compat.sh" ]; then
-            . "${'$'}MOD/common/mount_compat.sh" >/dev/null 2>&1 || true
-            if type ziyu_detect_mount_engine >/dev/null 2>&1; then
-                mountEngine="${'$'}(ziyu_detect_mount_engine 2>/dev/null)"
+        if type ziyu_current_boot_backend_state >/dev/null 2>&1; then
+            backendState="${'$'}(MODDIR="${'$'}MOD" ziyu_current_boot_backend_state)"
+            if [ -n "${'$'}backendState" ]; then
+                activeBackend="${'$'}(read_value "${'$'}backendState" active_backend)"
+                case "${'$'}activeBackend" in
+                    external|meta) mountEngine="${'$'}(read_value "${'$'}backendState" provider_id)" ;;
+                    self) mountEngine="${'$'}(read_value "${'$'}backendState" active_self_backend)" ;;
+                    none|manager) mountEngine="${'$'}activeBackend" ;;
+                esac
             fi
         fi
         logHealth="${'$'}(MODDIR="${'$'}MOD" sh "${'$'}MOD/common/action_control.sh" log-health 2>/dev/null)"
@@ -138,7 +143,7 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             printf 'postMountScript=%s\n' "${'$'}postMountScript"
             printf 'cachePending=%s\n' "${'$'}cachePending"
             printf 'rootManager=%s\n' "${'$'}rootManager"
-            printf 'mountEngine=%s\n' "${'$'}mountEngine"
+            printf 'mountEngine=%s\n' "${'$'}{mountEngine:-unknown}"
             printf 'androidSdk=%s\n' "${'$'}(getprop ro.build.version.sdk 2>/dev/null)"
             printf 'androidRelease=%s\n' "${'$'}(getprop ro.build.version.release 2>/dev/null)"
             printf 'deviceBrand=%s\n' "${'$'}(getprop ro.product.brand 2>/dev/null)"
@@ -173,8 +178,10 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
             config/user-storage.conf config/user-storage-next.conf logs/user-storage.log \
             config/display-typography.conf config/display-config-storage.conf config/display-typography-dirty \
             config/mount-backend-preference.conf config/provider-reload-check.conf config/apatch-pre-mount.conf \
+            config/module-update-boot.conf config/temporary-root-soft-reboot.conf logs/soft-reboot.log logs/module-update.log \
             .ziyu-state/provider-published.conf .ziyu-state/provider-reload.started config/font-payload-manifest.conf \
-            config/stock-font-snapshot/manifest.json logs/stock-font-snapshot.log \
+            config/stock-font-snapshot/manifest.json logs/stock-font-snapshot.log logs/slot-coverage.log \
+            .ziyu-payload/.ziyu-metrics-report.json \
             config/adb-storage-migration.conf config/stock-scan-source.conf logs/adb-storage.log \
             config/font-payload-next.conf config/font-payload-activated.conf \
             config/font-live.conf config/font-live-previous.conf config/font-live-boot-previous.conf \
@@ -226,6 +233,13 @@ internal suspend fun exportSanitizedDiagnostic(context: Context): DiagnosticExpo
                 ;;
             *) printf 'selector=unavailable\n' >> "${'$'}OUT" ;;
         esac
+        for entry in mount_mode mount_runtime; do
+            path="/data/adb/ksu/${'$'}entry"
+            [ -r "${'$'}path" ] || continue
+            printf '\n[finasu:%s]\n' "${'$'}entry" >> "${'$'}OUT"
+            head -c 8192 "${'$'}path" >> "${'$'}OUT"
+            printf '\n' >> "${'$'}OUT"
+        done
         printf '\n[mountify-scan-lock]\n' >> "${'$'}OUT"
         ls -ld /proc/1/root/dev/mountify_single_instance >> "${'$'}OUT" 2>&1
         printf '\n[nomount-native-boot-log]\n' >> "${'$'}OUT"

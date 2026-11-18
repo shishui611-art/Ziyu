@@ -20,6 +20,8 @@ from font_inventory import FONT_EXTENSIONS, LOGICAL_FONT_ROOTS, _heuristic_candi
 from font_inventory_scan import _is_ui_family
 from fontTools.ttLib import TTCollection
 from font_metrics_io import FontMetricsIO
+from font_ui_width import UiWidthFit, dedicated_digit_slot
+from font_role_policy import keep_lockscreen
 from font_digest_cache import file_identity, FontDigestCache
 from font_coverage import CJK_COMMON, count_core_han
 from font_face_weight import weight_distance
@@ -255,6 +257,13 @@ def build(module: Path, stage: Path) -> dict:
     header_only = False
     progress = _BatchProgress()
     try:
+        width_targets = set()
+        if not keep_lockscreen(module):
+            width_targets = {report['slot'] for _source, _contract, report in jobs
+                             if dedicated_digit_slot(report['slot'])}
+        if width_targets:
+            width_stock = stock_font_snapshot.ensure_expansion(module, sorted(width_targets), allow_partial=True)
+            print(f'ColorOS UI width stock preparation: {width_stock}', file=sys.stderr)
         for index, (expected, aliases) in enumerate(collection_jobs.items()):
             source = aliases[0][0]
             output = outputs / f'collection-default-{index}.font'
@@ -454,6 +463,20 @@ def build(module: Path, stage: Path) -> dict:
             for item in batch['results']:
                 by_slot[item['report']['slot']].update(item['report'])
                 prepared.append((Path(item['output']), Path(item['source'])))
+        width_fit = UiWidthFit(module, outputs)
+        try:
+            fitted = []
+            for output, destination in prepared:
+                logical = '/' + destination.relative_to(stage).as_posix()
+                if logical in width_targets:
+                    output, width_report = width_fit.prepare(output, logical)
+                    by_slot[logical].update(width_report)
+                fitted.append((output, destination))
+            prepared = fitted
+        finally:
+            # Cleanup failure remains fatal. An optional width fallback never
+            # masks an unconfirmed owned mount/loop release.
+            width_fit.close()
         # No alias is replaced until all workers have succeeded and all pinned inputs are unchanged.
         for source, expected in identities.items():
             if file_identity(source.stat()) != expected:

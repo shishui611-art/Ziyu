@@ -38,9 +38,6 @@ ziyu_mount_backend_details() {
     fi
     if [ "$_mbd_selected" = self ]; then
         MOUNT_PROVIDER_NAME='字域自挂载'
-        if [ "$_mbd_fallback" = 1 ]; then
-            MOUNT_PROVIDER_NAME="字域自挂载（回退：${_mbd_fallback_reason:-外部挂载不可用}）"
-        fi
         MOUNT_PROVIDER_VERSION=''
     else
         case "$_mbd_provider" in

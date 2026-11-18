@@ -49,7 +49,7 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
     if (viewModel.rebootError.isNotBlank()) {
         AlertDialog(
             onDismissRequest = viewModel::dismissRebootError,
-            title = { ZiyuText("重启失败") },
+            title = { ZiyuText(viewModel.rebootErrorTitle) },
             text = { ZiyuText(viewModel.rebootError) },
             confirmButton = { ZiyuButton(onClick = viewModel::dismissRebootError, modifier = Modifier.fillMaxWidth()) { ZiyuText("知道了") } },
         )
@@ -63,16 +63,20 @@ internal fun CombinationResultDialogs(viewModel: ZiyuViewModel) {
                 modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ZiyuText("字体已应用，需要重启", style = MaterialTheme.typography.titleLarge)
-                ZiyuText("选择重启方式，启动后会核验字体挂载结果。")
+                ZiyuText("选择重启方式", style = MaterialTheme.typography.titleLarge)
+                ZiyuText("重启后会重新加载模块并核验字体挂载结果。")
                 ZiyuButton(
                     onClick = { viewModel.chooseRestartFromOptions("reboot") },
                     modifier = Modifier.fillMaxWidth(),
                 ) { ZiyuText("普通重启") }
                 ZiyuOutlinedButton(
                     onClick = { viewModel.chooseRestartFromOptions("soft") },
+                    enabled = viewModel.restartSoftSupported == true,
                     modifier = Modifier.fillMaxWidth(),
-                ) { ZiyuText("内核软重启") }
+                ) { ZiyuText(if (viewModel.restartSoftSupported == null) "正在检查软重启…" else "内核软重启") }
+                if (viewModel.restartSoftSupported == false) {
+                    ZiyuText("当前暂时无法使用软重启，可选择普通重启。", style = MaterialTheme.typography.bodySmall)
+                }
                 ZiyuTextButton(
                     onClick = viewModel::dismissRestartOptions,
                     modifier = Modifier.fillMaxWidth(),

@@ -11,6 +11,111 @@ if [ -z "$MODDIR" ]; then
     fi
 fi
 export MODDIR
+if [ "${1:-}" = emoji ]; then
+    shift
+    exec sh "$MODDIR/common/emoji_manager.sh" "$@"
+fi
+case "${1:-}" in
+    reboot|reboot_status|reboot_execute)
+        # Reboot requests must not initialize font storage, mount detection or
+        # font engines before returning their acknowledgement to the App.
+        [ "$(id -u 2>/dev/null)" = 0 ] || { printf '{"status":"error","message":"重启需要 Root 权限"}\n'; exit 1; }
+        [ -f "$MODDIR/common/background_task.sh" ] || exit 1
+        . "$MODDIR/common/background_task.sh"
+        _rb_action="$1"
+        _rb_request="${2:-reboot-$$-$(date +%s)}"
+        case "$_rb_request" in ''|*[!A-Za-z0-9_-]*) exit 2 ;; esac
+        [ "${#_rb_request}" -le 80 ] || exit 2
+        _rb_boot=$(ziyu_current_boot_id)
+        [ "$_rb_boot" != unknown ] || exit 1
+        _rb_state="$MODDIR/config/reboot-request.conf"
+        _rb_pid="$MODDIR/config/reboot-request.pid"
+        _rb_task="reboot-$_rb_request"
+        _rb_value() { sed -n "s/^$1=//p" "$_rb_state" 2>/dev/null | head -n1; }
+        _rb_write() {
+            {
+                printf 'requestId=%s\nbootId=%s\nstate=%s\nexitCode=%s\nupdatedAt=%s\n' \
+                    "$_rb_request" "$_rb_boot" "$1" "$2" "$(date +%s)"
+            } > "$_rb_state.tmp.$$" && mv -f "$_rb_state.tmp.$$" "$_rb_state"
+        }
+        case "$_rb_action" in
+            reboot)
+                [ "$#" -le 2 ] || exit 2
+                mkdir -p "$MODDIR/config" "$MODDIR/logs" || exit 1
+                _rb_write preparing 0 || exit 1
+                ZIYU_TASK_USE_SCOPE=0 ziyu_start_detached "$_rb_pid" "$_rb_task" \
+                    "$MODDIR/logs/reboot.log" sh "$MODDIR/common/app_bridge.sh" reboot_execute "$_rb_request" "$_rb_boot"
+                _rb_start=$?
+                case "$_rb_start" in
+                    0|3) ;;
+                    *)
+                        _rb_write failed "$_rb_start"
+                        printf '{"status":"error","message":"重启任务启动失败"}\n'
+                        exit 1
+                        ;;
+                esac
+                _rb_write queued 0 || exit 1
+                printf '{"status":"ok","data":{"requested":true,"requestId":"%s","state":"queued","message":"已提交普通重启请求"}}\n' "$_rb_request"
+                ;;
+            reboot_status)
+                [ "$#" -eq 2 ] && [ -f "$_rb_state" ] || exit 2
+                _rb_saved_request=''
+                _rb_saved_boot=''
+                _rb_phase=''
+                _rb_code=1
+                while IFS='=' read -r _rb_key _rb_field_value; do
+                    case "$_rb_key" in
+                        requestId) _rb_saved_request=$_rb_field_value ;;
+                        bootId) _rb_saved_boot=$_rb_field_value ;;
+                        state) _rb_phase=$_rb_field_value ;;
+                        exitCode) _rb_code=$_rb_field_value ;;
+                    esac
+                done < "$_rb_state"
+                [ "$_rb_saved_request" = "$_rb_request" ] || exit 2
+                case "$_rb_code" in ''|*[!0-9]*) _rb_code=1 ;; esac
+                if [ -n "$_rb_saved_boot" ] && [ "$_rb_saved_boot" != "$_rb_boot" ]; then
+                    _rb_phase=rebooted
+                fi
+                # Worker disappearance during shutdown is not a command result.
+                # Retain its last receipt until boot identity or an exit code
+                # provides evidence; the App bounds how long it waits for that.
+                case "$_rb_phase" in preparing|queued|dispatching|accepted|rebooted|failed) ;; *) exit 1 ;; esac
+                printf '{"status":"ok","data":{"requestId":"%s","state":"%s","exitCode":%s}}\n' "$_rb_request" "$_rb_phase" "$_rb_code"
+                ;;
+            reboot_execute)
+                [ "$#" -eq 3 ] && [ "$3" = "$_rb_boot" ] || exit 2
+                # Give the framed su reply a boundary before Android closes the
+                # App. All worker descriptors belong to the detached task log.
+                for _rb_wait in 1 2 3 4 5 6 7 8 9 10; do
+                    sleep 1
+                    [ "$(_rb_value requestId)" = "$_rb_request" ] &&
+                        [ "$(_rb_value bootId)" = "$_rb_boot" ] || exit 0
+                    _rb_phase=$(_rb_value state)
+                    case "$_rb_phase" in
+                        queued) break ;;
+                        preparing) ;;
+                        *) exit 0 ;;
+                    esac
+                done
+                [ "$_rb_phase" = queued ] || exit 1
+                _rb_write dispatching 0 || exit 1
+                printf '[REBOOT] request=%s boot=%s dispatching\n' "$_rb_request" "$_rb_boot"
+                svc power reboot
+                _rb_code=$?
+                if [ "$_rb_code" -ne 0 ]; then
+                    reboot
+                    _rb_code=$?
+                fi
+                _rb_phase=failed
+                [ "$_rb_code" -ne 0 ] || _rb_phase=accepted
+                _rb_write "$_rb_phase" "$_rb_code"
+                printf '[REBOOT] request=%s state=%s code=%s\n' "$_rb_request" "$_rb_phase" "$_rb_code"
+                exit "$_rb_code"
+                ;;
+        esac
+        exit 0
+        ;;
+esac
 if [ "${1:-}" = app_reads ]; then
     [ "$(id -u 2>/dev/null)" = 0 ] || { printf '{"status":"error","message":"Root 尚未授权"}\n'; exit 1; }
     [ "$#" -le 2 ] || exit 2
@@ -492,10 +597,6 @@ case "${1:-status}" in
     mix_config) mix_ready || exit 1; sh "$MIX_ENGINE" config ;;
     mix_start) mix_ready || exit 1; sh "$MIX_ENGINE" start "${2:-}" "${3:-}" "${4:-}" "${5:-wght=400}" "${6:-wght=400}" "${7:-wght=400}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-0}" "${13:-0}" ;;
     mix_status) mix_ready || exit 1; sh "$MIX_ENGINE" status "${2:-}" ;;
-    reboot)
-        manager_ready || exit 1
-        sh "$FONT_MANAGER" action reboot_device
-        ;;
     logs)
         _lines="${2:-160}"
         case "$_lines" in ''|*[!0-9]*) _lines=160 ;; esac

@@ -45,7 +45,19 @@ _ziyu_root_folk_identity() {
         _lrd_fina_help=$("$_lrd_fina_timeout" 2 "$_lrd_fina_daemon" --help 2>/dev/null) || continue
         # A responding canonical daemon is authoritative; do not probe a
         # second installed family or repeat the same daemon through its link.
-        printf '%s\n' "$_lrd_fina_help" | grep -Fq 'built-in module mounting (Folk Mount)' || return 1
+        if ! printf '%s\n' "$_lrd_fina_help" | grep -Fq 'built-in module mounting (Folk Mount)'; then
+            # Use the daemon's machine-readable contract if help wording
+            # differs. A configured provider is not evidence of a live mount.
+            _lrd_fina_status=$("$_lrd_fina_timeout" 2 "$_lrd_fina_daemon" mount status 2>/dev/null) || return 1
+            [ "${#_lrd_fina_status}" -le 8192 ] || return 1
+            printf '%s\n' "$_lrd_fina_status" | awk '
+                /^schema_version=[12]$/ { schema++ }
+                /^configured_mode=(auto|builtin|metamodule|nomount|off)?$/ { mode++ }
+                /^next_provider=(builtin|metamodule|nomount|none)?$/ { provider++ }
+                /^boot_result=/ { result++ }
+                END { exit !(schema == 1 && mode == 1 && provider == 1 && result == 1) }
+            ' || return 1
+        fi
         ROOT_MANAGER=FinaSU
         ROOT_DETECTION_SOURCE=folk-mount-capability
         return 0
@@ -137,7 +149,11 @@ ziyu_root_manager_detect() {
         ROOT_VERSION_CODE=$(_ziyu_root_value "${MAGISK_VER_CODE:-0}")
         ROOT_DETECTION_SOURCE=env
     elif _ziyu_root_boot_identity; then
-        :
+        # A current-boot record produced by an older module can still carry
+        # a generic KernelSU label. Probe only when a Folk Mount receipt exists.
+        if [ "$ROOT_MANAGER" = KernelSU ] && [ -r "$(_ziyu_root_path /data/adb/ksu/mount_runtime)" ]; then
+            _ziyu_root_folk_identity || :
+        fi
     elif _ziyu_root_su_identity; then
         :
     else

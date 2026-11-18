@@ -36,6 +36,14 @@ fi
 # mounting or projecting the active module in the installer's namespace, and
 # schema metadata in the running installation must remain untouched.
 _lc_real_old_mod="$ZIYU_OLD_MOD"
+# Managers may extract executables as regular 0644 files. Migration and the
+# delegated stock scan already use Python, before the later permission pass.
+if [ -f "$MODPATH/common/python/bin/ziyu-python" ]; then
+    chmod 0755 "$MODPATH/common/python/bin/ziyu-python" || {
+        abort '无法准备字体运行环境'
+        return 1 2>/dev/null || exit 1
+    }
+fi
 _lc_scan_rom=$(MODDIR="$MODPATH" sh "$MODPATH/common/boot_ota_guard.sh" rom-identity "$MODPATH" 2>/dev/null)
 
 # Run the delegated installer by sourcing it so its migration state remains visible
@@ -229,6 +237,23 @@ if [ -d "$MODPATH/common" ] && [ ! -L "$MODPATH/common" ]; then
         [ -d "$MODPATH/data/common" ] && [ ! -e "$MODPATH/common" ] &&
             mv "$MODPATH/data/common" "$MODPATH/common" 2>/dev/null
     fi
+fi
+if [ "$_lc_real_old_mod" != "$MODPATH" ] && [ -f "$_lc_real_old_mod/module.prop" ]; then
+    _lc_update_boot=''
+    IFS= read -r _lc_update_boot < /proc/sys/kernel/random/boot_id || _lc_update_boot=''
+    [ -n "$_lc_update_boot" ] || {
+        abort '无法记录模块更新的启动状态'
+        return 1 2>/dev/null || exit 1
+    }
+    (
+        umask 077
+        printf 'schema=ziyu-module-update-boot-v1\nboot_id=%s\n' "$_lc_update_boot" \
+            > "$MODPATH/config/module-update-boot.conf.tmp.$$" &&
+            mv -f "$MODPATH/config/module-update-boot.conf.tmp.$$" "$MODPATH/config/module-update-boot.conf"
+    ) || {
+        abort '无法保存模块更新的启动状态'
+        return 1 2>/dev/null || exit 1
+    }
 fi
 type ziyu_install_complete >/dev/null 2>&1 && ziyu_install_complete
 return 0 2>/dev/null || exit 0

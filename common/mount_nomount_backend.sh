@@ -163,6 +163,7 @@ ziyu_nomount_provider_reload_cleanup() (
         owned-plan-v2 "$_lnm_module" > "$_lnm_reload_plan.tmp.$$" || return 1
     # Validate every pair before the first delete. Only published module trees
     # on Android partitions are eligible; never unlink unrelated/global rules.
+    _lnm_reload_count=0
     while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
         [ -n "$_lnm_rt" ] || continue
         case "$_lnm_rt" in /system/*|/system_ext/*|/product/*|/vendor/*|/odm/*|/oem/*|/my_*/*|/oplus_*/*|/mi_ext/*|/cust/*|/hw_product/*) ;; *) return 1 ;; esac
@@ -172,8 +173,10 @@ ziyu_nomount_provider_reload_cleanup() (
             *) return 1 ;;
         esac
         case "$_lnm_rscope" in public|private) ;; *) return 1 ;; esac
+        _lnm_reload_count=$((_lnm_reload_count + 1))
     done < "$_lnm_reload_plan.tmp.$$"
     mv -f "$_lnm_reload_plan.tmp.$$" "$_lnm_reload_plan" || return 1
+    _lnm_log "$_lnm_module" "validated provider reload plan rules=$_lnm_reload_count"
     _lnm_reload_bad=0
     while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
         [ -n "$_lnm_rt" ] || continue
@@ -183,6 +186,8 @@ ziyu_nomount_provider_reload_cleanup() (
             exact) ;;
             *) _lnm_reload_bad=1; break ;;
         esac
+        printf '[NoMount] reload deleting target=%s source=%s\n' "$_lnm_rt" "$_lnm_rs" \
+            >> "$_lnm_module/logs/mount-backend.log"
         _lnm_mutate "$_lnm_cli_path" del "$_lnm_rt" >> "$_lnm_module/logs/mount-backend.log" 2>&1 || { _lnm_reload_bad=1; break; }
         _lnm_after=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" target "$_lnm_rt") || { _lnm_reload_bad=1; break; }
         [ "$_lnm_after" = absent ] || { _lnm_reload_bad=1; break; }

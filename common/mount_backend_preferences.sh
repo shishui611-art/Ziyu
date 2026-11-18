@@ -20,8 +20,8 @@ _lmp_value() {
 _lmp_valid() { case "$1" in auto|magic|overlayfs|self_mount|manager|meta|self) return 0 ;; *) return 1 ;; esac; }
 _lmp_normalize() {
     case "${1:-}" in
-        magic|overlayfs|self_mount|manager) printf '%s\n' "$1" ;;
-        auto|meta|self|'') printf 'auto\n' ;;
+        magic|overlayfs|self_mount) printf '%s\n' "$1" ;;
+        auto|manager|meta|self|'') printf 'auto\n' ;;
         *) printf 'auto\n' ;;
     esac
 }
@@ -68,10 +68,14 @@ ziyu_mount_preference_status() {
     _lmp_nomount_usable=false
     _lmp_selected_self=none
     _lmp_pending=true
+    _lmp_adjustment_reason=none
     if [ -n "$_lmp_current_boot" ] && [ "$_lmp_state_boot" = "$_lmp_current_boot" ]; then
-        _lmp_boot_preference=$(_lmp_normalize "$_lmp_boot_preference")
+        # An old live manager decision remains pending until an early hook
+        # replaces it with the provider-aware automatic decision.
+        [ "$_lmp_boot_preference" = manager ] || _lmp_boot_preference=$(_lmp_normalize "$_lmp_boot_preference")
         _lmp_active=$ZIYU_BACKEND_ACTIVE_BACKEND
         _lmp_selected=$ZIYU_BACKEND_SELECTED_BACKEND
+        [ "$ZIYU_BACKEND_FALLBACK_USED" != 1 ] || _lmp_adjustment_reason=$ZIYU_BACKEND_FALLBACK_REASON
         # The early provider scan has not queried the kernel API yet.
         case "$ZIYU_BACKEND_NOMOUNT_KERNEL_USABLE" in 0|1) _lmp_nomount_observed=true ;; esac
         [ "$ZIYU_BACKEND_NOMOUNT_KERNEL_USABLE" = 1 ] && _lmp_nomount_usable=true
@@ -81,8 +85,8 @@ ziyu_mount_preference_status() {
     else
         _lmp_boot_preference=auto
     fi
-    case "$_lmp_active" in self|meta|external) ;; *) _lmp_active=none ;; esac
-    case "$_lmp_selected" in self|meta|external|unresolved|none) ;; *) _lmp_selected=none ;; esac
+    case "$_lmp_active" in self|meta|external|manager) ;; *) _lmp_active=none ;; esac
+    case "$_lmp_selected" in self|meta|external|manager|unresolved|none) ;; *) _lmp_selected=none ;; esac
     _lmp_failure=$ZIYU_BACKEND_PREFERENCE_FAILURE
     _lmp_error=$ZIYU_BACKEND_LAST_ERROR
     _lmp_provider_state=$ZIYU_BACKEND_PROVIDER_STATE
@@ -107,10 +111,10 @@ ziyu_mount_preference_status() {
         self_mount) _lmp_policy=manual-self-mount ;;
         *) _lmp_policy=automatic-provider-first ;;
     esac
-    printf '{"ok":true,"policy":"%s","preferredBackend":"%s","bootPreference":"%s","providerState":"%s","providerId":"%s","providerLayout":"%s","plannedBackend":"%s","activeBackend":"%s","verification":"%s","selectedBackend":"%s","selectedSelfBackend":"%s","bootNomountObserved":%s,"bootNomountKernelUsable":%s,"pending":%s,"rebootRequired":%s,"preferenceFailure":"%s","lastError":"%s","providerName":"%s","providerVersion":"%s","mountMethod":"%s","mountMethodEvidence":"%s","rootManager":"%s","rootVersion":"%s"}\n' \
+    printf '{"ok":true,"policy":"%s","preferredBackend":"%s","bootPreference":"%s","providerState":"%s","providerId":"%s","providerLayout":"%s","plannedBackend":"%s","activeBackend":"%s","verification":"%s","selectedBackend":"%s","selectedSelfBackend":"%s","bootNomountObserved":%s,"bootNomountKernelUsable":%s,"pending":%s,"rebootRequired":%s,"preferenceFailure":"%s","lastError":"%s","providerName":"%s","providerVersion":"%s","mountMethod":"%s","mountMethodEvidence":"%s","rootManager":"%s","rootVersion":"%s","adjustmentReason":"%s"}\n' \
         "$_lmp_policy" "$_lmp_preferred" "$_lmp_boot_preference" "$(_lmp_json_string "$_lmp_provider_state")" "$(_lmp_json_string "$_lmp_provider_id")" "$(_lmp_json_string "$_lmp_provider_layout")" "$(_lmp_json_string "$_lmp_selected")" "$_lmp_active" "$(_lmp_json_string "$_lmp_verification")" "$_lmp_selected" "$_lmp_selected_self" "$_lmp_nomount_observed" "$_lmp_nomount_usable" "$_lmp_pending" "$_lmp_pending" \
         "$(_lmp_json_string "${_lmp_failure:-none}")" "$(_lmp_json_string "${_lmp_error:-none}")" \
-        "$(_lmp_json_string "$MOUNT_PROVIDER_NAME")" "$(_lmp_json_string "$MOUNT_PROVIDER_VERSION")" "$(_lmp_json_string "$MOUNT_METHOD")" "$(_lmp_json_string "$MOUNT_METHOD_EVIDENCE")" "$(_lmp_json_string "$MOUNT_ROOT_MANAGER")" "$(_lmp_json_string "$MOUNT_ROOT_VERSION")"
+        "$(_lmp_json_string "$MOUNT_PROVIDER_NAME")" "$(_lmp_json_string "$MOUNT_PROVIDER_VERSION")" "$(_lmp_json_string "$MOUNT_METHOD")" "$(_lmp_json_string "$MOUNT_METHOD_EVIDENCE")" "$(_lmp_json_string "$MOUNT_ROOT_MANAGER")" "$(_lmp_json_string "$MOUNT_ROOT_VERSION")" "$(_lmp_json_string "$_lmp_adjustment_reason")"
 }
 ziyu_mount_preference_cancel() {
     _lmp_cancel_file="$(_lmp_module)/config/mount-backend.conf"

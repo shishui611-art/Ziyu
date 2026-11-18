@@ -31,15 +31,14 @@ ziyu_install_complete() {
 ziyu_install_choose_mount_backend() {
     # Installation reports the saved choice; only the App changes that choice.
     case "${1:-auto}" in
-        magic|overlayfs|self_mount|manager|auto) ZIYU_INSTALL_BACKEND_PREFERENCE="${1:-auto}" ;;
+        magic|overlayfs|self_mount) ZIYU_INSTALL_BACKEND_PREFERENCE="$1" ;;
         *) ZIYU_INSTALL_BACKEND_PREFERENCE=auto ;;
     esac
     case "$ZIYU_INSTALL_BACKEND_PREFERENCE" in
         magic) _lui_mode='Magic Mount（字域逐文件 bind 挂载）' ;;
         overlayfs) _lui_mode='OverlayFS（仅使用 OverlayFS）' ;;
         self_mount) _lui_mode='字域自挂载（OverlayFS / bind / 目录镜像）' ;;
-        manager) _lui_mode='管理器挂载（由 Root 管理器开机自动挂载）' ;;
-        *) _lui_mode='元模块自动挂载' ;;
+        *) _lui_mode='自动挂载' ;;
     esac
     ui_print "• 已保存挂载选择：$_lui_mode"
     _lui_auto_self_mode=self_mount

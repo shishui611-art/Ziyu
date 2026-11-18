@@ -161,7 +161,14 @@ internal suspend fun loadDeviceTrustState(): DeviceTrustState {
                     ;;
                 not-applicable)
                     mountFailure=
-                    if [ "${'$'}active" = default ]; then
+                    if [ "${'$'}backendError" = no-custom-font-selected ] &&
+                       [ -s "${'$'}CFG/font-payload-next.conf" ] && [ -r "${'$'}MOD/common/font_live_state.sh" ] &&
+                       (unset MODPATH; MODDIR="${'$'}MOD"; . "${'$'}MOD/common/font_live_state.sh" && ziyu_pending_physical "${'$'}MOD"); then
+                        mountState=pending
+                        alignment=pending
+                        mode=backend
+                        reason=next-boot-payload-prepared
+                    elif [ "${'$'}active" = default ]; then
                         mountState=not-applicable
                         alignment=not-applicable
                         mode=system

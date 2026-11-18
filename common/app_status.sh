@@ -79,6 +79,16 @@ mount_engine() {
         _backend_verify=$(read_prop "$_backend_file" verification)
         _backend_error=$(read_prop "$_backend_file" last_error)
         if [ "$_backend_verify" = not-applicable ]; then
+            if [ "${1:-}" = pending-reboot ] && [ "$_backend_error" = no-custom-font-selected ]; then
+                if [ "$(read_prop "$_backend_file" provider_state)" = available ] &&
+                   [ "$(read_prop "$_backend_file" preferred_backend)" = auto ]; then
+                    ziyu_mount_backend_details
+                    printf '%s · 待完整重启' "$MOUNT_PROVIDER_NAME"
+                else
+                    printf '待完整重启'
+                fi
+                return
+            fi
             if [ "$(read_first_line "$MODDIR/config/active_font.conf")" = default ] || \
                [ ! -s "$MODDIR/config/active_font.conf" ]; then
                 printf '系统默认字体，无需挂载'
@@ -88,8 +98,9 @@ mount_engine() {
             return
         fi
         ziyu_mount_backend_details
-        _backend_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD"
+        _backend_label="$MOUNT_PROVIDER_NAME"
         [ "$_backend_selected" != manager ] || _backend_label='管理器挂载'
+        [ "$(read_prop "$_backend_file" preferred_backend)" != auto ] || _backend_label="自动 · $_backend_label"
         if [ "$_backend_verify" = failed ]; then
             case "$_backend_selected" in self) _backend_label='自挂载' ;; esac
             case "$_backend_error" in
@@ -419,9 +430,18 @@ EOF_TASK_SELECTION
         _verification_state=pending; _verification_grade=PENDING
         _verification_reason=next-boot-payload-prepared
         _pending_previous=$(read_prop "$MODDIR/config/font-payload-next.conf" previousFont)
-        if [ -n "$_backend_current" ] && [ "$(read_prop "$_backend_current" verification)" = passed ] &&
-           [ "$(read_prop "$_backend_current" payload_font)" = "$_pending_previous" ] && [ -n "$_pending_previous" ]; then
-            _effective_active="$_pending_previous"
+        if [ -n "$_backend_current" ] && [ -n "$_pending_previous" ] &&
+           [ "$(read_prop "$_backend_current" payload_font)" = "$_pending_previous" ]; then
+            case "$_backend_verification:$_pending_previous" in
+                passed:*|pass:*) _effective_active="$_pending_previous" ;;
+                not-applicable:default)
+                    if [ "$(read_prop "$_backend_current" last_error)" = no-custom-font-selected ]; then
+                        _effective_active=default
+                        _mount_state=pending
+                        _verification_mode=backend
+                    fi
+                    ;;
+            esac
         fi
     elif [ "$_active" = default ]; then
         _effective_active=default
@@ -534,6 +554,7 @@ EOF_ZIYU_BOOT_GUARD_STATUS
             ppid-reset-verified) _soft_reboot_state=verified ;;
             ppid-reset-failed) _soft_reboot_state=failed ;;
             reload-prepared) _soft_reboot_state=pending ;;
+            failed) _soft_reboot_state=cleanup-failed ;;
         esac
     fi
     _slot_total=0; _slot_cjk=0; _slot_digit=0; _slot_rom=''
@@ -580,7 +601,7 @@ EOF_ZIYU_BOOT_GUARD_STATUS
         "$_rollback_target_font" "$_rollback_target_mode" \
         "$_task_type" "$_task_id" "$_task_font" "$_task_state" \
         "$_task_message" "$_task_progress" "$_reboot_required" \
-        "$(root_manager)" "$(mount_engine)" "$MODDIR" \
+        "$(root_manager)" "$(mount_engine "$_font_effect_state")" "$MODDIR" \
         "$_temporary_root" "$_soft_reboot_state" "$_slot_total" "$_slot_cjk" "$_slot_digit" "$_slot_rom"
 }
 

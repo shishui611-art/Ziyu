@@ -473,6 +473,7 @@ def process_font_routes(
 def verify_physical_routes(
     module: Path, root: Path, font_paths: set[str], verified_fonts: set[str],
     failures: list[str], checked_fonts: int, partitions: tuple[str, ...] | None = None,
+    require_cjk: bool = True,
 ) -> dict[str, Any]:
     """Close stock XML -> existing physical slot -> verified PID 1 artifact."""
     roles: dict[str, set[str]] = {"cjk": set(), "latin": set(), "digit": set()}
@@ -625,7 +626,7 @@ def verify_physical_routes(
             roles[role].add(Path(rel).name)
     if not checked_xml:
         failures.append("no-pid1-stock-font-xml-verified")
-    if not roles["cjk"]:
+    if require_cjk and not roles["cjk"]:
         failures.append("cjk-route-not-proven")
     if checked_fonts == 0:
         failures.append("no-pid1-font-artifact-verified")
@@ -768,7 +769,20 @@ def verify_legacy(module: Path, root: Path, mountinfo: Path, require_mounts: boo
     if physical:
         if xml_paths:
             failures.append("physical-safe-payload-must-not-rewrite-xml")
-        result = verify_physical_routes(module, root, font_paths, verified_fonts, failures, checked_fonts, partitions)
+        from emoji_manager import marker
+        try:
+            emoji = marker(payload)
+            emoji_paths = set(emoji['targets'])
+            if any(expected.get(rel) != emoji['id'] for rel in emoji_paths):
+                failures.append('source-emoji-manifest-mismatch')
+        except (OSError, ValueError) as error:
+            emoji = {'id': 'unknown'}
+            emoji_paths = set()
+            failures.append(f'source-emoji-record-invalid:{error}')
+        result = verify_physical_routes(module, root, font_paths, verified_fonts, failures, checked_fonts, partitions,
+                                        require_cjk=bool(font_paths.difference(emoji_paths)))
+        result['emojiRoutes'] = sorted(emoji_paths.intersection(result.get('appliedFonts', [])))
+        result['emojiId'] = emoji['id']
         result["sourceOnlyArtifacts"] = sorted(source_only)
         return result
 

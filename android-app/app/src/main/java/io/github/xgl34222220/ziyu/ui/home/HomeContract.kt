@@ -28,6 +28,7 @@ data class HomeUiState(
     val mountBackendRebootPrompt: String? = null,
     val mountPreferenceSaving: Boolean = false,
     val mountPreferenceLoaded: Boolean = false,
+    val mountPreferencePending: Boolean = false,
     val undoAvailable: Boolean = false,
     val currentFontId: String = "default",
     val currentFontRevision: String = "",
@@ -94,6 +95,7 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
             rollbackPending || fontEffectState == "rollback-pending" -> "正在等待安全回退"
             effectFailed -> "字体未生效"
             mountState == "failed" -> "挂载验证未通过"
+            fontEffectState == "pending-reboot" -> "重启后生效"
             mountState == "skipped" -> "当前自定义字体未挂载"
             installed && rootGranted -> "字体引擎已就绪"
             installed -> "模块已连接"

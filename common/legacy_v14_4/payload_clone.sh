@@ -26,7 +26,7 @@ ziyu_clone_payload_metadata() {
         [ -e "$_lcpm_entry" ] || [ -L "$_lcpm_entry" ] || continue
         _lcpm_name=${_lcpm_entry##*/}
         case "$_lcpm_name" in
-            .ziyu-metrics-report.json) continue ;;
+            .ziyu-metrics-report.json|.ziyu-emoji.json|.ziyu-emoji-request.json) continue ;;
             system|system_ext|product|vendor|odm|oem|my_product|my_engineering|\
             my_company|my_preload|my_region|my_stock|oplus_product|\
             oplus_engineering|oplus_version|oplus_region|mi_ext|cust|hw_product)

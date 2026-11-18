@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 from pathlib import Path
 import tempfile
 import time
@@ -250,17 +251,31 @@ def ensure_expansion(module: Path, logicals, *, allow_partial=False) -> dict:
     if not missing:
         return {'state': 'reused', 'count': len(requested)}
     view = StockReadonlyView()
+    preparation_warnings = []
     try:
         roots = []
         # Include other font partitions to resolve stock cross-partition links
         # inside the same independent ROM view, never back through live paths.
         for partition, logical in inventory.LOGICAL_FONT_ROOTS:
-            actual = view.pick(logical)
+            try:
+                actual = view.pick(logical)
+            except (OSError, subprocess.SubprocessError) as error:
+                if not allow_partial:
+                    raise
+                preparation_warnings.append(f'{partition}: {error}')
+                continue
             if actual is not None:
                 roots.append(inventory.FontRoot(partition, logical, actual))
         result = capture(module, requested_paths=requested, views=[roots])
+    except (OSError, subprocess.SubprocessError) as error:
+        if not allow_partial:
+            raise
+        result = {'state': 'partial', 'preparationWarning': str(error)}
     finally:
+        # A failed cleanup is an unsafe transaction and must still propagate.
         view.close()
+    if preparation_warnings:
+        result = {**result, 'preparationWarnings': preparation_warnings}
     unavailable = [name for name in requested if resolve(name, module) is None]
     if unavailable:
         if not allow_partial:

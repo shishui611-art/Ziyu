@@ -5,6 +5,7 @@
 # renamed, deleted or rewritten while Android is still rendering from it.
 set +e
 . "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/emoji_payload.sh"
 
 ziyu_next_boot_module() {
     printf '%s\n' "${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}"
@@ -32,7 +33,11 @@ ziyu_next_boot_write_mode() {
     _lnbwm_target_mode="${3:-legacy}"
     _lnbwm_mode="$_lnbwm_module/config/font_runtime_legacy_v14_4.conf"
     _lnbwm_schema="$_lnbwm_module/config/font-payload-schema.conf"
-    if [ "$_lnbwm_font" = default ] || [ "$_lnbwm_target_mode" = default ] || [ "$_lnbwm_target_mode" = classic ]; then
+    _lnbwm_emoji=false
+    if ziyu_payload_has_emoji "$_lnbwm_module/.ziyu-payload"; then
+        _lnbwm_emoji=true
+    fi
+    if [ "$_lnbwm_emoji" != true ] && { [ "$_lnbwm_font" = default ] || [ "$_lnbwm_target_mode" = default ] || [ "$_lnbwm_target_mode" = classic ]; }; then
         rm -f "$_lnbwm_mode" "$_lnbwm_schema" 2>/dev/null || true
         return 0
     fi
@@ -63,7 +68,8 @@ ziyu_next_boot_restore_selection() {
     [ -n "$_lnbrs_previous" ] || _lnbrs_previous=default
     printf '%s\n' "$_lnbrs_previous" > "$_lnbrs_module/config/active_font.conf" 2>/dev/null || true
     chmod 0644 "$_lnbrs_module/config/active_font.conf" 2>/dev/null || true
-    if [ "$_lnbrs_previous_legacy" = true ] && [ "$_lnbrs_previous" != default ]; then
+    if { [ "$_lnbrs_previous_legacy" = true ] && [ "$_lnbrs_previous" != default ]; } || \
+       ziyu_payload_has_emoji "$_lnbrs_module/.ziyu-payload"; then
         ziyu_next_boot_write_mode "$_lnbrs_module" "$_lnbrs_previous" >/dev/null 2>&1 || true
     else
         rm -f "$_lnbrs_module/config/font_runtime_legacy_v14_4.conf" 2>/dev/null || true

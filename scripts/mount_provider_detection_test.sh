@@ -29,6 +29,12 @@ ziyu_mount_provider_detect "$ROOT"
 assert_eq "$PROVIDER_STATE" available
 assert_eq "$PROVIDER_ID" magisk-magic-mount
 
+META_ENGINE=nomount META_INSTALLED=1 META_ENABLED=1 META_ACTIVE_DIR=/tmp/active-nomount META_READY=1
+ziyu_mount_provider_detect "$ROOT"
+assert_eq "$PROVIDER_STATE" available
+assert_eq "$PROVIDER_ID" nomount
+META_ENGINE=none META_INSTALLED=0 META_ENABLED=0 META_ACTIVE_DIR= META_READY=0
+
 ROOT_MANAGER=APatch
 ziyu_mount_provider_detect "$ROOT"
 assert_eq "$PROVIDER_STATE" available

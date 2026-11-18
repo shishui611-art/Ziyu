@@ -125,7 +125,8 @@ fi
     _verify_mode=compatibility
     _verify_reason=awaiting-mount-confirmation
     _shared_verifier=false
-    if [ "$_active" = default ]; then
+    . "$MODDIR/common/emoji_payload.sh"
+    if [ "$_active" = default ] && ! ziyu_payload_has_emoji "$MODDIR/.ziyu-payload"; then
         _verify_state=not-applicable
         _verify_mode=system
         _verify_reason=default-font

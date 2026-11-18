@@ -300,14 +300,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          NOTES_FILE: ${{ needs.prepare.outputs.notes_file }}
         run: |
           set -euo pipefail
           PREVIOUS_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)"
-          PREVIOUS_VERSION=""
-          if [[ -n "$PREVIOUS_TAG" ]]; then
-            PREVIOUS_VERSION="$(git show "$PREVIOUS_TAG:module.prop" 2>/dev/null | sed -n 's/^version=//p' | head -n1 || true)"
-          fi
-          export PREVIOUS_TAG PREVIOUS_VERSION
+          export PREVIOUS_TAG
           python3 scripts/release_notes_since.py > "$RUNNER_TEMP/ziyu-release-notes.md"
 
       - name: Build App and single module package
@@ -395,7 +392,7 @@ jobs:
           fi
           latest=(--latest)
           if [[ "${#prerelease[@]}" -gt 0 ]]; then latest=(--latest=false); fi
-          gh release create "$TAG" "$module" "$module_sha" "dist/Ziyu-App-${ARTIFACT_VERSION}.apk" "dist/Ziyu-App-${ARTIFACT_VERSION}.apk.sha256" \
+          gh release create "$TAG" "$module" "$module_sha" \
             "${tag_mode[@]}" \
             --title "$RELEASE_TITLE" \
             --notes-file "$NOTES_FILE" \

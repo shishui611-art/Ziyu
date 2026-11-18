@@ -164,6 +164,12 @@ mount_engine() {
         _hme_selected=$(read_value "$_hme_state" selected_backend)
         _hme_verify=$(read_value "$_hme_state" verification)
         if [ "$_hme_verify" = not-applicable ]; then
+            if [ "$(read_value "$_hme_state" last_error)" = no-custom-font-selected ] &&
+               [ -s "$MOD/config/font-payload-next.conf" ] && [ -r "$MOD/common/font_live_state.sh" ] &&
+               (unset MODPATH; MODDIR="$MOD"; . "$MOD/common/font_live_state.sh" && ziyu_pending_physical "$MOD"); then
+                printf '待完整重启\n'
+                return
+            fi
             if [ "$(head -n1 "$MOD/config/active_font.conf" 2>/dev/null | tr -d '\r\n')" = default ] || \
                [ ! -s "$MOD/config/active_font.conf" ]; then
                 printf '系统默认字体，无需挂载\n'
@@ -174,13 +180,16 @@ mount_engine() {
         fi
         case "${_hme_active:-none}" in
             self) _hme_label='字域自挂载' ;;
-            meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" ziyu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD" ;;
+            manager) _hme_label='管理器挂载' ;;
+            meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" ziyu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME" ;;
             *) case "$_hme_selected" in
                 self) _hme_label='字域自挂载' ;;
-                meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" ziyu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME · $MOUNT_METHOD" ;;
-                *) _hme_label='挂载后端' ;;
+                manager) _hme_label='管理器挂载' ;;
+                meta|external) . "$MOD/common/mount_backend_details.sh"; MODDIR="$MOD" ziyu_mount_backend_details; _hme_label="$MOUNT_PROVIDER_NAME" ;;
+                *) _hme_label='挂载方式待确认' ;;
             esac ;;
         esac
+        [ "$(read_value "$_hme_state" preferred_backend)" != auto ] || _hme_label="自动 · $_hme_label"
         case "$_hme_verify" in
             partial) printf '%s · 部分应用（有警告）\n' "$_hme_label" ;;
             failed) printf '%s失败\n' "$_hme_label" ;;
@@ -189,7 +198,7 @@ mount_engine() {
         esac
         return
     fi
-    [ ! -f "$MOD/config/mount-backend.conf" ] || { printf '本次启动尚未确认挂载后端\n'; return; }
+    [ ! -f "$MOD/config/mount-backend.conf" ] || { printf '本次启动尚未确认挂载方式\n'; return; }
     if [ -f "$MOD/common/mount_compat.sh" ]; then
         MODULE_DIR="$MOD"
         . "$MOD/common/mount_compat.sh" >/dev/null 2>&1 || true
@@ -237,18 +246,21 @@ report() {
     _r_self_backend=$(read_value "$MOD/config/self-mount.conf" backend)
     _r_backend_state=$(type ziyu_current_boot_backend_state >/dev/null 2>&1 && MODDIR="$MOD" ziyu_current_boot_backend_state)
     if [ -n "$_r_backend_state" ]; then
+        _r_backend_selected=$(read_value "$_r_backend_state" selected_backend)
+        _r_backend_active=$(read_value "$_r_backend_state" active_backend)
+        [ "$_r_backend_active" = self ] || _r_self_backend=none
         case "$(read_value "$_r_backend_state" verification)" in
             partial)
                 _r_alignment=partial; _r_alignment_mode=mount-partial
-                case "$(read_value "$_r_backend_state" active_backend)" in self) _r_self_state=partial ;; *) _r_self_state=not-active ;; esac
+                case "$_r_backend_active" in self) _r_self_state=partial ;; *) _r_self_state=not-active ;; esac
                 ;;
             failed)
                 _r_alignment=failed; _r_alignment_mode=backend-failed
-                case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=failed ;; *) _r_self_state=not-active ;; esac
+                case "$_r_backend_selected" in self) _r_self_state=failed ;; *) _r_self_state=not-active ;; esac
                 ;;
             pending)
                 _r_alignment=pending; _r_alignment_mode=backend-pending
-                case "$(read_value "$_r_backend_state" selected_backend)" in self) _r_self_state=pending ;; *) _r_self_state=not-active ;; esac
+                case "$_r_backend_selected" in self) _r_self_state=pending ;; *) _r_self_state=not-active ;; esac
                 ;;
             passed|pass)
                 _r_current_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\r\n')
@@ -262,9 +274,9 @@ report() {
                 else
                     _r_alignment=pending; _r_alignment_mode=backend-awaiting-pid1-route-verification
                 fi
-                case "$(read_value "$_r_backend_state" active_backend)" in
+                case "$_r_backend_active" in
                     self) _r_self_state=mounted; _r_self_backend=self ;;
-                    meta|external) _r_self_state=not-active; _r_self_backend=none ;;
+                    meta|external|manager) _r_self_state=not-active; _r_self_backend=none ;;
                 esac ;;
             not-applicable)
                 if [ "$_r_active" = default ]; then
@@ -276,7 +288,7 @@ report() {
                 ;;
         esac
     elif [ -f "$MOD/config/mount-backend.conf" ]; then
-        _r_alignment=pending; _r_alignment_mode=backend-current-boot-unconfirmed; _r_self_state=pending
+        _r_alignment=pending; _r_alignment_mode=backend-current-boot-unconfirmed; _r_self_state=pending; _r_self_backend=none
     fi
 
     printf 'healthVersion=1\n'

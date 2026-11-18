@@ -8,6 +8,7 @@ mkdir -p "$MODDIR/logs" || exit 1
 # cleanup hook now, after Android stopped and before any payload activation.
 _sr_stage="$MODDIR/config/temporary-root-soft-reboot.conf"
 _sr_boot=''; _sr_saved=''; _sr_state=''
+_sr_resume=0
 IFS= read -r _sr_boot < /proc/sys/kernel/random/boot_id
 if [ -s "$_sr_stage" ]; then
     while IFS='=' read -r _sr_key _sr_value; do
@@ -16,11 +17,34 @@ if [ -s "$_sr_stage" ]; then
     if [ "$_sr_saved" = "$_sr_boot" ]; then
         case "$_sr_state" in
             cleanup-pending|nomount-cleanup-pending|failed)
-                MODDIR="$MODDIR" ZIYU_KSU_POST_STOP_RELOAD=1 \
-                    sh "$MODDIR/emulated-soft-reboot.sh" >> "$MODDIR/logs/soft-reboot.log" 2>&1 || exit 1
+                _sr_resume=1
                 ;;
         esac
     fi
+fi
+# KernelSU may replace an updated module after its pre-stop hook. The new
+# directory then lacks the old hook's volatile receipt, while NoMount's kernel
+# rules still reference the replaced paths. Installation and the last backend
+# receipt prove a same-kernel reload, including upgrades from older releases.
+if [ "$_sr_resume" = 0 ] && [ -n "$_sr_boot" ]; then
+    for _sr_origin in "$MODDIR/config/module-update-boot.conf" "$MODDIR/config/mount-backend.conf"; do
+        [ -f "$_sr_origin" ] && [ ! -L "$_sr_origin" ] || continue
+        _sr_origin_boot=''
+        while IFS='=' read -r _sr_key _sr_value; do
+            [ "$_sr_key" != boot_id ] || _sr_origin_boot=$_sr_value
+        done < "$_sr_origin"
+        if [ "$_sr_origin_boot" = "$_sr_boot" ] && \
+           [ "$(getprop sys.boot_completed 2>/dev/null)" = 0 ]; then
+            _sr_resume=1
+            printf '[SOFT-REBOOT] recovering post-stop cleanup after module replacement\n' \
+                >> "$MODDIR/logs/soft-reboot.log"
+            break
+        fi
+    done
+fi
+if [ "$_sr_resume" = 1 ]; then
+    MODDIR="$MODDIR" ZIYU_KSU_POST_STOP_RELOAD=1 \
+        sh "$MODDIR/emulated-soft-reboot.sh" >> "$MODDIR/logs/soft-reboot.log" 2>&1 || exit 1
 fi
 # 开机阶段进程计数与耗时诊断：只读 /proc 并使用内建运算，不额外派生进程。
 if [ -f "$MODDIR/common/boot_profile.sh" ]; then
@@ -57,7 +81,10 @@ done
 # 恢复默认后若还有残留发布字体树（任何挂载后端），开机先强制清理回原厂。
 _pf_active=''
 IFS= read -r _pf_active < "$MODDIR/config/active_font.conf" 2>/dev/null || _pf_active=''
-if [ -z "$_pf_active" ] || [ "$_pf_active" = default ]; then
+. "$MODDIR/common/emoji_payload.sh"
+if { [ -z "$_pf_active" ] || [ "$_pf_active" = default ]; } && \
+   ! ziyu_payload_has_emoji "$MODDIR/.ziyu-payload" && \
+   ! ziyu_payload_has_emoji "$MODDIR/.ziyu-payload-next"; then
     if [ -d "$MODDIR/system/fonts" ] || [ -d "$MODDIR/product/fonts" ] || [ -d "$MODDIR/system_ext/fonts" ]; then
         if [ -f "$MODDIR/common/restore_stock_factory.sh" ]; then
             MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \

@@ -1,37 +1,31 @@
 package io.github.xgl34222220.ziyu.ui.library
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import io.github.xgl34222220.ziyu.ui.theme.ZiyuMotionTokens
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import android.content.Context
-import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog
-import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
-import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedTextField
-import io.github.xgl34222220.ziyu.ui.design.ZiyuText
-import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.xgl34222220.ziyu.FontItem
 import io.github.xgl34222220.ziyu.ui.appearance.UiStyle
+import io.github.xgl34222220.ziyu.ui.design.ZiyuAlertDialog
+import io.github.xgl34222220.ziyu.ui.design.ZiyuButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuOutlinedButton
+import io.github.xgl34222220.ziyu.ui.design.ZiyuText
+import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
 
 @Composable
 internal fun FontLibraryRoute(
@@ -40,37 +34,32 @@ internal fun FontLibraryRoute(
     actions: FontLibraryActions,
     topActions: @Composable () -> Unit = {},
 ) {
-    val context = LocalContext.current
-    val previewPreferences = remember(context.applicationContext) {
-        context.applicationContext.getSharedPreferences("font-preview-v1", Context.MODE_PRIVATE)
-    }
-    var customPreviewText by rememberSaveable { mutableStateOf(previewPreferences.getString("text", "").orEmpty()) }
-    var showPreviewEditor by rememberSaveable { mutableStateOf(false) }
-    var draftPreviewText by rememberSaveable { mutableStateOf("") }
-    val collectionStore = remember(context.applicationContext) {
-        FontLibraryCollectionStore(context.applicationContext)
-    }
+    val context = LocalContext.current.applicationContext
+    val previewPreferences = remember(context) { context.getSharedPreferences("font-preview-v1", Context.MODE_PRIVATE) }
+    var customPreviewText by remember { mutableStateOf(previewPreferences.getString("text", "").orEmpty()) }
+    val collectionStore = remember(context) { FontLibraryCollectionStore(context) }
     var collections by remember { mutableStateOf(collectionStore.load()) }
     var filter by rememberSaveable { mutableStateOf(FontLibraryFilter.ALL) }
     var sort by rememberSaveable { mutableStateOf(FontLibrarySort.ACTIVE_FIRST) }
     var detailFont by remember { mutableStateOf<FontItem?>(null) }
     var previewFont by remember { mutableStateOf<FontItem?>(null) }
-    var showManagement by rememberSaveable { mutableStateOf(false) }
-    val latestActions by rememberUpdatedState(actions)
-    val conflicts = remember(state.fonts) { analyzeFontLibraryConflicts(state.fonts) }
-    val issueIds = remember(conflicts) { conflicts.issueIds }
-    val displayFonts = remember(state.fonts, state.activeFontId, filter, sort, collections.favoriteIds, issueIds) {
-        state.forDisplay(
-            selectedFilter = filter,
-            selectedSort = sort,
-            favoriteIds = collections.favoriteIds,
-            issueIds = issueIds,
-        ).fonts
+    var actionFont by remember { mutableStateOf<FontItem?>(null) }
+    val conflicts = remember(state.allFonts) { analyzeFontLibraryConflicts(state.allFonts) }
+    val displayFonts = remember(state.fonts, state.activeFontId, filter, sort, collections.favoriteIds, conflicts) {
+        state.forDisplay(filter, sort, collections.favoriteIds, conflicts.issueIds).fonts
     }
-    val displayState = state.copy(fonts = displayFonts, visibleCount = displayFonts.size, filter = filter, sort = sort, previewText = customPreviewText)
-    LaunchedEffect(state.allFonts, state.loading, state.pendingDeletionIds) {
-        if (!state.loading) {
-            // Pending cards are hidden, but failure must preserve their metadata.
+    val displayState = state.copy(
+        fonts = displayFonts, visibleCount = displayFonts.size,
+        filter = filter, sort = sort, previewText = customPreviewText,
+    )
+    LaunchedEffect(state.allFonts, state.loading, state.pendingDeletionIds, state.pageActive, state.indexReady) {
+        if (!state.pageActive) {
+            actionFont = null
+            return@LaunchedEffect
+        }
+        customPreviewText = previewPreferences.getString("text", "").orEmpty()
+        collections = collectionStore.load()
+        if (!state.loading && state.indexReady) {
             val existing = state.allFonts.map { it.id }.toSet() + state.pendingDeletionIds
             val cleaned = FontLibraryCollections(
                 favoriteIds = collections.favoriteIds.intersect(existing),
@@ -81,113 +70,57 @@ internal fun FontLibraryRoute(
                 collectionStore.save(cleaned)
             }
         }
+        if (detailFont?.id in state.pendingDeletionIds) detailFont = null
+        if (previewFont?.id in state.pendingDeletionIds) previewFont = null
+        if (actionFont?.id in state.pendingDeletionIds) actionFont = null
     }
-    val displayActions = remember {
-        FontLibraryActions(
-            refresh = { latestActions.refresh() },
-            setQuery = { latestActions.setQuery(it) },
-            apply = { latestActions.apply(it) },
-            preview = { previewFont = it },
-            delete = { latestActions.delete(it) },
-            deleteMany = { latestActions.deleteMany(it) },
-            restoreDefault = { latestActions.restoreDefault() },
-            importSystemFonts = { latestActions.importSystemFonts() },
-            details = { detailFont = it },
-            setFilter = { filter = it },
-            setSort = { sort = it },
-            editPreviewText = { draftPreviewText = customPreviewText; showPreviewEditor = true },
-        )
-    }
-
-    fun persistCollections(next: FontLibraryCollections) {
-        collections = next
-        collectionStore.save(next)
-    }
-
-    val managementTools: @Composable () -> Unit = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            StaggeredManagementItem(index = 0) {
-                topActions()
-            }
-            StaggeredManagementItem(index = 1) {
-                FontLibraryUtilitiesBar(
-                    style = style,
-                    fonts = state.allFonts,
-                    collections = collections,
-                    enabled = !state.loading && !state.operationBusy,
-                    onCollectionsChange = ::persistCollections,
-                )
-            }
-            StaggeredManagementItem(index = 2) {
-                FontArchiveExportTool(
-                    style = style,
-                    fonts = state.allFonts,
-                    collections = collections,
-                    enabled = !state.loading && !state.operationBusy,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            StaggeredManagementItem(index = 3) {
-                FontLibraryManagementButton(
-                    style = style,
-                    favoriteCount = collections.favoriteIds.size,
-                    issueCount = conflicts.issueIds.size,
-                    loading = state.loading,
-                    onClick = { showManagement = true },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
-
-    val childLayerActive = showManagement || detailFont != null || previewFont != null || showPreviewEditor
-    val pageScale by animateFloatAsState(
-        targetValue = if (style == UiStyle.MIUIX && childLayerActive) .96f else 1f,
-        animationSpec = tween(ZiyuMotionTokens.Emphasized, easing = FastOutSlowInEasing),
-        label = "fontLibraryDepthScale",
+    val displayActions = actions.copy(
+        preview = { previewFont = it },
+        details = { detailFont = it },
+        openMenu = { actionFont = it },
+        setFilter = { filter = it },
+        setSort = { sort = it },
     )
-    Box(
-        modifier = Modifier.graphicsLayer {
-            scaleX = pageScale
-            scaleY = pageScale
-        },
-    ) {
-        when (style) {
-            UiStyle.MATERIAL -> FontLibraryScreenMaterial(displayState, displayActions, managementTools)
-            UiStyle.MIUIX -> FontLibraryScreenMiuix(displayState, displayActions, managementTools)
-            UiStyle.COUI -> FontLibraryScreenCoui(displayState, displayActions, managementTools)
-        }
+    when (style) {
+        UiStyle.MATERIAL -> FontLibraryScreenMaterial(displayState, displayActions, topActions)
+        UiStyle.MIUIX -> FontLibraryScreenMiuix(displayState, displayActions, topActions)
+        UiStyle.COUI -> FontLibraryScreenCoui(displayState, displayActions, topActions)
     }
-
-    if (showManagement) {
-        FontLibraryManagementDialog(
-            style = style,
-            fonts = state.allFonts,
-            activeFontId = state.activeFontId,
-            activeFontPending = state.activeFontPending,
-            operationBusy = state.operationBusy,
-            collections = collections,
-            conflicts = conflicts,
-            onCollectionsChange = { visibleNext ->
-                val visibleIds = state.allFonts.map { it.id }.toSet()
-                val merged = FontLibraryCollections(
-                    favoriteIds = (collections.favoriteIds - visibleIds) + visibleNext.favoriteIds,
-                    tags = collections.tags.filterKeys { it !in visibleIds } + visibleNext.tags,
-                )
-                persistCollections(merged)
+    actionFont?.takeIf { state.pageActive }?.let { font ->
+        val pendingActive = state.activeFontId == font.id && state.activeFontPending
+        ZiyuAlertDialog(
+            onDismissRequest = { actionFont = null },
+            title = { ZiyuText(font.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ZiyuButton(
+                        onClick = { actionFont = null; actions.apply(font) },
+                        enabled = font.valid && !state.operationBusy,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { ZiyuText("应用") }
+                    ZiyuOutlinedButton(
+                        onClick = { actionFont = null; actions.delete(font) },
+                        enabled = (!state.operationBusy || state.deletionInProgress) && !pendingActive,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { ZiyuText("删除", color = MaterialTheme.colorScheme.error) }
+                    ZiyuOutlinedButton(
+                        onClick = { actionFont = null; previewFont = font },
+                        enabled = font.valid,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { ZiyuText("字库预览") }
+                    ZiyuOutlinedButton(
+                        onClick = { actionFont = null; detailFont = font },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { ZiyuText("字体详情") }
+                    if (pendingActive) ZiyuText("当前字体等待重启，完成后可删除。")
+                }
             },
-            onDeleteFonts = { ids ->
-                showManagement = false
-                latestActions.deleteMany(ids)
-            },
-            onOpenDetails = { font ->
-                showManagement = false
-                detailFont = font
-            },
-            onDismiss = { showManagement = false },
+            confirmButton = { ZiyuTextButton(onClick = { actionFont = null }) { ZiyuText("取消") } },
         )
     }
-
     detailFont?.let { font ->
         FontDetailsDialogRoute(
             style = style,
@@ -198,67 +131,11 @@ internal fun FontLibraryRoute(
             customPreviewText = customPreviewText,
             onGlyphPreview = { detailFont = null; previewFont = font },
             onDismiss = { detailFont = null },
-            onApply = {
-                detailFont = null
-                latestActions.apply(font)
-            },
+            onApply = { detailFont = null; actions.apply(font) },
+            onDelete = { detailFont = null; actions.delete(font) },
         )
     }
-
     previewFont?.let { font ->
         FontGlyphPreviewSheet(font = font, onDismiss = { previewFont = null })
-    }
-
-    if (showPreviewEditor) {
-        val count = draftPreviewText.codePointCount(0, draftPreviewText.length)
-        ZiyuAlertDialog(
-            onDismissRequest = { showPreviewEditor = false },
-            title = { ZiyuText("自定义预览文字") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ZiyuText("修改卡片上的样例，最多 200 个字符。")
-                    ZiyuOutlinedTextField(
-                        value = draftPreviewText,
-                        onValueChange = { draftPreviewText = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        maxLines = 5,
-                        isError = count > 200,
-                        supportingText = { ZiyuText("$count / 200") },
-                    )
-                    ZiyuTextButton(onClick = { draftPreviewText = "" }) { ZiyuText("恢复默认") }
-                }
-            },
-            dismissButton = { ZiyuTextButton(onClick = { showPreviewEditor = false }) { ZiyuText("取消") } },
-            confirmButton = {
-                ZiyuButton(onClick = {
-                    customPreviewText = draftPreviewText.takeUnless { it.isBlank() }.orEmpty()
-                    previewPreferences.edit().putString("text", customPreviewText).apply()
-                    showPreviewEditor = false
-                }, enabled = count <= 200) { ZiyuText("保存") }
-            },
-        )
-    }
-}
-
-
-@Composable
-private fun StaggeredManagementItem(
-    index: Int,
-    content: @Composable () -> Unit,
-) {
-    val visible = remember(index) {
-        MutableTransitionState(false).apply { targetState = true }
-    }
-    val delay = index.coerceAtLeast(0) * 30
-    AnimatedVisibility(
-        visibleState = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = delay)) +
-            slideInVertically(
-                animationSpec = tween(durationMillis = 220, delayMillis = delay),
-                initialOffsetY = { it / 5 },
-            ),
-    ) {
-        content()
     }
 }

@@ -15,6 +15,10 @@ if [ -z "$MODDIR" ]; then
         MODDIR="/data/adb/modules/ziyu"
     fi
 fi
+if [ "${1:-}:${2:-}" = action:reboot_device ]; then
+    export MODDIR
+    exec sh "$MODDIR/common/app_bridge.sh" reboot
+fi
 [ ! -f "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh" ] || {
     . "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}/common/user_storage.sh"
     ziyu_user_storage_environment "${MODDIR:-${MODULE_DIR:-/data/adb/modules/ziyu}}"

@@ -12,8 +12,8 @@ APP_APK="${ZIYU_APP_APK:-}"
 ALLOW_DEBUG_APP="${ZIYU_ALLOW_DEBUG_APP:-0}"
 EXPECTED_VERSION_CODE="$ZIYU_APP_VERSION_CODE"
 # The bundled HarfBuzz executable needs additional space. Keep both builders
-# within the same 13 MiB budget; preserve all dependencies and signature checks.
-MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-13631488}"
+# within the same 14 MiB budget; preserve all dependencies and signature checks.
+MAX_ZIP_BYTES="${ZIYU_MAX_ZIP_BYTES:-14680064}"
 
 python3 "$ROOT/scripts/build_font_instance.py" --verify
 python3 "$ROOT/scripts/build_pid_wrap.py" --verify
@@ -110,6 +110,8 @@ rm -f "$STAGE/config/webui_font_list.json" "$STAGE/config/webui_font_list.key" \
   "$STAGE/config/emoji_task.conf" "$STAGE/config/emoji_reboot_required.conf" \
   "$STAGE/config/font_weight_reboot_required.conf" "$STAGE/config/mount_compat.conf" \
   "$STAGE/config/app_install_pending" "$STAGE/config/app_install_state.conf"
+rm -rf "$STAGE/config/emoji-library"
+rm -f "$STAGE/config/emoji-selection.json" "$STAGE/config/module-update-boot.conf"
 rm -f "$STAGE/system/fonts/NotoColorEmoji.ttf" "$STAGE/system/fonts/NotoColorEmojiLegacy.ttf"
 rm -f "$STAGE/common/stability.sh" "$STAGE/common/fonts_xml_template.sh" \
   "$STAGE/common/play_font_bridge.sh" "$STAGE/common/wechat_xweb_bridge.sh"

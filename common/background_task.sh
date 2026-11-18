@@ -127,7 +127,9 @@ ziyu_start_detached() {
     ziyu_clear_task_pid "$_lsd_pid_file"
 
     _lsd_scope="${MODDIR:-}/common/task_scope.sh"
-    if [ -f "$_lsd_scope" ]; then
+    # Power-control requests must survive independently of the font/Python
+    # runtime. Font tasks retain the supervisor by default.
+    if [ "${ZIYU_TASK_USE_SCOPE:-1}" != 0 ] && [ -f "$_lsd_scope" ]; then
         [ -x "$MODDIR/common/python/bin/ziyu-python" ] || return 1
         _lsd_timeout="${ZIYU_TASK_TIMEOUT_SECONDS:-900}"
         case "$_lsd_timeout" in ''|*[!0-9]*) _lsd_timeout=900 ;; esac

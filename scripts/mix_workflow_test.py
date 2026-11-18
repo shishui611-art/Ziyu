@@ -71,6 +71,8 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
 
     def test_cache_import_works_through_the_packaged_runtime_symlink(self):
         import fontTools
+        router = (ROOT / "common/legacy_v14_4/mix_router.sh").read_text(encoding="utf-8")
+        self.assertIn('force_link "$REALMOD/common/ziyu_limits.py" "$RUNTIME/common/ziyu_limits.py" || return 1', router)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             common = root / "module/common"
@@ -80,7 +82,7 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
             runtime.mkdir(parents=True)
             shutil.copyfile(ROOT / "common/legacy_v14_4/font_instance.py", legacy / "font_instance.py")
             shutil.copyfile(ROOT / "common/font_prepare_cache.py", common / "font_prepare_cache.py")
-            for name in ("font_native_instance.py", "font_face_weight.py", "font_gvar_repair.py"):
+            for name in ("font_native_instance.py", "font_face_weight.py", "font_gvar_repair.py", "ziyu_limits.py"):
                 shutil.copyfile(ROOT / "common" / name, common / name)
                 (runtime / name).symlink_to(common / name)
             (runtime / "font_instance.py").symlink_to(legacy / "font_instance.py")
@@ -100,6 +102,15 @@ apply_mix SelectedCjk SelectedLatin SelectedDigits
                             for part in template.split(":")]
             env = {**os.environ, "PYTHONPATH": os.pathsep.join(search_paths), "PYTHONUTF8": "1"}
             env.pop("PYTHONHOME", None)
+            config = root / "module/config/tools"
+            config.mkdir(parents=True)
+            (config / "font-import-limit.conf").write_text("max_mb=96\n", encoding="utf-8")
+            (runtime.parent / "config").symlink_to(config.parent, target_is_directory=True)
+            env["MODDIR"] = str(runtime.parent)
+            limit = subprocess.run([sys.executable, "-c", "from font_prepare_cache import _limit_bytes; print(_limit_bytes())"],
+                                   env=env, cwd=root, capture_output=True, text=True, timeout=25)
+            self.assertEqual(limit.returncode, 0, limit.stdout + limit.stderr)
+            self.assertEqual(int(limit.stdout.strip()), 96 * 1024 * 1024)
             for index, entry in enumerate(((runtime / "font_instance.py").resolve(), runtime / "font_instance.py")):
                 env["ZIYU_PREPARE_CACHE"] = str(root / f"cache-{index}")
                 for expected_hit in (False, True):

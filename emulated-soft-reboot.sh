@@ -66,21 +66,70 @@ _soft_fail() {
 . "$MODDIR/common/mount_provider_reload.sh" || _soft_fail 'provider-reload-check-unavailable'
 
 _soft_module_mount_remains() {
-    [ -r /proc/1/mountinfo ] || return 0
-    _soft_module_relative="${MODDIR#/data}"
-    grep -F "$MODDIR/" /proc/1/mountinfo >/dev/null 2>&1 && return 0
-    if [ "$_soft_module_relative" != "$MODDIR" ]; then
-        grep -F "$_soft_module_relative/" /proc/1/mountinfo >/dev/null 2>&1 && return 0
-    fi
-    # Directory mirrors use state storage rather than the private payload path.
-    grep -F "$_self_root/" /proc/1/mountinfo >/dev/null 2>&1 && return 0
-    _soft_state_relative="${_self_root#/data}"
-    if [ "$_soft_state_relative" != "$_self_root" ]; then
-        grep -F "$_soft_state_relative/" /proc/1/mountinfo >/dev/null 2>&1 && return 0
-    fi
-    return 1
+    . "$MODDIR/common/private_payload.lib" || return 0
+    _soft_mount_target=$(awk -v module="$MODDIR" -v relative="${MODDIR#/data}" \
+        -v self="$_self_root" -v self_relative="${_self_root#/data}" \
+        -v partitions="$(ziyu_private_partitions)" '
+        function within(path, base) {
+            return base != "" && (path == base || index(path, base "/") == 1)
+        }
+        function owns_payload(path, i) {
+            for (i in roots) if (within(path, roots[i])) return 1
+            return 0
+        }
+        BEGIN {
+            count = split(partitions, parts, /[[:space:]]+/)
+            roots[1] = self; roots[2] = self_relative
+            root_count = 2
+            bases[1] = module; bases[2] = relative
+            for (b in bases) {
+                base = bases[b]
+                if (base == "") continue
+                roots[++root_count] = base "/.ziyu-payload"
+                roots[++root_count] = base "/.ziyu-payload-next"
+                roots[++root_count] = base "/.ziyu-retired"
+                for (i = 1; i <= count; i++) {
+                    if (parts[i] != "") roots[++root_count] = base "/" parts[i]
+                }
+            }
+        }
+        {
+            # mountinfo root, mountpoint, source and overlay layer paths.
+            # Module executables and runtime mounts can stay attached.
+            if (owns_payload($4) || owns_payload($5)) { print $5; exit }
+            for (i = 7; i <= NF && $i != "-"; i++) {}
+            if (owns_payload($(i+2))) { print $5; exit }
+            if ($(i+1) == "overlay") {
+                n = split($(i+3), options, /[=,:]/)
+                for (j = 1; j <= n; j++) {
+                    if (owns_payload(options[j])) { print $5; exit }
+                }
+            }
+        }
+        END { if (NR == 0) exit 1 }
+    ' /proc/1/mountinfo 2>/dev/null) || return 0
+    [ -n "$_soft_mount_target" ] || return 1
+    printf '[TEMP-ROOT] old font mount target=%s\n' "$_soft_mount_target" >> "$MODDIR/logs/mount-backend.log"
+    return 0
 }
 
+# Backend metadata and the private ledger can disappear during a module
+# upgrade. Check the selected provider as well, even for default text/Emoji.
+_soft_meta=$(readlink -f /data/adb/metamodule 2>/dev/null)
+case "$_soft_meta" in
+    /data/adb/modules/*)
+        if [ ! -e "$_soft_meta/disable" ] && [ ! -e "$_soft_meta/remove" ]; then
+            _soft_meta_id=$(sed -n 's/^id=//p' "$_soft_meta/module.prop" 2>/dev/null | head -n1 | tr -d '\r')
+            case "$_soft_meta_id" in
+                nomount|meta-nomount)
+                    _provider=nomount
+                    META_MODULE_DIR=$_soft_meta
+                    META_NOMOUNT_CLI=''
+                    ;;
+            esac
+        fi
+        ;;
+esac
 if [ "$_provider" = nomount ] || [ -e "$MODDIR/.ziyu-state/nomount-rules.current" ]; then
     . "$MODDIR/common/mount_nomount_backend.sh" || _soft_fail 'nomount-cleanup-check-unavailable'
     # KernelSU runs this stage before `stop`. Defer NoMount writes until the

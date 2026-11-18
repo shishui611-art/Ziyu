@@ -147,9 +147,12 @@ _diag_dump_once() {
         _diag_emit_file 'provider publication receipt' "$MODDIR/.ziyu-state/provider-published.conf"
         _diag_emit_file 'provider reload check' "$MODDIR/config/provider-reload-check.conf"
         _diag_emit_file 'soft reboot cycle' "$MODDIR/config/temporary-root-soft-reboot.conf"
+        _diag_emit_file 'module update boot' "$MODDIR/config/module-update-boot.conf"
         _diag_emit_file 'soft reboot PID result' "$MODDIR/config/pid-wrap-last.conf"
         _diag_emit_file 'NoMount reload plan' "$MODDIR/.ziyu-state/nomount-provider-reload.plan"
         _diag_emit_file 'soft reboot log' "$MODDIR/logs/soft-reboot.log" 100
+        _diag_emit_file 'normal reboot request' "$MODDIR/config/reboot-request.conf"
+        _diag_emit_file 'normal reboot log' "$MODDIR/logs/reboot.log" 100
         _diag_emit_file 'provider reload start plan' "$MODDIR/.ziyu-state/provider-reload.started"
         _diag_emit_file 'Mountify scanned modules' '/dev/mountify_logs/modules' 160
         _diag_emit_file 'Mountify mount list' '/dev/mountify_logs/mountify_mount_list' 160
@@ -166,6 +169,8 @@ _diag_dump_once() {
         _diag_emit_file 'display parameter local configuration' "$MODDIR/config/display-typography.conf"
         _diag_emit_file 'display parameter storage directory' "$MODDIR/config/display-config-storage.conf"
         _diag_emit_file 'font-payload-next.conf' "$MODDIR/config/font-payload-next.conf"
+        _diag_emit_file 'Emoji current payload' "$MODDIR/.ziyu-payload/.ziyu-emoji.json"
+        _diag_emit_file 'Emoji pending payload' "$MODDIR/.ziyu-payload-next/.ziyu-emoji.json"
         _diag_emit_file 'live font pointer' "$MODDIR/config/font-live.conf"
         _diag_emit_file 'live font previous' "$MODDIR/config/font-live-previous.conf"
         _diag_emit_file 'live font boot undo snapshot' "$MODDIR/config/font-live-boot-previous.conf"
@@ -189,6 +194,8 @@ _diag_dump_once() {
         _diag_emit_file 'device_font_partitions.conf' "$MODDIR/config/device_font_partitions.conf"
         _diag_emit_file 'stock font snapshot receipt' "$MODDIR/config/stock-font-snapshot/manifest.json"
         _diag_emit_file 'stock font snapshot log' "$MODDIR/logs/stock-font-snapshot.log" 40
+        _diag_emit_file 'font expansion log' "$MODDIR/logs/slot-coverage.log" 180
+        _diag_emit_file 'font metrics current' "$MODDIR/.ziyu-payload/.ziyu-metrics-report.json" 600
         _diag_emit_file 'boot OTA scan log' "$MODDIR/logs/boot-ota-guard.log" 240
         _diag_emit_file 'App ROM observation' "$MODDIR/config/app-rom-observed.conf"
         _diag_emit_file 'ROM auto scan attempt' "$MODDIR/config/stock-rom-auto-attempt.conf"

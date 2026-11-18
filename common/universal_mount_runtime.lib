@@ -261,8 +261,8 @@ universal_font_mount_hook() {
         _ufmr_stage=$(_ufmr_stage_for_manager "$_ufmr_manager")
     fi
     if [ "$_ufmr_stage" != "$_ufmr_hook" ]; then
-        # A late service-stage mount is only permitted after this boot's
-        # selector explicitly chose self-mount as an external-provider fallback.
+        # A late service-stage mount requires this boot's automatic selector
+        # to have chosen self-mount and left its verification pending.
         [ "$_ufmr_hook" = service ] &&
             [ "${ZIYU_UNIVERSAL_ALLOW_SERVICE_FALLBACK:-0}" = 1 ] || return 2
         [ -f "$MODDIR/common/root_manager_detection.sh" ] || return 2
@@ -270,7 +270,7 @@ universal_font_mount_hook() {
         _ufmr_backend_file=$(MODDIR="$MODDIR" ziyu_current_boot_backend_state) || return 2
         [ -n "$_ufmr_backend_file" ] || return 2
         [ "$(_ufmr_value "$_ufmr_backend_file" selected_backend)" = self ] || return 2
-        [ "$(_ufmr_value "$_ufmr_backend_file" fallback_used)" = 1 ] || return 2
+        [ "$(_ufmr_value "$_ufmr_backend_file" preferred_backend)" = auto ] || return 2
         [ "$(_ufmr_value "$_ufmr_backend_file" verification)" = pending ] || return 2
         _ufmr_stage=service
     fi

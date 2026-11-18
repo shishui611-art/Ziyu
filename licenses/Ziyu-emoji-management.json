@@ -1,0 +1,10 @@
+{
+  "name": "Ziyu independent Emoji management",
+  "version": "1.5.82",
+  "date": "2026-11-16",
+  "license": "GPL-3.0-only",
+  "origin": "Original implementation in this repository. External repositories were inspected for interoperability. No external module script or font asset is included.",
+  "files": ["common/emoji_manager.py", "common/emoji_manager.sh", "common/emoji_payload.sh", "android-app/app/src/main/java/io/github/xgl34222220/ziyu/ui/settings/EmojiToolsCard.kt"],
+  "dependencies": ["Existing bundled CPython standard library", "Existing bundled FontTools", "Existing Ziyu font transaction, mount and route verification helpers"],
+  "scope": "Bounded font-only ZIP import, immutable assets, independently persisted Emoji selection, isolated component preparation and transaction rollback. Text application can preserve or recover the selected Emoji without depending on a stale payload receipt. Fonts are supplied by the user."
+}

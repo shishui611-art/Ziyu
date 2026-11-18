@@ -9,6 +9,7 @@ _dfload_module() {
 }
 
 [ ! -f "$(_dfload_module)/common/font_live_state.sh" ] || . "$(_dfload_module)/common/font_live_state.sh"
+. "$(_dfload_module)/common/emoji_payload.sh"
 
 _dfload_visible_path() {
     _dfload_rel="${1#/}"
@@ -342,7 +343,7 @@ _dfload_mount_transaction_active() {
 device_font_load_status() {
     _dfload_module_dir="$(_dfload_module)"
     _dfload_active=$(_dfload_active_font)
-    if [ "$_dfload_active" = default ]; then
+    if [ "$_dfload_active" = default ] && ! ziyu_payload_has_emoji "$(_dfload_module)/.ziyu-payload"; then
         _dfload_write_simple not-applicable default-font "$_dfload_active" system
         return 0
     fi
@@ -376,7 +377,7 @@ device_font_load_status() {
 _dfload_verify_unlocked() {
     _dfload_module_dir="$(_dfload_module)"
     _dfload_active=$(_dfload_active_font)
-    if [ "$_dfload_active" = default ]; then
+    if [ "$_dfload_active" = default ] && ! ziyu_payload_has_emoji "$(_dfload_module)/.ziyu-payload"; then
         _dfload_write_simple not-applicable default-font "$_dfload_active" system
         return 2
     fi

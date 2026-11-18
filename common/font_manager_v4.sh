@@ -10,6 +10,10 @@ if [ -z "$MODDIR" ]; then
         MODDIR="/data/adb/modules/ziyu"
     fi
 fi
+if [ "${1:-}:${2:-}" = action:reboot_device ]; then
+    export MODDIR
+    exec sh "$MODDIR/common/app_bridge.sh" reboot
+fi
 MODULE_DIR="$MODDIR"
 CONFIG_DIR="$MODULE_DIR/config"
 SYSTEM_FONTS_DIR="$MODULE_DIR/system/fonts"
@@ -175,10 +179,11 @@ get_managed_text_files() {
 }
 
 clear_managed_text_fonts() {
+    . "$MODULE_DIR/common/emoji_payload.sh" || return 1
     if type _lfrp_payload_root >/dev/null 2>&1 && type _lfrp_partitions >/dev/null 2>&1; then
         _fmt_root=$(_lfrp_payload_root)
         for _fmt_part in $(_lfrp_partitions); do
-            rm -rf "$_fmt_root/$_fmt_part/fonts" 2>/dev/null || true
+            ziyu_clear_text_fonts "$_fmt_root/$_fmt_part/fonts" || return 1
             _fmt_etc="$_fmt_root/$_fmt_part/etc"
             [ -d "$_fmt_etc" ] || continue
             for _fmt_xml in "$_fmt_etc"/*.xml; do
@@ -324,7 +329,7 @@ switch_font() {
         ZIYU_KEEP_XML_OVERLAY=0
     fi
     export ZIYU_KEEP_XML_OVERLAY
-    clear_managed_text_fonts
+    clear_managed_text_fonts || return 1
     if [ "$_font_id" != default ]; then
         # Direct switches stay within one foreground transaction. Physical slots and the lightweight
         # reusable XML family template are committed together; no worker may rewrite them later.
@@ -828,8 +833,7 @@ handle_action() {
             printf '{"status":"ok","data":{"required":%s,"text":%s,"weight":false}}\n' "$_required" "$_required"
             ;;
         reboot_device)
-            printf '{"status":"ok","data":{"message":"正在重启手机"}}\n'
-            (svc power reboot 2>/dev/null || reboot 2>/dev/null) </dev/null >/dev/null 2>&1 &
+            sh "$MODDIR/common/app_bridge.sh" reboot
             ;;
         *) printf '{"status":"error","message":"未知字体管理操作"}\n' ;;
     esac

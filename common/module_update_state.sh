@@ -2,6 +2,7 @@
 # 模块更新状态迁移：继承当前字体负载；架构变化只登记一次显式重应用。
 
 . "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/legacy_identity.sh"
+. "${MODPATH:-${MODULE_DIR:-${MODDIR:-/data/adb/modules/ziyu}}}/common/emoji_payload.sh"
 
 ZIYU_PAYLOAD_SCHEMA_CURRENT="${ZIYU_PAYLOAD_SCHEMA_CURRENT:-baseline-v9-rolegraph-v2}"
 ZIYU_UPDATE_ACTIVE=default
@@ -74,7 +75,7 @@ ziyu_update_config_is_volatile() {
         app_install_manual|font-payload-rebuild-pending.conf|font-payload-reapply-notified.conf|font-boot-failures|\
         font-payload-quarantine.conf|apatch-pre-mount.conf|mount_compat.conf|self-mount.conf|\
         self-mount-required.conf|device-font-load-verification.conf|font-ui-cache.json|provider-reload-check.conf|\
-        temporary-root-soft-reboot.conf|pid-wrap-last.conf|\
+        module-update-boot.conf|temporary-root-soft-reboot.conf|pid-wrap-last.conf|reboot-request.conf|reboot-request.pid.*|\
         device-font-cache-pending.conf|device-font-cache-failures.conf|\
         device-font-engine.conf|device-font-installed.conf|device-font-dynamic-mount.conf|\
         device-font-load-verification.json|device-font-manager-dump.txt|\
@@ -241,11 +242,39 @@ ziyu_update_has_font_payload() {
 # A selection may describe a committed next-boot transaction, not the payload
 # currently mounted. Preserve that transaction separately and verify its bytes
 # without rewriting either the running module or its current-payload ledger.
+ziyu_update_check_emoji() (
+    _luce_module="$1"; _luce_payload="$2"; _luce_digest="${3:-}"
+    _luce_pyroot="$_luce_module/common/python"
+    PYTHONHOME="$_luce_pyroot" \
+    PYTHONPATH="$_luce_module/common:$_luce_pyroot/lib/python3.14:$_luce_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_luce_pyroot/lib:$_luce_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_luce_pyroot/bin/ziyu-python" "$_luce_module/common/emoji_manager.py" "$_luce_module" \
+            check "$_luce_payload" "$_luce_digest" >> "$_luce_module/logs/module-update.log" 2>&1
+)
+
+ziyu_update_migrate_emoji() (
+    _lume_new="$1"; _lume_old="$2"; _lume_payload="$3"
+    _lume_pyroot="$_lume_new/common/python"
+    PYTHONHOME="$_lume_pyroot" \
+    PYTHONPATH="$_lume_new/common:$_lume_pyroot/lib/python3.14:$_lume_pyroot/lib/python3.14/site-packages" \
+    LD_LIBRARY_PATH="$_lume_pyroot/lib:$_lume_pyroot/lib/python3.14/lib-dynload${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$_lume_pyroot/bin/ziyu-python" "$_lume_new/common/emoji_manager.py" "$_lume_new" \
+            migrate "$_lume_old" "$_lume_payload" >> "$_lume_new/logs/module-update.log" 2>&1
+)
+
 ziyu_update_copy_pending_physical() (
     _lupc_old="$1"; _lupc_new="$2"; _lupc_source=$(ziyu_legacy_path "$_lupc_old/.ziyu-payload-next")
     _lupc_dest="$_lupc_new/.ziyu-payload-next"
     _lupc_check="$_lupc_new/.pending-update-check.$$"
     [ -d "$_lupc_source" ] && [ ! -L "$_lupc_source" ] && [ ! -e "$_lupc_dest" ] || exit 1
+    if [ -f "$_lupc_source/.ziyu-emoji.json" ]; then
+        _lupc_digest=$(ziyu_update_config_value "$_lupc_old/config/font-payload-next.conf" payloadDigest)
+        [ -n "$_lupc_digest" ] || exit 1
+        ziyu_update_check_emoji "$_lupc_new" "$_lupc_source" "$_lupc_digest" || exit 1
+        ziyu_copy_update_tree "$_lupc_source" "$_lupc_dest" || exit 1
+        ziyu_update_check_emoji "$_lupc_new" "$_lupc_dest" "$_lupc_digest" || exit 1
+        exit 0
+    fi
     mkdir -p "$_lupc_check/config" || exit 1
     trap 'rm -rf "$_lupc_check"' EXIT HUP INT TERM
     [ ! -f "$_lupc_old/config/device_font_partitions.conf" ] ||
@@ -383,6 +412,9 @@ ziyu_migrate_update_cache() {
         mkdir -p "${_new}/${_relative%/*}" 2>/dev/null || continue
         ziyu_copy_update_tree "$_old/$_relative" "$_new/$_relative" || true
     done
+    if [ -d "$_old/config/emoji-library" ]; then
+        ziyu_copy_update_tree "$_old/config/emoji-library" "$_new/config/emoji-library" || return 1
+    fi
     if [ "$_schema_compatible" = true ] && [ "$_builder_compatible" = true ]; then
         if [ -d "$_old/config/device-font-cache" ]; then
             rm -rf "$_new/config/device-font-cache" 2>/dev/null || true
@@ -423,7 +455,7 @@ _ziyu_migrate_active_install_locked() {
     _lup_current="$_active"
     _lup_pending=false
     _lup_old_next=$(ziyu_legacy_path "$_old/.ziyu-payload-next")
-    if [ "$_active" != default ] && [ ! -s "$_old/config/universal-font-next.conf" ] &&
+    if { [ "$_active" != default ] || [ -f "$_lup_old_next/.ziyu-emoji.json" ]; } && [ ! -s "$_old/config/universal-font-next.conf" ] &&
        { [ -e "$_old/config/font-payload-next.conf" ] || [ -e "$_lup_old_next" ]; }; then
         _lup_pending_state="$_old/config/font-payload-next.conf"
         _lup_pending_marker=$(ziyu_legacy_path "$_lup_old_next/.ziyu-next-transaction.conf")
@@ -442,7 +474,11 @@ _ziyu_migrate_active_install_locked() {
            [ "$(ziyu_update_config_value "$_lup_pending_marker" requestId)" != "$_lup_pending_request" ]; then
             ZIYU_UPDATE_FAILURE_REASON=pending-font-transaction-unconfirmed; return 1
         fi
-        case "$_lup_pending_mode:$_active" in :default|legacy:default|default:*|classic:*)
+        case "$_lup_pending_mode:$_active" in :default|legacy:default)
+            [ -f "$_lup_old_next/.ziyu-emoji.json" ] || {
+                ZIYU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1;
+            } ;;
+            default:*|classic:*)
             ZIYU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
             :*|legacy:*) ;;
             *) ZIYU_UPDATE_FAILURE_REASON=pending-font-mode-unsupported; return 1 ;;
@@ -453,6 +489,8 @@ _ziyu_migrate_active_install_locked() {
     _lup_payload_root=$(ziyu_update_payload_root "$_old" "$_new" "$_lup_current") || {
         ZIYU_UPDATE_FAILURE_REASON=live-font-state-unconfirmed-or-pending-switch; return 1;
     }
+    _lup_has_font=false
+    [ "$_lup_current" = default ] || _lup_has_font=true
     _old_schema=$(ziyu_update_payload_schema "$_old")
     ZIYU_UPDATE_ACTIVE="$_active"
     ZIYU_UPDATE_OLD_SCHEMA="$_old_schema"
@@ -472,7 +510,7 @@ _ziyu_migrate_active_install_locked() {
     fi
     # Copying an already generated mix does not need the original recipe or
     # source fonts. Those are only needed for the user's next explicit apply.
-    if [ "$_lup_current" != default ] && ! ziyu_update_has_font_payload "$_old" "$_lup_payload_root"; then
+    if [ "$_lup_has_font" = true ] && ! ziyu_update_has_font_payload "$_old" "$_lup_payload_root"; then
         ZIYU_UPDATE_FAILURE_REASON=active-font-payload-missing
         return 1
     fi
@@ -516,6 +554,35 @@ _ziyu_migrate_active_install_locked() {
         mkdir -p "$_new" 2>/dev/null || return 1
         ziyu_copy_update_tree "$_lup_payload_root/$_partition" "$_new/$_partition" || return 1
     done
+    if [ -e "$_lup_payload_root/.ziyu-emoji.json" ] || [ -L "$_lup_payload_root/.ziyu-emoji.json" ] || \
+       [ -e "$_old/config/emoji-selection.json" ]; then
+        ziyu_update_migrate_emoji "$_new" "$_old" "$_lup_payload_root" || {
+            ZIYU_UPDATE_FAILURE_REASON=emoji-payload-verification-failed; return 1;
+        }
+    fi
+    if [ "$_lup_current" = default ]; then
+        rm -f "$_new/config/universal-font-runtime.conf" \
+            "$_new/config/universal-font-runtime-verification.conf" \
+            "$_new/config/universal-font-runtime-verification.json" \
+            "$_new/config/universal-font-mount.conf" || return 1
+        for _lup_default_part in $(ziyu_update_payload_partitions "$_new"); do
+            ziyu_clear_text_fonts "$_new/$_lup_default_part/fonts" || return 1
+            for _lup_default_xml in "$_new/$_lup_default_part/etc/"*font*.xml; do
+                [ ! -f "$_lup_default_xml" ] || rm -f "$_lup_default_xml" || return 1
+            done
+        done
+        if ziyu_payload_has_emoji "$_new/.ziyu-payload"; then
+            _lup_has_font=true
+            . "$_new/common/physical_payload_manifest.sh" || return 1
+            ziyu_physical_manifest_build "$_new" "$_new" || return 1
+            printf 'enabled=true\ncore=physical-safe-v1\nfont=default\npipeline=module-update-emoji\n' \
+                > "$_new/config/font_runtime_legacy_v14_4.conf" || return 1
+            printf 'schema=legacy-physical-safe-v1\n' > "$_new/config/font-payload-schema.conf" || return 1
+        else
+            rm -f "$_new/config/font-payload-manifest.conf" "$_new/config/font_runtime_legacy_v14_4.conf" \
+                "$_new/config/font-payload-schema.conf" || return 1
+        fi
+    fi
     if [ "$_lup_current" != default ] && [ -s "$_old/config/universal-font-runtime.conf" ]; then
         # Keep deployment artifacts beside the fonts they describe, without
         # overwriting the new release's executable runtime/core.
@@ -528,7 +595,7 @@ _ziyu_migrate_active_install_locked() {
         ziyu_copy_update_tree "$_lup_dynamic_root" \
             "$_new/.ziyu-payload/${_lup_dynamic_root##*/}" || return 1
     fi
-    if [ "$_lup_current" != default ]; then
+    if [ "$_lup_has_font" = true ]; then
         if [ ! -e "$_new/config/font-payload-manifest.conf" ] &&
            [ "$(ziyu_update_config_value "$_new/config/font_runtime_legacy_v14_4.conf" core)" = physical-safe-v1 ] &&
            [ "$(ziyu_update_config_value "$_new/config/font-payload-schema.conf" schema)" = legacy-physical-safe-v1 ]; then
@@ -550,7 +617,7 @@ _ziyu_migrate_active_install_locked() {
 
     _schema_compatible=false
     [ "$_old_schema" = "$ZIYU_PAYLOAD_SCHEMA_CURRENT" ] && _schema_compatible=true
-    ziyu_migrate_update_cache "$_old" "$_new" "$_schema_compatible" "$_lup_builder_compatible"
+    ziyu_migrate_update_cache "$_old" "$_new" "$_schema_compatible" "$_lup_builder_compatible" || return 1
     ziyu_clear_update_volatile "$_new"
     # active_font.conf is the selection authority. Write the captured value after cleanup so a
     # packaged default or a partial config copy can never relabel an inherited composite as default.

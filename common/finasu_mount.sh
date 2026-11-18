@@ -3,6 +3,21 @@
 # Read manager-owned files only. Never invoke set-mode, inject or global cleanup.
 set +e
 
+# Only the native NoMount route has a same-kernel reconciliation contract.
+ziyu_finasu_soft_reboot_supported() (
+    _zfm_base="$(_ziyu_root_path /data/adb/ksu)"
+    IFS= read -r _zfm_boot < /proc/sys/kernel/random/boot_id || return 1
+    [ -n "$_zfm_boot" ] && [ -s "$_zfm_base/startup_epoch.json" ] || return 1
+    [ "$(cat "$_zfm_base/mount_mode" 2>/dev/null)" = nomount ] || return 1
+    awk -F= -v boot="$_zfm_boot" '
+        $1 == "boot_id" { current = $2 == boot }
+        $1 == "generation" { generation = $2 ~ /^[1-9][0-9]*$/ }
+        $1 == "provider" { native = $2 == "nomount" }
+        $1 == "result" { ready = $2 == "mounted" || $2 == "noop" }
+        END { exit !(current && generation && native && ready) }
+    ' "$_zfm_base/mount_runtime" 2>/dev/null
+)
+
 _ziyu_fina_layout_supported() {
     _zfm_payload="$_zfm_module/.ziyu-payload"
     [ -d "$_zfm_payload" ] || _zfm_payload="$_zfm_module"

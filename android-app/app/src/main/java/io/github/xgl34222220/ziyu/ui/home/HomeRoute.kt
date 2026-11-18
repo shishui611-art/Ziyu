@@ -56,7 +56,6 @@ private fun mountModeLabel(mode: String): String = when (mode) {
     "magic" -> "Magic Mount"
     "overlayfs" -> "OverlayFS"
     "self_mount" -> "字域自挂载"
-    "manager" -> "管理器挂载"
     else -> "自动挂载"
 }
 
@@ -91,6 +90,7 @@ fun HomeRoute(
     var showCurrentFont by remember { mutableStateOf(false) }
     var showMountSettings by remember { mutableStateOf(false) }
     var showAdvancedMount by remember { mutableStateOf(false) }
+    var showMountDetails by remember { mutableStateOf(false) }
     var showUndo by remember { mutableStateOf(false) }
     var showAcceptanceGuide by remember { mutableStateOf(false) }
     var trustRefreshGeneration by remember { mutableIntStateOf(0) }
@@ -108,7 +108,10 @@ fun HomeRoute(
         if (state.typographyVisible && state.moduleInstalled && state.rootGranted && !state.loading) actions.loadTypography()
     }
     LaunchedEffect(showMountSettings, state.mountPreferenceLoaded) {
-        if (showMountSettings && state.mountPreferenceLoaded) showAdvancedMount = state.mountBackendPreference != "auto"
+        if (showMountSettings && state.mountPreferenceLoaded) {
+            showAdvancedMount = state.mountBackendPreference in setOf("self_mount", "overlayfs", "magic")
+            showMountDetails = false
+        }
     }
 
     LaunchedEffect(state.mountBackendRebootPrompt) {
@@ -211,19 +214,16 @@ fun HomeRoute(
             title = { Text("字体挂载方式") },
             text = {
                 Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(state.mountEngine, style = MaterialTheme.typography.bodyMedium)
+                    if (state.mountPreferenceLoaded && state.mountPreferencePending) {
+                        Text("所选方式将在完整重启后使用。", style = MaterialTheme.typography.bodySmall)
+                    }
                     MountModeOption(
                         title = "自动挂载 · 推荐",
-                        description = "自动选择可用挂载方式，失败时尝试字域自挂载。",
+                        description = "优先使用可用元模块或管理器内置挂载，并自动核验结果。",
                         enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
-                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "auto",
+                        selected = state.mountPreferenceLoaded && state.mountBackendPreference in setOf("auto", "manager"),
                         onClick = { actions.setMountBackend("auto") },
-                    )
-                    MountModeOption(
-                        title = "管理器挂载",
-                        description = "字体放进模块目录，由 Root 管理器开机自动挂载。",
-                        enabled = state.mountPreferenceLoaded && !state.mountPreferenceSaving,
-                        selected = state.mountPreferenceLoaded && state.mountBackendPreference == "manager",
-                        onClick = { actions.setMountBackend("manager") },
                     )
                     ZiyuOutlinedButton(onClick = { showAdvancedMount = !showAdvancedMount }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (showAdvancedMount) "收起高级选项" else "高级选项")
@@ -253,7 +253,12 @@ fun HomeRoute(
                     }
                     if (state.mountPreferenceSaving) Text("正在保存挂载选择…")
                     if (!state.mountPreferenceLoaded && state.mountPreferences.isNotBlank()) Text(state.mountPreferences)
-                    Text("切换模式后需完整重启验证。")
+                    if (state.mountPreferenceLoaded) {
+                        TextButton(onClick = { showMountDetails = !showMountDetails }) {
+                            Text(if (showMountDetails) "收起挂载详情" else "查看挂载详情")
+                        }
+                        if (showMountDetails) Text(state.mountPreferences, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             },
             confirmButton = { TextButton(onClick = { showMountSettings = false }) { Text("完成") } },
