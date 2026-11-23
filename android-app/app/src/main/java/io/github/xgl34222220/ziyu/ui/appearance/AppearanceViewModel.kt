@@ -42,6 +42,12 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
     fun setBackgroundPath(path: String) = launch { repository.setBackgroundPath(path) }
     fun setAppearanceOverrides(value: AppearanceOverrides) = launch { repository.setOverrides(value) }
     fun setBackgroundEffects(value: BackgroundEffects, blur: Int, scrim: Int) = launch { repository.setBackgroundEffects(value, blur, scrim) }
+    fun setAppIcon(iconId: String, dynamicColor: Boolean) = launch { repository.setAppIcon(iconId, dynamicColor) }
+    fun setBottomBarIcons(icons: Map<String, String>) = launch { repository.setBottomBarIcons(icons) }
+    fun setDynamicWallpaper(path: String, transform: DynamicWallpaperTransform, muted: Boolean, fps: Int, speed: Float) =
+        launch { repository.setDynamicWallpaper(path, transform, muted, fps, speed) }
+    fun setDynamicHomeCard(path: String, transform: DynamicWallpaperTransform) =
+        launch { repository.setDynamicHomeCard(path, transform) }
     suspend fun resetTheme() = repository.resetTheme()
 
     private fun launch(block: suspend () -> Unit) {

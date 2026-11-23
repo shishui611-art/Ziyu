@@ -236,7 +236,7 @@ private fun ZiyuSystemBars() {
     val view = LocalView.current
     val settings = LocalAppearanceSettings.current
     val surface = MaterialTheme.colorScheme.background
-    val barSurface = if (settings.backgroundPath.isBlank()) surface else
+    val barSurface = if (!settings.hasAnyAppBackground) surface else
         io.github.xgl34222220.ziyu.ui.appearance.backgroundScrimColor(settings, surface).compositeOver(surface)
     val darkIcons = barSurface.luminance() > .179f
     SideEffect {
@@ -351,7 +351,7 @@ private fun ProvideZiyuThemeData(
     val pageBackground = colorScheme.background
     val dark = pageBackground.luminance() < .5f
     val tokens = MiuixTokens(
-        pageBackground = if (LocalAppearanceSettings.current.backgroundPath.isNotBlank()) Color.Transparent else pageBackground,
+        pageBackground = if (LocalAppearanceSettings.current.hasAnyAppBackground) Color.Transparent else pageBackground,
         cardBackground = appearanceCardBackground(LocalAppearanceSettings.current, colorScheme, resolveDark(LocalAppearanceSettings.current.themeMode)),
         elevatedCardBackground = colorScheme.surfaceContainerHigh.compositeOver(pageBackground),
         textPrimary = colorScheme.onSurface,

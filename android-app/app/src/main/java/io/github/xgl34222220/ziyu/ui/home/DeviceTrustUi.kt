@@ -375,6 +375,9 @@ private fun deviceTrustPresentation(state: DeviceTrustState): DeviceTrustPresent
     val scheme = MaterialTheme.colorScheme
     return when {
         state.loading -> DeviceTrustPresentation("正在检查设备字体", "读取清单、模板与加载验证", Icons.Rounded.Info, scheme.primary)
+        state.mountState == "blocked" -> DeviceTrustPresentation(
+            "字体加载已暂停", friendlyTrustReason(state.reason), Icons.Rounded.Info, scheme.secondary,
+        )
         state.level == DeviceTrustLevel.SYSTEM -> DeviceTrustPresentation(
             "当前为系统字体",
             "没有启用字域字体，无需进行加载验证",
@@ -441,6 +444,8 @@ private fun friendlyActiveFont(value: String): String = when (value) {
 private fun friendlyTrustReason(value: String): String = when (value) {
     "default-font" -> "系统字体无需验证"
     "awaiting-full-reboot" -> "等待完整重启"
+    "ota-recovery-required" -> "请在开机保护中核验原厂字库并重新应用字体"
+    "module-disabled" -> "请在 Root 管理器中检查字域模块"
     "boot-not-completed" -> "Android 尚未完成启动"
     "background-task-still-running" -> "后台字体任务尚未结束"
     "aligned-payload-not-active" -> "当前字体使用兼容映射"

@@ -80,7 +80,8 @@ internal fun rememberBackgroundFrame(path: String): State<BackgroundFrame?> =
     }
 
 @Composable
-internal fun BackgroundBackdrop() {
+internal fun BackgroundBackdrop(dynamicWallpaperActive: Boolean = false) {
+    if (dynamicWallpaperActive) return
     val settings = LocalAppearanceSettings.current
     val frame by (LocalBackgroundFrame.current ?: rememberBackgroundFrame(settings.backgroundPath))
     // A new path must never temporarily display the previous theme's bitmap.

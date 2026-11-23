@@ -94,6 +94,20 @@ def boot_id():
     return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 
 
+AUTO_SYSTEM_FONT_PREFIXES = (
+    'fonts/SystemDefaultCjk.',
+    'fonts/SystemDefaultCjk-',
+    'fonts/SystemDefaultLatin.',
+    'fonts/SystemDefaultLatin-',
+    'fonts/SystemDefaultDigit.',
+    'fonts/SystemDefaultDigit-',
+)
+
+
+def _is_auto_system_font_cache(name):
+    return name.startswith(AUTO_SYSTEM_FONT_PREFIXES)
+
+
 def apply(module):
     pending_file = module / 'config/user-storage-next.conf'
     pending = props(pending_file)
@@ -133,8 +147,11 @@ def apply(module):
             # The returned destination is resolved, so no /sdcard alias is involved.
             raise ValueError(f'目标条目包含符号链接：{name}')
         if output.exists():
-            if not output.is_file() or output.is_symlink() or digest(original) != digest(output):
+            if not output.is_file() or output.is_symlink():
                 raise ValueError(f'目标已有不同内容，原目录保持不变：{name}')
+            if digest(original) != digest(output):
+                if not _is_auto_system_font_cache(name):
+                    raise ValueError(f'目标已有不同内容，原目录保持不变：{name}')
             verified_outputs[name] = identity(output)
             continue
         if shutil.disk_usage(target).free < expected[2] + 32 * 1024 * 1024:

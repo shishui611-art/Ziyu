@@ -3,3 +3,6 @@
 # dependencies.
 -keep public class io.github.xgl34222220.ziyu.xposed.WebFontHook { *; }
 -dontwarn de.robv.android.xposed.**
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}

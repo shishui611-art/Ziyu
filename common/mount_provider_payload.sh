@@ -181,7 +181,9 @@ ziyu_provider_payload_publish() (
     # 槽位覆盖：把已选字体扩展到目标 ROM 的完整槽位清单（清单数据见
     # common/slot_targets，说明见 THIRD_PARTY_NOTICES.md）。只补 staging 里
     # 尚不存在的槽位，硬链接到已发布字体，几乎不增加启动耗时。
-    if [ -f "$_zpp_module/common/slot_coverage.sh" ] && [ -d "$_zpp_stage/system/fonts" ]; then
+    _zpp_active_font=$(head -n1 "$_zpp_module/config/active_font.conf" 2>/dev/null | tr -d '\r\n')
+    if [ "${_zpp_active_font:-default}" != default ] && \
+       [ -f "$_zpp_module/common/slot_coverage.sh" ] && [ -d "$_zpp_stage/system/fonts" ]; then
         . "$_zpp_module/common/slot_coverage.sh"
         ziyu_slot_coverage_expand "$_zpp_module" "$_zpp_stage/system/fonts" "$_zpp_payload/system/fonts" || return 1
     fi
@@ -197,17 +199,22 @@ ziyu_provider_payload_publish() (
         _zpp_target="$_zpp_root/$_zpp_part"
         _zpp_backup="$_zpp_state/provider-backup-$_zpp_part"
         _zpp_candidate="$_zpp_stage/$_zpp_part"
-        # Nested providers need only system; other roots are emptied to avoid old
-        # top-level generations being scanned a second time.
-        mkdir -p "$_zpp_candidate" || return 1
-        [ ! -e "$_zpp_backup" ] && [ ! -L "$_zpp_backup" ] || return 1
+        _zpp_has_candidate=0
+        [ -d "$_zpp_candidate" ] && _zpp_has_candidate=1
         _zpp_had_target=0
         if [ -e "$_zpp_target" ] || [ -L "$_zpp_target" ]; then _zpp_had_target=1; fi
+        # 未暂存该分区且模块根原本也无该目录时直接跳过，避免建出空分区目录触发 NoMount 中止。
+        if [ "$_zpp_has_candidate" -eq 0 ] && [ "$_zpp_had_target" -eq 0 ]; then
+            continue
+        fi
+        [ ! -e "$_zpp_backup" ] && [ ! -L "$_zpp_backup" ] || return 1
         printf '%s|%s|%s|%s\n' "$_zpp_target" "$_zpp_backup" "$_zpp_candidate" "$_zpp_had_target" >> "$_zpp_journal" || return 1
-        if [ -e "$_zpp_target" ] || [ -L "$_zpp_target" ]; then
+        if [ "$_zpp_had_target" -eq 1 ]; then
             mv "$_zpp_target" "$_zpp_backup" || { ziyu_provider_payload_recover "$_zpp_root"; return 1; }
         fi
-        mv "$_zpp_candidate" "$_zpp_target" || { ziyu_provider_payload_recover "$_zpp_root"; return 1; }
+        if [ "$_zpp_has_candidate" -eq 1 ]; then
+            mv "$_zpp_candidate" "$_zpp_target" || { ziyu_provider_payload_recover "$_zpp_root"; return 1; }
+        fi
     done
     # The receipt is committed only after every destination is installed.
     _zpp_manifest_sha=$(sha256sum "$_zpp_module/config/font-payload-manifest.conf" 2>/dev/null | awk '{print $1}')

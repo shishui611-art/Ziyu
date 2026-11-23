@@ -234,12 +234,19 @@ else
     fi
 fi
 
-if { [ -s "$MODPATH/bundled/Ziyu-App.apk" ] || [ -s "$MODPATH/bundled/Ziyu-App.apk" ]; } && [ -f "$MODPATH/common/app_installer.sh" ]; then
+if [ -s "$MODPATH/bundled/Ziyu-App.apk" ] && [ -f "$MODPATH/common/app_installer.sh" ]; then
     _app_result=$(MODDIR="$MODPATH" APP_INSTALL_LOG="$MODPATH/logs/app-install.log" sh "$MODPATH/common/app_installer.sh" flash 2>/dev/null)
     _app_code=$?
     case "$_app_result" in
-        installed) ui_print "✓ 字域 App 已自动安装或更新" ;;
+        installed) ui_print "✓ 字域 App 已自动覆盖更新" ;;
         already-current) ui_print "✓ 字域 App 已是当前版本，无需重复安装" ;;
+        signature-mismatch)
+            ui_print "! 已安装 App 与模块内置 App 签名不同，无法直接覆盖"
+            ui_print "• 请先卸载旧版 App，再重启或点击模块“操作”按钮安装新版"
+            ;;
+        permanent-failure)
+            ui_print "! 模块内置 App 安装包异常，请重新下载完整模块包"
+            ;;
         *)
             ui_print "• 当前刷写环境无法完成 App 安装，将在首次开机后自动补装"
             ui_print "• 也可以重启后点击模块“操作”按钮手动重试"

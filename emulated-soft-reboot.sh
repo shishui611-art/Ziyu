@@ -177,11 +177,15 @@ if _soft_module_mount_remains; then
     _soft_fail 'old-payload-still-mounted'
 fi
 
-_saved_zygote_service=$(sed -n 's/^zygote_service=//p' "$_stage" | head -n1)
-_saved_zygote_pid=$(sed -n 's/^old_zygote_pid=//p' "$_stage" | head -n1)
+_saved_zygote_service=''
+_saved_zygote_pid=''
+if [ -f "$_stage" ]; then
+    _saved_zygote_service=$(sed -n 's/^zygote_service=//p' "$_stage" 2>/dev/null | head -n1)
+    _saved_zygote_pid=$(sed -n 's/^old_zygote_pid=//p' "$_stage" 2>/dev/null | head -n1)
+fi
 printf 'boot_id=%s\nstate=ready\nzygote_service=%s\nold_zygote_pid=%s\n' \
     "$_boot" "$_saved_zygote_service" "$_saved_zygote_pid" > "${_stage}.tmp.$$" &&
     mv -f "${_stage}.tmp.$$" "$_stage" || exit 1
-rm -f "$MODDIR/config/provider-rescue.conf" "$_state" 2>/dev/null || exit 1
+rm -f "$MODDIR/config/provider-rescue.conf" "$_state" "$MODDIR/config/boot-safety-current-boot.conf" 2>/dev/null || exit 1
 printf '[TEMP-ROOT] KernelSU soft reboot: fresh mount selection requested\n' >> "$MODDIR/logs/mount-backend.log"
 exit 0

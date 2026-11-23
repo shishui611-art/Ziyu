@@ -727,6 +727,21 @@ _lbr_try_auto_self_fallback() {
     return "$_lbr_fallback_rc"
 }
 
+_lbr_service_verification_current() {
+    _lbr_sv_backend="$1"
+    [ "$_lbr_stage" = service ] || return 1
+    [ "${ZIYU_BACKEND_TEST_MODE:-0}" != 1 ] || return 1
+    [ -n "$_lbr_boot" ] && [ "$ZIYU_BACKEND_BOOT_ID" = "$_lbr_boot" ] || return 1
+    [ "$ZIYU_BACKEND_ACTIVE_BACKEND" = "$_lbr_sv_backend" ] || return 1
+    [ "$ZIYU_BACKEND_VERIFICATION" = passed ] || return 1
+    [ "$ZIYU_BACKEND_MOUNT_STAGE" = service ] || return 1
+    [ -s "$MODDIR/config/mount-backend-verification.json" ] || return 1
+    _lbr_sv_manifest=$(sha256sum "$MODDIR/config/font-payload-manifest.conf" 2>/dev/null | awk '{print $1}')
+    [ -n "$_lbr_sv_manifest" ] && [ "$ZIYU_BACKEND_PAYLOAD_MANIFEST_SHA256" = "$_lbr_sv_manifest" ] || return 1
+    [ "$ZIYU_BACKEND_PAYLOAD_FONT" = "$(_lbr_active_font)" ] || return 1
+    return 0
+}
+
 ziyu_mount_backend_hook() {
     _lbr_stage="$1"
     mkdir -p "$MODDIR/config" "$MODDIR/logs" || return 1
@@ -1041,6 +1056,10 @@ ziyu_mount_backend_hook() {
                 _lbr_log_mount_summary failed "$_lbr_stage" "$_lbr_route_error"
                 return 1
             fi
+            if _lbr_service_verification_current external; then
+                _lbr_log '[Final Verify] 同启动已通过外部提供者验证且负载清单未变化，跳过重复核验'
+                return 0
+            fi
             if _lbr_verify_font_route external; then
                 _lbr_external_self_result=$ZIYU_BACKEND_SELF_RESULT
                 _lbr_write_state external external "$_lbr_fallback" passed "${_lbr_external_self_result:-not-run}" "$_lbr_stage" "$FONT_ROUTE_VERIFY_RESULT" none
@@ -1107,6 +1126,10 @@ ziyu_mount_backend_hook() {
             [ "$ZIYU_BACKEND_SELF_RESULT" != failed ] || return 1
             # Automatic self choices retain the service-stage recovery window.
             if [ "$_lbr_stage" = service ] && [ "$ZIYU_BACKEND_ACTIVE_BACKEND" = self ]; then
+                if _lbr_service_verification_current self; then
+                    _lbr_log '[Final Verify] 同启动已通过自挂载验证且负载清单未变化，跳过重复核验'
+                    return 0
+                fi
                 if _lbr_verify_font_route self; then
                     _lbr_write_state self self "$_lbr_fallback" not-selected passed service "$FONT_ROUTE_VERIFY_RESULT" none
                     _lbr_log_mount_summary success service none

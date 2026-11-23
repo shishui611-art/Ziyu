@@ -21,6 +21,8 @@ data class HomeUiState(
     val taskMessage: String = "暂无后台字体任务",
     val taskProgress: Int = 0,
     val rebootRequired: Boolean = false,
+    val fontBootBlocked: Boolean = false,
+    val otaRecoveryRequired: Boolean = false,
     val error: String = "",
     val romCheckMessage: String = "",
     val mountPreferences: String = "",
@@ -53,6 +55,7 @@ data class HomeActions(
     val viewCurrentFont: () -> Unit = {},
     val openLogs: () -> Unit,
     val openSettings: () -> Unit = {},
+    val openBootSafety: () -> Unit = {},
     val restoreDefault: () -> Unit,
     val reboot: () -> Unit,
     val restart: (String) -> Unit = {},
@@ -89,6 +92,12 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
             error.isNotBlank() -> if (installed && rootGranted) "模块状态未更新" else "模块未连接"
             detailsPending -> "模块已连接，正在读取详细状态"
             running -> "字体任务执行中"
+            otaRecoveryRequired -> if (verificationReason == "ota-font-reapply-required") {
+                "原厂字库已核验，请重新应用字体"
+            } else {
+                "系统更新后需核验原厂字库"
+            }
+            fontBootBlocked -> "字域模块已停用"
             fontEffectState == "live" -> "字体热挂载成功"
             fontEffectState == "live-partial" -> "字体热挂载成功（有提示）"
             fontEffectState == "partial" -> "字体应用成功（有提示）"
@@ -115,6 +124,8 @@ internal fun ModuleSnapshot.toHomeUiState(): HomeUiState {
         },
         taskProgress = taskProgress,
         rebootRequired = rebootRequired,
+        fontBootBlocked = fontBootBlocked,
+        otaRecoveryRequired = otaRecoveryRequired,
         slotTotal = slotTotal,
         slotCjk = slotCjk,
         slotDigit = slotDigit,

@@ -158,6 +158,31 @@ _dfload_backend_authority() {
             ;;
     esac
     if [ "$_dfload_authority_mode" = verify ]; then
+        _dfload_reuse_backend_verify=0
+        _dfload_backend_json="$(_dfload_module)/config/mount-backend-verification.json"
+        _dfload_cur_font="$(_dfload_active_font)"
+        _dfload_cur_manifest=$(sha256sum "$(_dfload_module)/config/font-payload-manifest.conf" 2>/dev/null | awk '{print $1}')
+        if [ "${ZIYU_FORCE_LOAD_VERIFY:-0}" != 1 ] && \
+           [ -z "${ZIYU_FONT_VERIFY_VISIBLE_ROOT:-}" ] && \
+           [ -z "${ZIYU_FONT_VERIFY_MOUNTINFO:-}" ] && \
+           [ "$_dfload_authority_result" = passed ] && \
+           [ "$(_dfload_state_value "$_dfload_authority_file" mount_stage)" = service ] && \
+           [ -n "$_dfload_cur_manifest" ] && \
+           [ "$(_dfload_state_value "$_dfload_authority_file" payload_manifest_sha256)" = "$_dfload_cur_manifest" ] && \
+           [ "$(_dfload_state_value "$_dfload_authority_file" payload_font)" = "$_dfload_cur_font" ] && \
+           [ -s "$_dfload_backend_json" ] && \
+           grep -Fq "\"bootId\":\"$_dfload_authority_current\"" "$_dfload_backend_json" 2>/dev/null && \
+           grep -Fq "\"payloadManifestSha256\":\"$_dfload_cur_manifest\"" "$_dfload_backend_json" 2>/dev/null && \
+           grep -Fq '"state":"verified"' "$_dfload_backend_json" 2>/dev/null; then
+            _dfload_reuse_backend_verify=1
+        fi
+        if [ "$_dfload_reuse_backend_verify" = 1 ]; then
+            _dfload_route_out="$(_dfload_module)/config/device-font-load-route-verification.json"
+            cp -f "$_dfload_backend_json" "${_dfload_route_out}.tmp.$$" 2>/dev/null && \
+                mv -f "${_dfload_route_out}.tmp.$$" "$_dfload_route_out" 2>/dev/null || true
+            _dfload_write_simple verified "backend-pid1-route-verified:$_dfload_authority_backend" "$_dfload_cur_font" mount-verified
+            return 0
+        fi
         if ! _dfload_backend_route_verify; then
             _dfload_write_simple failed backend-pid1-route-verification-failed "$(_dfload_active_font)" backend
             _dfload_log "后端记录通过，但 PID 1 字体路由复核失败；原始错误见本日志及 device-font-load-route-verification.json"

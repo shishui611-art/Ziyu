@@ -133,6 +133,8 @@ fi
 type ziyu_boot_profile_mark >/dev/null 2>&1 && ziyu_boot_profile_mark "$MODDIR" storage
 
 # 轻量启动：不再在开机阶段做 OTA/开机保护判定，避免拉长 zygote 前的启动窗口。
+# 清理旧版本/上一轮同 boot_id 遗留的 current-boot 拦截记录，避免已放行的启动仍被状态接口判为 blocked。
+rm -f "$MODDIR/config/boot-safety-current-boot.conf" 2>/dev/null || true
 type ziyu_boot_profile_mark >/dev/null 2>&1 && ziyu_boot_profile_mark "$MODDIR" ota-guard-skipped
 
 # APatch scans providers before module post-fs-data. Its owned common hook

@@ -65,6 +65,13 @@ internal data class ModuleSnapshot(
     val temporaryRootMode: Boolean = false,
     val error: String = "",
 ) {
+    val otaRecoveryRequired: Boolean
+        get() = mountState == "blocked" &&
+            (verificationReason == "ota-stock-scan-required" || verificationReason == "ota-font-reapply-required")
+
+    val fontBootBlocked: Boolean
+        get() = otaRecoveryRequired || (mountState == "blocked" && verificationReason == "module-disabled")
+
     // A consumed reboot queue can still be waiting for the bounded boot verifier.
     // Poll that transition only; an unconsumed queue still needs a real reboot.
     val awaitingBootVerification: Boolean
@@ -93,6 +100,7 @@ internal data class ModuleSnapshot(
             !rootGranted || !installed -> if (activeFont !in setOf("", "default")) "${activeLabel}（上次记录）" else "尚未读取"
             error.isNotBlank() -> "${activeLabel}（状态未更新）"
             detailsPending -> "${activeLabel}（待核对）"
+            fontBootBlocked -> "${activeLabel}（暂停加载）"
             verificationReason == "ota-generation-prepared" -> "${activeLabel}（新系统负载已准备，待完整重启）"
             verificationReason in setOf("safe-mode", "boot-safety-safe-mode") -> "${activeLabel}（开机保护暂停加载）"
             verificationReason in setOf("ota-fingerprint", "ota-fingerprint-change") -> "${activeLabel}（系统更新后需重新应用）"

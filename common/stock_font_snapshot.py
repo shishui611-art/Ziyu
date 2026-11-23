@@ -254,9 +254,12 @@ def ensure_expansion(module: Path, logicals, *, allow_partial=False) -> dict:
     preparation_warnings = []
     try:
         roots = []
-        # Include other font partitions to resolve stock cross-partition links
-        # inside the same independent ROM view, never back through live paths.
+        # Include other existing font partitions to resolve stock cross-partition
+        # links inside the same independent ROM view, never back through live paths.
+        requested_roots = {Path(name).parent for name in requested}
         for partition, logical in inventory.LOGICAL_FONT_ROOTS:
+            if logical not in requested_roots and not logical.exists():
+                continue
             try:
                 actual = view.pick(logical)
             except (OSError, subprocess.SubprocessError) as error:

@@ -125,5 +125,80 @@ data class HomeCardDecoration(val backgroundPath: String = "", val scrim: Int = 
     }
 }
 
-internal fun AppearanceSettings.allImagePaths(): List<String> = listOf(backgroundPath) + homeCard.imagePaths() +
+enum class BottomBarIconSlot(val key: String, val label: String, val aliases: Set<String>) {
+    HOME("home", "首页", setOf("home")),
+    LIBRARY("superuser", "字体库", setOf("superuser", "library")),
+    STUDIO("module", "组合", setOf("module", "studio")),
+    SETTINGS("setting", "设置", setOf("setting", "settings"));
+
+    companion object {
+        fun fromKey(raw: String?): BottomBarIconSlot? {
+            val normalized = raw?.trim()?.lowercase(java.util.Locale.ROOT) ?: return null
+            return entries.firstOrNull { normalized in it.aliases }
+        }
+    }
+}
+
+internal fun normalizeBottomBarIconFile(input: java.io.File, output: java.io.File) {
+    val bitmap = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(input)) { decoder, info, _ ->
+        val w = info.size.width; val h = info.size.height
+        require(w > 0 && h > 0) { "图标尺寸无效" }
+        val scale = minOf(1.0, 256.0 / maxOf(w, h))
+        decoder.setTargetSize(maxOf(1, (w * scale).toInt()), maxOf(1, (h * scale).toInt()))
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+    }
+    try {
+        output.outputStream().use { require(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) { "底栏图标保存失败" } }
+    } finally {
+        bitmap.recycle()
+    }
+}
+
+internal suspend fun importBottomBarIcon(
+    context: android.content.Context,
+    uri: android.net.Uri,
+    slot: BottomBarIconSlot,
+    directory: java.io.File = java.io.File(context.cacheDir, "themes/bottom-bar-stage"),
+): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val dir = directory.apply { mkdirs() }
+    val raw = java.io.File(dir, ".bb-${java.util.UUID.randomUUID()}")
+    val out = java.io.File(dir, "bottom-bar-${slot.key}-${java.util.UUID.randomUUID()}.png")
+    try {
+        context.contentResolver.openInputStream(uri)?.use { src ->
+            raw.outputStream().use { dst ->
+                val buf = ByteArray(32 * 1024); var total = 0L
+                while (true) {
+                    val n = src.read(buf); if (n < 0) break
+                    total += n; require(total <= 12L * 1024 * 1024) { "图标文件超过 12 MB" }
+                    dst.write(buf, 0, n)
+                }
+            }
+        } ?: error("无法读取图标")
+        normalizeBottomBarIconFile(raw, out)
+        out.absolutePath
+    } catch (error: Throwable) {
+        out.delete(); throw error
+    } finally {
+        raw.delete()
+    }
+}
+
+internal fun parseBottomBarIconMap(o: JSONObject?): Map<String, String> = buildMap {
+    if (o == null) return@buildMap
+    BottomBarIconSlot.entries.forEach { slot ->
+        val path = nonBlankThemeText(o.opt(slot.key))
+            ?: slot.aliases.firstNotNullOfOrNull { nonBlankThemeText(o.opt(it)) }
+        if (path != null) put(slot.key, path)
+    }
+}
+
+internal fun bottomBarIconMapJson(map: Map<String, String>): JSONObject = JSONObject().apply {
+    map.forEach { (k, v) ->
+        val slot = BottomBarIconSlot.fromKey(k) ?: return@forEach
+        if (v.isNotBlank()) put(slot.key, v)
+    }
+}
+
+internal fun AppearanceSettings.allImagePaths(): List<String> = listOf(backgroundPath, dynamicWallpaperPath, dynamicHomeCardPath) +
+    homeCard.imagePaths() + bottomBarIcons.values +
     adaptive?.let { listOf(it.light.backgroundPath, it.dark.backgroundPath) + it.light.homeCard.imagePaths() + it.dark.homeCard.imagePaths() }.orEmpty()

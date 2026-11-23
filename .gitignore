@@ -17,7 +17,9 @@ config/webui_font_list.*
 *.jks
 *.keystore
 *.p12
+*.dpapi
 keystore.properties
+.idea/
 android-app/.gradle/
 android-app/.kotlin/
 android-app/build/

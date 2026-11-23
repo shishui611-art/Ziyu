@@ -67,8 +67,9 @@ open_app() {
     return 0
 }
 
-# Existing App: no APK hashing, copying or reinstall on an explicit open action.
-if app_present; then
+# Existing App: no APK hashing, copying or reinstall on an explicit open action,
+# unless a previous module flash left a pending App update marker.
+if app_present && [ ! -f "$MODDIR/config/app_install_pending" ]; then
     open_app
     exit $?
 fi
@@ -77,17 +78,23 @@ if ! command -v pm >/dev/null 2>&1; then
     exit 1
 fi
 # A package may already exist for another Android user; register it for this user first.
-_existing=$(pm install-existing --user "$CURRENT_USER" "$APP_PACKAGE" 2>&1)
-if app_present; then
-    printf '[ACTION-REGISTER] %s\n' "$_existing" >> "$LOG" 2>/dev/null || true
-    open_app
-    exit $?
+if ! app_present; then
+    _existing=$(pm install-existing --user "$CURRENT_USER" "$APP_PACKAGE" 2>&1)
+    if app_present && [ ! -f "$MODDIR/config/app_install_pending" ]; then
+        printf '[ACTION-REGISTER] %s\n' "$_existing" >> "$LOG" 2>/dev/null || true
+        open_app
+        exit $?
+    fi
 fi
 if [ ! -s "$APK" ] || [ ! -f "$HELPER" ]; then
     print_line '未找到完整的内置 App 安装文件，请重新刷入完整模块包。'
     exit 1
 fi
-print_line '尚未安装字域 App，正在安装…'
+if app_present; then
+    print_line '检测到待更新的内置字域 App，正在覆盖安装…'
+else
+    print_line '尚未安装字域 App，正在安装…'
+fi
 _result=$(MODDIR="$MODDIR" APP_INSTALL_LOG="$LOG" sh "$HELPER" manual 2>/dev/null)
 _code=$?
 case "$_result" in
@@ -99,9 +106,14 @@ case "$_result" in
             exit 1
         fi
         rm -f "$MODDIR/config/app_install_manual" 2>/dev/null || true
-        print_line '字域 App 已安装。'
+        print_line '字域 App 已安装或更新。'
         open_app
         exit $?
+        ;;
+    signature-mismatch)
+        print_line '已安装 App 与模块内置 App 签名不同，无法直接覆盖；请先卸载旧版 App 后重试。'
+        print_line "$LOG"
+        exit 1
         ;;
     deferred)
         print_line '系统安装服务暂不可用，请在系统启动完成后再次点击。'

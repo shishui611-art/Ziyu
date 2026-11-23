@@ -22,10 +22,29 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import android.graphics.ImageDecoder
+import io.github.xgl34222220.ziyu.ui.appearance.BottomBarIconSlot
+import io.github.xgl34222220.ziyu.ui.appearance.DynamicWallpaperBackground
+import io.github.xgl34222220.ziyu.ui.appearance.ThemeTrialManager
+import io.github.xgl34222220.ziyu.ui.appearance.backgroundScrimColor
+import io.github.xgl34222220.ziyu.ui.design.ZiyuTextButton
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -148,6 +167,7 @@ import io.github.xgl34222220.ziyu.ui.navigation.kernelsu.FloatingBottomBar
 import io.github.xgl34222220.ziyu.ui.navigation.kernelsu.FloatingBottomBarItem
 import io.github.xgl34222220.ziyu.ui.settings.AppearanceActions
 import io.github.xgl34222220.ziyu.ui.settings.AppearanceSettingsRoute
+import io.github.xgl34222220.ziyu.ui.settings.SettingsSection
 import io.github.xgl34222220.ziyu.ui.studio.FontStudioActions
 import io.github.xgl34222220.ziyu.ui.studio.FontStudioRoute
 import io.github.xgl34222220.ziyu.ui.studio.toFontStudioUiState
@@ -207,6 +227,7 @@ internal fun ZiyuAppShell(
     var page by rememberSaveable { mutableStateOf(AppPage.Home) }
     var navigationHistory by rememberSaveable { mutableStateOf(listOf(AppPage.Home)) }
     var settingsDetailVisible by rememberSaveable { mutableStateOf(false) }
+    var requestedSettingsSection by rememberSaveable { mutableStateOf<SettingsSection?>(null) }
     var logsReturnPage by rememberSaveable { mutableStateOf(AppPage.Home) }
     var pendingApply by remember { mutableStateOf<FontItem?>(null) }
     var pendingDelete by remember { mutableStateOf<FontItem?>(null) }
@@ -276,6 +297,10 @@ internal fun ZiyuAppShell(
                 navigate(AppPage.Logs)
             },
             openSettings = { navigate(AppPage.Settings) },
+            openBootSafety = {
+                requestedSettingsSection = SettingsSection.BOOT_SAFETY
+                navigate(AppPage.Settings)
+            },
             restoreDefault = { restoreDefault = true },
             reboot = viewModel::rebootDevice,
             restart = viewModel::chooseRestart,
@@ -344,6 +369,10 @@ internal fun ZiyuAppShell(
             setCardTransparency = appearanceViewModel::setCardTransparency,
             setAppearanceOverrides = appearanceViewModel::setAppearanceOverrides,
             setBackgroundEffects = appearanceViewModel::setBackgroundEffects,
+            setAppIcon = appearanceViewModel::setAppIcon,
+            setBottomBarIcons = appearanceViewModel::setBottomBarIcons,
+            setDynamicWallpaper = appearanceViewModel::setDynamicWallpaper,
+            setDynamicHomeCard = appearanceViewModel::setDynamicHomeCard,
             resetTheme = appearanceViewModel::resetTheme,
         )
     }
@@ -455,10 +484,34 @@ internal fun ZiyuAppShell(
         val dockActuallyVisible = showDock && !dockHiddenByScroll
         val dockVisibility = remember { MutableTransitionState(dockActuallyVisible) }
         dockVisibility.targetState = dockActuallyVisible
-        val liquidBackdrop = rememberLayerBackdrop()
         val liquidGlassSupported = appearance.floatingDock && appearance.glassEnabled &&
             (dockVisibility.currentState || dockVisibility.targetState) && Build.VERSION.SDK_INT >= 33 &&
             isRuntimeShaderSupported()
+        var dynamicFailed by remember(appearance.dynamicWallpaperPath) { mutableStateOf(false) }
+        val dynamicActive = appearance.dynamicWallpaperPath.isNotBlank() && !dynamicFailed
+        val dynamicFrame = remember { mutableStateOf<ImageBitmap?>(null) }
+        LaunchedEffect(appearance.dynamicWallpaperPath, dynamicActive, liquidGlassSupported) {
+            if (!dynamicActive || !liquidGlassSupported) dynamicFrame.value = null
+        }
+        val currentBackgroundColor = MaterialTheme.colorScheme.background
+        val dynamicScrimState = rememberUpdatedState(
+            if (dynamicActive) backgroundScrimColor(appearance, currentBackgroundColor) else Color.Transparent,
+        )
+        val dynamicActiveState = rememberUpdatedState(dynamicActive)
+        val liquidBackdrop = rememberLayerBackdrop {
+            if (dynamicActiveState.value) {
+                val frame = dynamicFrame.value
+                val w = size.width.roundToInt()
+                val h = size.height.roundToInt()
+                if (frame != null && w > 0 && h > 0) {
+                    drawImage(image = frame, dstSize = IntSize(w, h))
+                    val scrim = dynamicScrimState.value
+                    if (scrim.alpha > 0f) drawRect(scrim)
+                }
+            }
+            drawContent()
+        }
+        val customBottomIcons = rememberBottomBarIconBitmaps(appearance.bottomBarIcons)
         val navigationBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         // Every primary page owns its scrollable bottom clearance. Keep one inset source so
         // switching glass, floating, gesture and three-button modes never stacks blank space.
@@ -585,6 +638,9 @@ internal fun ZiyuAppShell(
                                 navigate(AppPage.Logs)
                             },
                             onDetailChanged = { settingsDetailVisible = it },
+                            requestedSection = requestedSettingsSection,
+                            onSectionOpened = { requestedSettingsSection = null },
+                            otaRecoveryRequired = viewModel.snapshot.otaRecoveryRequired,
                             onOpenFontLibrary = { navigate(AppPage.Library) },
                             fontLibraryTools = {
                                 FontLibraryTools(
@@ -658,6 +714,26 @@ internal fun ZiyuAppShell(
             }
         }
         Box(Modifier.fillMaxSize()) {
+            // Live dynamic wallpaper stays strictly outside layerBackdrop so vendor WebViews
+            // are never captured into a GraphicsLayer; low-res frame snapshots feed the glass dock.
+            if (dynamicActive) {
+                Box(Modifier.fillMaxSize().background(currentBackgroundColor)) {
+                    DynamicWallpaperBackground(
+                        path = appearance.dynamicWallpaperPath,
+                        muted = appearance.dynamicWallpaperMuted,
+                        transform = appearance.dynamicWallpaperTransform,
+                        fps = appearance.dynamicWallpaperFps,
+                        speed = appearance.dynamicWallpaperSpeed,
+                        blurPercent = appearance.backgroundBlur,
+                        modifier = Modifier.fillMaxSize(),
+                        onError = { dynamicFailed = true },
+                        onFrameSnapshot = if (liquidGlassSupported) { bmp ->
+                            dynamicFrame.value = bmp.asImageBitmap()
+                        } else null,
+                    )
+                    Box(Modifier.fillMaxSize().background(dynamicScrimState.value))
+                }
+            }
             // Stable coordinates and an opaque base keep glass sampling valid while
             // either page moves. The dock is outside its own backdrop recording.
             // Only the parent horizontal pager needs a more deliberate drag.
@@ -665,7 +741,19 @@ internal fun ZiyuAppShell(
             // on vertical or control gestures, preserving fling and RTL behavior.
             CompositionLocalProvider(LocalViewConfiguration provides pagerViewConfiguration) {
             Box(contentModifier
-                .then(if (liquidGlassSupported) Modifier.layerBackdrop(liquidBackdrop) else Modifier)
+                .then(
+                    if (liquidGlassSupported) {
+                        Modifier
+                            .drawWithContent {
+                                if (dynamicActive) {
+                                    dynamicFrame.value
+                                    dynamicScrimState.value
+                                }
+                                drawContent()
+                            }
+                            .layerBackdrop(liquidBackdrop)
+                    } else Modifier,
+                )
                 .background(LocalZiyuPaletteTokens.current.pageBackground)
                 .clipToBounds()
                 .pointerInput(pagerGestureEnabled, contentViewConfiguration.touchSlop) {
@@ -732,7 +820,7 @@ internal fun ZiyuAppShell(
                             .background(LocalZiyuPaletteTokens.current.pageBackground)
                             .then(if (preview) Modifier.backDestinationPreview() else Modifier)) {
                             // Paint the full window first; only controls consume safe insets.
-                            AppBackdrop()
+                            AppBackdrop(dynamicWallpaperActive = dynamicActive)
                             Box(Modifier.fillMaxSize().windowInsetsPadding(
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                             )) {
@@ -752,31 +840,44 @@ internal fun ZiyuAppShell(
                 pagerState.isScrollInProgress -> dockPages[pagerState.targetPage]
                 else -> page
             }
-            AnimatedVisibility(
-                visibleState = dockVisibility,
+            val trialActive by ThemeTrialManager.active.collectAsStateWithLifecycle()
+            Column(
                 modifier = Modifier.align(Alignment.BottomCenter),
-                enter = fadeIn(tween(180)) + slideInVertically(tween(210, easing = FastOutSlowInEasing)) { it / 2 },
-                exit = fadeOut(tween(150)) + slideOutVertically(tween(190, easing = FastOutSlowInEasing)) { it },
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                when (appearance.uiStyle) {
-                    UiStyle.MATERIAL -> MaterialAppDock(
-                        current = dockPage,
-                        onSelect = { navigate(it) },
-                        appearance = appearance,
-                        backdrop = liquidBackdrop,
+                if (trialActive) {
+                    ThemeTrialFloatingPill(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                     )
-                    UiStyle.MIUIX -> MiuixAppDock(
-                        current = dockPage,
-                        onSelect = { navigate(it) },
-                        appearance = appearance,
-                        backdrop = liquidBackdrop,
-                    )
-                    UiStyle.COUI -> CouiAppDock(
-                        current = dockPage,
-                        onSelect = { navigate(it) },
-                        appearance = appearance,
-                        backdrop = liquidBackdrop,
-                    )
+                }
+                AnimatedVisibility(
+                    visibleState = dockVisibility,
+                    enter = fadeIn(tween(180)) + slideInVertically(tween(210, easing = FastOutSlowInEasing)) { it / 2 },
+                    exit = fadeOut(tween(150)) + slideOutVertically(tween(190, easing = FastOutSlowInEasing)) { it },
+                ) {
+                    when (appearance.uiStyle) {
+                        UiStyle.MATERIAL -> MaterialAppDock(
+                            current = dockPage,
+                            onSelect = { navigate(it) },
+                            appearance = appearance,
+                            backdrop = liquidBackdrop,
+                            customIcons = customBottomIcons,
+                        )
+                        UiStyle.MIUIX -> MiuixAppDock(
+                            current = dockPage,
+                            onSelect = { navigate(it) },
+                            appearance = appearance,
+                            backdrop = liquidBackdrop,
+                            customIcons = customBottomIcons,
+                        )
+                        UiStyle.COUI -> CouiAppDock(
+                            current = dockPage,
+                            onSelect = { navigate(it) },
+                            appearance = appearance,
+                            backdrop = liquidBackdrop,
+                            customIcons = customBottomIcons,
+                        )
+                    }
                 }
             }
 
@@ -859,15 +960,156 @@ internal fun ZiyuAppShell(
 }
 
 @Composable
-private fun AppBackdrop() {
-    io.github.xgl34222220.ziyu.ui.appearance.BackgroundBackdrop()
+private fun AppBackdrop(dynamicWallpaperActive: Boolean = false) {
+    io.github.xgl34222220.ziyu.ui.appearance.BackgroundBackdrop(dynamicWallpaperActive)
 }
+
+private fun AppPage.bottomBarSlot(): BottomBarIconSlot? = when (this) {
+    AppPage.Home -> BottomBarIconSlot.HOME
+    AppPage.Library -> BottomBarIconSlot.LIBRARY
+    AppPage.Studio -> BottomBarIconSlot.STUDIO
+    AppPage.Settings -> BottomBarIconSlot.SETTINGS
+    AppPage.Logs -> null
+}
+
+@Composable
+private fun rememberBottomBarIconBitmaps(paths: Map<String, String>): Map<String, ImageBitmap> {
+    val result by produceState(emptyMap<String, ImageBitmap>(), paths) {
+        if (paths.isEmpty()) {
+            value = emptyMap()
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            buildMap {
+                paths.forEach { (slot, path) ->
+                    val file = File(path)
+                    if (path.isNotBlank() && file.isFile) {
+                        runCatching {
+                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                                val scale = minOf(1.0, 192.0 / maxOf(info.size.width, info.size.height))
+                                decoder.setTargetSize(maxOf(1, (info.size.width * scale).toInt()), maxOf(1, (info.size.height * scale).toInt()))
+                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                            }.asImageBitmap()
+                        }.getOrNull()?.let { put(slot, it) }
+                    }
+                }
+            }
+        }
+    }
+    return result
+}
+
+@Composable
+private fun DockItemIcon(
+    destination: AppPage,
+    customIcons: Map<String, ImageBitmap>,
+    contentDescription: String? = null,
+    tint: Color = Color.Unspecified,
+) {
+    val custom = destination.bottomBarSlot()?.key?.let(customIcons::get)
+    if (custom != null) {
+        Image(
+            bitmap = custom,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp),
+            contentScale = ContentScale.Fit,
+        )
+    } else if (tint != Color.Unspecified) {
+        Icon(destination.icon, contentDescription = contentDescription, tint = tint)
+    } else {
+        Icon(destination.icon, contentDescription = contentDescription)
+    }
+}
+
+@Composable
+private fun RowScope.CustomNativeNavItem(
+    selected: Boolean,
+    bitmap: ImageBitmap,
+    label: String,
+    activeColor: Color,
+    inactiveColor: Color,
+    onClick: () -> Unit,
+) {
+    val textColor by animateColorAsState(if (selected) activeColor else inactiveColor, tween(180), label = "customNavColor")
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = 52.dp)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp).graphicsLayer { alpha = if (selected) 1f else 0.72f },
+            contentScale = ContentScale.Fit,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun ThemeTrialFloatingPill(modifier: Modifier = Modifier) {
+    val trialName by ThemeTrialManager.trialThemeName.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var restoring by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        color = scheme.secondaryContainer.copy(alpha = 0.96f),
+        contentColor = scheme.onSecondaryContainer,
+        shadowElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = if (trialName.isNotBlank()) "试用：$trialName" else "正在试用主题",
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            ZiyuTextButton(
+                onClick = {
+                    if (restoring) return@ZiyuTextButton
+                    restoring = true
+                    scope.launch {
+                        try { ThemeTrialManager.restoreNow(context) } finally { restoring = false }
+                    }
+                },
+                enabled = !restoring,
+            ) { Text(if (restoring) "恢复中…" else "恢复") }
+            ZiyuTextButton(
+                onClick = { ThemeTrialManager.keepCurrent(context) },
+                enabled = !restoring,
+            ) { Text("保留") }
+        }
+    }
+}
+
 @Composable
 private fun MaterialAppDock(
     current: AppPage,
     onSelect: (AppPage) -> Unit,
     appearance: AppearanceSettings,
     backdrop: LayerBackdrop,
+    customIcons: Map<String, ImageBitmap>,
     modifier: Modifier = Modifier,
 ) {
     val navigationItems: @Composable RowScope.() -> Unit = {
@@ -876,7 +1118,7 @@ private fun MaterialAppDock(
             MaterialNavigationBarItem(
                 selected = selected,
                 onClick = { if (!selected) onSelect(destination) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { DockItemIcon(destination, customIcons) },
                 label = { Text(themeText(destination.label), maxLines = 1) },
             )
         }
@@ -889,7 +1131,7 @@ private fun MaterialAppDock(
             color=MaterialTheme.colorScheme.surfaceContainerHighest,
             modifier=modifier.padding(start=layout.dockHorizontal,end=layout.dockHorizontal,bottom=bottomInset+layout.dockBottomGap),
         ) {
-            MaterialExpandingTabs(current,onSelect)
+            MaterialExpandingTabs(current, onSelect, customIcons)
         }
     } else {
         MaterialNavigationBar(
@@ -906,7 +1148,11 @@ private fun MaterialAppDock(
 
 /** Material owns its expanding selection even when the backdrop is glass. */
 @Composable
-private fun MaterialExpandingTabs(current: AppPage,onSelect: (AppPage)->Unit) {
+private fun MaterialExpandingTabs(
+    current: AppPage,
+    onSelect: (AppPage) -> Unit,
+    customIcons: Map<String, ImageBitmap>,
+) {
     val targets=remember {mutableMapOf<AppPage,LayoutCoordinates>()}
     val coordinates=remember {arrayOfNulls<LayoutCoordinates>(1)}
     val latestSelect by rememberUpdatedState(onSelect)
@@ -942,7 +1188,7 @@ private fun MaterialExpandingTabs(current: AppPage,onSelect: (AppPage)->Unit) {
                     .padding(horizontal=padding,vertical=10.dp),
                 verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center,
             ) {
-                Icon(destination.icon,contentDescription=if(selected)null else label,tint=foreground)
+                DockItemIcon(destination, customIcons, contentDescription = if (selected) null else label, tint = foreground)
                 AnimatedVisibility(selected,modifier=Modifier.weight(1f,fill=false),
                     enter=fadeIn(tween(180))+expandHorizontally(tween(260,easing=FastOutSlowInEasing),expandFrom=Alignment.Start),
                     exit=fadeOut(tween(100))+shrinkHorizontally(tween(260,easing=FastOutSlowInEasing),shrinkTowards=Alignment.Start)) {
@@ -960,6 +1206,7 @@ private fun MiuixAppDock(
     onSelect: (AppPage) -> Unit,
     appearance: AppearanceSettings,
     backdrop: LayerBackdrop,
+    customIcons: Map<String, ImageBitmap>,
     modifier: Modifier = Modifier,
 ) {
     if (appearance.floatingDock) {
@@ -982,7 +1229,7 @@ private fun MiuixAppDock(
                     onClick = { activateTab(index) },
                     modifier = Modifier.defaultMinSize(minWidth = 76.dp),
                 ) {
-                    Icon(destination.icon, contentDescription = null)
+                    DockItemIcon(destination, customIcons)
                     Text(
                         text = themeText(destination.label),
                         fontSize = 11.sp,
@@ -1001,12 +1248,24 @@ private fun MiuixAppDock(
         ) {
             dockPages.forEach { destination ->
                 val selected = current == destination
-                MiuixNavigationBarItem(
-                    selected = selected,
-                    onClick = { if (!selected) onSelect(destination) },
-                    icon = destination.icon,
-                    label = themeText(destination.label),
-                )
+                val custom = destination.bottomBarSlot()?.key?.let(customIcons::get)
+                if (custom != null) {
+                    CustomNativeNavItem(
+                        selected = selected,
+                        bitmap = custom,
+                        label = themeText(destination.label),
+                        activeColor = MiuixTheme.colorScheme.primary,
+                        inactiveColor = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        onClick = { if (!selected) onSelect(destination) },
+                    )
+                } else {
+                    MiuixNavigationBarItem(
+                        selected = selected,
+                        onClick = { if (!selected) onSelect(destination) },
+                        icon = destination.icon,
+                        label = themeText(destination.label),
+                    )
+                }
             }
         }
     }
@@ -1018,6 +1277,7 @@ private fun CouiAppDock(
     onSelect: (AppPage) -> Unit,
     appearance: AppearanceSettings,
     backdrop: LayerBackdrop,
+    customIcons: Map<String, ImageBitmap>,
     modifier: Modifier = Modifier,
 ) {
     if (appearance.floatingDock) {
@@ -1038,12 +1298,24 @@ private fun CouiAppDock(
             ) {
                 dockPages.forEach { destination ->
                     val selected = current == destination
-                    CouiNavigationBarItem(
-                        selected = selected,
-                        onClick = { if (!selected) onSelect(destination) },
-                        icon = destination.icon,
-                        label = themeText(destination.label),
-                    )
+                    val custom = destination.bottomBarSlot()?.key?.let(customIcons::get)
+                    if (custom != null) {
+                        CustomNativeNavItem(
+                            selected = selected,
+                            bitmap = custom,
+                            label = themeText(destination.label),
+                            activeColor = COUITheme.colorScheme.primary,
+                            inactiveColor = COUITheme.colorScheme.onSurfaceVariantSummary,
+                            onClick = { if (!selected) onSelect(destination) },
+                        )
+                    } else {
+                        CouiNavigationBarItem(
+                            selected = selected,
+                            onClick = { if (!selected) onSelect(destination) },
+                            icon = destination.icon,
+                            label = themeText(destination.label),
+                        )
+                    }
                 }
             }
         }
@@ -1055,12 +1327,24 @@ private fun CouiAppDock(
         ) {
             dockPages.forEach { destination ->
                 val selected = current == destination
-                CouiNavigationBarItem(
-                    selected = selected,
-                    onClick = { if (!selected) onSelect(destination) },
-                    icon = destination.icon,
-                    label = themeText(destination.label),
-                )
+                val custom = destination.bottomBarSlot()?.key?.let(customIcons::get)
+                if (custom != null) {
+                    CustomNativeNavItem(
+                        selected = selected,
+                        bitmap = custom,
+                        label = themeText(destination.label),
+                        activeColor = COUITheme.colorScheme.primary,
+                        inactiveColor = COUITheme.colorScheme.onSurfaceVariantSummary,
+                        onClick = { if (!selected) onSelect(destination) },
+                    )
+                } else {
+                    CouiNavigationBarItem(
+                        selected = selected,
+                        onClick = { if (!selected) onSelect(destination) },
+                        icon = destination.icon,
+                        label = themeText(destination.label),
+                    )
+                }
             }
         }
     }

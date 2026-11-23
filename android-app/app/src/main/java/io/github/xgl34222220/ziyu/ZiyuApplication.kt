@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import io.github.xgl34222220.ziyu.ui.appearance.BuiltinAppIcons
+import io.github.xgl34222220.ziyu.ui.appearance.ThemeTrialManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -51,10 +53,18 @@ internal class ZiyuApplication : Application(), ViewModelStoreOwner {
             override fun onActivityStopped(activity: Activity) {
                 startedActivityCount = (startedActivityCount - 1).coerceAtLeast(0)
                 processForeground.value = startedActivityCount > 0
+                if (startedActivityCount == 0) {
+                    applicationScope.launch(Dispatchers.IO) {
+                        runCatching { BuiltinAppIcons.restoreSavedIfNeeded(this@ZiyuApplication) }
+                    }
+                }
             }
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching { ThemeTrialManager.restoreIfNeeded(this@ZiyuApplication) }
+        }
         NativeImportNotificationController.ensureChannel(this)
         FontTaskNotificationController.ensureChannel(this)
         superviseNativeImport()

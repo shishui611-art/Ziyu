@@ -122,6 +122,7 @@ fun HomeRoute(
         state.moduleInstalled,
         state.currentFont,
         state.rebootRequired,
+        state.fontBootBlocked,
         state.taskRunning,
         trustRefreshGeneration,
     ) {
@@ -129,6 +130,8 @@ fun HomeRoute(
             trustState = DeviceTrustState(loading = false, error = "请先安装字域模块")
             return@LaunchedEffect
         }
+
+        if (state.fontBootBlocked) return@LaunchedEffect
 
         var latest = loadDeviceTrustState()
         trustState = latest
@@ -141,6 +144,16 @@ fun HomeRoute(
         }
     }
 
+    val visibleTrustState = if (state.fontBootBlocked) {
+        DeviceTrustState(
+            loading = false,
+            activeFont = state.currentFontId,
+            alignment = "pending",
+            reason = if (state.otaRecoveryRequired) "ota-recovery-required" else "module-disabled",
+            mountState = "blocked",
+        )
+    } else trustState
+
     val trustContent: @Composable () -> Unit = {
         if (state.moduleInstalled) {
             Column(Modifier.fillMaxWidth()) {
@@ -152,7 +165,7 @@ fun HomeRoute(
                 }
                 DeviceTrustChip(
                     style = style,
-                    state = trustState,
+                    state = visibleTrustState,
                     onClick = { showTrustDetails = true },
                 )
                 Spacer(Modifier.height(7.dp))
@@ -295,7 +308,7 @@ fun HomeRoute(
     if (showTrustDetails) {
         DeviceTrustDialog(
             style = style,
-            state = trustState,
+            state = visibleTrustState,
             onDismiss = { showTrustDetails = false },
             onOpenAcceptance = { showAcceptanceGuide = true },
         )
@@ -304,7 +317,7 @@ fun HomeRoute(
         DeviceAcceptanceGuideDialog(
             style = style,
             state = state,
-            trust = trustState,
+            trust = visibleTrustState,
             onRefresh = {
                 actions.refresh()
                 trustRefreshGeneration += 1

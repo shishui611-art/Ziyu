@@ -160,48 +160,68 @@ ziyu_nomount_provider_reload_cleanup() (
     _lnm_reload_plan="$_lnm_module/.ziyu-state/nomount-provider-reload.plan"
     _lnm_reload_json=$(_lnm_list_json "$_lnm_cli_path") || return 1
     printf '%s\n' "$_lnm_reload_json" | _lnm_json_parse "$_lnm_module" \
-        owned-plan-v2 "$_lnm_module" > "$_lnm_reload_plan.tmp.$$" || return 1
+        owned-plan-v3 "$_lnm_module" > "$_lnm_reload_plan.tmp.$$" || {
+        rm -f "$_lnm_reload_plan.tmp.$$"
+        return 1
+    }
     # Validate every pair before the first delete. Only published module trees
     # on Android partitions are eligible; never unlink unrelated/global rules.
     _lnm_reload_count=0
-    while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
+    _lnm_reload_deleted=0
+    while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope _lnm_rdel; do
         [ -n "$_lnm_rt" ] || continue
-        case "$_lnm_rt" in /system/*|/system_ext/*|/product/*|/vendor/*|/odm/*|/oem/*|/my_*/*|/oplus_*/*|/mi_ext/*|/cust/*|/hw_product/*) ;; *) return 1 ;; esac
+        case "$_lnm_rt" in /system/*|/system_ext/*|/product/*|/vendor/*|/odm/*|/oem/*|/my_*/*|/oplus_*/*|/mi_ext/*|/cust/*|/hw_product/*) ;; *)
+            _lnm_log "$_lnm_module" "provider reload plan rejected target=$_lnm_rt"
+            rm -f "$_lnm_reload_plan.tmp.$$"
+            return 1 ;;
+        esac
         _lnm_rel=${_lnm_rt#/}
         case "$_lnm_rs" in
             "$_lnm_module/$_lnm_rel"|"$_lnm_module/.ziyu-payload/$_lnm_rel"|"$_lnm_module/system/$_lnm_rel"|"$_lnm_module/.ziyu-payload/system/$_lnm_rel") ;;
-            *) return 1 ;;
+            *)
+                _lnm_log "$_lnm_module" "provider reload plan rejected source=$_lnm_rs target=$_lnm_rt"
+                rm -f "$_lnm_reload_plan.tmp.$$"
+                return 1 ;;
         esac
-        case "$_lnm_rscope" in public|private) ;; *) return 1 ;; esac
+        case "$_lnm_rscope" in public|private) ;; *) rm -f "$_lnm_reload_plan.tmp.$$"; return 1 ;; esac
+        case "${_lnm_rdel:-0}" in 0|1) ;; *) rm -f "$_lnm_reload_plan.tmp.$$"; return 1 ;; esac
+        [ "${_lnm_rdel:-0}" != 1 ] || _lnm_reload_deleted=$((_lnm_reload_deleted + 1))
         _lnm_reload_count=$((_lnm_reload_count + 1))
     done < "$_lnm_reload_plan.tmp.$$"
-    mv -f "$_lnm_reload_plan.tmp.$$" "$_lnm_reload_plan" || return 1
-    _lnm_log "$_lnm_module" "validated provider reload plan rules=$_lnm_reload_count"
+    mv -f "$_lnm_reload_plan.tmp.$$" "$_lnm_reload_plan" || { rm -f "$_lnm_reload_plan.tmp.$$"; return 1; }
+    _lnm_log "$_lnm_module" "validated provider reload plan rules=$_lnm_reload_count deleted_inodes=$_lnm_reload_deleted"
     _lnm_reload_bad=0
-    while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
-        [ -n "$_lnm_rt" ] || continue
-        _lnm_before=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_rt" "$_lnm_rs") || { _lnm_reload_bad=1; break; }
-        case "$_lnm_before" in
-            absent) continue ;;
-            exact) ;;
-            *) _lnm_reload_bad=1; break ;;
-        esac
-        printf '[NoMount] reload deleting target=%s source=%s\n' "$_lnm_rt" "$_lnm_rs" \
-            >> "$_lnm_module/logs/mount-backend.log"
-        _lnm_mutate "$_lnm_cli_path" del "$_lnm_rt" >> "$_lnm_module/logs/mount-backend.log" 2>&1 || { _lnm_reload_bad=1; break; }
-        _lnm_after=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" target "$_lnm_rt") || { _lnm_reload_bad=1; break; }
-        [ "$_lnm_after" = absent ] || { _lnm_reload_bad=1; break; }
-    done < "$_lnm_reload_plan"
-    if [ "$_lnm_reload_bad" = 0 ]; then
-        _lnm_after=$(ziyu_nomount_module_rules_state "$_lnm_module") || _lnm_reload_bad=1
-        [ "$_lnm_after" = absent ] || _lnm_reload_bad=1
+    if [ "$_lnm_reload_count" -gt 0 ]; then
+        while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope _lnm_rdel; do
+            [ -n "$_lnm_rt" ] || continue
+            printf '[NoMount] reload deleting target=%s source=%s deleted=%s\n' "$_lnm_rt" "$_lnm_rs" "${_lnm_rdel:-0}" \
+                >> "$_lnm_module/logs/mount-backend.log"
+            _lnm_mutate "$_lnm_cli_path" del "$_lnm_rt" >> "$_lnm_module/logs/mount-backend.log" 2>&1 || {
+                _lnm_reload_bad=1
+                break
+            }
+        done < "$_lnm_reload_plan"
+        if [ "$_lnm_reload_bad" = 0 ]; then
+            _lnm_after_json=$(_lnm_list_json "$_lnm_cli_path") || _lnm_reload_bad=1
+            if [ "$_lnm_reload_bad" = 0 ]; then
+                _lnm_after=$(printf '%s\n' "$_lnm_after_json" | _lnm_json_parse "$_lnm_module" \
+                    verify-targets-absent "$_lnm_module" "$_lnm_reload_plan") || _lnm_reload_bad=1
+                [ "$_lnm_after" = absent ] || _lnm_reload_bad=1
+            fi
+        fi
     fi
     if [ "$_lnm_reload_bad" != 0 ]; then
-        # Retain the old generation and restore each deleted pair, preserving
-        # Suite's public/private metadata. Conflicts are never overwritten.
+        # Retain the old generation and restore live deleted pairs, preserving
+        # Suite's public/private metadata. Unlinked (deleted) module files from
+        # an already-replaced module cannot be re-added as literal paths.
         _lnm_rollback_bad=0
-        while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope; do
+        _lnm_rollback_skipped_deleted=0
+        while IFS='|' read -r _lnm_rt _lnm_rs _lnm_rscope _lnm_rdel; do
             [ -n "$_lnm_rt" ] || continue
+            if [ "${_lnm_rdel:-0}" = 1 ] || [ ! -e "$_lnm_rs" ]; then
+                _lnm_rollback_skipped_deleted=$((_lnm_rollback_skipped_deleted + 1))
+                continue
+            fi
             _lnm_before=$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_rt" "$_lnm_rs") || { _lnm_rollback_bad=1; continue; }
             case "$_lnm_before" in
                 exact) continue ;;
@@ -210,7 +230,7 @@ ziyu_nomount_provider_reload_cleanup() (
             esac
             [ "$(_lnm_rule_state "$_lnm_module" "$_lnm_cli_path" pair "$_lnm_rt" "$_lnm_rs")" = exact ] || _lnm_rollback_bad=1
         done < "$_lnm_reload_plan"
-        _lnm_log "$_lnm_module" "provider reload failed; rollback_failed=$_lnm_rollback_bad; plan preserved"
+        _lnm_log "$_lnm_module" "provider reload failed; rollback_failed=$_lnm_rollback_bad; skipped_deleted=$_lnm_rollback_skipped_deleted; plan preserved"
         return 1
     fi
     rm -f "$_lnm_reload_plan" "$_lnm_module/.ziyu-state/nomount-rules.current" || return 1

@@ -165,6 +165,7 @@ ziyu_slot_collect_sources() {
     for _zcp_f in "$_zcp_dir"/*.ttf "$_zcp_dir"/*.otf "$_zcp_dir"/*.ttc; do
         [ -f "$_zcp_f" ] || continue
         _zcp_name=${_zcp_f##*/}
+        case "$_zcp_name" in *Emoji*|*emoji*) continue ;; esac
         case "$_zcp_name" in
             *SemiBold*|*Semibold*|*semi-bold*|*Semi*Bold*) [ -n "$_zcp_semibold" ] || _zcp_semibold=$_zcp_f ;;
             *ExtraBold*|*Black*|*Heavy*) [ -n "$_zcp_heavy" ] || _zcp_heavy=$_zcp_f ;;
@@ -183,6 +184,7 @@ ziyu_slot_collect_sources() {
     [ -n "$_zcp_base" ] || {
         for _zcp_f in "$_zcp_dir"/*.ttf "$_zcp_dir"/*.otf "$_zcp_dir"/*.ttc; do
             [ -f "$_zcp_f" ] || continue
+            case "${_zcp_f##*/}" in *Emoji*|*emoji*) continue ;; esac
             _zcp_base=$_zcp_f
             break
         done
@@ -372,6 +374,8 @@ ziyu_slot_coverage_expand() {
     ziyu_slot_coverage_enabled "$_zsce_mod" || return 0
     [ -d "$_zsce_stage_fonts" ] || return 0
     [ -d "$_zsce_payload_fonts" ] || return 0
+    # 恢复默认或仅含 Emoji 负载时没有可扩张的正文字体，直接返回成功。
+    ziyu_slot_collect_sources "$_zsce_payload_fonts" || return 0
     _zsce_added=0
     # 诊断用：config/tools/slot-coverage-limit.conf 的 limit=N 只扩展前 N 个槽位，
     # 用于二分定位哪个槽位会导致开机异常。

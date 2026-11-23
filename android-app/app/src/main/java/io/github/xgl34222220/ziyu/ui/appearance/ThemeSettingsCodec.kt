@@ -15,7 +15,20 @@ internal object ThemeSettingsCodec {
         .put("backgroundScrim", s.backgroundScrim).put("appearance", s.overrides.toJson())
         .put("backgroundScrimIsSigned", s.backgroundScrimIsSigned)
         .put("customTexts", ThemeTexts.json(s.customTexts)).put("homeCard", s.homeCard.toJson(paths))
-        .apply { if (paths) put("backgroundPath", s.backgroundPath) }
+        .put("appIconId", s.appIconId).put("appIconDynamicColor", s.appIconDynamicColor)
+        .put("dynamicWallpaperTransform", s.dynamicWallpaperTransform.toJson())
+        .put("dynamicHomeCardTransform", s.dynamicHomeCardTransform.toJson())
+        .put("dynamicWallpaperMuted", s.dynamicWallpaperMuted)
+        .put("dynamicWallpaperFps", s.dynamicWallpaperFps)
+        .put("dynamicWallpaperSpeed", s.dynamicWallpaperSpeed.toDouble())
+        .apply {
+            if (paths) {
+                put("backgroundPath", s.backgroundPath)
+                put("bottomBarIcons", bottomBarIconMapJson(s.bottomBarIcons))
+                put("dynamicWallpaperPath", s.dynamicWallpaperPath)
+                put("dynamicHomeCardPath", s.dynamicHomeCardPath)
+            }
+        }
 
     fun decode(o: JSONObject, base: AppearanceSettings = AppearanceSettings()): AppearanceSettings {
         require(o.optInt("schema", 1) == 1) { "不支持此字域主题版本" }
@@ -44,6 +57,16 @@ internal object ThemeSettingsCodec {
             backgroundPath = o.optString("backgroundPath", base.backgroundPath),
             customTexts = ThemeTexts.parse(o.optJSONObject("customTexts")),
             homeCard = HomeCardDecoration.parse(o.optJSONObject("homeCard")),
+            appIconId = nonBlankThemeText(o.opt("appIconId"))?.takeIf(BuiltinAppIcons::isKnown) ?: base.appIconId,
+            appIconDynamicColor = o.optBoolean("appIconDynamicColor", base.appIconDynamicColor),
+            bottomBarIcons = if (o.has("bottomBarIcons")) parseBottomBarIconMap(o.optJSONObject("bottomBarIcons")) else base.bottomBarIcons,
+            dynamicWallpaperPath = o.optString("dynamicWallpaperPath", base.dynamicWallpaperPath),
+            dynamicWallpaperTransform = if (o.has("dynamicWallpaperTransform")) DynamicWallpaperTransform.parse(o.optJSONObject("dynamicWallpaperTransform")) else base.dynamicWallpaperTransform,
+            dynamicHomeCardPath = o.optString("dynamicHomeCardPath", base.dynamicHomeCardPath),
+            dynamicHomeCardTransform = if (o.has("dynamicHomeCardTransform")) DynamicWallpaperTransform.parse(o.optJSONObject("dynamicHomeCardTransform")) else base.dynamicHomeCardTransform,
+            dynamicWallpaperMuted = o.optBoolean("dynamicWallpaperMuted", base.dynamicWallpaperMuted),
+            dynamicWallpaperFps = o.optInt("dynamicWallpaperFps", base.dynamicWallpaperFps),
+            dynamicWallpaperSpeed = o.optDouble("dynamicWallpaperSpeed", base.dynamicWallpaperSpeed.toDouble()).toFloat(),
             adaptive = null,
         ).normalized()
     }

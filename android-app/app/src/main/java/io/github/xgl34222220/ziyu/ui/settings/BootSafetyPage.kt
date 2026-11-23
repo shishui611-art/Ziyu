@@ -40,7 +40,7 @@ private fun scanFailure(values: Map<String, String>): String =
     }
 
 @Composable
-internal fun BootSafetyPage(fontBusy: Boolean, onOpenFontLibrary: () -> Unit) {
+internal fun BootSafetyPage(fontBusy: Boolean, onOpenFontLibrary: () -> Unit, otaRecoveryRequired: Boolean = false) {
     val scope = rememberCoroutineScope()
     val palette = LocalZiyuPaletteTokens.current
     var busy by remember { mutableStateOf(false) }
@@ -106,7 +106,7 @@ internal fun BootSafetyPage(fontBusy: Boolean, onOpenFontLibrary: () -> Unit) {
 
     LaunchedEffect(Unit) { perform("status") }
     val safe = state["safe_mode"] == "1"
-    val otaPending = state["ota_pending"] == "1"
+    val otaPending = state["ota_pending"] == "1" || otaRecoveryRequired
     val nextReady = state["next_generation_ready"] == "1"
     val scanRunning = state["scan_state"] in setOf("queued", "running")
     // scan_complete is supplied only after the module verifies the current ROM.

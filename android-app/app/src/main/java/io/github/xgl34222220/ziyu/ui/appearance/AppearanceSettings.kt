@@ -120,9 +120,22 @@ data class AppearanceSettings(
     val themeName: String = "",
     val themeAuthor: String = "",
     val themeLicense: String = "",
+    val appIconId: String = BuiltinAppIcons.DEFAULT_ID,
+    val appIconDynamicColor: Boolean = false,
+    val bottomBarIcons: Map<String, String> = emptyMap(),
+    val dynamicWallpaperPath: String = "",
+    val dynamicWallpaperTransform: DynamicWallpaperTransform = DynamicWallpaperTransform(),
+    val dynamicHomeCardPath: String = "",
+    val dynamicHomeCardTransform: DynamicWallpaperTransform = DynamicWallpaperTransform(),
+    val dynamicWallpaperMuted: Boolean = true,
+    val dynamicWallpaperFps: Int = 0,
+    val dynamicWallpaperSpeed: Float = 1f,
 ) {
     val accent: AccentOption
         get() = accentOptionFor(seedArgb)
+
+    val hasAnyAppBackground: Boolean
+        get() = backgroundPath.isNotBlank() || dynamicWallpaperPath.isNotBlank()
 
     /** Repairs stale or manually edited preferences before they reach Compose. */
     fun normalized(): AppearanceSettings = copy(
@@ -130,5 +143,10 @@ data class AppearanceSettings(
         cardTransparency = cardTransparency.coerceIn(0, 100),
         backgroundBlur = backgroundBlur.coerceIn(0, 100),
         backgroundScrim = backgroundScrim.coerceIn(if (backgroundScrimIsSigned) -100 else 0, 100),
+        appIconId = BuiltinAppIcons.find(appIconId).id,
+        dynamicWallpaperTransform = dynamicWallpaperTransform.sanitized(),
+        dynamicHomeCardTransform = dynamicHomeCardTransform.sanitized(),
+        dynamicWallpaperFps = dynamicWallpaperFps.coerceIn(0, 120),
+        dynamicWallpaperSpeed = dynamicWallpaperSpeed.takeIf { it.isFinite() }?.coerceIn(0.25f, 2f) ?: 1f,
     )
 }

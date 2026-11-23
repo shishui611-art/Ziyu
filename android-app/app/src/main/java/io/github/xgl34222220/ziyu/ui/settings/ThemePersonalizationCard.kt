@@ -94,6 +94,8 @@ private fun HomeCardEditor(settings: AppearanceSettings, onDismiss: () -> Unit) 
     fun change(value: HomeCardDecoration) {if(adaptive && dark)darkCard=value else lightCard=value}
     var stickerIndex by remember {mutableIntStateOf(0)}
     var pickSticker by remember {mutableStateOf(false)}
+    var dynamicCardPath by remember(settings.dynamicHomeCardPath) { mutableStateOf(settings.dynamicHomeCardPath) }
+    var dynamicCardTransform by remember(settings.dynamicHomeCardTransform) { mutableStateOf(settings.dynamicHomeCardTransform.sanitized()) }
     var busy by remember {mutableStateOf(false)}
     var error by remember {mutableStateOf("")}
     val staging=remember {File(context.cacheDir,"themes/card-editor-${java.util.UUID.randomUUID()}").apply {mkdirs()}}
@@ -109,8 +111,22 @@ private fun HomeCardEditor(settings: AppearanceSettings, onDismiss: () -> Unit) 
             } catch(c:CancellationException){throw c} catch(e:Exception){error=e.message ?: "无法读取图片"} finally {busy=false}
         }
     }
+    val dynamicPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            busy = true; error = ""
+            try {
+                dynamicCardPath = stageDynamicWallpaperPreview(context, uri)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (e: Exception) {
+                error = e.message ?: "无法导入动态卡片文件"
+            } finally {
+                busy = false
+            }
+        }
+    }
     fun pick(sticker: Boolean) {pickSticker=sticker;picker.launch("image/*")}
-    val preview=settings.forDark(dark).copy(themeMode=if(dark)ThemeMode.DARK else ThemeMode.LIGHT,homeCard=card)
+    val preview=settings.forDark(dark).copy(themeMode=if(dark)ThemeMode.DARK else ThemeMode.LIGHT,homeCard=card,dynamicHomeCardPath=dynamicCardPath,dynamicHomeCardTransform=dynamicCardTransform)
     ZiyuAlertDialog(onDismissRequest={if(!busy)onDismiss()},title={ZiyuText("首页卡片")},text={
         Column(Modifier.heightIn(max=560.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             if(adaptive) FlowRow(horizontalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -119,9 +135,36 @@ private fun HomeCardEditor(settings: AppearanceSettings, onDismiss: () -> Unit) 
             }
             ThemeAppearancePreview(preview)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                ZiyuButton(onClick={pick(false)},enabled=!busy) {ZiyuText("选择背景")}
-                if(card.backgroundPath.isNotBlank()) ZiyuTextButton(onClick={change(card.copy(backgroundPath=""))},enabled=!busy) {ZiyuText("移除背景")}
+                ZiyuButton(onClick={pick(false)},enabled=!busy) {ZiyuText("选择静态背景")}
+                if(card.backgroundPath.isNotBlank()) ZiyuTextButton(onClick={change(card.copy(backgroundPath=""))},enabled=!busy) {ZiyuText("移除静态背景")}
                 ZiyuOutlinedButton(onClick={pick(true)},enabled=!busy && card.stickers.size<CardSticker.MAX_COUNT) {ZiyuText("添加贴纸")}
+            }
+            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                ZiyuOutlinedButton(onClick={dynamicPicker.launch(arrayOf("video/mp4","image/webp","video/*","image/*"))},enabled=!busy) {
+                    ZiyuText(if(dynamicCardPath.isBlank()) "选择动态卡片" else "更换动态卡片")
+                }
+                if(dynamicCardPath.isNotBlank()) ZiyuTextButton(onClick={dynamicCardPath=""},enabled=!busy) {ZiyuText("移除动态卡片")}
+            }
+            if(dynamicCardPath.isNotBlank()) {
+                ZiyuText("动态卡片适配",style=MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    DynamicWallpaperFit.entries.forEach { fit ->
+                        ThemeStoreChip(fit.label, dynamicCardTransform.fit == fit) {
+                            dynamicCardTransform = dynamicCardTransform.copy(fit = fit).sanitized()
+                        }
+                    }
+                }
+                if (dynamicCardTransform.fit == DynamicWallpaperFit.CUSTOM) {
+                    CardNumber("动态缩放", (dynamicCardTransform.zoom * 100).roundToInt(), 100..400, !busy) {
+                        dynamicCardTransform = dynamicCardTransform.copy(zoom = it / 100f).sanitized()
+                    }
+                    CardNumber("动态左右位置", (dynamicCardTransform.offsetX * 100).roundToInt(), -100..100, !busy) {
+                        dynamicCardTransform = dynamicCardTransform.copy(offsetX = it / 100f).sanitized()
+                    }
+                    CardNumber("动态上下位置", (dynamicCardTransform.offsetY * 100).roundToInt(), -100..100, !busy) {
+                        dynamicCardTransform = dynamicCardTransform.copy(offsetY = it / 100f).sanitized()
+                    }
+                }
             }
             if(card.backgroundPath.isNotBlank()) {
                 CardNumber("背景不透明度",card.imageAlpha,0..100,!busy) {change(card.copy(imageAlpha=it))}
@@ -146,13 +189,14 @@ private fun HomeCardEditor(settings: AppearanceSettings, onDismiss: () -> Unit) 
             }
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {ZiyuText("显示卡片装饰");ZiyuSwitch(!card.hideSample,{change(card.copy(hideSample=!it))},enabled=!busy)}
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {ZiyuText("显示卡片标题");ZiyuSwitch(!card.hideLabel,{change(card.copy(hideLabel=!it))},enabled=!busy)}
-            ZiyuTextButton(onClick={change(HomeCardDecoration())},enabled=!busy) {ZiyuText("恢复此卡片默认")}
+            ZiyuTextButton(onClick={change(HomeCardDecoration());dynamicCardPath="";dynamicCardTransform=DynamicWallpaperTransform()},enabled=!busy) {ZiyuText("恢复此卡片默认")}
             if(error.isNotBlank())ZiyuText(error,color=MaterialTheme.colorScheme.error)
         }
     },confirmButton={ZiyuButton(onClick={scope.launch {
         busy=true;error=""
         try {
             repository.setHomeCards(lightCard,if(adaptive)darkCard else null)
+            repository.setDynamicHomeCard(dynamicCardPath,dynamicCardTransform)
             onDismiss()
         } catch(c:CancellationException){throw c} catch(e:Exception){error=e.message ?: "保存失败"} finally {busy=false}
     }},enabled=!busy) {ZiyuText(if(busy)"处理中…" else "保存")}},dismissButton={ZiyuTextButton(onClick=onDismiss,enabled=!busy) {ZiyuText("取消")}})

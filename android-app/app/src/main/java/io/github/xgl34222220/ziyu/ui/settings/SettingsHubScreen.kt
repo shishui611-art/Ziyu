@@ -157,6 +157,10 @@ data class AppearanceActions(
     val setCardTransparency: (Int) -> Unit = {},
     val setAppearanceOverrides: (io.github.xgl34222220.ziyu.ui.appearance.AppearanceOverrides) -> Unit = {},
     val setBackgroundEffects: (io.github.xgl34222220.ziyu.ui.appearance.BackgroundEffects, Int, Int) -> Unit = { _, _, _ -> },
+    val setAppIcon: (String, Boolean) -> Unit = { _, _ -> },
+    val setBottomBarIcons: (Map<String, String>) -> Unit = {},
+    val setDynamicWallpaper: (String, io.github.xgl34222220.ziyu.ui.appearance.DynamicWallpaperTransform, Boolean, Int, Float) -> Unit = { _, _, _, _, _ -> },
+    val setDynamicHomeCard: (String, io.github.xgl34222220.ziyu.ui.appearance.DynamicWallpaperTransform) -> Unit = { _, _ -> },
     val resetTheme: suspend () -> Unit = {},
 )
 
@@ -196,9 +200,12 @@ internal fun AppearanceSettingsRoute(
     fontLoading: Boolean = false,
     onLoadFonts: () -> Unit = {},
     onOpenFontLibrary: () -> Unit = {},
+    requestedSection: SettingsSection? = null,
+    onSectionOpened: () -> Unit = {},
+    otaRecoveryRequired: Boolean = false,
     fontLibraryTools: @Composable () -> Unit = {},
 ) {
-    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary, fontLibraryTools)
+    SettingsHubRoute(settings, actions, onOpenTasks, onDetailChanged, active, currentFontLabel, fonts, currentFontId, fontBusy, fontLoading, onLoadFonts, onOpenFontLibrary, fontLibraryTools, requestedSection, onSectionOpened, otaRecoveryRequired)
 }
 
 @Composable
@@ -216,6 +223,9 @@ internal fun SettingsHubRoute(
     onLoadFonts: () -> Unit,
     onOpenFontLibrary: () -> Unit,
     fontLibraryTools: @Composable () -> Unit,
+    requestedSection: SettingsSection? = null,
+    onSectionOpened: () -> Unit = {},
+    otaRecoveryRequired: Boolean = false,
 ) {
     val model: SystemCenterViewModel = viewModel()
     var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -237,6 +247,12 @@ internal fun SettingsHubRoute(
         if (item == SettingsSection.SAFETY) model.refreshHealth()
         if (item == SettingsSection.UPDATE) model.checkUpdate()
         if (item == SettingsSection.CLIPPING || item == SettingsSection.TOOLS) onLoadFonts()
+    }
+    LaunchedEffect(active, requestedSection) {
+        if (active && requestedSection != null) {
+            openSection(requestedSection)
+            onSectionOpened()
+        }
     }
 
     val transition = updateTransition(section, label = "settingsDetailTransition")
@@ -294,7 +310,7 @@ internal fun SettingsHubRoute(
                         SettingsSection.SAFETY -> SafetyPage(model, settings.uiStyle)
                         SettingsSection.FONT_RULES -> pageList { item { SettingCard("选择字体") { FontSlotRulesCard() } } }
                         SettingsSection.CLIPPING -> FontClippingPage(fonts, currentFontId, fontBusy, fontLoading)
-                        SettingsSection.BOOT_SAFETY -> BootSafetyPage(fontBusy, onOpenFontLibrary)
+                        SettingsSection.BOOT_SAFETY -> BootSafetyPage(fontBusy, onOpenFontLibrary, otaRecoveryRequired)
                         SettingsSection.APP_COVERAGE -> UncoveredAppsPage()
                         SettingsSection.GOOGLE -> GoogleFontCompatibilityPage()
                         SettingsSection.STORAGE -> pageList {
@@ -657,6 +673,7 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
             Text("当前为浅深主题；更改背景、主题色或卡片透明度后固定为当前外观。", style = MaterialTheme.typography.bodySmall)
         }
         item { ThemeLibraryCard(settings) }
+        item { AppIconCustomizationCard(settings, actions) }
         item { AppearanceCustomizationCard(settings, actions) }
         item { ThemePersonalizationCard(settings) }
         item {
@@ -676,10 +693,10 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
         }
         item { AppearancePaletteCard(current, actions) }
         item { AppearanceCardTransparencyCard(current, actions) }
-        item { BackgroundImageCard(current, actions.setBackgroundPath) }
+        item { BackgroundImageCard(current, actions.setBackgroundPath, actions.setDynamicWallpaper) }
         item {
             SettingCard("恢复默认主题") {
-                Text("还原主题颜色、背景、卡片透明度和自定义文字。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Text("还原主题颜色、背景、动态壁纸、底栏图标、卡片透明度和自定义文字。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 OutlinedButton({ themeResetMessage = ""; confirmThemeReset = true }, Modifier.fillMaxWidth(), enabled = !themeResetBusy) { Text(if (themeResetBusy) "正在恢复…" else "一键恢复默认主题") }
                 if (themeResetMessage.isNotBlank()) Text(themeResetMessage, style = MaterialTheme.typography.bodySmall)
             }
@@ -689,7 +706,7 @@ private fun AppearancePage(settings: AppearanceSettings, actions: AppearanceActi
         onDismissRequest = { if (!themeResetBusy) confirmThemeReset = false },
         shape = RoundedCornerShape(if (settings.uiStyle == UiStyle.MIUIX) 34.dp else 28.dp),
         title = { Text("恢复默认主题？", fontWeight = FontWeight.Black) },
-        text = { Text("将清除已应用的主题背景、配色和自定义文字；界面风格、滑动与刷新设置会保留。") },
+        text = { Text("将清除已应用的主题背景、动态壁纸、底栏图标、配色和自定义文字；界面风格、桌面应用图标、滑动与刷新设置会保留。") },
         dismissButton = { TextButton({ confirmThemeReset = false }, enabled = !themeResetBusy) { Text("取消") } },
         confirmButton = {
             TextButton({

@@ -6,7 +6,7 @@
 - `module.prop` 是模块、App 与制品的唯一版本来源；模块 ZIP 必须内置本次构建的同版本 APK。
 - 每次源码修改交付都必须递增版本，不得复用上一交付版本号。用户所说“每次加 0.01”在当前三段版本格式中指修订号加 1，例如 v1.4.0 → v1.4.1；versionCode 按 major*10000 + minor*1000 + patch 同步递增。Debug 本地交付也须同步版本提示、CHANGELOG 和对应版本说明。
 - 经用户允许后，构建可安装 APK 和包含同一 APK 的模块 ZIP，写入新的 `dist/<北京时间时间戳>-<用途>/` 目录并保留旧交付物。
-- 优先使用已有正式签名配置；未提供时构建 Debug APK 并明确标注。不得创建、替换或提交正式签名密钥，不得把未签名 APK 当作正式版。
+- 本地 Debug 版与正式版统一全部使用既有正式签名（`CN=Ziyu Release`，证书 SHA-256 `ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468`），确保本地 Debug 包与正式版始终同签名无缝覆盖安装。构建后必须通过 `apksigner` 核验证书指纹一致；当前环境缺少正式签名配置时，必须先提示用户提供正式签名环境变量，不得静默回退默认 `Android Debug` 证书，不得创建、替换或提交正式签名密钥，不得把未签名 APK 当作可安装交付包。
 - 打包后核对 applicationId、版本名/code、签名证书、模块清单、ZIP 完整性，以及独立 APK 与内置 APK 的 SHA-256 一致。
 - 不因打包自动安装 APK、刷入模块或发布到网络；这些动作需由用户明确要求。
 - 本地回归测试须先取得用户对本轮测试的明确同意；过去轮次的许可不延续到新一轮。未获同意时停止回归，不以“顺手验证”为由运行。
@@ -63,7 +63,7 @@
 - 本机 JDK 17 为 `E:\Android\openjdk\jdk-17.0.8.101-hotspot`；SDK 为 `F:\Program Files\AndroidSDK`。Gradle 9.5 位于用户 Gradle wrapper 缓存，本副本没有 `gradlew.bat`，用缓存中的 `gradle.bat -p android-app` 构建。
 - 本机 Python 使用 Conda 环境 `F:\ProgramData\anaconda3\envs\env\python.exe`。本地打包用 Git Bash 和 `scripts/build_debug_fast.sh`，不运行完整测试脚本；独立包与 ZIP 内 APK 完整性仍必须检查。
 - 模块包构建需提供与仓库脚本相符的 Python/ARM64 字体运行时环境；新增运行文件必须进入 `scripts/module_payload_manifest.txt`。
-- 正式签名只经受控环境变量提供；不要把密钥、密码、解密材料、本机凭据路径或设备诊断导出提交到仓库。本机存在用户提供的签名材料时，优先用它构建 Debug 变体，使 Debug 包可覆盖已安装正式版，避免同包名不同签名形成两个 App；签名材料位置与口令不入库。
+- 正式签名只经受控环境变量（`ZIYU_KEYSTORE_FILE`、`ZIYU_KEYSTORE_PASSWORD`、`ZIYU_KEY_ALIAS`、`ZIYU_KEY_PASSWORD`）提供；不要把密钥、密码、解密材料、本机凭据路径或设备诊断导出提交到仓库。本地 Debug 变体与正式版统一使用这套既有正式签名（证书 SHA-256 `ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468`），使所有版本始终可覆盖已安装 App；环境未提供签名材料时停止签出默认 Debug 证书包并向用户索取配置，签名材料位置与口令不入库。
 
 ## 已知环境问题与快速处理
 

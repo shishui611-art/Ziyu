@@ -6,9 +6,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -46,9 +51,27 @@ internal fun HomeHeroFace(
         val factor = if(preview) (maxWidth / referenceWidth).coerceAtMost(1f) else 1f
         val minimum = (if(preview) referenceWidth else maxWidth).div(1.76f).coerceAtLeast(200.dp) * factor
         val decoration = settings.homeCard
-        Box(Modifier.fillMaxWidth().heightIn(min=minimum)) {
-            HomeCardArtwork(decoration, container, Modifier.matchParentSize(), showStickers=false)
-            if(!decoration.hideSample && decoration.backgroundPath.isBlank()) Canvas(Modifier.matchParentSize()) {
+        var dynamicCardFailed by remember(settings.dynamicHomeCardPath) { mutableStateOf(false) }
+        val showDynamicCard = !preview && settings.dynamicHomeCardPath.isNotBlank() && !dynamicCardFailed
+        Box(Modifier.fillMaxWidth().heightIn(min=minimum).clipToBounds()) {
+            if (showDynamicCard) {
+                DynamicWallpaperBackground(
+                    path = settings.dynamicHomeCardPath,
+                    muted = true,
+                    transform = settings.dynamicHomeCardTransform,
+                    fps = settings.dynamicWallpaperFps,
+                    speed = settings.dynamicWallpaperSpeed,
+                    blurPercent = decoration.blur,
+                    modifier = Modifier.matchParentSize(),
+                    onError = { dynamicCardFailed = true },
+                )
+                if (decoration.scrim > 0) {
+                    Box(Modifier.matchParentSize().background(container.copy(alpha = decoration.scrim / 100f)))
+                }
+            } else {
+                HomeCardArtwork(decoration, container, Modifier.matchParentSize(), showStickers=false)
+            }
+            if(!decoration.hideSample && decoration.backgroundPath.isBlank() && !showDynamicCard) Canvas(Modifier.matchParentSize()) {
                 val center=Offset(size.width*.90f,size.height*.18f)
                 val radius=size.width*.43f
                 val color=foreground.copy(alpha=.13f)

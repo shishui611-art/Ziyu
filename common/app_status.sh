@@ -60,6 +60,18 @@ read_first_line() {
     printf '%s' "$_rfl_line"
 }
 
+ota_disable_owned() {
+    _status_disable="$MODDIR/disable"
+    _status_owner="$MODDIR/config/boot-safety-disable-owner.conf"
+    [ -f "$_status_disable" ] && [ ! -L "$_status_disable" ] && \
+        [ -f "$_status_owner" ] && [ ! -L "$_status_owner" ] && \
+        [ "$(read_prop "$_status_owner" schema)" = ziyu-boot-disable-owner-v1 ] && \
+        [ "$(read_prop "$_status_owner" kind)" = ota_hold ] || return 1
+    _status_token=$(read_prop "$_status_owner" token)
+    case "$_status_token" in ziyu-boot-guard-v1:ota_hold:?*) ;; *) return 1 ;; esac
+    [ "$(read_first_line "$_status_disable")" = "$_status_token" ]
+}
+
 root_manager() {
     if [ -n "${_status_root_manager:-}" ]; then printf '%s' "$_status_root_manager"; return; fi
     if type ziyu_detect_root_manager >/dev/null 2>&1; then
@@ -491,9 +503,26 @@ EOF_TASK_SELECTION
     # Guard status is read-only. A blocked current boot must not inherit a
     # previous generation's verified result from the backend/activation files.
     _boot_guard_status=''
-    if [ -f "$MODDIR/config/boot-safety-current-boot.conf" ] &&
-       [ ! -L "$MODDIR/config/boot-safety-current-boot.conf" ] &&
-       [ "$(read_prop "$MODDIR/config/boot-safety-current-boot.conf" boot_id)" = "$(read_first_line /proc/sys/kernel/random/boot_id)" ] &&
+    _ota_disabled=0
+    ota_disable_owned && _ota_disabled=1
+    _boot_guard_scan_complete=0
+    _boot_guard_stale_block=0
+    if [ "$_ota_disabled" != 1 ] && \
+       [ -f "$MODDIR/config/boot-safety-current-boot.conf" ] && \
+       [ ! -L "$MODDIR/config/boot-safety-current-boot.conf" ] && \
+       [ "$_mount_state" = mounted ]; then
+        _bg_block_time=$(read_prop "$MODDIR/config/boot-safety-current-boot.conf" time)
+        _bg_mount_time=$(read_prop "$MODDIR/config/mount-backend.conf" time)
+        case "$_bg_block_time:$_bg_mount_time" in
+            ''|*[!0-9:]*) ;;
+            *) [ "$_bg_mount_time" -gt "$_bg_block_time" ] 2>/dev/null && _boot_guard_stale_block=1 ;;
+        esac
+    fi
+    if { [ "$_ota_disabled" = 1 ] ||
+         { [ "$_boot_guard_stale_block" != 1 ] &&
+           [ -f "$MODDIR/config/boot-safety-current-boot.conf" ] &&
+           [ ! -L "$MODDIR/config/boot-safety-current-boot.conf" ] &&
+           [ "$(read_prop "$MODDIR/config/boot-safety-current-boot.conf" boot_id)" = "$(read_first_line /proc/sys/kernel/random/boot_id)" ]; }; } &&
        [ -f "$MODDIR/common/boot_ota_guard.sh" ] &&
        _boot_guard_status=$(sh "$MODDIR/common/boot_ota_guard.sh" status "$MODDIR" 2>/dev/null); then
         _boot_guard_api=''; _boot_guard_blocked=0; _boot_guard_reason=''; _boot_guard_next_ready=0
@@ -503,6 +532,7 @@ EOF_TASK_SELECTION
                 status=ok) _boot_guard_api=ok ;;
                 current_boot_blocked=1) _boot_guard_blocked=1 ;;
                 next_generation_ready=1) _boot_guard_next_ready=1 ;;
+                scan_complete=1) _boot_guard_scan_complete=1 ;;
                 reason=boot-safety-safe-mode|reason=ota-fingerprint-change|reason=safe-mode|reason=ota-fingerprint)
                     _boot_guard_reason=${_boot_guard_line#reason=} ;;
             esac
@@ -525,6 +555,38 @@ EOF_ZIYU_BOOT_GUARD_STATUS
                 _reboot_required=true
             fi
         fi
+    fi
+
+    # The manager can skip our boot hook while an owned OTA disable persists.
+    # Report the blocker without consuming the prepared payload.
+    if [ "$_ota_disabled" = 1 ] || \
+       { [ "$_mount_state" = blocked ] && [ "$_font_effect_state" = failed ] &&
+         { [ "$_verification_reason" = ota-fingerprint-change ] || [ "$_verification_reason" = ota-fingerprint ]; }; }; then
+        _effective_active=unknown
+        _font_effect_state=blocked
+        _mount_state=blocked
+        _mount_failed=''
+        _verification_state=pending
+        _verification_grade=PENDING
+        _verification_mode=boot-protection
+        _reboot_required=false
+        if [ "$_boot_guard_scan_complete" = 1 ]; then
+            _verification_reason=ota-font-reapply-required
+            _task_message='原厂字库已核验，请重新应用字体'
+        else
+            _verification_reason=ota-stock-scan-required
+            _task_message='系统更新后需核验原厂字库'
+        fi
+    elif [ -e "$MODDIR/disable" ] && [ "$_reboot_required" = true ]; then
+        _effective_active=unknown
+        _font_effect_state=blocked
+        _mount_state=blocked
+        _reboot_required=false
+        _verification_state=pending
+        _verification_grade=PENDING
+        _verification_mode=boot-protection
+        _verification_reason=module-disabled
+        _task_message='字域模块已停用，请检查 Root 管理器中的模块状态'
     fi
 
     # Task history records preparation, not the outcome of a later full reboot.

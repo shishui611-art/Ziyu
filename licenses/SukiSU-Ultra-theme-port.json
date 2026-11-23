@@ -125,5 +125,28 @@
     ],
     "localSource": "ui/appearance/ThemeStoreAccessRepository.kt",
     "scope": "Independent read-only device credential; acquisition and refresh only; no account, upload or submission"
+  },
+  "v1589Upgrade": {
+    "repository": "https://git.zako.shirkneko.top:20004/shirkneko/SukiSU",
+    "commit": "97d2442d",
+    "license": "GPL-3.0-or-later; Ziyu adaptation GPL-3.0-only",
+    "licenseFile": "SukiSU-Ultra-GPL-3.0.txt",
+    "adaptedComponents": [
+      "ThemeStoreDefaults regional mirror selection and 30-minute failover",
+      "ThemeMediaCrypto SKM1 AES-GCM preview envelope decryption",
+      "ThemeDownloadStore persistent offline package and preview index",
+      "ThemeTrialManager pre-trial backup and cross-process auto-restore",
+      "ThemeStoreMarkdown inline and fenced markdown renderer",
+      "DynamicWallpaper WebGL/2D renderer (assets/dynamic_wallpaper.html) and loopback Range HTTP server",
+      "ThemePackages v5 bottom-bar icons and v6 dynamic wallpaper format compatibility",
+      "AppIconManager built-in activity-alias switcher, ZIP icon pack storage and pinned shortcut helper"
+    ],
+    "excluded": [
+      "account login and token management",
+      "comments, likes, follows and direct messages",
+      "cloud browsing history and online theme submission/upload",
+      "upstream launcher icon artwork",
+      "OkHttp, Coil and kotlinx-serialization dependencies"
+    ]
   }
 }

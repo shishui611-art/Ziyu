@@ -187,6 +187,8 @@ v1.4.53 的 `common/font_native_cff.py`、原生 Type 2 写入器、边界计算
 
 - v1.4.108 adapts device-access acquisition and refresh protocol from SukiSU-Ultra `8ed5bd556fba073d52f4a4d98500b782db6437e6`, `ThemeStoreAccessRepository.kt` and `ThemeStoreDefaults.kt`. Ziyu implements private AtomicFile storage, serialized rotation, source isolation and bounded retry using existing Android APIs; no account/upload implementation or new dependency is included. See the protocol reference records in `licenses/SukiSU-Ultra-theme-port.json`.
 
+- v1.5.89 adapts the theme store mirror failover, `SKM1` media envelope decryption (`ThemeMediaCrypto.kt`), offline download index (`ThemeDownloadStore.kt`), theme trial lifecycle (`ThemeTrialManager.kt`), inline Markdown parser (`ThemeStoreMarkdown.kt`), v5 bottom-bar icon and v6 dynamic wallpaper format/WebGL renderer (`DynamicWallpaper.kt` + `assets/dynamic_wallpaper.html`), and launcher icon alias/shortcut manager (`AppIconManager.kt`) from `shirkneko/SukiSU` commit `97d2442d` (GPL-3.0-or-later; Ziyu adaptations GPL-3.0-only, full license text in `licenses/SukiSU-Ultra-GPL-3.0.txt`). Ziyu retains its own `HttpURLConnection`/`org.json` transport without adding OkHttp/Coil/serialization libraries, uses Ziyu-original built-in launcher icon artwork, and omits upstream account, comments, follow, messaging, cloud history and submission endpoints. Records updated in `licenses/SukiSU-Ultra-theme-port.json`.
+
 ## 用户提供的字体预览语料
 
 - 来源：用户提供的酷安文章 https://www.coolapk.com/feed/53620096 完整文字快照，版本 `coolapk-53620096-r1`。

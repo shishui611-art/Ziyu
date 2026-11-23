@@ -1,0 +1,619 @@
+<!-- Adapted from shirkneko/SukiSU 97d2442d (GPL-3.0-or-later); Ziyu adaptation GPL-3.0-only. See THIRD_PARTY_NOTICES.md. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'none'">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #canvas {
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: transparent;
+  }
+  #imageSource {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0.01;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<img id="imageSource" alt="">
+<script>
+(function () {
+  "use strict";
+
+  var SOURCE = "@SOURCE@";
+  var MODE = "@MODE@";
+  var MUTED = @MUTED@;
+  var BLUR = @BLUR@;
+  var FIT = "@FIT@";
+  var ZOOM = @ZOOM@;
+  var OFFSET_X = @OFFSET_X@;
+  var OFFSET_Y = @OFFSET_Y@;
+  var FPS = @FPS@;
+  var SPEED = @SPEED@;
+  var DPR_CAP = 2.0;
+  var IMAGE_FRAME_INTERVAL_MS = 33;
+
+  var SNAPSHOT_ENABLED = false;
+  var SNAPSHOT_INTERVAL_MS = 100;
+  var SNAPSHOT_WIDTH = 128;
+  var lastSnapshotAt = 0;
+  var snapshotCanvas = null;
+  var snapshotCtx = null;
+
+  var canvas = document.getElementById("canvas");
+  var imageSource = document.getElementById("imageSource");
+  var isVideo = MODE === "video";
+  var gl = null;
+  var program = null;
+  var texture = null;
+  var blurPixelsLocation = null;
+  var texelLocation = null;
+  var fallback2d = null;
+
+  var scratch = document.createElement("canvas");
+  var scratchCtx = scratch.getContext("2d", { alpha: false });
+
+  var pausedByHost = false;
+  var hiddenByPage = document.hidden === true;
+  var sourceReady = false;
+  var sourceWidth = 0;
+  var sourceHeight = 0;
+  var readyNotified = false;
+  var failed = false;
+  var frameHandle = 0;
+  var frameHandleKind = "";
+  var lastImageDraw = 0;
+  var lastVideoFrameAt = 0;
+  var lastDrawnAt = 0;
+  var videoPollFallback = false;
+  var videoRetriedAttached = false;
+  var video = null;
+
+  function retryVideoAttached() {
+    if (!video || videoRetriedAttached) return false;
+    videoRetriedAttached = true;
+    try {
+      video.style.position = "fixed";
+      video.style.left = "0";
+      video.style.top = "0";
+      video.style.width = "1px";
+      video.style.height = "1px";
+      video.style.opacity = "0.01";
+      video.style.pointerEvents = "none";
+      document.body.appendChild(video);
+    } catch (_) {}
+    try {
+      video.load();
+      playVideo();
+      scheduleFrameLoop();
+    } catch (_) {}
+    return true;
+  }
+
+  function bridgeError(reason) {
+    if (failed) return;
+    failed = true;
+    try {
+      if (window.DWBridge && window.DWBridge.onError) window.DWBridge.onError(String(reason));
+    } catch (_) {}
+  }
+
+  function notifyReady() {
+    if (readyNotified) return;
+    readyNotified = true;
+    try {
+      if (window.DWBridge && window.DWBridge.onReady) window.DWBridge.onReady();
+    } catch (_) {}
+  }
+
+  function shouldRun() {
+    return !failed && sourceReady && !pausedByHost && !hiddenByPage;
+  }
+
+  function cancelFrameLoop() {
+    if (!frameHandle) return;
+    try {
+      if (frameHandleKind === "video" && video && video.cancelVideoFrameCallback) {
+        video.cancelVideoFrameCallback(frameHandle);
+      } else {
+        cancelAnimationFrame(frameHandle);
+      }
+    } catch (_) {}
+    frameHandle = 0;
+    frameHandleKind = "";
+  }
+
+  function scheduleFrameLoop() {
+    if (!shouldRun() || frameHandle) return;
+    if (isVideo && !videoPollFallback && video && video.requestVideoFrameCallback) {
+      frameHandleKind = "video";
+      frameHandle = video.requestVideoFrameCallback(function () {
+        frameHandle = 0;
+        frameHandleKind = "";
+        if (!shouldRun()) return;
+        drawFrame();
+        scheduleFrameLoop();
+      });
+      return;
+    }
+    frameHandleKind = "raf";
+    frameHandle = requestAnimationFrame(function (timestamp) {
+      frameHandle = 0;
+      frameHandleKind = "";
+      if (!shouldRun()) return;
+      var imageInterval = FPS > 0 ? 1000 / FPS : IMAGE_FRAME_INTERVAL_MS;
+      if (isVideo || timestamp - lastImageDraw >= imageInterval) {
+        lastImageDraw = timestamp;
+        drawFrame();
+      }
+      scheduleFrameLoop();
+    });
+  }
+
+  function resizeSurface() {
+    var dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+    var cssWidth = Math.max(1, canvas.clientWidth || window.innerWidth || 1);
+    var cssHeight = Math.max(1, canvas.clientHeight || window.innerHeight || 1);
+    var width = Math.max(1, Math.round(cssWidth * dpr));
+    var height = Math.max(1, Math.round(cssHeight * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    if (scratch.width !== width || scratch.height !== height) {
+      scratch.width = width;
+      scratch.height = height;
+    }
+    if (gl) {
+      gl.viewport(0, 0, width, height);
+      updateBlurUniform();
+    }
+  }
+
+  function drawSource(context, source, width, height) {
+    if (!sourceWidth || !sourceHeight) return false;
+    var scaleX = width / sourceWidth;
+    var scaleY = height / sourceHeight;
+    var scale;
+    if (FIT === "fit") {
+      scale = Math.min(scaleX, scaleY);
+    } else {
+      scale = Math.max(scaleX, scaleY);
+      if (FIT === "custom") scale *= Math.max(1, ZOOM);
+    }
+    var drawWidth = sourceWidth * scale;
+    var drawHeight = sourceHeight * scale;
+    var slackX = Math.max(0, (drawWidth - width) / 2);
+    var slackY = Math.max(0, (drawHeight - height) / 2);
+    var clamp = function (value) { return Math.max(-1, Math.min(1, value)); };
+    var drawX = (width - drawWidth) / 2 + clamp(OFFSET_X) * slackX;
+    var drawY = (height - drawHeight) / 2 + clamp(OFFSET_Y) * slackY;
+    context.clearRect(0, 0, width, height);
+    context.drawImage(source, drawX, drawY, drawWidth, drawHeight);
+    return true;
+  }
+
+  function maybeSnapshot(now) {
+    if (!SNAPSHOT_ENABLED || failed || !sourceReady) return;
+    if (now - lastSnapshotAt < SNAPSHOT_INTERVAL_MS) return;
+    lastSnapshotAt = now;
+    var source = fallback2d ? fallback2d.canvas : (gl ? scratch : null);
+    if (!source || !source.width || !source.height) return;
+    var width = Math.min(SNAPSHOT_WIDTH, source.width);
+    var height = Math.max(1, Math.round(width * source.height / source.width));
+    try {
+      if (!snapshotCanvas) {
+        snapshotCanvas = document.createElement("canvas");
+        snapshotCtx = snapshotCanvas.getContext("2d", { alpha: true });
+        if (!snapshotCtx) return;
+      }
+      if (snapshotCanvas.width !== width || snapshotCanvas.height !== height) {
+        snapshotCanvas.width = width;
+        snapshotCanvas.height = height;
+      }
+      snapshotCtx.clearRect(0, 0, width, height);
+      snapshotCtx.drawImage(source, 0, 0, width, height);
+    } catch (_) {
+      return;
+    }
+    var url = null;
+    try {
+      url = snapshotCanvas.toDataURL("image/webp", 0.5);
+      if (url && url.indexOf("data:image/webp") !== 0) url = null;
+    } catch (_) {
+      url = null;
+    }
+    if (!url) {
+      try {
+        url = snapshotCanvas.toDataURL("image/png");
+      } catch (_) {
+        url = null;
+      }
+    }
+    if (!url) return;
+    try {
+      if (window.DWBridge && window.DWBridge.onFrame) window.DWBridge.onFrame(url);
+    } catch (_) {}
+  }
+
+  function drawFrame() {
+    if (!sourceReady) return;
+    if (isVideo && (!video || video.readyState < 2 || video.videoWidth === 0)) return;
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (FPS > 0 && lastDrawnAt > 0 && now - lastDrawnAt < (1000 / FPS) - 0.5) return;
+    lastDrawnAt = now;
+    if (isVideo) lastVideoFrameAt = now;
+    resizeSurface();
+    if (fallback2d) {
+      if (!drawSource(fallback2d, isVideo ? video : imageSource, canvas.width, canvas.height)) return;
+      notifyReady();
+      maybeSnapshot(now);
+      return;
+    }
+    if (!gl || !program || !texture) return;
+    if (!drawSource(scratchCtx, isVideo ? video : imageSource, scratch.width, scratch.height)) return;
+    try {
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scratch);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      notifyReady();
+    } catch (error) {
+      if (ensure2dFallback()) {
+        drawFrame();
+        return;
+      }
+      bridgeError("webgl-draw: " + (error && error.message ? error.message : error));
+      return;
+    }
+    maybeSnapshot(now);
+  }
+
+  function ensure2dFallback() {
+    if (fallback2d) return true;
+    try {
+      var replacement = document.createElement("canvas");
+      replacement.style.position = "fixed";
+      replacement.style.left = "0";
+      replacement.style.top = "0";
+      replacement.style.width = "100%";
+      replacement.style.height = "100%";
+      replacement.style.display = "block";
+      replacement.style.background = "transparent";
+      replacement.style.pointerEvents = "none";
+      document.body.appendChild(replacement);
+      var context2d = replacement.getContext("2d", { alpha: true });
+      if (!context2d) throw new Error("2d-unavailable");
+      fallback2d = context2d;
+      canvas.style.display = "none";
+      canvas = replacement;
+      gl = null;
+      program = null;
+      texture = null;
+      resizeSurface();
+      return true;
+    } catch (error) {
+      bridgeError("2d-fallback: " + (error && error.message ? error.message : error));
+      return false;
+    }
+  }
+
+  function playVideo() {
+    if (!video || !shouldRun() || !video.paused) return;
+    var promise = video.play();
+    if (promise && promise.catch) {
+      promise.catch(function () {
+        if (!video.muted) {
+          video.muted = true;
+          video.play().catch(function () { bridgeError("autoplay-rejected"); });
+        } else {
+          bridgeError("autoplay-rejected");
+        }
+      });
+    }
+  }
+
+  function forceVideoPollFallback() {
+    if (!isVideo || videoPollFallback) return;
+    videoPollFallback = true;
+    if (frameHandle && frameHandleKind === "video") {
+      try {
+        if (video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(frameHandle);
+      } catch (_) {}
+      frameHandle = 0;
+      frameHandleKind = "";
+    }
+    if (shouldRun() && !frameHandle) scheduleFrameLoop();
+  }
+
+  function watchVideoFrames(attempt) {
+    if (!isVideo || videoPollFallback || lastVideoFrameAt > 0 || attempt > 6) return;
+    if (video && !video.paused) {
+      forceVideoPollFallback();
+      return;
+    }
+    setTimeout(function () { watchVideoFrames(attempt + 1); }, 1500);
+  }
+
+  function setPausedState() {
+    if (!sourceReady) return;
+    if (!shouldRun()) {
+      if (video) video.pause();
+      cancelFrameLoop();
+    } else {
+      playVideo();
+      scheduleFrameLoop();
+    }
+  }
+
+  function setMuted(value) {
+    MUTED = !!value;
+    if (video) {
+      video.muted = MUTED;
+      if (!MUTED) playVideo();
+    }
+  }
+
+  function setBlur(value) {
+    var parsed = Number(value);
+    BLUR = isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 0;
+    updateBlurUniform();
+  }
+
+  function updateBlurUniform() {
+    if (!gl || !program || blurPixelsLocation === null) return;
+    var width = Math.max(1, canvas.width);
+    var height = Math.max(1, canvas.height);
+    gl.uniform1f(blurPixelsLocation, BLUR * width * 0.05);
+    gl.uniform2f(texelLocation, 1.0 / width, 1.0 / height);
+  }
+
+  function setHostPaused(value) {
+    pausedByHost = !!value;
+    setPausedState();
+  }
+
+  function setPlayback(fps, speed) {
+    FPS = isFinite(fps) ? Math.max(0, Math.min(120, Number(fps))) : 0;
+    SPEED = isFinite(speed) ? Math.max(0.25, Math.min(2, Number(speed))) : 1;
+    if (video) {
+      try { video.playbackRate = SPEED; } catch (_) {}
+    }
+    lastDrawnAt = 0;
+  }
+
+  function setTransform(fit, zoom, offsetX, offsetY) {
+    FIT = fit === "fit" || fit === "custom" ? fit : "fill";
+    ZOOM = isFinite(zoom) ? Math.min(4, Math.max(1, Number(zoom))) : 1;
+    OFFSET_X = isFinite(offsetX) ? Math.max(-1, Math.min(1, Number(offsetX))) : 0;
+    OFFSET_Y = isFinite(offsetY) ? Math.max(-1, Math.min(1, Number(offsetY))) : 0;
+    lastDrawnAt = 0;
+    drawFrame();
+  }
+
+  function setFrameSnapshots(enabled, intervalMs) {
+    SNAPSHOT_ENABLED = !!enabled;
+    var parsed = Number(intervalMs);
+    if (isFinite(parsed) && parsed > 0) {
+      SNAPSHOT_INTERVAL_MS = Math.max(40, Math.min(1000, parsed));
+    }
+    if (!SNAPSHOT_ENABLED) lastSnapshotAt = 0;
+  }
+
+  window.DW = {
+    setMuted: setMuted,
+    setBlur: setBlur,
+    setTransform: setTransform,
+    setPlayback: setPlayback,
+    setFrameSnapshots: setFrameSnapshots,
+    pause: function () { setHostPaused(true); },
+    resume: function () { setHostPaused(false); }
+  };
+
+  function initWebGl() {
+    try {
+      gl = canvas.getContext("webgl", {
+        alpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: false
+      }) || canvas.getContext("experimental-webgl");
+    } catch (_) {
+      gl = null;
+    }
+    if (!gl) return false;
+
+    try {
+      var vertexSource = "attribute vec2 aPosition; varying vec2 vUv;" +
+        "void main(){ vUv = aPosition * 0.5 + 0.5; gl_Position = vec4(aPosition, 0.0, 1.0); }";
+      var fragmentSource = "precision mediump float;" +
+        "uniform sampler2D uTexture; uniform vec2 uTexel; uniform float uBlurPixels;" +
+        "varying vec2 vUv;" +
+        "void main() {" +
+        "  if (uBlurPixels < 0.5) { gl_FragColor = texture2D(uTexture, vUv); return; }" +
+        "  vec2 o = uTexel * uBlurPixels;" +
+        "  vec4 color = texture2D(uTexture, vUv) * 0.24;" +
+        "  color += texture2D(uTexture, vUv + vec2(o.x, 0.0)) * 0.12;" +
+        "  color += texture2D(uTexture, vUv - vec2(o.x, 0.0)) * 0.12;" +
+        "  color += texture2D(uTexture, vUv + vec2(0.0, o.y)) * 0.12;" +
+        "  color += texture2D(uTexture, vUv - vec2(0.0, o.y)) * 0.12;" +
+        "  color += texture2D(uTexture, vUv + o) * 0.07;" +
+        "  color += texture2D(uTexture, vUv - o) * 0.07;" +
+        "  color += texture2D(uTexture, vUv + vec2(o.x, -o.y)) * 0.07;" +
+        "  color += texture2D(uTexture, vUv + vec2(-o.x, o.y)) * 0.07;" +
+        "  gl_FragColor = color;" +
+        "}";
+
+      function compile(type, source) {
+        var shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          throw new Error(gl.getShaderInfoLog(shader) || "shader-compile");
+        }
+        return shader;
+      }
+
+      var vertexShader = compile(gl.VERTEX_SHADER, vertexSource);
+      var fragmentShader = compile(gl.FRAGMENT_SHADER, fragmentSource);
+      program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(program) || "program-link");
+      }
+      gl.useProgram(program);
+      blurPixelsLocation = gl.getUniformLocation(program, "uBlurPixels");
+      texelLocation = gl.getUniformLocation(program, "uTexel");
+      gl.uniform1i(gl.getUniformLocation(program, "uTexture"), 0);
+      updateBlurUniform();
+
+      var buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1, 1, -1, -1, 1, 1, 1
+      ]), gl.STATIC_DRAW);
+      var position = gl.getAttribLocation(program, "aPosition");
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+      texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+      canvas.addEventListener("webglcontextlost", function (event) {
+        event.preventDefault();
+        bridgeError("webgl-context-lost");
+      }, false);
+      return true;
+    } catch (error) {
+      bridgeError("webgl-init: " + (error && error.message ? error.message : error));
+      return false;
+    }
+  }
+
+  function startVideo() {
+    video = document.createElement("video");
+    video.muted = MUTED;
+    try { video.playbackRate = SPEED; } catch (_) {}
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.preload = "auto";
+    video.addEventListener("loadedmetadata", function () {
+      sourceWidth = video.videoWidth;
+      sourceHeight = video.videoHeight;
+      sourceReady = sourceWidth > 0 && sourceHeight > 0;
+      if (sourceReady) {
+        resizeSurface();
+        playVideo();
+        scheduleFrameLoop();
+        setTimeout(function () { watchVideoFrames(0); }, 2500);
+      } else {
+        bridgeError("video-zero-size");
+      }
+    });
+    video.addEventListener("error", function () {
+      if (retryVideoAttached()) return;
+      var code = video.error ? video.error.code : 0;
+      var message = video.error && video.error.message ? video.error.message : "";
+      bridgeError("video-decode:" + code + (message ? ":" + message : ""));
+    });
+    video.src = SOURCE;
+    video.load();
+  }
+
+  function startImage() {
+    imageSource.addEventListener("load", function () {
+      sourceWidth = imageSource.naturalWidth;
+      sourceHeight = imageSource.naturalHeight;
+      sourceReady = sourceWidth > 0 && sourceHeight > 0;
+      if (sourceReady) {
+        resizeSurface();
+        scheduleFrameLoop();
+      } else {
+        bridgeError("image-zero-size");
+      }
+    });
+    imageSource.addEventListener("error", function () { bridgeError("image-decode"); });
+    imageSource.src = SOURCE;
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    hiddenByPage = document.hidden === true;
+    setPausedState();
+  });
+  window.addEventListener("resize", function () {
+    resizeSurface();
+    if (!frameHandle) scheduleFrameLoop();
+  });
+  window.addEventListener("orientationchange", function () {
+    setTimeout(function () {
+      resizeSurface();
+      if (!frameHandle) scheduleFrameLoop();
+    }, 100);
+  });
+
+  if (!scratchCtx) {
+    fallback2d = canvas.getContext("2d", { alpha: true });
+    if (!fallback2d) {
+      bridgeError("no-render-context");
+      return;
+    }
+  } else if (!initWebGl()) {
+    fallback2d = canvas.getContext("2d", { alpha: true });
+    if (!fallback2d) {
+      bridgeError("no-render-context");
+      return;
+    }
+  }
+
+  setTimeout(function () {
+    if (!sourceReady && !failed) bridgeError("source-timeout");
+  }, 15000);
+
+  if (isVideo) {
+    startVideo();
+  } else {
+    startImage();
+  }
+})();
+</script>
+</body>
+</html>

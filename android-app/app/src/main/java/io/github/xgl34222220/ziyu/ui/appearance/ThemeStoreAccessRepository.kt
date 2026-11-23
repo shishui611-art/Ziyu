@@ -22,7 +22,7 @@ internal class ThemeStoreAccessRepository(context: Context) {
     private val directory = File(context.noBackupFilesDir, "theme-device-access")
 
     fun automatic(source: ThemeSource) = source.accessCode.isBlank() &&
-        ThemeStoreRepository.normalize(source.url) == ThemeStoreDefaults.BASE_URL
+        ThemeStoreDefaults.isBuiltInBaseUrl(source.url)
 
     suspend fun resolve(source: ThemeSource): String {
         if (!automatic(source)) return source.accessCode
