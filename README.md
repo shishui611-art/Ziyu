@@ -6,7 +6,7 @@
 
 适用于 **Magisk · KernelSU · SukiSU Ultra · APatch**
 
-[![Release](https://img.shields.io/badge/version-v1.5.92-blue)](https://github.com/shishui611-art/Ziyu/releases)
+[![Release](https://img.shields.io/badge/version-v1.6.0-blue)](https://github.com/shishui611-art/Ziyu/releases)
 [![Build](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml/badge.svg)](https://github.com/shishui611-art/Ziyu/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-orange)](LICENSE)
 
@@ -42,7 +42,7 @@
 ```
 
 - **App 包名**：`io.github.shishui611_art.ziyu`（正式版与正式签名 Debug 版共享包名与证书，可直接覆盖保留数据）。
-- **版本规则**：`module.prop` 为模块与 App 唯一版本来源，`versionCode = major*10000 + minor*1000 + patch`（如 `v1.5.92` 对应 `15092`）。
+- **版本规则**：`module.prop` 为模块与 App 唯一版本来源，`versionCode = major*10000 + minor*1000 + patch`（如 `v1.6.0` 对应 `16000`）。
 
 ## 文档导航
 

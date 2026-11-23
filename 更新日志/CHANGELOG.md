@@ -1,5 +1,10 @@
 # 字域更新日志
 
+## v1.6.0 · 2026-11-23
+
+- 正式发布 **字域 v1.6.0**，整合 `v1.5.87`–`v1.5.92` 全部更新：主题商店多镜像/详情页/试用/离线库、v6 动态壁纸、4 套内置图标与桌面/底栏图标自定义、Google 字体兼容双组件停用与只读缓存封堵、LSPosed `GoogleSansHook` 拦截、Mountify/OverlayFS 只读原厂字库修复、NoMount 软重启清理与提速优化，以及项目文档精简重写。
+- 对比上一正式版 `v1.5.86` 的完整说明见 [v1.6.0 发布说明](RELEASE_NOTES_ziyu-v1.6.0.md)。
+
 ## v1.5.92 · 2026-11-23
 
 - **Google 字体兼容升级（防 Google Sans 反复恢复）**：开启兼容后同时停用当前用户 GMS 的 `FontsProvider` 与 `UpdateSchedulerService`，清空 GMS（含 `user_de`）与 Play 商店 `files/fonts` 缓存并挂载只读空目录封堵写回；`service.sh` 开机自动复检并重新加固被 GMS 更新复活的组件，设置页新增「重新加固」按钮，停用/卸载时完整还原。

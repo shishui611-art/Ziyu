@@ -3,7 +3,7 @@
 ## 1. 版本与制品
 
 - `module.prop` 是模块、App 与发布文件名的唯一版本来源。
-- `versionCode` 规则：`major*10000 + minor*1000 + patch`（如 `v1.5.92` → `15092`，正式 tag 为 `ziyu-v1.5.92`）。
+- `versionCode` 规则：`major*10000 + minor*1000 + patch`（如 `v1.6.0` → `16000`，正式 tag 为 `ziyu-v1.6.0`）。
 - 正式 GitHub Release 仅发布 `Ziyu-vX.Y.Z.zip` 与 `Ziyu-vX.Y.Z.zip.sha256`（内含同版本正式签名 App，ZIP 体积上限 14 MiB / 14,680,064 字节；`docs/`、`更新日志/`、`README.md` 留在仓库不打入模块包）。
 
 ## 2. 签名规则
@@ -33,8 +33,8 @@ gradle -p android-app --no-daemon :app:assembleRelease
 # 2. 打包模块 ZIP（含清单元件、原生工具与体积门禁）
 ZIYU_APP_APK=android-app/app/build/outputs/apk/release/app-release.apk \
 ZIYU_APP_PACKAGE=io.github.shishui611_art.ziyu \
-ZIYU_APP_VERSION_CODE=15092 \
-ZIYU_APP_VERSION_NAME=1.5.92 \
+ZIYU_APP_VERSION_CODE=16000 \
+ZIYU_APP_VERSION_NAME=1.6.0 \
   sh ./scripts/build_debug_fast.sh
 ```
 
