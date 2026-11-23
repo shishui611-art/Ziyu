@@ -1,50 +1,34 @@
 # 贡献指南
 
-感谢参与字域开发。当前用户界面是原生 Android App；模块中不使用 WebUI。
+欢迎参与字域开发。管理端为 Jetpack Compose 原生 Android App，模块运行时由 `common/` 与根目录启动脚本组成。
 
-## 提交前
+## 开发规范
 
-- 基于最新 `main` 创建工作分支。
-- 一个 PR 尽量只处理一类问题，并在 PR 中说明验证范围。
-- Shell 脚本必须兼容 Android `/system/bin/sh`；不要依赖设备未必具备的 GNU 参数。
-- 不提交商业字体、ROM 提取字体、用户诊断报告、设备备份、临时脚本或其他无权公开的文件。
-- 不替换 Emoji、图标、符号字体，不直接写入 `/system`，不覆盖完整 `fonts.xml` / `font_fallback.xml`。
-- 不在刷写、`post-fs-data` 或开机关键阶段执行大型字体生成任务。
-- 新增 Root 命令时校验参数与路径，并考虑事务回滚和真实状态验证。
-- 挂载流程必须遵循用户在 App 中选的模式；未确认的外部提供者不能当作可用，失败不能暗中切换模式。
-- 修改 App 与模块交互时，区分 Root 授权、当前 boot 后端、挂载实现、字体路径验证、部分 warning 与进程缓存。
+- 基于 `main` 创建功能或修复分支，每个 PR 聚焦一类改动并注明验证范围。
+- 模块 Shell 脚本需兼容 Android `/system/bin/sh` 及设备自带 BusyBox/Toybox。
+- 字体负载只写入字域 systemless 目录，遵循用户所选挂载模式，保留源检查、输出校验、PID 1 核验与失败回滚；防裁切须保留可变字体连续字重。
+- 新增运行文件时同步更新 `scripts/module_payload_manifest.txt`；引入第三方代码或资源时更新 `THIRD_PARTY_NOTICES.md` 与 `licenses/`。
+- 禁止提交商业字体、ROM 提取字体、用户诊断导出、签名密钥、密码或临时脚本。
 
-## 本地构建和检查
+## 本地构建与检查
 
-环境要求：JDK 17、Android SDK API 37、Gradle 9.5，以及模块打包所需的 Python/字体运行时。
+环境要求：JDK 17、Android SDK API 37、Gradle 9.5、ARM64 Python 运行时。
 
 ```sh
-gradle --no-daemon :app:assembleDebug
+# 构建 App
+gradle -p android-app --no-daemon :app:assembleDebug
+
+# 准备运行时与执行源码检查
 sh ./scripts/prepare_composite_runtime.sh
 sh ./scripts/check.sh
+
+# 打包完整模块 ZIP（将本次 APK 路径传给打包脚本）
+ZIYU_APP_APK=android-app/app/build/outputs/apk/debug/app-debug.apk \
+  sh ./scripts/build.sh
 ```
 
-需要模块 ZIP 时，应将本次构建 APK 显式传给 `scripts/build.sh`，并核对 APK 包名/版本、ZIP 文件清单、SHA-256 和 ZIP 内 APK 字节一致性。正式发布使用固定签名的 Release workflow。
+涉及字体或挂载逻辑时，建议同步覆盖：TTF/OTF/TTC/可变字体、复合字体、Emoji 独立管理、四种挂载模式及回滚、软重启/完整重启与恢复卸载。
 
-## 字体功能回归
+## 许可证
 
-涉及字体或挂载时，回归应覆盖适用的字体类型与挂载路径：
-
-- TrueType `glyf`、CFF/CFF2、TTC 多 face 和可变字体；
-- 中文、英文、数字角色覆盖、实际字重和特殊字体保护；
-- 首次生成、缓存命中、缓存失效、源文件修改与失败事务；
-- 外部提供者、字域自挂载、Magic Mount 与 OverlayFS 的选择、验证和回滚；
-- ColorOS / HyperOS 字体槽、部分映射 warning、无目标成功时的失败判定；
-- 符合条件的热切换、完整重启路径、恢复原厂和卸载清理。
-
-字体负载必须先在暂存目录准备并验证，再替换活动负载。测试结果应记录系统、Root 管理器、选用模式、版本和证据；没有真机证据的项保持待测。
-
-## 文档与许可证
-
-新增或改变用户流程时同步更新 README/使用教程和相应的挂载、更新、诊断说明。新增第三方代码或运行文件时说明来源和版本，在 `THIRD_PARTY_NOTICES.md` 登记完整许可证，并更新模块打包清单。
-
-提交内容按 **GPL-3.0-only** 发布。不要提交许可证不兼容的代码或未经授权的字体。
-
-## PR 描述
-
-说明改动目的、主要实现、风险和回滚方法；区分静态检查、自动化工作流与真机验收，并注明是否改变模块路径、缓存或版本号。
+所有提交均按 **GPL-3.0-only** 许可发布。

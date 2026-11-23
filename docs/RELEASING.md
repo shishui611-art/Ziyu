@@ -1,48 +1,46 @@
 # 字域发布流程
 
-## 版本和制品
+## 1. 版本与制品
 
-`module.prop` 是模块、App 与发布文件名的唯一版本来源。字域 versionCode 规则为 `major*10000 + minor*1000 + patch`；v1.3.0 使用 versionCode 13000，正式 tag 为 `ziyu-v1.3.0`。模块 ZIP 内必须包含与本次 App 构建字节相同的 APK。
+- `module.prop` 是模块、App 与发布文件名的唯一版本来源。
+- `versionCode` 规则：`major*10000 + minor*1000 + patch`（如 `v1.5.92` → `15092`，正式 tag 为 `ziyu-v1.5.92`）。
+- 正式 GitHub Release 仅发布 `Ziyu-vX.Y.Z.zip` 与 `Ziyu-vX.Y.Z.zip.sha256`（内含同版本正式签名 App，ZIP 体积上限 14 MiB / 14,680,064 字节；`docs/`、`更新日志/`、`README.md` 留在仓库不打入模块包）。
 
-正式 Release 仅发布：
+## 2. 签名规则
 
-```text
-Ziyu-vX.Y.Z.zip
-Ziyu-vX.Y.Z.zip.sha256
+- 正式包与本地 Debug 包统一使用固定正式签名（`CN=Ziyu Release`，证书 SHA-256 `ebfd6167fe727ab3ada7dd5cf44dc3d3c345812fab4f6d5699f69ea572688468`），应用包名均为 `io.github.shishui611_art.ziyu`，支持无损覆盖保留数据。
+- 签名材料仅通过受控环境变量注入：`ZIYU_KEYSTORE_FILE`、`ZIYU_KEYSTORE_PASSWORD`、`ZIYU_KEY_ALIAS`、`ZIYU_KEY_PASSWORD`（CI 从 Actions Secrets 注入）。严禁将密钥、密码、解密材料或本机路径提交到仓库。
+
+## 3. 发布前准备
+
+1. 同步更新以下 4 处文件：
+   - `module.prop`（`version`、`versionCode`）
+   - `config/version_notes.conf`
+   - `更新日志/CHANGELOG.md`
+   - `更新日志/RELEASE_NOTES_ziyu-vX.Y.Z.md`（相对上一正式版分列新增、修复、优化及待测项）
+2. 检查 `scripts/module_payload_manifest.txt` 是否包含全部新增运行文件，核对 `THIRD_PARTY_NOTICES.md` 与 `licenses/`。
+3. 如设备矩阵（[`TEST_MATRIX.md`](TEST_MATRIX.md)）仍有待测项且已获维护者单版本发布授权，更新 `config/stable_release_authorization.conf` 绑定当前版本。
+4. 确认工作树干净，不含诊断日志、临时构建物或签名文件。
+
+## 4. 打包与自动发布
+
+### 本地正式打包
+
+```sh
+# 1. 通过环境变量提供正式签名后构建 Release APK
+gradle -p android-app --no-daemon :app:assembleRelease
+
+# 2. 打包模块 ZIP（含清单元件、原生工具与体积门禁）
+ZIYU_APP_APK=android-app/app/build/outputs/apk/release/app-release.apk \
+ZIYU_APP_PACKAGE=io.github.shishui611_art.ziyu \
+ZIYU_APP_VERSION_CODE=15092 \
+ZIYU_APP_VERSION_NAME=1.5.92 \
+  sh ./scripts/build_debug_fast.sh
 ```
 
-APK 随模块 ZIP 内置，不作为正式 Release 单独附件。用户下载模块 ZIP 后由现有安装流程更新 App；单独安装 APK 不更新字体处理或挂载运行时。
+打包后核对：`aapt2` 包名与版本、`apksigner verify --print-certs` 证书指纹、独立 APK 与 ZIP 内 `bundled/Ziyu-App.apk` 的 SHA-256 一致、ZIP 完整性与体积上限。
 
-模块 ZIP 只携带运行所需文件、简短版本提示和许可证/来源声明。`更新日志/`、`docs/` 与仓库 `README.md` 留在 GitHub，不复制到手机。发布说明须存在于源码并写入 GitHub Release。v1.5.80 增加 Emoji 管理后，两套构建器统一使用 14 MiB（14,680,064 字节）上限，保留全部运行依赖。Emoji 字体由用户单独导入。ZIP 使用 DEFLATE 9，正式构建省略额外的时间与用户元数据。
+### GitHub 自动发布
 
-## 签名
-
-正式发布必须使用仓库已有固定签名。CI 从受保护的 Actions Secrets 注入签名数据，并校验证书指纹；不得把密钥、密码、导出数据或本机凭据路径写入仓库。签名配置缺失、证书指纹不符、APK 包名不符或 ZIP 内 APK 与 Release 构建产物不一致均阻断发布，不替换正式密钥、不回退旧 ZIP。
-
-正式 applicationId 为 `io.github.shishui611_art.ziyu`。提供正式签名配置的 Debug 构建可用同一包名和证书覆盖正式 App，显示版本带 `-debug`；无正式签名配置的本地 Debug 也使用同一包名，仍由已有 Android Debug 证书签名，不能覆盖不同证书的正式版，也无法让之后正式版覆盖本地 Debug 证书的安装。需要互相覆盖时，Debug 和正式包都必须使用现有固定正式签名。独立 `.debug` 旧包不自动删除。
-
-## 自动发布
-
-正式稳定发布通过推送到 `main` 的版本提交启动 `.github/workflows/release.yml`。工作流从 `module.prop` 取版本；正式 tag 不存在时，工作流在源码检查、App Lint/单元测试、固定签名、ZIP/哈希和发布就绪检查完成后创建不可变 tag 并发布 Release。不要对尚不存在的标签手动 dispatch；`workflow_dispatch` 仅用于工作流要求的已存在 immutable tag。
-
-当前设备矩阵见 [`TEST_MATRIX.md`](TEST_MATRIX.md)。矩阵没有记录的机型必须保留“待测”。维护者明确授权特定稳定版本在矩阵待测时发布，可将 `config/stable_release_authorization.conf` 绑定到该版本，填写 `scope=stable-release` 与 `allowPendingDeviceMatrix=true`；只能是单版本授权，不能修改矩阵伪造通过。就绪报告会标出待测 warning。
-
-发布成功后 `sync-update-metadata.yml` 根据实际 GitHub Release 同步更新清单、备用预发行通道和 `config/stable_version_policy.json`。发布前不得预先把 `update.json` 指向未发布版本。
-
-工作流先锁定同一份不可变源码，再并行运行完整源码回归与 Android Lint、单元测试和签名构建。只有两项均成功，打包/发布任务才会启动；写入 Release 的权限仅授予最后一个任务。Android 签名构建通过制品传递，打包任务用上游输出的 SHA-256 核对下载到的 APK。
-
-源码检查由 `scripts/source_check_receipt.py run --receipt <临时文件>` 执行，成功后记录提交 SHA、所有受版本管理文件的实际内容/模式，以及模块清单中运行负载的内容摘要。打包器通过 `ZIYU_SOURCE_CHECK_RECEIPT` 接收同次工作流的检查记录并重新核对输入；缺失、失败、源码或运行负载变化都会阻断复用。生成的 Python 字节码会在打包时删除，不计入复用摘要。常规 `scripts/build.sh` 未提供记录时仍执行完整检查，CI 的完整源码回归只执行一次。
-
-ARM64 运行时准备成功后立即保存缓存，后续测试失败也能复用；APK/ZIP 在 Actions 制品中按原有压缩内容上传。失败的源码日志与 Android 报告单独保留 7 天，供定位故障。并行任务使用独立 runner，会增加部分 runner 用量；实际发布时间变化须以同等缓存条件下的 Actions 记录为准。
-
-## 每次发布前核对
-
-v1.4.7 起，字体预加载库由 `scripts/build_font_preload.py --ndk <已安装NDK>` 构建；提交源码与 `common/font_preload_module` 的小型库及哈希记录。主/Debug 打包器均执行 `--verify`，拒绝源码、固定公共 API 头或库哈希不匹配。配套模块的包内版本由主 `module.prop` 同步；原生编译和哈希一致性不代表真机排除场景通过。
-
-1. 同步 `module.prop`、`config/version_notes.conf`、主变更日志与 `更新日志/RELEASE_NOTES_ziyu-vX.Y.Z.md`。
-2. 发布说明分列新增、修复和优化，并按上一个稳定版本说明用户可见变化；不要将历史设备观察描述为本次真机验收。
-3. 在目标发布分支检查工作树和 diff；不提交诊断导出、设备标识、scratch 文件、签名材料或临时构建产物。
-4. 推送 `main` 后等待自动 Release workflow 结束，检查其源提交、tag、Release 附件、ZIP SHA-256 与内置 APK 一致性。
-5. 确认后续更新元数据 workflow 完成，且正式更新清单只指向已成功发布的正式 Release。
-
-自动编译和 ZIP 完整性不能替代真机测试。发布回复应分别说明源码/CI、签名/打包、设备矩阵和在线更新元数据状态。
+1. 推送版本提交到 `main` 后，`.github/workflows/release.yml` 自动运行源码回归、Android Lint/单元测试、正式签名构建、ZIP 打包与就绪检查，通过后创建不可变 tag 并发布 Release。
+2. Release 成功后，`sync-update-metadata.yml` 自动同步 `update.json`、`update-prerelease.json` 与 `config/stable_version_policy.json`（发布前请勿提前修改 `update.json`）。

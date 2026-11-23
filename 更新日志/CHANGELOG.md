@@ -1,5 +1,13 @@
 # 字域更新日志
 
+## v1.5.92 · 2026-11-23
+
+- **Google 字体兼容升级（防 Google Sans 反复恢复）**：开启兼容后同时停用当前用户 GMS 的 `FontsProvider` 与 `UpdateSchedulerService`，清空 GMS（含 `user_de`）与 Play 商店 `files/fonts` 缓存并挂载只读空目录封堵写回；`service.sh` 开机自动复检并重新加固被 GMS 更新复活的组件，设置页新增「重新加固」按钮，停用/卸载时完整还原。
+- **LSPosed 新增 Google Sans 拦截**：在用户勾选的目标应用中拦截 GMS 下载字体查询及 APK 内置 `Google Sans` / `Product Sans` 资源加载（`ContentResolver`、`FontsContract`、`Resources.getFont`、`Typeface`），保留原字重与斜体转回系统无衬线字体，自动排除代码、等宽、图标、Emoji 与时钟字体。
+- **项目文档精简与更新**：清理 63 份过时历史过程文档，按简洁直白的操作导向重写 `README.md`、`docs/USER_GUIDE.md`、`docs/MOUNT_FLOW.md` 等核心说明并同步至 `v1.5.92`。
+- 整合 `v1.5.87`–`v1.5.91` 全部改进（主题商店多镜像与全屏详情/试用/离线库、v6 动态壁纸、桌面与底栏图标自定义、NoMount 软重启清理与耗时优化、Mountify/OverlayFS 只读原厂字库读取修复、内置 App 覆盖更新与 OTA 首页提示）。
+- 相对上一正式版 `v1.5.86` 的完整发布说明见 [v1.5.92 发布说明](RELEASE_NOTES_ziyu-v1.5.92.md)。
+
 ## v1.5.91 · 2026-11-23（本地 Debug）
 
 - 修复 Mountify、OverlayFS、Magic Mount 或自挂载覆盖 `/system/fonts` 时，应用组合字体在第 88% 阶段报 `组合字体原厂集合逐面生成或契约校验失败`（`原厂字体资料未能补齐（1 处）`）的问题：`StockReadonlyView.pick()` 现自动跳过叠加在字体目录上的覆盖层，直接定位底层只读原厂块设备分区（支持 `erofs` 与只读 `ext4`，同时支持经 `/sys/dev/block/<major>:<minor>/uevent` 解析真实块设备并排除 `loop` 镜像）。

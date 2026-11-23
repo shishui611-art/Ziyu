@@ -36,7 +36,7 @@
         android:theme="@style/Theme.Ziyu">
 
         <meta-data android:name="xposedmodule" android:value="true" />
-        <meta-data android:name="xposeddescription" android:value="对用户在 LSPosed 中选择的应用，将系统 WebView 网页文字使用当前系统字体" />
+        <meta-data android:name="xposeddescription" android:value="对用户在 LSPosed 勾选的应用，将 WebView 网页文字与 Google Sans 内置/下载字体切换为当前系统字体" />
         <meta-data android:name="xposedminversion" android:value="82" />
 
         <activity

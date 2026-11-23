@@ -97,8 +97,13 @@ internal fun GoogleFontCompatibilityPage() {
                 OutlinedButton(onClick = model::refresh, enabled = idle, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Text("重新检测")
                 }
-                Button(onClick = { confirmAction = "enable" }, enabled = idle && state.canEnable,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("开启 Google 字体兼容") }
+                if (state.canEnforce) {
+                    Button(onClick = model::enforce, enabled = idle,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("重新加固（清缓存并封堵）") }
+                } else {
+                    Button(onClick = { confirmAction = "enable" }, enabled = idle && state.canEnable,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("开启 Google 字体兼容") }
+                }
                 OutlinedButton(onClick = { confirmAction = "restore" }, enabled = idle && state.canRestore,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("恢复原设置") }
             }
@@ -166,10 +171,10 @@ internal fun GoogleFontCompatibilityPage() {
                         shrinkVertically(tween(170, easing = FastOutSlowInEasing)),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        GoogleCompatibilityText("停用当前用户的 Google 下载字体组件。账户与应用数据会保留。")
+                        GoogleCompatibilityText("停用当前用户的 Google 字体提供与更新调度组件，清空并只读封堵 GMS/Play 字体缓存；开机自动复检防恢复，账户与应用数据会保留。")
                         GoogleCompatibilityText("可能影响依赖 Google 下载字体或表情的应用，并重启相关服务。")
                         GoogleCompatibilityText("设置会跨重启保留。停用或卸载字域前，请先恢复原设置并完整重启。")
-                        GoogleCompatibilityText("应用内置字体和网页字体可能不受影响。")
+                        GoogleCompatibilityText("若个别 Google 应用仍显示自带 Google Sans，可在 LSPosed 勾选该应用拦截内置字体。")
                     }
                 }
             }

@@ -1,31 +1,28 @@
-# 字域 Google 字体兼容使用说明
+# Google 字体兼容
 
-入口：**设置 → Google 字体兼容**。状态、按钮、确认弹窗和说明均为中文，不需要终端。
+Google 应用（如 Google Play、Google App、Chrome、Gmail、YouTube）会通过 GMS 下载字体服务动态拉取并恢复 `Google Sans`，部分新版应用还会在 APK 内自带 `Google Sans`。
 
-## 已经用过独立脚本
+入口：**设置 → Google 字体兼容**（默认关闭）。
 
-覆盖安装配套模块和 App，完整重启后打开本页。继续读取 `/data/adb/luoshu-google-font-fallback/user-<用户>.json` 的原恢复记录；身份和状态一致时显示「已开启 Google 字体兼容」，不用重复开启，也不用重新生成字体。
+## 使用步骤
 
-## 第一次使用
+1. 先在字域应用自定义字体并重启手机。
+2. 如 Google 应用反复恢复 `Google Sans`，打开本页点击「开启 Google 字体兼容」并确认。
+3. 显示「已开启」后完整重启手机，再检查应用显示效果。
 
-1. 先在字域应用自定义字体，按提示完成重启。
-2. 谷歌商店英文、数字仍反复恢复默认时，点击「开启 Google 字体兼容」，阅读影响并确认。
-3. 显示已开启后完整重启手机，再检查商店，以及放后台重开后的效果。
+## 防恢复机制
 
-「重新检测」只读取状态，不会开启。点击「恢复原设置」会按记录恢复原来的 default 或显式启用状态，不统一强制启用。原本由其他工具停用而没有字域记录的，不接管、不猜测。
+- **双组件停用**：同时停用当前用户的 GMS `FontsProvider` 与 `UpdateSchedulerService`（原状态写入恢复记录）。
+- **清理并只读封堵缓存**：清空当前用户 GMS（含 `user_de`）与 Play 商店的 `files/fonts` 缓存目录，并挂载模块自有的只读空目录封口，避免 GMS 后台自愈后重新写入 `Google Sans`。
+- **开机自动加固**：开启后每次开机自动复检并重新停用被 GMS 更新复活的组件、补齐缓存封堵；GMS 刚更新完时也可在本页点击「重新加固」立即生效。
+- **应用内置字体兜底**：若个别 Google 应用仍显示 APK 自带的 `Google Sans`，可在 LSPosed 启用字域模块并勾选对应应用，详见 [LSPosed 网页与 Google 字体](WEBVIEW_LSP.md)。
 
 ## 影响与恢复
 
-只停用当前 App 所属 Android 用户的 GMS FontsProvider 字体提供组件，不停用整个谷歌服务，不修改更新调度组件，不清除账户、App 数据或字体缓存。会影响该用户所有依赖 GMS 下载字体的应用，可能包括下载式表情字体；修改时相关 GMS 进程可能重启。
+- **账号与数据安全**：仅停用上述两个字体组件并封堵 `files/fonts` 缓存目录，不停用整个 Google Play 服务，不清除账户、应用数据或数据库。
+- **影响范围**：影响当前 Android 用户下依赖 GMS 下载字体的应用（可能包含下载式表情字体）。
+- **恢复与卸载**：点击「恢复原设置」会卸载缓存只读封口并按记录恢复原组件状态。**停用或卸载字域模块前，请先在此页点击「恢复原设置」并完整重启。**
 
-**停用或卸载模块前，先点击「恢复原设置」并完整重启。** 此设置跨重启保留；停用模块不保证自动恢复。卸载脚本会在删除运行环境前尝试恢复有记录的设置，失败记录仍保留；这不替代手动恢复。
+## 参考来源
 
-此功能不会自动更改 Root 管理器或其他应用的全局设置。不保证替换应用内置字体、网页指定字体或已打开的旧缓存。「已开启」只代表组件状态核验成功，不代表真机字体效果已验收。
-
-## 技术来源
-
-沿用之前独立工具的可恢复事务实现。组件停用路线参考 MrCarb0n/killgmsfont，但不采用其清理缓存和停用调度组件的逻辑。
-
-- Android PackageManager: https://developer.android.com/reference/android/content/pm/PackageManager
-- Android 下载字体: https://developer.android.com/develop/ui/views/text-and-emoji/downloadable-fonts
-- 参考项目: https://github.com/MrCarb0n/killgmsfont
+组件停用思路参考 [killgmsfont](https://github.com/MrCarb0n/killgmsfont)，字域独立实现可逆账本、只读空目录封口与开机加固。

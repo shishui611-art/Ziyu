@@ -16,7 +16,7 @@ v1.5.82 的文字与 Emoji 独立选择、隔离准备及记录回滚继续使�
 
 固定上游 [`075ac81f1dfe58b3f59c665a1b07fda8b975015f`](https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/075ac81f1dfe58b3f59c665a1b07fda8b975015f)，来源文件和 blob 记录于 [`licenses/SukiSU-Ultra-theme-port.json`](licenses/SukiSU-Ultra-theme-port.json)。`ThemePackageCrypto.kt`、`AppearanceOverlayColors.kt`、语义颜色/浅深合并和背景矩阵/锐化设计按上游 GPL-3.0-or-later 适配；字域修改包名、JSON 边界、三种原生主题桥、像素采样、缓存与不支持设备回退。完整 GPL 文本继续保存在 [`licenses/SukiSU-Ultra-GPL-3.0.txt`](licenses/SukiSU-Ultra-GPL-3.0.txt)，字域改动按 GPL-3.0-only 提供。
 
-主题包解析、字域扩展、事务保存、主题库界面、来源配置与有界 HTTPS/范围下载为字域实现，格式/协议参考同次上游源码；`ThemeStoreDefaults.kt` 使用上游明确作为公共来源随 App 分发的服务默认值与共享访问门槛，不是私人账号凭据。来源接入前提示用户，访问码不导出、不跨源发送。没有引入账号、评论、投稿服务实现、内核代码、额外网络/图片依赖或任何商店作者图片。主题作者的内容许可保持原样；详细范围与待验收项见 [`docs/THEME_PORT_v1.4.100.md`](docs/THEME_PORT_v1.4.100.md)。
+主题包解析、字域扩展、事务保存、主题库界面、来源配置与有界 HTTPS/范围下载为字域实现，格式/协议参考同次上游源码；`ThemeStoreDefaults.kt` 使用上游明确作为公共来源随 App 分发的服务默认值与共享访问门槛，不是私人账号凭据。来源接入前提示用户，访问码不导出、不跨源发送。没有引入账号、评论、投稿服务实现、内核代码、额外网络/图片依赖或任何商店作者图片。主题作者的内容许可保持原样；使用说明见 [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)。
 
 v1.4.85 的 `font_slot_overrides.{py,sh}`、`import_preview.{py,sh}`、`diagnostic_capture.{py,sh}`，v1.4.86 的 `current_font_preview.{py,sh}`，v1.4.87 的 `font_clipping_stage.py` 以及对应 Android 界面为字域独立实现的 GPL-3.0-only 代码，沿用 [项目许可证](licenses/Ziyu-GPL-3.0.txt)，未增加第三方运行库。设计参考用户手册与 [Custom Font Switcher 的公开功能说明](https://github.com/ayss2188/custom-font-switcher/blob/main/README.md)（README blob `c7a72b4f6225d79f75824660732407d1f9e97479`）；未复制对方源码、资源、字体或二进制，不将公开可见视为代码授权。
 
@@ -50,7 +50,7 @@ v1.4.89 的 `common/font_clipping_variable.py` 为字域原创 GPL-3.0-only 运�
 - 来源：[`xgl34222220-ops/LuoShu`](https://github.com/xgl34222220-ops/LuoShu)，正式标签 `refactor-v3.0.0`，固定提交 `3e7e19b9f2b0899a326d0ce337602c006b90f233`。
 - 移植内容：组合字体平顶探针、中文比例与基线校正、英数微调算法和参数边界，以及西文路由优先诊断、符号链接路由说明。
 - 字域适配：保留当前组合保存与应用流程、字形兼容和错误报告；微调接入三种界面风格、方案备份及任务参数；实例缓存沿用字域实现并补充同源英数复用。
-- 许可证：GPL-3.0-only。上游此标签的许可证文本保存在 [`licenses/upstream-v3.0.0-GPL-3.0.txt`](licenses/upstream-v3.0.0-GPL-3.0.txt)。完整范围和当前验证状态见 [`docs/UPSTREAM_V3_PORT.md`](docs/UPSTREAM_V3_PORT.md)。
+- 许可证：GPL-3.0-only。上游此标签的许可证文本保存在 [`licenses/upstream-v3.0.0-GPL-3.0.txt`](licenses/upstream-v3.0.0-GPL-3.0.txt)。变更记录见 [`更新日志/CHANGELOG.md`](更新日志/CHANGELOG.md)。
 
 ## 字体预加载公共接口
 
@@ -143,7 +143,7 @@ v1.3.3 新增的 `common/font_scan_profile.py` 和 `common/stock_font_snapshot.p
 - 本次 ColorOS 覆盖、App 筛选与轮询/前台服务、只读应用字体来源审计的参考分别为上游 PR #294、#289、#283/#293。实现按字域现有原厂快照、挂载、热切换、任务及三主题设置路径适配。
 - `common/composite_collection_build.py`、`composite_collection_contract.py` 及 Shell 入口参考上游组合字体集合方向，基于字域现有组合输出、fontTools 与可信原厂快照实现逐面构建/证明校验；代码按本仓库 GPL-3.0-only 授权，字体数据的权利仍属于原权利人。
 - `common/boot_ota_guard.sh` 及设置入口为按字域现有启动、任务监督、切换事务和挂载验证路径编写的启动/OTA 保护适配，按本仓库 GPL-3.0-only 授权；不复制或接管 Root 管理器挂载实现。
-- 完整移植范围、验收证据与手机待测项见本次版本说明和 `docs/UPSTREAM_PORT_20261018.md`；不把上游未发布 main 或其历史设备观察当作字域当前版本手机验收。
+- 变更记录见 [`更新日志/CHANGELOG.md`](更新日志/CHANGELOG.md)，真机验收状态以 [`docs/TEST_MATRIX.md`](docs/TEST_MATRIX.md) 为准。
 
 ## ziyu v1.4.8 运行文件
 

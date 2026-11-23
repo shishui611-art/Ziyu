@@ -1,9 +1,16 @@
-# LSPosed 系统 WebView 网页字体
+# LSPosed 网页与 Google 字体
 
-字域 App 提供可选的 Xposed API 82 入口。用户在兼容的 LSPosed 管理器中启用字域模块、手动勾选需要处理的 App，关闭并重新打开目标 App；字域不会自动选择目标或更改 Root 管理器的排除策略。
+字域内置可选的 LSPosed 模块入口（Xposed API 82），对用户在 LSPosed 勾选的目标 App 同时提供两项能力：
 
-模块只在用户指定的目标进程内尝试处理 Android 系统 `WebView`。页面完成加载后，如果应用本身允许 JavaScript，在页面上下文中分批给可见文字所属元素设置 `font-family: sans-serif !important`，使它使用该目标进程看到的当前系统无衬线字体。它不下载字体、不读取网页内容或账号、不修改网络响应，也不为目标 App 开启 JavaScript。动态新增文字会继续处理；图标类名、私用区字形、`aria-hidden`、代码块、SVG 与画布等尽量避开。
+1. **系统 WebView 网页字体**：页面加载完成后为正文可见文字应用系统 `sans-serif`（自动避开图标字体、私用区符号、代码块、SVG 与画布）。
+2. **拦截 Google Sans 内置与下载字体**：拦截目标 App 对 `Google Sans` / `Product Sans` 的 GMS 字体查询、`Resources.getFont`、`Typeface` 资源/文件加载，按原字重与斜体转回系统无衬线字体（自动排除 `Code`、`Mono`、图标、Emoji 与时钟字体）。
 
-此功能不是文件系统挂载，也不保证替换所有 App 内字体。应用自带浏览器内核、原生文本、画布绘制、跨域 iframe、伪元素、禁用 JavaScript 或受内容安全策略影响的网页，可能不生效。目标应用如果看不到字域挂载，则 WebView 的 `sans-serif` 也可能是原厂字体；本功能不会绕过排除规则。部分网页可能使用无法识别的图标类名，应在需要的目标 App 上自行检查显示并在 LSPosed 中取消勾选以恢复。
+## 开启步骤
 
-此功能在电脑完成脚本和打包检查，尚未在手机上的 LSPosed、具体应用或网页验收。关闭模块或取消目标作用域后重启目标应用可停止处理。
+1. 在 LSPosed 管理器中启用「字域」模块。
+2. 手动勾选需要处理的 **目标 App**（例如 Google Play、Google App、Gmail、Chrome、YouTube 等；系统框架无需勾选）。
+3. 强行停止并重新打开目标 App 即可生效。
+
+## 停用与恢复
+
+如个别应用或网页图标显示异常，在 LSPosed 中取消勾选对应 App（或关闭字域模块）并重启该 App 即可立即恢复。

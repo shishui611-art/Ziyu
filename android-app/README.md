@@ -1,32 +1,26 @@
 # 字域 Android App
 
-本目录包含字域的原生 Android 管理端。App 通过 Root 桥接调用已安装模块中的
-`/data/adb/modules/ziyu/common/app_bridge.sh`；字体扫描、导入、编译、挂载、验证和恢复由模块运行时执行。
+字域原生管理端（Jetpack Compose），通过 Root 桥接调用已安装模块的 `/data/adb/modules/ziyu/common/app_bridge.sh` 执行字体处理、挂载与恢复。
 
-## 当前功能
+## 主要模块
 
-- Jetpack Compose 原生界面，不依赖 WebView。
-- 字体库、导入与预览、中文/英文/数字选择、复合字体、字重与任务进度。
-- 挂载方式选择及重启确认；显示本次启动的 Root、提供者、实现方式、验证与警告。
-- 诊断报告导出、字体应用结果及完整重启入口。
-- App 与模块共用 `module.prop` 中的版本号和 versionCode；正式发布只交付内置 App 的模块 ZIP 与校验文件。
-
-App 应与相同版本的字域模块配套使用。没有已安装模块或 Root 授权时，模块桥接功能不可用。
+- **首页**：模块与连接状态、当前字体、挂载方式选择与详情、DPI 调整、快捷重启/软重启入口。
+- **字体库与组合**：TTF/OTF/TTC/可变字体/ZIP/MTZ 导入、酷安基准字库预览、中文/英文/数字复合方案、TTF/归档导出。
+- **设置**：Emoji 独立管理、三套原生风格（Material / Miuix / COUI）、主题商店与动态壁纸、桌面/底栏图标自定义、开机/OTA 保护、Google 字体兼容、检查应用字体、模块更新、备份与诊断导出。
+- **LSPosed 入口**：可选 Xposed API 82 钩子，用于目标应用系统 WebView 网页字体替换。
 
 ## 本地构建
 
-需要 JDK 17、Android SDK API 37 和 Gradle 9.5：
+环境要求：JDK 17、Android SDK API 37、Gradle 9.5。版本名与 `versionCode` 自动读取根目录 `module.prop`。
 
 ```sh
-gradle --no-daemon :app:assembleDebug
+# 正式构建（需通过 ZIYU_KEYSTORE_* 环境变量提供正式签名）
+gradle -p android-app --no-daemon :app:assembleRelease
+
+# 调试构建（提供正式签名环境变量时复用正式签名）
+gradle -p android-app --no-daemon :app:assembleDebug
 ```
 
-APK 输出：
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-如果提供正式签名环境变量，Debug 构建使用正式包名和证书，可覆盖正式 App 并保留数据；没有签名配置时，Debug 会使用 `.debug` 后缀包名和本地 Debug 签名。Release workflow 负责正式证书、Lint、单元测试、模块 ZIP 和发布门禁。
-
-刷入完整模块包时会尝试安装或更新 App；若安装环境暂不可用，可在重启后点击 Root 管理器中的模块“操作”按钮再次安装。
+输出路径：
+- Release：`android-app/app/build/outputs/apk/release/app-release.apk`
+- Debug：`android-app/app/build/outputs/apk/debug/app-debug.apk`

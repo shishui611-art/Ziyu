@@ -109,7 +109,7 @@
     "root-management",
     "upstream artwork"
   ],
-  "localDoc": "docs/THEME_COMPAT_v1.4.103.md",
+  "localDoc": "docs/USER_GUIDE.md",
   "deviceAccessProtocol": {
     "commit": "8ed5bd556fba073d52f4a4d98500b782db6437e6",
     "license": "GPL-3.0-or-later; Ziyu adaptation GPL-3.0-only",

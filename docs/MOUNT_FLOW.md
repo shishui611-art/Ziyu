@@ -1,117 +1,75 @@
-# 当前字体挂载流程
+# 挂载方式与故障排查
 
-## v1.4.4 自动回退候选
+## 1. 挂载策略与启动流程
 
-刷入时保存用户挂载偏好并显示后续启动计划，不对安装器临时模块目录做实时挂载。自动模式继续优先使用确认可用的元模块或 Magisk/APatch 内置挂载；提供者不可用时，已识别管理器尝试字域自挂载。无法识别 Root 管理器时，自动回退明确选择字域 Magic Mount / bind，在 `post-fs-data` 尝试并由 service 复核；管理器身份仍记录为 unknown，不调用未确认的 Magisk 控制接口。相同策略函数用于刷入提示和启动回退。
+字域在离线准备字体负载并校验通过后提交到下一启动代次，按用户在 App 中保存的挂载模式执行，不在安装器阶段或运行时静默改写用户偏好。
 
-回退模式和原因写入本次启动记录，不把自动偏好永久改为 magic 或 self_mount；后续阶段复用本次选择，下一启动重新检测提供者。手动模式、外部排除标记、开机/OTA 保护、负载验证、PID 1 内容与路由校验和回滚继续有效。没有实际启动入口或权限时，仅选择 bind 不能使模块生效。代码和打包检查不代表未知管理器已经完成设备验收，也不等于应用隔离后的方框问题已解决。
+### 四种模式
 
-## APatch 的扫描前准备
+1. **元模块自动挂载（`auto`）**：优先使用当前启动已识别的元模块或管理器原生挂载（NoMount、Mountify、Hybrid Mount、meta-overlayfs、Magisk / APatch 原生挂载）；若提供者缺失、被排除或发布/路由校验失败，自动尝试字域自挂载（无法识别管理器时回退 Magic Mount / bind）。
+2. **字域自挂载（`self_mount`）**：跳过元模块，优先 OverlayFS，不满足条件时使用文件 bind；遇 ROM 别名冲突时在 `/data/adb/luoshu/self-mount/work/` 建立目录镜像 bind。
+3. **Magic Mount（`magic`）**：跳过元模块，仅使用文件或目录镜像 bind。
+4. **OverlayFS（`overlayfs`）**：仅使用只读多 lower 层 OverlayFS，失败直接记录原因并回滚。
 
-APatch 的 common `post-fs-data.d` 脚本先于 `modules_update` 迁移、元模块 `metamount.sh` 扫描和模块自己的 `post-fs-data.sh`。字域安装时登记自己持有的 `/data/adb/post-fs-data.d/ziyu-apatch-pre-mount.sh`，仅在确认 APatch 环境与 PID 1 挂载命名空间后执行准备。待升级时优先使用 `modules_update/LuoShu` 内的新运行代码，在管理器迁移前激活已提交字体、校验并发布普通扫描树；模块移动和 NoMount 规则加载仍由 APatch 执行。
+### 启动阶段分工
 
-`config/apatch-pre-mount.conf` 将准备记录绑定到本次 boot ID、启动脚本和字体清单。后续模块 hook 复用该批次，不重复激活或重新发布 NoMount 已扫描的源文件。升级中的发布目录与撤销引用转换为最终模块路径；停用、删除和用户持有的排除标记仍生效。实际应用成功仍须通过 post-mount/service 的 PID 1 字体内容与路由校验。此修复不增加 NoMount 热切换能力，要求完整重启。
-
-调度依据：[APatch event.rs](https://github.com/bmax121/APatch/blob/main/apd/src/event.rs)、[APatch module.rs](https://github.com/bmax121/APatch/blob/main/apd/src/module.rs)、[NoMount v2.1.0 扫描脚本](https://github.com/maxsteeel/nomount/blob/v2.1.0/module/metamount.sh)。2026-10-14 的 OnePlus PJZ110 / Android 17（API 37）、APatch 115357、NoMount v2.1.0 诊断记录了 v1.4.1 升级后首次启动与同一字体再次应用后的完整重启成功，并验证 14 个 PID 1 字体目标；换字体、恢复默认和应用实际显示仍待测，设备矩阵保持待测。没有同条件耗时测量，不宣称实测加速。
-
-## v1.4.8：重启应用
-
-所有新请求离线生成、校验并提交下一启动负载，不再调用 live apply。保留旧热事务恢复清理。新负载在用户完整重启后的启动阶段加载，首次标识升级必须完整重启。
-
-## 启动时只做一次选择
-
-1. `post-fs-data.sh` 先检查 `disable`、`remove` 和外来的 `skip_mount` / `skip_mountify`，被排除时不激活待应用字体。
-2. 激活已经准备好的字体代次，统一运行 `common/mount_backend_runtime.sh`。
-3. App 可选四种挂载模式：OverlayFS、Magic Mount、元模块自动挂载、字域自挂载。模式写入 `config/mount-backend-preference.conf`，重启后生效；刷入新版本模块时保留用户已选模式。
-4. 自动模式优先把 `.luoshu-payload` 发布给外部提供者并等待验证。提供者缺失/状态未知、元模块排除字域、负载发布/回执/字域自有排除标记处理异常或外部字体路由校验失败时，字域会在当前 Root 管理器允许的启动阶段尝试自挂载。自挂载仍须通过 PID 1 路由与内容哈希验证；失败会回滚字域自己的挂载并记录失败原因。
-5. Magic Mount 模式跳过元模块，使用字域 bind。字域自挂载模式跳过元模块，优先 OverlayFS，不可用时使用 bind。逐文件 bind 在挂载前检测别名冲突；同一 ROM 实体需要不同负载时，使用保留原厂文件的字体目录镜像 bind，让逻辑别名保留各自的字体字节和度量。单独选择 OverlayFS 时只尝试 OverlayFS，不支持则报错。所有手动模式仍执行 PID 1 路由校验与事务回滚。
-6. 字域被禁用 / 删除、存在外部 `skip_mount`，或没有选择自定义字体时，不进行自挂载。恢复系统默认字体时，如果扫描目录有字域此前发布的凭据，启动阶段会先发布当前无自定义字体的负载，撤回旧字体；撤回失败会明确记为失败，不伪报恢复完成。无法识别 Root 管理器时也会尝试早期自挂载，再由 service 阶段复核。
-
-刷写终端只显示一行挂载状态：系统默认字体显示“未执行”，自定义字体显示“待重启验证”，显式排除显示“已跳过”。真实挂载发生在 Root 管理器的启动阶段；详细后端、实现方式和验证原因在 App「挂载详情」及 `logs/mount-backend.log` 查看。终端不把“模块 ZIP 安装成功”当作挂载成功。
-
-同一次启动的提供者身份、用户选择、自动回退原因和实际后端写入 `config/mount-backend.conf`，后续阶段使用该记录。App 保存新选择不热切换正在运行的后端；重启后重新检测提供者。自动回退不改写用户偏好；显式选择的 OverlayFS、Magic Mount 或自挂载不会切换到其他后端。元模块报告当前模块被排除时，自动模式会跳过该提供者并尝试字域自挂载；下一次启动会先回收上一启动中字域自己创建的排除标记，再重新检测外部提供者。用户在字域模块目录手动放置的外部 `skip_mount`、停用或删除标记仍会停止挂载。
-
-目录镜像在 `/data/adb/luoshu/self-mount/work/<分区>-fonts` 准备。先复制原厂目录，再删除负载覆盖项的同名符号链接并写入独立字体文件。按照本机原厂目录及字体复制 SELinux 上下文，在覆盖系统目录前校验负载内容，然后只读 bind 挂载整个目录。`self-mount-required.conf` 中以 `mirror` 记录该实现，挂载详情显示目录镜像 bind。没有 NoMount CLI 调用，也不写入系统分区。
-
-目录镜像额外使用 /data 空间，约为原厂字体目录和本次负载副本大小；不会把全部字体放进 tmpfs。复制、标签处理、挂载或 PID 1 内容验证失败时按原有账本逆序卸载，确认卸载后删除镜像。清理失败保留账本，不报告成功。原厂 lower 先记录，字体目录目标后记录，卸载顺序为字体目标、原厂 lower、镜像文件。
-
-v1.2.26 / v1.2.27 的自挂载失败自动改为 auto / NoMount 救援已移除。旧版本字域自行创建的 NoMount 规则仍按 `.ziyu-state/nomount-rules.current` 账本清理，自挂载启动前先确认这些规则回收成功，再移除旧救援标记；不删除没有账本归属的规则。旧版本已改写的 auto 偏好需要用户重新选择，程序不推测旧意图。
-
-模块启动时按账本回收旧字域规则、文件挂载及目录镜像，确认遗留目标已卸载后撤销旧后端记录。不能确认清理时记录失败并阻止新负载激活。清理日志附入诊断导出。恢复默认字体、禁用启动与卸载脚本同样保留旧账本清理能力。
-
-安装核心拒绝迁移当前活动字体时，外层安装器会先清理生成的兼容脚本，再调用 Root 管理器的中止流程。该保护不会把迁移错误伪装成安装成功，也不会留下临时脚本影响之后的启动。
-
-## 各阶段职责
-
-| 阶段 | 职责 |
+| 阶段 | 执行内容 |
 | --- | --- |
-| post-fs-data | 激活代次、识别提供者、发布扫描目录、固定选择 |
-| post-mount | KernelSU / SukiSU / APatch 执行用户选择的自挂载，或验证元模块挂载 |
-| service / boot-completed | 复核已有选择；不改写用户偏好；自动模式确认外部失败后可尝试自挂载；独立字体部分生效写 partial，全部未生效或安全异常写 failed |
-| App 准备字体 | 离线生成并验证下一启动负载，等待用户确认重启 |
+| `post-fs-data` | 检查停用/删除/外部 `skip_mount` 标记，激活待应用代次，识别提供者，向扫描目录发布字体负载并锁定本轮后端。APatch 环境由 `ziyu-apatch-pre-mount.sh` 在扫描前完成准备。 |
+| `post-mount` | 执行手动自挂载，或对元模块挂载进行首轮路由核验；NoMount 处于加载窗口时延后到 `service` 复核。 |
+| `service` / `boot-completed` | 在 PID 1 命名空间核对实际字体哈希与系统路由；自动模式确认外部挂载失败时尝试自挂载；同一次启动内 `boot_id` 与负载清单未变化时直接复用已通过的验证报告。 |
 
-Magisk、APatch 的原生模块挂载作为外部提供者处理。其他已识别的提供者包括 Hybrid Mount、Mountify、Magic Mount、meta-overlayfs 和 NoMount。KernelSU / SukiSU 当前选中的 Mountify 以有效的 `metamount.sh` 作为元模块入口，不要求该脚本具有可执行位；Magisk 独立 Mountify 仍需可执行 boot / service hook。未经确认的提供者保持未知状态。
+### 原厂只读字库与覆盖兼容
 
-## 目录与验证
+生成组合字体与扫描原厂槽位时，`common/stock_readonly_view.py` 会自动跳过叠加在 `/system/fonts` 上的 Mountify / OverlayFS / Magic Mount 覆盖层，直接从底层只读块设备分区（`erofs` / 只读 `ext4`，对齐设备块大小）读取原厂字库，避免已挂载自定义字体时无法补齐原厂集合。
 
-- `.luoshu-payload` 是字体负载的来源，脚本直接读取它。加载辅助脚本不创建模块目录的 bind 视图。
-- 如果升级中断后 `.luoshu-payload` 不存在，外部提供者发布器只会在 `config/font-payload-manifest.conf` 校验通过后，临时从模块根目录的旧分区树发布字体；校验失败会记录具体原因并拒绝发布，不会把不完整负载交给 NoMount 或其他元模块。成功发布会在凭据中记录来源。
-- 普通提供者使用 `system/<partition>` 布局；NoMount 使用顶层分区布局；meta-overlayfs 使用其已就绪的内容目录。字域不会替提供者挂载内容镜像。
-- 发布扫描目录使用临时目录和恢复记录，替换失败可恢复上一代目录；替换字体或恢复系统默认字体时，旧字体不会留在元模块扫描目录中。
-- 验证读取 PID 1 的文件，检查来源、哈希和字体 XML 引用。NoMount 不要求存在 OverlayFS / bind 的 mountinfo 项。
-- Universal 字体负载仍检查部署身份和字体契约；外部模式使用本次启动的提供者记录，不要求字域的自挂载事务记录。
-- 自挂载失败时逆序清理本模块记录的目标。卸载失败保留目标列表并报告失败，不能显示“已完整回滚”。
+## 2. 内核软重启与 PID 回收
 
-## 兼容与状态
+- **适用条件**：兼容的 FinaSU 内置 VFS（NoMount）环境，或开启「设置 → 临时 Root」并由管理器执行软重启。
+- **执行流程**：
+  1. `emulated-soft-reboot.sh` 在 Android 停止前登记本轮软重启请求。
+  2. 系统框架停止（`zygote` / `system_server` 退出，兼容 ColorOS `zygote_tango` 转译进程）后，`post-fs-data` 仅按账本清理字域自有 NoMount 规则（兼容已替换模块路径的 `(deleted)` 标记），单次全量回读校验确认后发布新负载。
+  3. 字体 `post-mount` 完成后、Android 尚未重启前，调用原生 `pid_wrap` 工具短暂调整 `pid_max` 回收后续 PID 分配区间（最多 256 次 / 200 ms 预算，附独立恢复看护进程），降低重启后高 PID 风险。
+- **失败处理**：若旧字体挂载或规则清理未通过校验，保留待应用负载并在首页提供「普通重启」。
+- **相关日志**：`logs/soft-reboot.log`、`config/temporary-root-soft-reboot.conf`、`config/pid-wrap-last.conf`。
 
-主页挂载设置允许选择 OverlayFS、Magic Mount、元模块自动挂载或字域自挂载；界面同时展示 Root 管理器、具体元模块及版本、实现方式、实际后端、验证结果和原因。手动模式只控制字域自挂载策略，不修改元模块配置；新选择保存成功后弹出是否重启验证，可立即重启或稍后重启。旧 App 的 `meta` / `self` 设置命令仍可调用，统一转换为 `auto`。
+## 3. 常见问题排查
 
-`auto` 优先使用当前启动可识别的外部提供者；提供者缺失、状态未知、元模块排除字域、负载发布/回执异常或 PID 1 路由未通过时会尝试字域自挂载。外部 `skip_mount`、停用或删除标记仍作为明确停用指令处理。显式选择某个后端时只使用所选后端并执行相同的 PID 1 验证和回滚。
+### 查看挂载状态
 
-提供者身份读取本次启动记录；NoMount / Hybrid VFS 使用启动配置，字域自挂载使用同启动事务记录，其他方式显示 PID 1 字体路径的 mountinfo 观察值。观察值可能包含其他模块，不把提供者名称当作生效证据。日志导出默认附带 `config/mount-backend.conf`、`config/mount-backend-verification.json` 和 `logs/mount-backend.log`；详情查询不修改元模块配置。
+打开首页「挂载详情」，重点核对 4 项：
+- **Root 管理器与提供者**：当前识别到的管理器和元模块版本。
+- **实际实现方式**：外部提供者、OverlayFS、文件 bind 或目录镜像 bind。
+- **验证状态**：
+  - `已应用`：PID 1 路由与内容校验全部通过。
+  - `部分应用`：主要槽位生效，个别路径保留原厂并列出原因（可在设置页忽略提醒，原始日志保留）。
+  - `待重启`：新负载已生成，尚未经过重启激活。
+  - `失败`：查看错误原因并导出诊断报告。
 
-挂载状态记录使用 `ziyu-mount-backend-v3`；Root 检测、字体加载验证、字体负载复用和 Universal 运行验证均接受 v3，并仍验证 boot ID、后端状态和字体路由。
+### 某些 App 字体没变化
 
-元模块路径只发布扫描目录并验证。字域自挂载不创建 NoMount 规则；仅为旧版本遗留规则保留账本清理与百分号路径解析修复。
+1. 打开 **设置 → 检查应用字体**，选择目标 App（先打开显示异常的页面再切回字域），点击「检查字体」或使用「批量检查」查看进程实际映射的字体路径。
+2. 按检查结果处理：
+   - **Google Play / Chrome 等英数回退默认**：打开 [Google 字体兼容](GOOGLE_FONT_COMPATIBILITY_ZH.md) 开启并重启。
+   - **App 内网页仍为原字体**：可启用 [LSPosed 网页字体](WEBVIEW_LSP.md) 并勾选对应 App。
+   - **App 自带字体或独立渲染引擎**（如部分游戏、阅读器、输入法皮肤）：此类文本不走 Android 系统字体，系统模块无法覆盖。
+   - **目标 App 位于 Root 隐藏/排除列表**：在 Root 管理器确认该应用是否被隔离于模块挂载之外。
 
-这是当前源码的行为说明；自挂载成功与否仍以本次启动的路由验证和设备验收为准。
+### ColorOS 数字或锁屏时钟异常
 
-v1.3.6 将状态读取集中到 `common/mount_backend_state.sh`。启动钩子每次进入时读取一份完整记录，成功原子提交状态后刷新；日志和同次挂载详情查询共用该记录。设置查询也在每次进入时重新读取，详情与状态字段来自同一份记录。解析仅接受固定字段，值不作为 Shell 代码执行，重复字段取第一项，读取失败会清空快照。这个优化只减少状态文件重复扫描与外部命令调用，内容哈希、PID 1 路由验证和回滚按原执行路径运行；实际耗时须由设备对比测量。
+- 通用文字默认保留原有字形比例，仅专用数字字体应用宽度适配；如需保持原厂锁屏时钟字体，保持「设置 → 字体工具 → 保留锁屏时钟字体」开启。
 
-### NoMount 启动衔接（v1.3.7）
+### OverlayFS 模式失败
 
-NoMount v2.0.0 的 metamount.sh 先查询 nm version；未内置驱动时由该钩子加载 nomount.ko，再添加模块分区目录中的规则。因此 post-fs-data 只确认提供者入口并发布字体树，nomount_kernel_usable=unknown 表示未查询接口，不能作为内核不支持的证据。
+- OverlayFS 为独立严格模式，内核或文件系统不支持时会报错并回滚。请切回「元模块自动挂载」或「字域自挂载」并重启。
 
-post-mount 和 service 会核对早期选定的同一元模块路径、当前选择器及停用/删除标记，并重新执行只读 nm version。接口返回成功且非空时记录 1，实际探测失败时记录 0。接口可用仍需 PID 1 字体哈希与系统路由通过，不能直接显示挂载成功。
+## 4. 导出诊断与分区报告
 
-post-mount 接口未就绪、NoMount 的 .booting 扫描标记仍存在，或已发布负载完整但路由尚未通过时，保留外部选择到 service 再核验。service 确认失败后按自动模式既有路径尝试自挂载并验证、回滚。没有添加固定 sleep、重复发布或私有 NoMount 规则；不执行提供者加载脚本。其他提供者及手动模式的执行时机按原路径运行。
+- **App 一键导出**：进入「设置 → 日志与诊断」（或字体刷写日志页）点击导出，报告保存在 `/sdcard/ziyu/reports/Ziyu-diagnostic-<时间>.txt`，包含挂载状态、后端日志、PID 1 挂载表、软重启与槽位覆盖记录。分享前建议复核设备信息。
+- **独立分区兼容脚本**：将模块内 `common/font_partition_compat_report.sh` 复制到 `/sdcard/Download/` 并在 Root Shell 运行：
 
-## 部分应用与兼容验证（v1.2.36）
+```sh
+su -c 'sh /sdcard/Download/font_partition_compat_report.sh'
+```
 
-保留原厂 XML 的 physical-safe 字体负载按独立字体目录处理。所有挂载立即登记到同一账本，每个目录记录开始位置，失败只回退该位置之后的挂载，再继续其余分区；失败目录必须确认清理，清理未确认仍停止事务。逐文件 bind 可跳过无法挂载的独立目标，但共用 ROM 目标且内容冲突时仍先使用目录镜像，不能任意挑一个字体覆盖共用目标。用户明确选择 OverlayFS 时不切换 bind 或元模块。
-
-最终验证使用库存扫描相同的动态 OEM 分区名单，支持跨分区相对子目录 XML 引用，接受有原厂度量及格式凭据的 hyperos-physical 槽位。源负载完整性检查不放宽。生成器的隐藏 .font 硬链接源只验证源完整性；被运行时符号链接引用的 backing store 仍要求可见。
-
-只有存在 PID 1 文件哈希、读取权限和 XML/原厂直连槽位路由证据的字体才算已应用。部分槽位未应用时记录 verification=partial、active_backend 和 mount_warning，保留已验证的字体并显示位置警告。没有任何可证明的字体应用、源负载损坏、XML 依赖不完整或回退未确认仍显示失败。不能用“负载准备完成”代替实际应用证据。
-
-元模块初期不可用时，post-mount/service 只读重新检测并核对实际字体；不晚期发布字体树。自动模式确认外部失败后可尝试字域自挂载。Meta OverlayFS 支持 MODULE_CONTENT_DIR 中已挂载的内容镜像，分项记录 active/metamodule/skip_ok/hook/image 检测条件。
-
-config/font-apply-result.conf 和 mount-backend-verification.json 保存应用数量、未应用目标及警告；font-mount-warnings.conf 记录本次启动失败目录。导出报告补齐当前 boot ID、检测条件、库存来源及字体挂载信息。忽略警告只改变通知与设置页提示，实际 partial 状态及诊断证据仍保留。
-
-v1.2.37 补齐中断恢复：挂载不再等待分区结束后合并账本；提交前写 preparing，避免沿用旧 mounted 状态。回退以原子替换方式保留此前已提交部分和未清理目标；再次执行先检查当前挂载归属，不直接卸载归属未确认的目标。后续启动钩子从当前物理负载配置重新读取部分应用策略，避免把部分 bind 的正常警告当成整体失败。只有字体目录的 bind 验证允许部分匹配，XML 与 OverlayFS 目录内容仍按原约束验证。
-
-## OverlayFS 参数与诊断（v1.2.30）
-
-OverlayFS 使用只读多 lower 层。根据本机公开的 OverlayFS 参数入口增加 index/metacopy/nfs_export 关闭与 redirect_dir=nofollow 组合；检测到 Android 旧 override_creds 入口时增加对应组合，保留基本参数。明确选择 OverlayFS 时不切换其他后端。
-
-捕获原目录的 bind 立即入账。传播隔离兼容 Toybox 的 -o private 调用和 util-linux 的 --make-private，再通过 mountinfo 校验。准备失败停止事务；回滚后仍能看到私有负载或工作目录挂载、或者挂载表不可读时保留工作目录并报告未确认。
-
-logs/mount-diagnostics.log 保留每步命令、退出码及原始输出，记录本机文件系统、空间、SELinux 标签、命名空间和 OverlayFS 参数；关键失败追加相关内核历史快照。诊断导出包含该日志及上一份尾部、self-mount.log、两份挂载表、self-mount-required.conf 和 /data/adb/luoshu/self-mount 下账本。组件验证失败明确指向具体文件，不再只留下 visibility-mismatch。日志缺失、空文件、不可读分别说明。独立分区检测脚本只读收集这些证据，不尝试挂载。
-
-语法和包检查不能证明手机兼容；失败后导出本次日志，先区分 lower 准备、参数拒绝、内容或 PID 1 不匹配、回滚失败，再结合内核错误判断。
-
-## v1.4.6：恢复识别与修正保护闭环
-
-首次安装/跨版升级缺少旧观察基准不等于 OTA；安装时初始化真实构建版本、设备与 SDK 基准，仅展示指纹变化不触发停用。迁移无已准备恢复代次的旧推断保护，只释放字域自己的匹配停用令牌。已确认构建变化、开机循环保护与用户停用继续保留。扫描完成以当前 ROM、可信回执和待扫描标记共同核对，已结束观察任务不再阻止独立扫描恢复。
-
-保护门禁阻止负载激活和挂载，仍保留只读 Root 与元模块识别结果。当前 su 的带超时版本查询补足 App su shell 缺少启动变量的情况；已确认的选择器可独立证明标准元模块身份。无选择器时，元模块发现改为单次模块目录遍历加候选复核，保留模式优先级、停用/删除检查与每次检测重新读取。手动模式也保留识别结果。所有实际挂载继续执行来源、输出、PID 1 和回滚验证；未实测耗时改善。
+脚本会在同目录生成只读报告 `font-partition-compat-<时间>.log`，提交反馈时一并附上即可。

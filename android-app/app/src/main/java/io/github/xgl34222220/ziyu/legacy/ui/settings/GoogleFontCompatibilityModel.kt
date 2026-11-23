@@ -19,9 +19,12 @@ internal data class GoogleFontCompatibilityState(
     val message: String = "只检测，不会自动开启。",
     val user: Int? = null,
     val canEnable: Boolean = false,
+    val canEnforce: Boolean = false,
     val canRestore: Boolean = false,
     val managed: Boolean = false,
     val componentDisabled: Boolean = false,
+    val updaterDisabled: Boolean = false,
+    val sealedCaches: Int = 0,
     val resultMessage: String = "",
     val error: String = "",
 )
@@ -45,21 +48,26 @@ internal fun parseGoogleFontCompatibility(raw: String, expectedUser: Int): Googl
         user = expectedUser,
         managed = managed,
         componentDisabled = disabled,
+        updaterDisabled = json.optBoolean("updaterDisabled", false),
+        sealedCaches = json.optInt("sealedCaches", 0),
         canEnable = state == "off" && !managed && !disabled && json.optBoolean("canEnable", false),
+        canEnforce = state in setOf("enabled", "changed") && managed && json.optBoolean("canEnforce", false),
         canRestore = state in setOf("enabled", "changed", "unavailable") && managed && json.optBoolean("canRestore", false),
     )
 }
 
 internal fun googleFontActionMessage(action: String, status: String): String = when {
-    action == "enable" && status == "component-disabled" -> "已开启兼容设置。请完整重启，再检查谷歌商店的英文和数字。"
+    action == "enable" && status == "component-disabled" -> "已停用 Google 字体服务并封堵缓存。请完整重启后检查 Google 应用。"
     action == "enable" && status == "externally-disabled" -> "组件已被其他方式停用，字域没有接管或修改它。"
-    action == "restore" && status == "restored" -> "已恢复开启前的组件设置。请完整重启手机。"
+    action == "enforce" && status == "enforced" -> "已重新停用 Google 字体组件并封堵缓存。请重启相关 Google 应用或手机。"
+    action == "enforce" && status == "unchanged" -> "尚未开启兼容设置，未执行加固。"
+    action == "restore" && status == "restored" -> "已恢复开启前的组件设置并解除缓存封堵。请完整重启手机。"
     action == "restore" && status == "unchanged" -> "没有字域的修改记录；未擅自启用组件。"
     else -> throw IllegalArgumentException("操作结果未核验成功，请重新检测当前状态。")
 }
 
 internal fun googleFontCommand(action: String, user: Int): String {
-    require(action in setOf("status", "enable", "restore"))
+    require(action in setOf("status", "enable", "enforce", "restore"))
     require(user in 0..21474)
     val path = "/data/adb/modules/ziyu/common/google_font_fallback.sh"
     return "if [ -f ${RootShell.quote(path)} ]; then /system/bin/sh ${RootShell.quote(path)} " +
@@ -77,6 +85,7 @@ internal class GoogleFontCompatibilityModel : ViewModel() {
 
     fun refresh() = request("status")
     fun enable() { if (ui.canEnable) request("enable") }
+    fun enforce() { if (ui.canEnforce) request("enforce") }
     fun restore() { if (ui.canRestore) request("restore") }
 
     private fun request(action: String) {

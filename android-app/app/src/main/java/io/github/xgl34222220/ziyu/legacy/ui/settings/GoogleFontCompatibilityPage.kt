@@ -103,8 +103,13 @@ internal fun GoogleFontCompatibilityPage() {
                 OutlinedButton(onClick = model::refresh, enabled = idle, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Text("重新检测")
                 }
-                Button(onClick = { confirmAction = "enable" }, enabled = idle && state.canEnable,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("开启 Google 字体兼容") }
+                if (state.canEnforce) {
+                    Button(onClick = model::enforce, enabled = idle,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("重新加固（清缓存并封堵）") }
+                } else {
+                    Button(onClick = { confirmAction = "enable" }, enabled = idle && state.canEnable,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("开启 Google 字体兼容") }
+                }
                 OutlinedButton(onClick = { confirmAction = "restore" }, enabled = idle && state.canRestore,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("恢复原设置") }
             }

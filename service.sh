@@ -65,6 +65,27 @@ if [ -f "$MODDIR/common/theme_store.sh" ]; then
     fi
 fi
 
+# Google 字体兼容开机加固：仅在用户已开启并保留恢复记录时，开机后重新停用
+# 被 GMS 自愈复活的字体组件并封堵缓存；未开启时零开销跳过。
+if [ -f "$MODDIR/common/google_font_fallback.sh" ] && [ -d /data/adb/ziyu/google-font-fallback ]; then
+    _gff_has_journal=0
+    for _gff_j in /data/adb/ziyu/google-font-fallback/user-*.json; do
+        [ -f "$_gff_j" ] && { _gff_has_journal=1; break; }
+    done
+    if [ "$_gff_has_journal" = 1 ]; then
+        (
+            _gff_wait=0
+            while [ "$(getprop sys.boot_completed 2>/dev/null)" != 1 ] && [ "$_gff_wait" -lt 150 ]; do
+                sleep 2; _gff_wait=$((_gff_wait + 1))
+            done
+            [ "$(getprop sys.boot_completed 2>/dev/null)" = 1 ] || exit 0
+            MODDIR="$MODDIR" MODULE_DIR="$MODDIR" \
+                sh "$MODDIR/common/google_font_fallback.sh" enforce-owned --json \
+                >> "$MODDIR/logs/google-font-fallback.log" 2>&1 || true
+        ) </dev/null >/dev/null 2>&1 &
+    fi
+fi
+
 if [ -s "$UNIVERSAL_MODE" ]; then
     # Phase 7/8 runtime may only consume the frozen deployment artifacts.
     # The legacy provider watcher re-discovers targets and chooses weights, so it

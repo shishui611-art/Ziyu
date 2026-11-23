@@ -1,9 +1,9 @@
 #!/system/bin/sh
-# Explicit UI action only. Never enable on install or boot.
+# Explicit UI action or boot re-enforcement for already opted-in users only.
 set -eu
 HERE=${0%/*}
 PYROOT="$HERE/python"
-case "${1:-status}" in status|enable|restore|restore-owned) ;; *)
+case "${1:-status}" in status|enable|enforce|enforce-owned|restore|restore-owned) ;; *)
     printf '%s\n' '{"status":"error","message":"不支持的 Google 字体操作。"}'; exit 2;;
 esac
 if [ "$(id -u)" != 0 ]; then
